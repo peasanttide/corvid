@@ -1,0 +1,62 @@
+[package]
+name = "corvid"
+description = "A deterministic multiplayer cross platform game framework."
+publish.workspace = true
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/peasanttide/corvid"
+publish = true
+license = "GPL-2.0-or-later"
+
+[workspace.dependencies]
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+bytemuck = { version = "1", features = ["derive"] }
+arbitrary = { version = "1", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+todo = "warn"
+panic = "deny"
+panic_in_result_fn = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+unimplemented = "deny"
+missing_errors_doc = "deny"
+missing_panics_doc = "deny"
+missing_safety_doc = "deny"
+undocumented_unsafe_blocks = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+unreachable = "deny"
+allow_attributes_without_reason = "deny"
+large_enum_variant = "deny"
+needless_pass_by_value = "deny"
+inefficient_to_string = "deny"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
