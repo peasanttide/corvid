@@ -1,0 +1,27 @@
+<svg version="1.1" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+ <g stroke="#DD6B20" stroke-linejoin="round" stroke-width="2.5">
+  <polygon points="340 140 480 220 360 240" fill="#4A5568"/>
+  <polygon points="360 240 460 245 320 260" fill="#2D3748"/>
+  <polygon points="240 110 340 140 360 240 280 220" fill="#1A202C"/>
+  <polygon points="280 220 360 240 320 260 280 340 200 280" fill="#0F1219"/>
+  <polygon points="140 160 240 110 280 220 200 280 100 280" fill="#2A4365"/>
+  <polygon points="100 280 200 280 280 340 180 420" fill="#171923"/>
+ </g>
+ <g fill="#FBD38D" stroke="#DD6B20" stroke-width="2">
+  <circle cx="480" cy="220" r="4.5"/>
+  <circle cx="340" cy="140" r="5.5"/>
+  <circle cx="240" cy="110" r="6.5"/>
+  <circle cx="140" cy="160" r="4.5"/>
+  <circle cx="360" cy="240" r="5.5"/>
+  <circle cx="280" cy="220" r="5.5"/>
+  <circle cx="100" cy="280" r="4.5"/>
+  <circle cx="200" cy="280" r="6.5"/>
+  <circle cx="320" cy="260" r="5.5"/>
+  <circle cx="280" cy="340" r="5.5"/>
+  <circle cx="180" cy="420" r="4.5"/>
+  <circle cx="460" cy="245" r="3.5"/>
+ </g>
+ <circle cx="300" cy="175" r="16" fill="#E53E3E" opacity=".25"/>
+ <circle cx="300" cy="175" r="8" fill="#E53E3E"/>
+ <circle cx="300" cy="175" r="3" fill="#FFF"/>
+</svg>
