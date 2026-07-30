@@ -45,8 +45,9 @@
 //! - `+ - * /` **saturate** at the bounds for the bounded families, and **wrap**
 //!   for angles, where wrapping is the only thing a circle can do.
 //! - `checked_*` returns `None` instead, for when leaving the range is a bug.
-//! - `saturating_*`, and — for the families whose value space is a modular
-//!   group — `wrapping_*` and `overflowing_*`, name the behavior explicitly.
+//! - `saturating_*` and `wrapping_*` name the behavior explicitly; the
+//!   [fixed-point family](point) also has `overflowing_*`, which wraps and
+//!   reports whether it had to.
 //! - Division by zero saturates toward the numerator's sign; `0 / 0` is zero.
 //! - `sqrt` of a negative is zero; [`checked_sqrt`](I24F8::checked_sqrt) reports
 //!   it.

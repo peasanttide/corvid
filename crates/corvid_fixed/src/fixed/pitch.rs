@@ -127,8 +127,13 @@ macro_rules! define_pitch {
                 Self::from_turns(turns)
             }
 
-            /// Converts from turns, or returns `None` if outside
-            /// `-0.25 ..= 0.25`.
+            /// Converts from turns, or returns `None` if more than half a step
+            /// outside `-0.25 ..= 0.25`.
+            ///
+            /// The half-step tolerance is what makes this the inverse of
+            /// [`to_f64`](Self::to_f64): a value that rounds to an endpoint is
+            /// accepted and rounded there, and only one that would have to be
+            /// clamped is rejected.
             ///
             /// `NaN` returns `None`.
             #[must_use]
@@ -298,9 +303,7 @@ macro_rules! define_pitch {
             #[inline]
             pub const fn sin(self) -> $signed {
                 let scale = $signed::MAX.to_bits() as i64;
-                $signed::from_bits(
-                    trig::q_to_snorm(trig::sin_q(self.phase()), scale) as $signed_repr
-                )
+                $signed::from_bits(trig::sin_snorm(self.phase(), scale) as $signed_repr)
             }
 
             #[doc = concat!("The cosine, as a [`", stringify!($signed), "`].")]
@@ -312,7 +315,7 @@ macro_rules! define_pitch {
             pub const fn cos(self) -> $signed {
                 let scale = $signed::MAX.to_bits() as i64;
                 $signed::from_bits(
-                    trig::q_to_snorm(trig::cos_q(self.phase()), scale) as $signed_repr
+                    trig::cos_snorm(self.phase(), scale) as $signed_repr
                 )
             }
 

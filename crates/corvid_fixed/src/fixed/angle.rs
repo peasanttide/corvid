@@ -17,9 +17,14 @@
 //!   [`sin_cos`](Angle16::sin_cos), [`tan`](Angle16::tan), and
 //!   [`atan2`](Angle16::atan2) are the accurate tier. Sine and cosine are
 //!   *correctly rounded*: the result is the same bit pattern you would get by
-//!   rounding the true value to the output type. `tests/trig.rs` proves this by
-//!   walking every one of the 256 [`Angle8`] and 65536 [`Angle16`] inputs and
-//!   comparing against `f64`, and samples [`Angle32`] the same way.
+//!   rounding the true value to the output type, at every width. `tests/trig.rs`
+//!   proves it for [`Angle8`] and [`Angle16`] by walking all 256 and all 65536
+//!   inputs against `f64`. [`Angle32`] is finer than `f64` can referee, so it is
+//!   held to a table of values computed in 80-digit arithmetic, plus a sweep of
+//!   all 2^32 phases against the extended-precision path the implementation
+//!   falls back to near a rounding boundary. That fallback costs [`Angle32`]
+//!   about a tenth of its time and the narrower types nothing, since Q60 already
+//!   rounds every input they have correctly.
 //! - [`sin_fast`](Angle16::sin_fast), [`cos_fast`](Angle16::cos_fast), and
 //!   [`atan2_fast`](Angle16::atan2_fast) trade accuracy for speed: worst-case
 //!   error is `1.2e-3` for sine and `4.4e-3` radians for arctangent.
@@ -283,25 +288,25 @@ macro_rules! define_angle {
             #[doc = concat!("The sine, as a [`", stringify!($signed), "`].")]
             ///
             /// Correctly rounded: the same bit pattern that rounding the true
-            /// sine to this output type would produce, verified exhaustively.
-            /// Exact at multiples of a quarter turn.
+            /// sine to this output type would produce, verified over the whole
+            /// domain at every width. Exact at multiples of a quarter turn.
             #[must_use]
             #[inline]
             pub const fn sin(self) -> $signed {
                 let scale = $signed::MAX.to_bits() as i64;
-                $signed::from_bits(trig::q_to_snorm(trig::sin_q(self.phase()), scale) as $signed_repr)
+                $signed::from_bits(trig::sin_snorm(self.phase(), scale) as $signed_repr)
             }
 
             #[doc = concat!("The cosine, as a [`", stringify!($signed), "`].")]
             ///
             /// Correctly rounded: the same bit pattern that rounding the true
-            /// cosine to this output type would produce, verified exhaustively.
-            /// Exact at multiples of a quarter turn.
+            /// cosine to this output type would produce, verified over the whole
+            /// domain at every width. Exact at multiples of a quarter turn.
             #[must_use]
             #[inline]
             pub const fn cos(self) -> $signed {
                 let scale = $signed::MAX.to_bits() as i64;
-                $signed::from_bits(trig::q_to_snorm(trig::cos_q(self.phase()), scale) as $signed_repr)
+                $signed::from_bits(trig::cos_snorm(self.phase(), scale) as $signed_repr)
             }
 
             /// The sine and cosine together.
