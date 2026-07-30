@@ -136,8 +136,10 @@ const CORDIC_ITERS: usize = 40;
 
 /// Scale that CORDIC coordinates are normalized to before rotating.
 ///
-/// The rotations grow the vector by the CORDIC gain, about 1.647, so the working
-/// scale needs headroom above it: `2^61 * 1.647` still fits `i64`. Precision
+/// Normalization scales the larger of `|x|` and `|y|` to just under `2^61`, so
+/// the vector magnitude reaches `2^61 * sqrt(2)` on the diagonal. The rotations
+/// then grow it by the CORDIC gain, about 1.647, and the working scale needs
+/// headroom above both: `2^61 * sqrt(2) * 1.647` still fits `i64`. Precision
 /// below is not a concern — each rotation's truncation costs one unit against a
 /// magnitude of `2^61`.
 const CORDIC_SCALE_BITS: u32 = 61;
@@ -940,13 +942,15 @@ mod tests {
 
     #[test]
     fn cordic_coordinates_cannot_overflow() {
-        // The rotations multiply the vector length by the CORDIC gain, so the
-        // working scale plus that growth has to stay inside i64.
+        // Normalization bounds the larger coordinate, not the magnitude, so a
+        // diagonal vector is already sqrt(2) longer than the working scale. The
+        // rotations multiply that length by the CORDIC gain, and the result has
+        // to stay inside i64.
         let gain: f64 = (0..CORDIC_ITERS)
             .map(|i| (1.0 + 4.0_f64.powi(-(i as i32))).sqrt())
             .product();
         assert!(gain < 1.65, "gain grew to {gain}");
-        let peak = 2.0_f64.powi(CORDIC_SCALE_BITS as i32) * gain;
+        let peak = 2.0_f64.powi(CORDIC_SCALE_BITS as i32) * core::f64::consts::SQRT_2 * gain;
         assert!(peak < i64::MAX as f64, "peak {peak:e} exceeds i64");
     }
 
