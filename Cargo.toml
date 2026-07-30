@@ -23,7 +23,7 @@ license = "GPL-2.0-or-later"
 
 [workspace.dependencies]
 thiserror = "2"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", default-features = false, features = ["derive"] }
 bytemuck = { version = "1", features = ["derive"] }
 arbitrary = { version = "1", features = ["derive"] }
 
