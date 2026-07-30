@@ -94,6 +94,44 @@ fn the_denormal_snorm_encoding_round_trips_to_the_canonical_one() {
 }
 
 #[test]
+fn min_max_and_clamp_fold_the_denormal() {
+    // Comparison routes through the canonical form, and so must its result:
+    // `min`/`max`/`clamp` are the one way a denormal could otherwise escape a
+    // comparison still wearing its non-canonical bits.
+    let denormal = Signed8::from_bits(-128);
+    assert!(denormal.is_denormal());
+    for result in [
+        denormal.clamp(Signed8::MIN, Signed8::MAX),
+        denormal.min(Signed8::MIN),
+        denormal.max(Signed8::MIN),
+        denormal.min(denormal),
+    ] {
+        assert!(
+            !result.is_denormal(),
+            "denormal survived as {}",
+            result.to_bits()
+        );
+        assert_eq!(result.to_bits(), -127);
+    }
+
+    // The wider widths, through `min` and `max` directly as well as `clamp`.
+    let wide = Signed16::from_bits(i16::MIN);
+    assert!(wide.is_denormal());
+    assert_eq!(wide.clamp(Signed16::MIN, Signed16::MAX).to_bits(), -32_767);
+    assert_eq!(wide.min(Signed16::MAX).to_bits(), -32_767);
+    assert_eq!(wide.max(Signed16::MIN).to_bits(), -32_767);
+
+    let widest = Signed32::from_bits(i32::MIN);
+    assert!(widest.is_denormal());
+    assert_eq!(
+        widest.clamp(Signed32::MIN, Signed32::MAX).to_bits(),
+        -2_147_483_647
+    );
+    assert_eq!(widest.min(Signed32::MAX).to_bits(), -2_147_483_647);
+    assert_eq!(widest.max(Signed32::MIN).to_bits(), -2_147_483_647);
+}
+
+#[test]
 fn the_32_bit_types_round_trip_through_f64() {
     let mut rng = Rng::new(0xc0ff_ee11);
     let mut samples: Vec<u32> = vec![0, 1, 2, u32::MAX, u32::MAX - 1, 1 << 31, (1 << 31) - 1];
@@ -312,14 +350,21 @@ fn the_angle_checked_conversion_rejects_only_what_needed_wrapping() {
         Angle8::checked_from_f64(255.4 / 256.0),
         Some(Angle8::from_bits(255))
     );
-    assert_eq!(Angle16::checked_from_f64(0.9999), Some(Angle16::from_bits(65_529)));
+    assert_eq!(
+        Angle16::checked_from_f64(0.9999),
+        Some(Angle16::from_bits(65_529))
+    );
 
     // A full turn is the next turn's zero, so it is rejected — and so is
     // anything inside `0.0 .. 1.0` that rounds up onto it. An Angle8 step is
     // 1/256, so 0.999 rounds to 256, which *is* zero.
     assert_eq!(Angle8::checked_from_f64(1.0), None);
     assert_eq!(Angle8::checked_from_f64(0.999), None);
-    assert_eq!(Angle8::from_turns(0.999), Angle8::ZERO, "and it wraps to zero");
+    assert_eq!(
+        Angle8::from_turns(0.999),
+        Angle8::ZERO,
+        "and it wraps to zero"
+    );
     assert_eq!(Angle16::checked_from_f64(1.0), None);
 
     // Below zero the same half-step tolerance applies: an Angle8 step is

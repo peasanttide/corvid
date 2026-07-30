@@ -21,10 +21,12 @@
 
 mod common;
 
+use std::hint::black_box;
+
 use common::{I32_EDGES, Rng};
 use corvid_fixed::{
-    Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I8F8, I24F8, Signed8, Signed16,
-    Signed32,
+    Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I8F8, I24F8, Pitch16, Signed8,
+    Signed16, Signed32,
 };
 
 /// The reference result of a fixed-point operation: the true value, rounded to
@@ -786,4 +788,39 @@ fn arithmetic_is_available_in_const_context() {
     assert_eq!(FACTOR, Factor16::from_f64(0.5));
     assert_eq!(SNORM, Signed16::MAX);
     assert_eq!(ARC, Angle16::THREE_QUARTER_TURN);
+}
+
+#[test]
+fn comparison_is_available_in_const_context() {
+    // `min`/`max`/`clamp` canonicalize their result, which for the signed and
+    // pitch families is real work rather than a move — so it has to survive
+    // const evaluation, and the const and runtime paths have to agree on the
+    // bits and not merely on the value.
+    const LOW: I24F8 = I24F8::from_f64(-1.0);
+    const HIGH: I24F8 = I24F8::from_f64(1.0);
+    const CLAMPED: I24F8 = I24F8::from_f64(5.0).clamp(LOW, HIGH);
+    const LESSER: Factor16 = Factor16::MAX.min(Factor16::from_bits(10));
+    const GREATER: Angle16 = Angle16::MAX.max(Angle16::ZERO);
+    const FOLDED: Signed8 = Signed8::from_bits(i8::MIN).clamp(Signed8::MIN, Signed8::MAX);
+    const NARROWED: Pitch16 = Pitch16::from_bits(20_000).min(Pitch16::MAX);
+
+    assert_eq!(CLAMPED, HIGH);
+    assert_eq!(LESSER.to_bits(), 10);
+    assert_eq!(GREATER, Angle16::MAX);
+    assert_eq!(
+        FOLDED.to_bits(),
+        -127,
+        "the denormal survived const folding"
+    );
+    assert_eq!(NARROWED.to_bits(), 16_384);
+
+    // `black_box` keeps the compiler from folding these back into the constants
+    // above, so this really compares the two evaluators against each other.
+    let denormal = black_box(Signed8::from_bits(i8::MIN));
+    let out_of_range = black_box(Pitch16::from_bits(20_000));
+    assert_eq!(
+        FOLDED.to_bits(),
+        denormal.clamp(Signed8::MIN, Signed8::MAX).to_bits()
+    );
+    assert_eq!(NARROWED.to_bits(), out_of_range.min(Pitch16::MAX).to_bits());
 }

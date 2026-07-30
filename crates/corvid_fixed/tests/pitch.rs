@@ -110,6 +110,50 @@ fn out_of_range_bit_patterns_read_as_clamped() {
 }
 
 #[test]
+fn min_max_and_clamp_return_canonical_bits() {
+    // `clamp` promises a value in `min ..= max`, which has to mean the bits and
+    // not merely something that compares equal to them: a caller who clamps a
+    // deserialized pitch and then hands `to_bits()` to a wire or a vertex buffer
+    // would otherwise pass on a pattern the type does not mean.
+    let raw = Pitch16::from_bits(20_000);
+    assert!(raw.is_out_of_range());
+    for result in [
+        raw.clamp(Pitch16::MIN, Pitch16::MAX),
+        raw.min(Pitch16::MAX),
+        raw.max(Pitch16::MIN),
+        raw.min(raw),
+    ] {
+        assert!(
+            !result.is_out_of_range(),
+            "left {} in range",
+            result.to_bits()
+        );
+        assert_eq!(result.to_bits(), Pitch16::MAX.to_bits());
+    }
+
+    // Every width, and the low end too — through `min` and `max` directly as
+    // well as through the `clamp` built on them.
+    let low8 = Pitch8::from_bits(i8::MIN);
+    assert_eq!(low8.clamp(Pitch8::MIN, Pitch8::MAX).to_bits(), -64);
+    assert_eq!(low8.max(Pitch8::MIN).to_bits(), -64);
+    assert_eq!(low8.min(Pitch8::MAX).to_bits(), -64);
+
+    let high32 = Pitch32::from_bits(i32::MAX);
+    assert_eq!(
+        high32.clamp(Pitch32::MIN, Pitch32::MAX).to_bits(),
+        1_073_741_824
+    );
+    assert_eq!(high32.min(Pitch32::MAX).to_bits(), 1_073_741_824);
+    assert_eq!(high32.max(Pitch32::MIN).to_bits(), 1_073_741_824);
+
+    // A reversed range still returns `max`, and still returns it canonically.
+    assert_eq!(
+        raw.clamp(Pitch16::MAX, Pitch16::MIN).to_bits(),
+        Pitch16::MIN.to_bits()
+    );
+}
+
+#[test]
 fn trigonometry_spans_the_full_output_range() {
     assert_eq!(Pitch16::MAX.sin(), Signed16::MAX);
     assert_eq!(Pitch16::MIN.sin(), Signed16::MIN);
@@ -211,7 +255,11 @@ fn to_angle_reads_the_clamped_value_not_the_raw_bits() {
     // Out of range it reads the pitch's *value*, so it cannot hand on a phase
     // the type does not mean. `to_bits` is what round-trips raw bytes.
     let raw = Pitch16::from_bits(30_000);
-    assert_eq!(raw.to_bits(), 30_000, "to_bits still reports what it was handed");
+    assert_eq!(
+        raw.to_bits(),
+        30_000,
+        "to_bits still reports what it was handed"
+    );
     assert_eq!(raw.to_angle(), Pitch16::MAX.to_angle());
     assert_eq!(raw.to_angle().to_bits(), 16_384);
     assert_eq!(
@@ -230,9 +278,8 @@ fn inverse_trigonometry_lands_in_range_without_wrapping() {
     // The phase comes back signed, so the negative half needs no wrapping
     // reinterpretation on the way into a pitch. Check the raw bits, not just
     // the clamped reading, or a wrapped value would hide behind `canonicalize`.
-    let in_range = |p: Pitch16| {
-        p.to_bits() >= Pitch16::MIN.to_bits() && p.to_bits() <= Pitch16::MAX.to_bits()
-    };
+    let in_range =
+        |p: Pitch16| p.to_bits() >= Pitch16::MIN.to_bits() && p.to_bits() <= Pitch16::MAX.to_bits();
     for bits in i16::MIN..=i16::MAX {
         let p = Pitch16::asin(Signed16::from_bits(bits));
         assert!(in_range(p), "asin({bits}) stored {}", p.to_bits());

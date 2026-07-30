@@ -15,16 +15,20 @@
 //! A family macro must define these before invoking [`impl_shared`]:
 //!
 //! - `MIN` and `MAX` associated constants.
-//! - `const fn cmp_key(self) -> $repr`, the bit pattern used for equality,
-//!   ordering, and hashing. It is the identity for every family except the
-//!   signed-normalized one, which folds its denormal encoding of `-1.0`.
-//! - `const fn to_f64(self) -> f64`.
+//! - `const fn cmp_key(self) -> $repr`, the canonical bit pattern, used for
+//!   equality, ordering, hashing, and the results of `min`, `max`, and `clamp`.
+//!   It is the identity for the fixed-point, factor, and angle families. The
+//!   signed-normalized family folds its denormal encoding of `-1.0`; the pitch
+//!   family clamps bit patterns lying outside `MIN ..= MAX`.
+//! - `const fn to_f64(self) -> f64`, and the `from_f64` / `checked_from_f64`
+//!   pair that the `f32` conversions here are defined in terms of.
 
 /// Declares a family newtype, applying the optional interop derives.
 ///
 /// Comparison, hashing, and formatting are deliberately not derived:
-/// [`impl_shared`] routes them through `cmp_key` so that the signed-normalized
-/// family's two encodings of `-1.0` behave as one value.
+/// [`impl_shared`] routes them through `cmp_key`, so that the signed-normalized
+/// family's two encodings of `-1.0` — and a pitch's bit patterns from outside
+/// `MIN ..= MAX` — behave as the one value they denote.
 macro_rules! define_newtype {
     (
         $(#[$attr:meta])*
@@ -70,23 +74,36 @@ macro_rules! impl_shared {
             }
 
             /// Returns the lesser of two values.
+            ///
+            /// The result is canonical. Where `cmp_key` folds — the
+            /// signed-normalized denormal, a pitch's out-of-range bits — the
+            /// folded pattern is what comes back, so a bit pattern the type does
+            /// not mean cannot travel out through a comparison.
             #[must_use]
             #[inline]
             pub const fn min(self, other: Self) -> Self {
-                if self.cmp_key() <= other.cmp_key() { self } else { other }
+                let (this, that) = (self.cmp_key(), other.cmp_key());
+                Self(if this <= that { this } else { that })
             }
 
             /// Returns the greater of two values.
+            ///
+            /// Canonical, like [`min`](Self::min).
             #[must_use]
             #[inline]
             pub const fn max(self, other: Self) -> Self {
-                if self.cmp_key() >= other.cmp_key() { self } else { other }
+                let (this, that) = (self.cmp_key(), other.cmp_key());
+                Self(if this >= that { this } else { that })
             }
 
             /// Clamps to the inclusive range `min ..= max`.
             ///
             /// Unlike [`Ord::clamp`] this cannot panic: when `min > max` the
             /// bound applied last wins and `max` is returned.
+            ///
+            /// The result is canonical, inherited from [`min`](Self::min) and
+            /// [`max`](Self::max), so the bit pattern that comes back really does
+            /// lie in `min ..= max` and not merely equal something that does.
             #[must_use]
             #[inline]
             pub const fn clamp(self, min: Self, max: Self) -> Self {
