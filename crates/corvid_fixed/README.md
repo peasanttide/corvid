@@ -4,9 +4,9 @@ Deterministic fixed-point scalars for [Corvid](../..): fixed-point numbers,
 normalized factors, signed normalized values, wrapping angles, and clamping
 pitches — with integer-only trigonometry that outruns the platform's own.
 
-Fifteen concrete types. Every operation is `const`, total, and free of floating
-point, so the same inputs give the same bits on every machine that runs the
-simulation.
+Fifteen concrete types. Every operation is `const` and total, and every one that
+computes on a value is integer arithmetic, so the same inputs give the same bits
+on every machine that runs the simulation.
 
 ```rust
 use corvid_fixed::{Angle16, Factor32, I24F8, Pitch16};
@@ -67,6 +67,13 @@ can exist at all under the workspace's `panic = "deny"` lint.
 
 **Everything is `const`.** Including `sin`, `atan2`, `asin`, and square roots, so
 tables of geometry can be built at compile time.
+
+**Floating point lives at the boundary.** Arithmetic, comparison, and
+trigonometry never touch it. The conversions do: `from_f64`, `to_f64`, their
+`f32` forms, `from_degrees` / `to_degrees`, `from_turns` / `to_turns`, and
+`Display` all compute in `f64` and cast. They are how a value gets in and out,
+not how it is computed on — so a path that must be bit-identical everywhere
+should convert at its edges and carry fixed-point values in between.
 
 **Results are correctly rounded.** Multiplication, division, square root, and
 interpolation each round once from a full-width intermediate. Sine and cosine

@@ -154,6 +154,52 @@ fn min_max_and_clamp_return_canonical_bits() {
 }
 
 #[test]
+fn the_ord_trait_path_canonicalizes_too() {
+    // Generic code reaches `Ord`'s provided methods, not the inherent ones, so
+    // those have to be overridden or the whole guarantee leaks out through a
+    // helper that never mentions a pitch at all.
+    fn tighten<T: Ord>(value: T, low: T, high: T) -> T {
+        value.clamp(low, high)
+    }
+    fn lesser<T: Ord>(a: T, b: T) -> T {
+        a.min(b)
+    }
+    fn greater<T: Ord>(a: T, b: T) -> T {
+        a.max(b)
+    }
+
+    let raw = Pitch16::from_bits(30_000);
+    assert!(raw.is_out_of_range());
+    assert_eq!(tighten(raw, Pitch16::MIN, Pitch16::MAX).to_bits(), 16_384);
+    assert_eq!(lesser(raw, Pitch16::MAX).to_bits(), 16_384);
+    assert_eq!(greater(raw, Pitch16::MIN).to_bits(), 16_384);
+
+    // `Ord::clamp`'s default asserts `low <= high`; ours cannot panic.
+    assert_eq!(
+        tighten(raw, Pitch16::MAX, Pitch16::MIN).to_bits(),
+        Pitch16::MIN.to_bits()
+    );
+
+    // The signed family's denormal folds by the same route.
+    let denormal = Signed8::from_bits(i8::MIN);
+    assert!(denormal.is_denormal());
+    assert_eq!(lesser(denormal, Signed8::MAX).to_bits(), -127);
+    assert_eq!(greater(denormal, Signed8::MIN).to_bits(), -127);
+    assert_eq!(
+        tighten(denormal, Signed8::MIN, Signed8::MAX).to_bits(),
+        -127
+    );
+
+    // The edge of the guarantee: selecting an element rather than computing a
+    // result hands back what it was given. `Iterator::max` compares with `cmp`
+    // and returns the element, so a raw pattern survives — the caller wanting
+    // canonical bits asks for them.
+    let picked = [raw, Pitch16::ZERO].into_iter().max();
+    assert_eq!(picked.map(Pitch16::to_bits), Some(30_000));
+    assert_eq!(picked.map(|v| v.canonicalize().to_bits()), Some(16_384));
+}
+
+#[test]
 fn trigonometry_spans_the_full_output_range() {
     assert_eq!(Pitch16::MAX.sin(), Signed16::MAX);
     assert_eq!(Pitch16::MIN.sin(), Signed16::MIN);

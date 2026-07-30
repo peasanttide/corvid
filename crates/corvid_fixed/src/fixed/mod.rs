@@ -1,4 +1,4 @@
-//! The four families and the macros that generate them.
+//! The five families and the macros that generate them.
 //!
 //! Each family module owns the macro that knows its arithmetic; the shared
 //! generators live in [`macros`]. The types themselves are re-exported from the

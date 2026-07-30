@@ -1,10 +1,11 @@
-//! Code generators shared by the four families.
+//! Code generators shared by the five families.
 //!
 //! Each family module ([`point`](super::point), [`factor`](super::factor),
-//! [`signed`](super::signed), [`angle`](super::angle)) owns the macro that
-//! knows its arithmetic, and calls into this module for everything the families
-//! have in common: the newtype declaration with its optional derives, bit
-//! access, comparison, formatting, and the `num-traits` glue.
+//! [`signed`](super::signed), [`angle`](super::angle),
+//! [`pitch`](super::pitch)) owns the macro that knows its arithmetic, and calls
+//! into this module for everything the families have in common: the newtype
+//! declaration with its optional derives, bit access, comparison, formatting,
+//! and the `num-traits` glue.
 //!
 //! The generated types are separate structs rather than aliases of one generic
 //! type. That keeps the families from mixing — a `Factor16` cannot be added to
@@ -78,7 +79,11 @@ macro_rules! impl_shared {
             /// The result is canonical. Where `cmp_key` folds — the
             /// signed-normalized denormal, a pitch's out-of-range bits — the
             /// folded pattern is what comes back, so a bit pattern the type does
-            /// not mean cannot travel out through a comparison.
+            /// not mean cannot leave through `min`, `max`, or `clamp`.
+            /// [`Ord`]'s same-named methods forward here rather than using their
+            /// defaults, so generic `T: Ord` code gets the same guarantee.
+            /// Picking a value out some other way — [`Iterator::max`], a sort —
+            /// hands back the element as it was given, bits and all.
             #[must_use]
             #[inline]
             pub const fn min(self, other: Self) -> Self {
@@ -98,8 +103,10 @@ macro_rules! impl_shared {
 
             /// Clamps to the inclusive range `min ..= max`.
             ///
-            /// Unlike [`Ord::clamp`] this cannot panic: when `min > max` the
-            /// bound applied last wins and `max` is returned.
+            /// Unlike [`Ord::clamp`]'s default this cannot panic: when
+            /// `min > max` the bound applied last wins and `max` is returned.
+            /// [`Ord::clamp`] forwards here, so it cannot panic on this type
+            /// either.
             ///
             /// The result is canonical, inherited from [`min`](Self::min) and
             /// [`max`](Self::max), so the bit pattern that comes back really does
@@ -167,6 +174,27 @@ macro_rules! impl_shared {
             #[inline]
             fn cmp(&self, other: &Self) -> core::cmp::Ordering {
                 self.cmp_key().cmp(&other.cmp_key())
+            }
+
+            // The provided methods would return the winning operand untouched,
+            // dropping the canonicalization the inherent versions guarantee, and
+            // the default `clamp` asserts `min <= max`. Forwarding all three
+            // keeps generic `T: Ord` code behaving like the concrete type. Ties
+            // are unobservable either way: two values that compare equal have
+            // the same `cmp_key`, so they leave here with the same bits.
+            #[inline]
+            fn min(self, other: Self) -> Self {
+                Self::min(self, other)
+            }
+
+            #[inline]
+            fn max(self, other: Self) -> Self {
+                Self::max(self, other)
+            }
+
+            #[inline]
+            fn clamp(self, min: Self, max: Self) -> Self {
+                Self::clamp(self, min, max)
             }
         }
 

@@ -152,6 +152,15 @@
 //! from a full-width intermediate, halfway away from zero. The result is the
 //! representable value nearest the true one.
 //!
+//! Floating point appears only in those crossings. `from_f64` and `to_f64`,
+//! their `f32` forms, [`from_degrees`](Angle16::from_degrees) and
+//! [`to_degrees`](Angle16::to_degrees), the turn conversions, and `Display` all
+//! compute in `f64` and cast; nothing that computes on a value does. A path that
+//! has to be bit-identical across machines should therefore convert at its edges
+//! and carry these types in between — reading a heading as
+//! `Angle16::from_degrees(x)` inside the simulation puts an `f64` multiply back
+//! in the loop.
+//!
 //! # Features
 //!
 //! All are off by default. The crate is `no_std`, and stays that way with every
