@@ -199,7 +199,7 @@ const fn horner(x2: i64, coefficients: &[i64; TERMS]) -> i64 {
 
 /// Evaluates `sin(x)` in Q60 for `0 <= x <= pi/4`.
 ///
-/// Seven terms. The first omitted term is `x^15 / 15!`, which peaks at 3.7e-14
+/// Seven terms. The first omitted term is `x^15 / 15!`, which peaks at 2.0e-14
 /// over this interval — four orders of magnitude below the last bit of the widest
 /// output type.
 const fn sin_poly(x: i64) -> i64 {
@@ -208,7 +208,7 @@ const fn sin_poly(x: i64) -> i64 {
 
 /// Evaluates `cos(x)` in Q60 for `0 <= x <= pi/4`.
 ///
-/// Seven terms. The first omitted term is `x^14 / 14!`, which peaks at 4.3e-13.
+/// Seven terms. The first omitted term is `x^14 / 14!`, which peaks at 3.9e-13.
 /// Exactly `1` at zero, since Horner bottoms out on the leading coefficient.
 const fn cos_poly(x: i64) -> i64 {
     horner(mulq(x, x), &COS_COEFFICIENTS)
