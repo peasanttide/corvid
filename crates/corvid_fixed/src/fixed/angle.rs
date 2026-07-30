@@ -22,7 +22,7 @@
 //!   comparing against `f64`, and samples [`Angle32`] the same way.
 //! - [`sin_fast`](Angle16::sin_fast), [`cos_fast`](Angle16::cos_fast), and
 //!   [`atan2_fast`](Angle16::atan2_fast) trade accuracy for speed: worst-case
-//!   error is about `1.1e-3` for sine and `4.4e-3` radians for arctangent.
+//!   error is `1.2e-3` for sine and `4.4e-3` radians for arctangent.
 //!   Exact enough for [`Angle8`]/[`Signed8`](crate::Signed8), coarse for the
 //!   wider types.
 //!
@@ -62,7 +62,7 @@ macro_rules! define_angle {
             /// The smallest bit pattern, which is zero.
             ///
             /// The circle has no least element; this exists so that
-            /// [`num_traits::Bounded`] and range-style code have something to
+            /// `num_traits::Bounded` and range-style code have something to
             /// name. Ordering on angles is ordering on the stored phase,
             /// measured counterclockwise from zero.
             pub const MIN: Self = Self(0);
@@ -88,13 +88,23 @@ macro_rules! define_angle {
 
             /// Converts from turns, wrapping into range.
             ///
-            /// Halfway cases round away from zero. `NaN` becomes
-            /// [`ZERO`](Self::ZERO). Magnitudes beyond `2^63` turns saturate
-            /// rather than wrap, which no real angle reaches.
+            /// Halfway cases round away from zero. Every finite input wraps,
+            /// however many turns it names: `NaN` and both infinities become
+            /// [`ZERO`](Self::ZERO), since a circle has no bound to saturate
+            /// against.
             #[must_use]
             #[inline]
             pub const fn from_turns(turns: f64) -> Self {
-                let scaled = turns * Self::TURN;
+                // Discard whole turns before scaling. `turns * Self::TURN`
+                // alone leaves the `i64` the cast goes through once `|turns|`
+                // reaches `2^(63 - BITS)` — only `2^31` turns for `Angle32` —
+                // and the cast would then saturate instead of wrapping,
+                // silently returning an angle near a full turn for an input
+                // that should have wrapped to a quarter of one. The remainder
+                // is a subtraction of a whole number of turns, so it is exact
+                // and costs no accuracy. `fmod` sends both infinities to `NaN`,
+                // and `NaN as i64` is `0`.
+                let scaled = (turns % 1.0) * Self::TURN;
                 let rounded = if scaled >= 0.0 { scaled + 0.5 } else { scaled - 0.5 };
                 Self(rounded as i64 as $repr)
             }
@@ -175,10 +185,18 @@ macro_rules! define_angle {
                 Self::from_turns(turns)
             }
 
-            /// Converts from turns, or returns `None` if outside `0.0 .. 1.0`.
+            /// Converts from turns, or returns `None` if the value needed
+            /// wrapping to fit one turn.
             ///
-            /// Angles wrap, so this rejects nothing an angle cannot hold; it
-            /// exists for [`num_traits::FromPrimitive`] and for callers that
+            /// Accepts exactly what lands on a bit pattern of the *same* turn:
+            /// `-0.5` of a step below zero up to half a step below a full turn.
+            /// A value inside `0.0 .. 1.0` that rounds up onto the full turn —
+            /// `0.999` for an [`Angle8`], whose steps are `1/256` — is
+            /// therefore rejected, because the angle it produces is `ZERO`
+            /// rather than anything near the input.
+            ///
+            /// Angles wrap, so this rejects nothing an angle cannot *hold*; it
+            /// exists for `num_traits::FromPrimitive` and for callers that
             /// want to know a value needed wrapping. `NaN` returns `None`.
             #[must_use]
             #[inline]
@@ -241,7 +259,11 @@ macro_rules! define_angle {
             /// The wrapped difference between two angles, read as a signed
             /// offset, *is* the shortest arc — so interpolation takes the short
             /// way around with no special cases. When the two are exactly
-            /// opposite, it goes counterclockwise.
+            /// opposite there is no shorter way, and the tie breaks
+            /// **clockwise**: a half-turn difference reads as
+            /// `-2^(BITS - 1)` once taken as a signed offset, so the phase
+            /// decreases. Interpolating from zero to [`HALF_TURN`](Self::HALF_TURN)
+            /// passes through three quarters of a turn, not one quarter.
             ///
             /// Exact at both ends.
             #[must_use]
@@ -294,7 +316,8 @@ macro_rules! define_angle {
 
             /// The sine, approximately.
             ///
-            /// Worst-case error is `1.1e-3`, from a parabola corrected by a
+            /// Worst-case error is `1.2e-3` — measured at `1.1053e-3`, over the
+            /// whole `Angle16` domain — from a parabola corrected by a
             /// second parabola in its own output. Exact at multiples of a
             /// quarter turn. Within a bit for
             /// [`Signed8`](crate::Signed8) outputs; about 36 bits coarse for

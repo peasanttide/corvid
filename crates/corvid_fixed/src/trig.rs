@@ -314,8 +314,16 @@ pub(crate) const fn tan_i24f8(phase: u32) -> i32 {
     }
 }
 
-/// Converts Q60 radians to a phase with `bits` bits, wrapping into range.
-pub(crate) const fn rad_to_bits(radians: i64, bits: u32) -> u32 {
+/// Converts Q60 radians to a phase with `bits` bits, as a signed offset.
+///
+/// The result lies in `-2^(bits-1) ..= 2^(bits-1)`, the phase read as a signed
+/// offset from zero rather than as a position on `0 .. 2^bits`. Casting it to
+/// the caller's storage type — signed for a [pitch](crate::Pitch16), unsigned
+/// for an [angle](crate::Angle16) — keeps the `bits` bits that matter and
+/// discards the sign extension, which is exactly the wrapping the phase space
+/// wants. Staying signed all the way to that cast is what lets the pitch types
+/// hold the result without a mask-then-reinterpret round trip.
+pub(crate) const fn rad_to_bits(radians: i64, bits: u32) -> i32 {
     let turns = mulq(radians, TURNS_PER_RADIAN);
     let shift = Q - bits;
     let half = 1 << (shift - 1);
@@ -324,7 +332,7 @@ pub(crate) const fn rad_to_bits(radians: i64, bits: u32) -> u32 {
     } else {
         -((-turns + half) >> shift)
     };
-    (rounded as u32) & (u32::MAX >> (32 - bits))
+    rounded as i32
 }
 
 /// Rotations needed for a phase of `bits` bits.
@@ -403,20 +411,24 @@ const fn atan2_q(y: i64, x: i64, iters: usize) -> i64 {
     base + angle
 }
 
-/// Returns the angle of `(x, y)` as a phase with `bits` bits.
-pub(crate) const fn atan2_bits(y: i64, x: i64, bits: u32) -> u32 {
+/// Returns the angle of `(x, y)` as a signed phase with `bits` bits.
+///
+/// See [`rad_to_bits`] for the sign convention.
+pub(crate) const fn atan2_bits(y: i64, x: i64, bits: u32) -> i32 {
     rad_to_bits(atan2_q(y, x, cordic_iters(bits)), bits)
 }
 
-/// Returns `asin(value / max)` as a phase with `bits` bits, within a quarter turn
-/// of zero.
+/// Returns `asin(value / max)` as a signed phase with `bits` bits, within a
+/// quarter turn of zero.
 ///
 /// Uses `asin(v) = atan2(v, sqrt(1 - v^2))`, so [`atan2_bits`]'s accuracy carries
 /// over. `max` must be positive, `|value|` must not exceed it, and `reciprocal`
 /// must be [`snorm_reciprocal(max)`](snorm_reciprocal).
-pub(crate) const fn asin_bits(value: i64, max: i64, reciprocal: i128, bits: u32) -> u32 {
-    let quarter = 1_u32 << (bits - 2);
-    let mask = u32::MAX >> (32 - bits);
+///
+/// The result is signed, so it drops straight into a [pitch](crate::Pitch16) —
+/// whose range is exactly the arcsine's — without a wrapping reinterpretation.
+pub(crate) const fn asin_bits(value: i64, max: i64, reciprocal: i128, bits: u32) -> i32 {
+    let quarter = 1_i32 << (bits - 2);
 
     // The endpoints are exact by definition rather than by approximation: at
     // plus or minus one the cosine is zero, and the arctangent would be looking
@@ -425,7 +437,7 @@ pub(crate) const fn asin_bits(value: i64, max: i64, reciprocal: i128, bits: u32)
         return quarter;
     }
     if value <= -max {
-        return quarter.wrapping_neg() & mask;
+        return -quarter;
     }
 
     let sine = (((value as i128) * reciprocal) >> 32) as i64;
@@ -444,12 +456,13 @@ pub(crate) const fn asin_bits(value: i64, max: i64, reciprocal: i128, bits: u32)
     atan2_bits(sine, cosine, bits)
 }
 
-/// Returns the angle of `(x, y)` as a phase with `bits` bits, approximately.
+/// Returns the angle of `(x, y)` as a signed phase with `bits` bits,
+/// approximately.
 ///
 /// Rajan's polynomial for arctangent over `[0, 1]`, applied to the smaller
 /// coordinate over the larger and unfolded by octant. Worst-case error is 4.4e-3
-/// radians.
-pub(crate) const fn atan2_fast_bits(y: i64, x: i64, bits: u32) -> u32 {
+/// radians. See [`rad_to_bits`] for the sign convention.
+pub(crate) const fn atan2_fast_bits(y: i64, x: i64, bits: u32) -> i32 {
     /// Fractional bits used by the approximation.
     const P: u32 = 30;
     /// One turn for the approximation.
@@ -492,7 +505,7 @@ pub(crate) const fn atan2_fast_bits(y: i64, x: i64, bits: u32) -> u32 {
     } else {
         div_round(turns << bits, TURN)
     };
-    (bit_turns as u32) & (u32::MAX >> (32 - bits))
+    bit_turns as i32
 }
 
 #[cfg(test)]

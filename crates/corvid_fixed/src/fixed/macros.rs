@@ -210,7 +210,7 @@ macro_rules! impl_neg {
     };
 }
 
-/// Declares `ONE` and implements [`num_traits::One`].
+/// Declares `ONE` and implements `num_traits::One`.
 ///
 /// Invoked only for types that can represent `1.0`, which excludes
 /// [`I0F8`](crate::I0F8) and the angle family.

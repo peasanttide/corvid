@@ -266,6 +266,75 @@ fn angles_wrap_rather_than_saturate() {
 }
 
 #[test]
+fn angles_wrap_at_any_turn_count() {
+    // Whole turns are discarded before scaling, so a large turn count wraps
+    // like a small one. Scaling first would push the intermediate past the i64
+    // the conversion casts through, and the cast would saturate: the quarter
+    // turn below came back as 0.99999999977 of a turn before that was fixed.
+    assert_eq!(Angle32::from_turns(2_147_483_648.25), Angle32::QUARTER_TURN);
+    assert_eq!(Angle32::from_turns(1e15 + 0.5), Angle32::HALF_TURN);
+    assert_eq!(Angle16::from_turns(1e15 + 0.5), Angle16::HALF_TURN);
+    assert_eq!(Angle8::from_turns(-1e12 - 0.25), Angle8::THREE_QUARTER_TURN);
+
+    // Every width, every quarter, far past where the old scaling gave out.
+    for turns in [0.0_f64, 0.25, 0.5, 0.75] {
+        for whole in [0.0_f64, 1.0, 1e6, 2.0_f64.powi(31), 2.0_f64.powi(48)] {
+            let expected = Angle32::from_turns(turns);
+            assert_eq!(
+                Angle32::from_turns(whole + turns),
+                expected,
+                "{whole} + {turns} turns"
+            );
+            assert_eq!(
+                Angle32::from_turns(-whole + turns),
+                expected,
+                "-{whole} + {turns} turns"
+            );
+        }
+    }
+
+    // The degree spelling inherits it: a million turns plus ninety degrees.
+    assert_eq!(Angle16::from_degrees(360_000_090.0), Angle16::QUARTER_TURN);
+
+    // A circle has no bound to saturate against, so a non-finite angle is zero
+    // rather than an arbitrary corner of the range.
+    assert_eq!(Angle16::from_turns(f64::INFINITY), Angle16::ZERO);
+    assert_eq!(Angle16::from_turns(f64::NEG_INFINITY), Angle16::ZERO);
+    assert_eq!(Angle32::from_turns(f64::INFINITY), Angle32::ZERO);
+    assert_eq!(Angle16::from_turns(f64::NAN), Angle16::ZERO);
+}
+
+#[test]
+fn the_angle_checked_conversion_rejects_only_what_needed_wrapping() {
+    // Anything that lands on a bit pattern of the same turn converts.
+    assert_eq!(Angle8::checked_from_f64(0.0), Some(Angle8::ZERO));
+    assert_eq!(
+        Angle8::checked_from_f64(255.4 / 256.0),
+        Some(Angle8::from_bits(255))
+    );
+    assert_eq!(Angle16::checked_from_f64(0.9999), Some(Angle16::from_bits(65_529)));
+
+    // A full turn is the next turn's zero, so it is rejected — and so is
+    // anything inside `0.0 .. 1.0` that rounds up onto it. An Angle8 step is
+    // 1/256, so 0.999 rounds to 256, which *is* zero.
+    assert_eq!(Angle8::checked_from_f64(1.0), None);
+    assert_eq!(Angle8::checked_from_f64(0.999), None);
+    assert_eq!(Angle8::from_turns(0.999), Angle8::ZERO, "and it wraps to zero");
+    assert_eq!(Angle16::checked_from_f64(1.0), None);
+
+    // Below zero the same half-step tolerance applies: an Angle8 step is
+    // 1/256, so anything within 1/512 of zero still lands on zero and converts,
+    // and anything past that needed wrapping.
+    assert_eq!(Angle8::checked_from_f64(-0.001), Some(Angle8::ZERO));
+    assert_eq!(Angle8::checked_from_f64(-0.01), None);
+    assert_eq!(Angle8::from_turns(-0.01), Angle8::from_bits(253));
+
+    // The finer type accepts what the coarser one cannot, at the same input.
+    assert!(Angle16::checked_from_f64(0.999).is_some());
+    assert!(Angle32::checked_from_f64(0.999).is_some());
+}
+
+#[test]
 fn signed_angle_readings_cover_the_negative_half() {
     assert_eq!(Angle16::ZERO.to_signed_turns(), 0.0);
     assert_eq!(Angle16::QUARTER_TURN.to_signed_turns(), 0.25);

@@ -201,6 +201,72 @@ fn converting_to_and_from_a_wrapping_angle_is_free() {
 }
 
 #[test]
+fn to_angle_reads_the_clamped_value_not_the_raw_bits() {
+    // In range it is the identity on the bit pattern, which is the whole point
+    // of sharing a scale with the wrapping angle.
+    for bits in -16_384_i16..=16_384 {
+        assert_eq!(Pitch16::from_bits(bits).to_angle().to_bits(), bits as u16);
+    }
+
+    // Out of range it reads the pitch's *value*, so it cannot hand on a phase
+    // the type does not mean. `to_bits` is what round-trips raw bytes.
+    let raw = Pitch16::from_bits(30_000);
+    assert_eq!(raw.to_bits(), 30_000, "to_bits still reports what it was handed");
+    assert_eq!(raw.to_angle(), Pitch16::MAX.to_angle());
+    assert_eq!(raw.to_angle().to_bits(), 16_384);
+    assert_eq!(
+        Pitch16::from_bits(i16::MIN).to_angle(),
+        Pitch16::MIN.to_angle()
+    );
+    assert_eq!(Pitch8::from_bits(100).to_angle().to_bits(), 64);
+
+    // Which keeps to_angle agreeing with the trigonometry, since both read the
+    // clamped value.
+    assert_eq!(raw.sin(), raw.to_angle().sin());
+}
+
+#[test]
+fn inverse_trigonometry_lands_in_range_without_wrapping() {
+    // The phase comes back signed, so the negative half needs no wrapping
+    // reinterpretation on the way into a pitch. Check the raw bits, not just
+    // the clamped reading, or a wrapped value would hide behind `canonicalize`.
+    let in_range = |p: Pitch16| {
+        p.to_bits() >= Pitch16::MIN.to_bits() && p.to_bits() <= Pitch16::MAX.to_bits()
+    };
+    for bits in i16::MIN..=i16::MAX {
+        let p = Pitch16::asin(Signed16::from_bits(bits));
+        assert!(in_range(p), "asin({bits}) stored {}", p.to_bits());
+        assert!(!p.is_out_of_range());
+    }
+    for bits in -128_i8..=127 {
+        let p = Pitch8::asin(Signed8::from_bits(bits));
+        assert!(
+            p.to_bits() >= Pitch8::MIN.to_bits() && p.to_bits() <= Pitch8::MAX.to_bits(),
+            "asin8({bits}) stored {}",
+            p.to_bits()
+        );
+    }
+
+    // Negative arcsines are genuinely negative in storage, not a large phase.
+    assert_eq!(Pitch16::asin(Signed16::MIN).to_bits(), -16_384);
+    assert_eq!(Pitch8::asin(Signed8::MIN).to_bits(), -64);
+    assert_eq!(Pitch32::asin(Signed32::MIN).to_bits(), -1_073_741_824);
+    assert!(Pitch16::asin(Signed16::from_f64(-0.5)).to_bits() < 0);
+
+    // The arctangent too, over both half planes and every quadrant of input.
+    for y in -300_i64..=300 {
+        for x in [-997_i64, -1, 0, 1, 997] {
+            let p = Pitch16::atan2(y, x);
+            assert!(in_range(p), "atan2({y}, {x}) stored {}", p.to_bits());
+            assert_eq!(p.is_negative(), y < 0, "sign flipped at ({y}, {x})");
+        }
+    }
+    assert_eq!(Pitch16::atan2(-1, 0).to_bits(), -16_384);
+    assert_eq!(Pitch32::atan2(-1, 0).to_bits(), -1_073_741_824);
+    assert_eq!(Pitch8::atan2(-1, 0).to_bits(), -64);
+}
+
+#[test]
 fn arcsine_inverts_sine_exhaustively_for_16_bit() {
     // Round-tripping a pitch through its own sine must return it, to within the
     // resolution the sine had to squeeze it through.

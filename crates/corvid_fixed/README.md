@@ -76,8 +76,9 @@ by walking all 65536 `Angle16` inputs against `f64`.
 **Overflow is your choice.** `+ - * /` saturate (or wrap, for angles); the
 `checked_`, `saturating_`, `wrapping_`, and `overflowing_` families name the
 behavior explicitly. Only the operations that mean something for a family exist:
-multiplying two `Factor16`s cannot overflow, so it has no `saturating_mul`, and
-an `Angle16` has no bound to check, so it has no `checked_add`.
+multiplying two `Factor16`s cannot overflow, so `mul` is the whole story and
+there is no saturating-versus-checked decision to make, and an `Angle16` has no
+bound to check, so it has no `checked_add`.
 
 ## Beyond arithmetic
 
@@ -92,7 +93,7 @@ output range is exactly a pitch's, which is why it lives there.
 
 | | `sin` / `cos` / `sin_cos` / `tan` / `atan2` / `asin` / `acos` | `sin_fast` / `cos_fast` / `atan2_fast` |
 |---|---|---|
-| Sine error | correctly rounded | `1.1e-3` |
+| Sine error | correctly rounded | `1.2e-3` |
 | Arctangent error | within one bit | `4.4e-3` rad |
 | Method | 7-term Taylor over a folded octant, in Q60 `i64`; CORDIC for the arc functions | refined parabola; Rajan's polynomial |
 

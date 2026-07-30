@@ -53,10 +53,13 @@
 //! - Converting a `NaN` gives zero, and an infinity saturates.
 //!
 //! The families offer only the operations that mean something for them.
-//! Multiplying two [`Factor16`]s cannot overflow, so there is no
-//! `saturating_mul` to choose between; wrapping a [`Signed8`] past `1.0` is not
-//! a meaningful operation, so there is no `wrapping_add`; and an [`Angle16`] has
-//! no bound to check against, so it has no `checked_add`.
+//! Multiplying two [`Factor16`]s cannot overflow, so the operation to reach for
+//! is plain [`mul`](Factor16::mul) and there is nothing to choose between —
+//! `checked_mul` and `saturating_mul` exist alongside it only because the
+//! `num-traits` operator traits ask for them, and both just call `mul`.
+//! Wrapping a [`Signed8`] past `1.0` is not a meaningful operation, so there is
+//! no `wrapping_add`; and an [`Angle16`] has no bound to check against, so it
+//! has no `checked_add`.
 //!
 //! # Beyond arithmetic
 //!
@@ -76,8 +79,9 @@
 //! [`sin_cos`](Angle16::sin_cos), [`tan`](Angle16::tan),
 //! [`atan2`](Angle16::atan2), [`acos`](Angle16::acos), and
 //! [`asin`](Pitch16::asin) — whose result range is exactly a pitch's, which is
-//! why it lives there. Each has a `_fast` counterpart that trades a thousandth
-//! of accuracy for a third of the time.
+//! why it lives there. Each has a `_fast` counterpart that trades a little over
+//! a thousandth of accuracy — `1.2e-3` for sine, `4.4e-3` radians for
+//! arctangent — for a third of the time.
 //!
 //! # Speed
 //!

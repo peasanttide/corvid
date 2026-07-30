@@ -258,8 +258,13 @@ macro_rules! define_pitch {
 
             #[doc = concat!("Reinterprets this pitch as an [`", stringify!($angle), "`].")]
             ///
-            /// Free: the two types share a scale, so this is the identity on the
-            /// bit pattern.
+            /// Free: the two types share a scale, so for every value in range
+            /// this is the identity on the bit pattern. A bit pattern from
+            /// *outside* the range is clamped first, exactly as
+            /// [`canonicalize`](Self::canonicalize) would — this reads the
+            /// pitch's value, so it cannot hand on a phase the type does not
+            /// mean. Round-tripping raw bytes is [`to_bits`](Self::to_bits)'s
+            /// job, not this one.
             #[must_use]
             #[inline]
             pub const fn to_angle(self) -> $angle {
@@ -279,9 +284,10 @@ macro_rules! define_pitch {
             /// The angle as a phase across the full `u32` range.
             #[inline]
             const fn phase(self) -> u32 {
-                // Sign extension then truncation is the wrapping the phase space
-                // wants: -MAX becomes three quarters of a turn.
-                ((self.cmp_key() as u32) << $phase_shift)
+                // The stored bits are signed, so this sign-extends and then
+                // truncates, which is the wrapping the phase space wants:
+                // -MAX becomes three quarters of a turn.
+                ((self.cmp_key() as i32 as u32) << $phase_shift)
             }
 
             #[doc = concat!("The sine, as a [`", stringify!($signed), "`].")]
@@ -317,7 +323,7 @@ macro_rules! define_pitch {
                 (self.sin(), self.cos())
             }
 
-            /// The sine, approximately. Worst-case error is `1.1e-3`.
+            /// The sine, approximately. Worst-case error is `1.2e-3`.
             #[must_use]
             #[inline]
             pub const fn sin_fast(self) -> $signed {
@@ -352,12 +358,15 @@ macro_rules! define_pitch {
             /// is what it is: arcsine's output is exactly a quarter turn either
             /// side of zero, so every result is representable and nothing clamps.
             /// Exact at `±1`, which map to `±pi/2`.
+            ///
+            /// The phase arrives already signed, so the negative half needs no
+            /// wrapping reinterpretation on the way into this type's storage.
             #[must_use]
             #[inline]
             pub const fn asin(value: $signed) -> Self {
                 const SCALE: i64 = $signed::MAX.to_bits() as i64;
                 const RECIPROCAL: i128 = trig::snorm_reciprocal(SCALE);
-                let bits = trig::asin_bits(
+                let bits: i32 = trig::asin_bits(
                     value.canonicalize().to_bits() as i64,
                     SCALE,
                     RECIPROCAL,
@@ -379,7 +388,11 @@ macro_rules! define_pitch {
                 // positive counterpart, and losing its last bit moves the angle
                 // by nothing that a phase can represent.
                 let mirrored = x.saturating_abs();
-                Self(trig::atan2_bits(y, mirrored, <$repr>::BITS) as $repr).canonicalize()
+                // A non-negative `x` puts the result within a quarter turn of
+                // zero, and the phase is signed, so this lands in range without
+                // wrapping; `canonicalize` is belt and braces.
+                let bits: i32 = trig::atan2_bits(y, mirrored, <$repr>::BITS);
+                Self(bits as $repr).canonicalize()
             }
 
             #[doc = concat!("Interpolates toward `to`, using a [`", stringify!($factor), "`] weight.")]

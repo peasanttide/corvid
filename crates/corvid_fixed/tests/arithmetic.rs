@@ -390,6 +390,40 @@ fn angle_interpolation_takes_the_short_way() {
 }
 
 #[test]
+fn antipodal_interpolation_breaks_the_tie_clockwise() {
+    // Exactly opposite angles have no shorter way round, so the tie has to
+    // break somewhere. The wrapped difference reads as -2^(BITS-1) once taken
+    // as a signed offset, so the phase *decreases*: halfway from zero to a half
+    // turn is three quarters of a turn, not one quarter.
+    let half = Factor16::from_f64(0.5);
+    assert_eq!(
+        Angle16::ZERO.lerp(Angle16::HALF_TURN, half),
+        Angle16::THREE_QUARTER_TURN
+    );
+
+    // And it is the same tie from every starting angle: a - QUARTER_TURN.
+    for bits in 0..=u16::MAX {
+        let from = Angle16::from_bits(bits);
+        let to = from + Angle16::HALF_TURN;
+        assert_eq!(
+            from.lerp(to, half),
+            from - Angle16::QUARTER_TURN,
+            "antipodal tie moved at {bits}"
+        );
+    }
+
+    // The narrow and wide widths agree.
+    assert_eq!(
+        Angle8::ZERO.lerp(Angle8::HALF_TURN, Factor8::from_f64(0.5)),
+        Angle8::THREE_QUARTER_TURN
+    );
+    assert_eq!(
+        Angle32::ZERO.lerp(Angle32::HALF_TURN, Factor32::from_f64(0.5)),
+        Angle32::THREE_QUARTER_TURN
+    );
+}
+
+#[test]
 fn ordering_matches_the_numeric_order() {
     for bits in i16::MIN..i16::MAX {
         let low = I8F8::from_bits(bits);

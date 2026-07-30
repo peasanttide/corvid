@@ -193,9 +193,29 @@ fn fast_sine_is_within_its_documented_error() {
             reference(f64::from(bits), 65_536.0, scale, 0.0),
         );
     }
-    // 1.1e-3 of full scale, in units of Signed16's last bit.
-    let limit = (1.1e-3 * scale).ceil() as i128;
+    // 1.2e-3 of full scale, in units of Signed16's last bit. The true worst is
+    // 1.1053e-3, at bits 63504 — which is why the documented bound is 1.2e-3
+    // and not the 1.1e-3 it would round to.
+    let limit = (1.2e-3 * scale).ceil() as i128;
     worst.assert_within(limit, "Angle16::sin_fast");
+
+    // The same bound stated the way the docs state it, so a doc that drifts
+    // away from the implementation fails here rather than misleading a caller
+    // budgeting error.
+    let mut worst_absolute = 0.0_f64;
+    for bits in 0..=u16::MAX {
+        let expected = (f64::from(bits) / 65_536.0 * core::f64::consts::TAU).sin();
+        let actual = Angle16::from_bits(bits).sin_fast().to_f64();
+        worst_absolute = worst_absolute.max((actual - expected).abs());
+    }
+    assert!(
+        worst_absolute <= 1.2e-3,
+        "sin_fast worst absolute error {worst_absolute:e} exceeds the documented 1.2e-3"
+    );
+    assert!(
+        worst_absolute > 1.1e-3,
+        "sin_fast improved to {worst_absolute:e}; tighten the documented bound"
+    );
 
     // At 8-bit output the approximation is already exact to the last bit.
     let scale8 = f64::from(Signed8::MAX.to_bits());

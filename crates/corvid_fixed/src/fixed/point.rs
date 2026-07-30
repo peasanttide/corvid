@@ -560,7 +560,7 @@ define_fixed_point! {
     /// | Resolution | `1/256`, or `0.00390625` |
     ///
     /// `1.0` falls outside the range, so this is the one type in the crate with
-    /// no `ONE` and no [`num_traits::One`] implementation. Products of two
+    /// no `ONE` and no `num_traits::One` implementation. Products of two
     /// `I0F8` values are always in range; sums, quotients, and square roots
     /// saturate.
     ///

@@ -25,3 +25,10 @@ std = ["num-traits?/std", "serde?/std"]
 
 [lints]
 workspace = true
+
+# Every optional integration is off by default, so a plain build documents none
+# of them. Turn them all on for docs.rs, or the feature table below advertises
+# `Pod`, `Serialize`, and the `num-traits` operator traits that the rendered
+# page then does not show.
+[package.metadata.docs.rs]
+all-features = true

@@ -205,14 +205,14 @@ macro_rules! define_signed {
                 Self(Self::round_div(product, Self::SCALE) as $repr)
             }
 
-            /// Multiplies. Always `Some`; provided for [`num_traits::CheckedMul`].
+            /// Multiplies. Always `Some`; provided for `num_traits::CheckedMul`.
             #[must_use]
             #[inline]
             pub const fn checked_mul(self, rhs: Self) -> Option<Self> {
                 Some(self.mul(rhs))
             }
 
-            /// Multiplies. Never saturates; provided for [`num_traits::SaturatingMul`].
+            /// Multiplies. Never saturates; provided for `num_traits::SaturatingMul`.
             #[must_use]
             #[inline]
             pub const fn saturating_mul(self, rhs: Self) -> Self {
