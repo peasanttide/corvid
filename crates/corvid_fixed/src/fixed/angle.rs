@@ -29,7 +29,10 @@
 //!   [`atan2_fast`](Angle16::atan2_fast) trade accuracy for speed: worst-case
 //!   error is `1.2e-3` for sine and `4.4e-3` radians for arctangent.
 //!   Exact enough for [`Angle8`]/[`Signed8`](crate::Signed8), coarse for the
-//!   wider types.
+//!   wider types. They are also 32-bit clean — no 64-bit intermediate, and no
+//!   operation `WGSL` lacks — so they transcribe directly into a shader, which
+//!   is why [`atan2_fast`](Angle16::atan2_fast) takes `i32` coordinates where
+//!   [`atan2`](Angle16::atan2) takes `i64`.
 //!
 //! Both tiers are `const` and use only integer arithmetic, so results are
 //! bit-identical on every target — a requirement for the deterministic
@@ -321,19 +324,26 @@ macro_rules! define_angle {
 
             /// The sine, approximately.
             ///
-            /// Worst-case error is `1.2e-3` — measured at `1.1053e-3`, over the
-            /// whole `Angle16` domain — from a parabola corrected by a
+            /// Worst-case error is `1.2e-3` — measured at `1.1111e-3`, over
+            /// every one of the 2^32 phases — from a parabola corrected by a
             /// second parabola in its own output. Exact at multiples of a
-            /// quarter turn. Within a bit for
+            /// quarter turn, and exactly odd in the phase. Within a bit for
             /// [`Signed8`](crate::Signed8) outputs; about 36 bits coarse for
             /// [`Signed16`](crate::Signed16).
+            ///
+            /// Computed entirely in 32-bit integer arithmetic, using only
+            /// operations a shader has, so the algorithm transcribes directly
+            /// into `WGSL`. That is a deliberate constraint rather than an
+            /// accident of the implementation: see `trig::sin_fast_q30`.
             #[must_use]
             #[inline]
             pub const fn sin_fast(self) -> $signed {
-                let scale = $signed::MAX.to_bits() as i64;
-                $signed::from_bits(
-                    trig::q_to_snorm(trig::sin_fast_q(self.phase()), scale) as $signed_repr
-                )
+                let scale = $signed::MAX.to_bits() as i32;
+                $signed::from_bits(trig::q30_to_snorm(
+                    trig::sin_fast_q30(self.phase()),
+                    scale,
+                    <$repr>::BITS,
+                ) as $signed_repr)
             }
 
             /// The cosine, approximately. See [`sin_fast`](Self::sin_fast).
@@ -406,9 +416,15 @@ macro_rules! define_angle {
             ///
             /// Worst-case error is `4.4e-3` radians. See
             /// [`atan2`](Self::atan2) for the conventions.
+            ///
+            /// The coordinates are `i32` where [`atan2`](Self::atan2) takes
+            /// `i64`, because like [`sin_fast`](Self::sin_fast) this is computed
+            /// entirely in 32-bit integer arithmetic and transcribes directly
+            /// into a shader. Scale invariance is unchanged, so a caller holding
+            /// wider values can shift both coordinates down to fit.
             #[must_use]
             #[inline]
-            pub const fn atan2_fast(y: i64, x: i64) -> Self {
+            pub const fn atan2_fast(y: i32, x: i32) -> Self {
                 Self(trig::atan2_fast_bits(y, x, <$repr>::BITS) as $repr)
             }
         }

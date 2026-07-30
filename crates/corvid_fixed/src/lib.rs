@@ -82,21 +82,31 @@
 //! [`asin`](Pitch16::asin) — whose result range is exactly a pitch's, which is
 //! why it lives there. Each has a `_fast` counterpart that trades a little over
 //! a thousandth of accuracy — `1.2e-3` for sine, `4.4e-3` radians for
-//! arctangent — for a third of the time.
+//! arctangent — for a fraction of the time.
+//!
+//! The `_fast` counterparts are also 32-bit clean: no 64-bit intermediate, and
+//! no operation `WGSL` lacks, so the algorithms transcribe directly into a
+//! shader and a GPU can reproduce what the simulation computed. That is why
+//! [`atan2_fast`](Angle16::atan2_fast) takes `i32` coordinates where
+//! [`atan2`](Angle16::atan2) takes `i64`. The exact tier stays on `i64`/`i128`:
+//! correct rounding at 32 bits needs the precision, so it is CPU-only.
 //!
 //! # Speed
 //!
 //! Integer trigonometry is not a compromise here. Measured on aarch64 with
-//! `cargo run --release --example bench`, against the platform's own `libm`:
+//! `cargo run --release --example bench`, against the platform's own `libm`.
+//! The two `_fast` rows were re-measured on x86-64 after those functions moved
+//! to 32-bit arithmetic; every unchanged row agreed between the two machines to
+//! within a few percent.
 //!
 //! | Operation | Versus `f64` |
 //! |---|---|
 //! | [`sin`](Angle16::sin), [`cos`](Angle16::cos) | **0.71x** |
 //! | [`sin_cos`](Angle16::sin_cos) | **0.98x** |
-//! | [`sin_fast`](Angle16::sin_fast) | **0.20x** |
+//! | [`sin_fast`](Angle16::sin_fast) | **0.22x** |
 //! | [`tan`](Angle16::tan) | 1.75x |
 //! | [`atan2`](Angle16::atan2) | 1.74x for [`Angle16`], 3.1x for [`Angle32`] |
-//! | [`atan2_fast`](Angle16::atan2_fast) | **0.69x** |
+//! | [`atan2_fast`](Angle16::atan2_fast) | **0.17x** |
 //! | [`asin`](Pitch16::asin), [`acos`](Angle16::acos) | 6.8x |
 //! | multiplication | 1.5x |
 //! | [`sqrt`](I24F8::sqrt) | 12x |
@@ -105,7 +115,9 @@
 //! in `i64` is simply less work than a correctly-rounded `libm` reduction. Square
 //! root loses because the hardware has an instruction for it and integer square
 //! root is a loop. The arc functions carry a CORDIC loop, so they are the slowest
-//! thing here; [`atan2_fast`](Angle16::atan2_fast) exists for when that matters.
+//! thing here; [`atan2_fast`](Angle16::atan2_fast) exists for when that matters,
+//! and got 2.3x faster when it moved to 32-bit arithmetic, since a `u32` divide
+//! is much cheaper than the `u64` one it used to do.
 //!
 //! # Everything is `const`
 //!

@@ -326,23 +326,33 @@ macro_rules! define_pitch {
                 (self.sin(), self.cos())
             }
 
-            /// The sine, approximately. Worst-case error is `1.2e-3`.
+            /// The sine, approximately. Worst-case error is `1.2e-3`, measured
+            /// at `1.1111e-3`.
+            ///
+            /// Computed entirely in 32-bit integer arithmetic, using only
+            /// operations a shader has, so the algorithm transcribes directly
+            /// into `WGSL`.
             #[must_use]
             #[inline]
             pub const fn sin_fast(self) -> $signed {
-                let scale = $signed::MAX.to_bits() as i64;
-                $signed::from_bits(
-                    trig::q_to_snorm(trig::sin_fast_q(self.phase()), scale) as $signed_repr
-                )
+                let scale = $signed::MAX.to_bits() as i32;
+                $signed::from_bits(trig::q30_to_snorm(
+                    trig::sin_fast_q30(self.phase()),
+                    scale,
+                    <$repr>::BITS,
+                ) as $signed_repr)
             }
 
             /// The cosine, approximately. See [`sin_fast`](Self::sin_fast).
             #[must_use]
             #[inline]
             pub const fn cos_fast(self) -> $signed {
-                let scale = $signed::MAX.to_bits() as i64;
+                let scale = $signed::MAX.to_bits() as i32;
                 let phase = self.phase().wrapping_add(1 << 30);
-                $signed::from_bits(trig::q_to_snorm(trig::sin_fast_q(phase), scale) as $signed_repr)
+                $signed::from_bits(
+                    trig::q30_to_snorm(trig::sin_fast_q30(phase), scale, <$repr>::BITS)
+                        as $signed_repr,
+                )
             }
 
             /// The tangent, as an [`I24F8`].

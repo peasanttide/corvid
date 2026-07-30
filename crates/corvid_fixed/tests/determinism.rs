@@ -232,7 +232,8 @@ fn the_const_interpreter_and_the_cpu_agree() {
 
     let (y, x) = black_box((-31_i64, 17_i64));
     assert_eq!(COMPILED_ATAN2, Angle16::atan2(y, x));
-    assert_eq!(COMPILED_ATAN2_FAST, Angle16::atan2_fast(y, x));
+    let (fast_y, fast_x) = black_box((-31_i32, 17_i32));
+    assert_eq!(COMPILED_ATAN2_FAST, Angle16::atan2_fast(fast_y, fast_x));
     assert_eq!(
         COMPILED_FROM_DEGREES,
         Angle32::from_degrees(black_box(123.456_f64))

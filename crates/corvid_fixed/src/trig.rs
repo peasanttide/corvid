@@ -254,32 +254,102 @@ pub(crate) const fn cos_q(phase: u32) -> i64 {
     sin_q(phase.wrapping_add(1 << 30))
 }
 
-/// Returns `sin(2*pi * phase / 2^32)` in Q60 using a cheap approximation.
+/// Returns `sin(2*pi * phase / 2^32)` in Q30 using a cheap approximation.
 ///
 /// A parabola through the sine's zeros and peak, corrected by a second parabola
-/// in its own output — the classic `0.775 * y + 0.225 * y * |y|` refinement.
-/// Worst-case error is 1.1e-3, and the values at multiples of a quarter turn are
-/// still exact.
-pub(crate) const fn sin_fast_q(phase: u32) -> i64 {
-    /// Fractional bits used by the approximation.
-    const P: u32 = 30;
-    /// `1.0` for the approximation.
-    const P_ONE: i64 = 1 << P;
-    /// Weight of the linear term in the refinement, `0.775` as `31/40`.
-    const W_LINEAR: i64 = 31 * P_ONE / 40;
-    /// Weight of the quadratic term. The two sum to one, which is what keeps the
-    /// peak of the approximated sine exactly `1.0`.
-    const W_SQUARE: i64 = P_ONE - W_LINEAR;
+/// in its own output — the classic `0.775 * y + 0.225 * y * |y|` refinement. The
+/// values at multiples of a quarter turn are exact.
+///
+/// # Thirty-two bits
+///
+/// Unlike the rest of this module, every intermediate here fits an `i32` and
+/// every operation has a `WGSL` equivalent, so the function transcribes directly
+/// into a shader. Three consequences shaped the code:
+///
+/// - There is no widening multiply. `WGSL` has no 64-bit integer and no
+///   `mulExtended`, so a 32x32-to-64 product is simply unavailable and every
+///   product below has to be bounded to 31 bits by construction.
+/// - Signed overflow is implementation-defined in `WGSL`, so anything that could
+///   reach `2^31` stays in `u32`, where wrapping is specified.
+/// - Q16 is the largest scale the parabola can use. `z * (2^k - z)` peaks at
+///   `2^(2k-2)`, and `k = 16` is the last value keeping that under `2^31`. It
+///   lands the result in Q30, so a 31-bit multiply yields 31 bits of answer with
+///   nothing wasted.
+pub(crate) const fn sin_fast_q30(phase: u32) -> i32 {
+    /// Half of the phase space.
+    const HALF_TURN: u32 = 1 << 31;
+    /// A quarter of the phase space, where the sine peaks.
+    const QUARTER_TURN: i32 = 1 << 30;
+    /// Fractional bits of the folded phase, which is measured in half-turns.
+    const Z_BITS: u32 = 16;
+    /// One half-turn in the parabola's units.
+    const Z_ONE: i32 = 1 << Z_BITS;
+    /// Bits of phase discarded on the way down to `Z_BITS`.
+    const Z_SHIFT: u32 = 31 - Z_BITS;
+    /// Weight of the correction term, `0.225` as `9/40`, in Q15.
+    ///
+    /// The linear weight is implicit. Writing the refinement as `y` plus a
+    /// correction rather than as a weighted sum means `0.775` never has to be
+    /// represented, and the two weights never have to be made to sum to one.
+    const W_SQUARE: i32 = 9 * (1 << 15) / 40;
 
-    // Reinterpreting the phase as signed maps it to signed turns; doubling that
-    // gives half-turns, the interval [-1, 1) the parabola is defined over. The
-    // shift discards one bit of phase, which is 1.5e-9 of a turn against this
-    // approximation's 1.1e-3 error.
-    let z = (phase as i32 as i64) >> 1;
-    let parabola = (z * (P_ONE - z.abs())) >> (P - 2);
-    let refined = (parabola * W_LINEAR + ((parabola * parabola.abs()) >> P) * W_SQUARE) >> P;
+    // Fold about the peak, as a distance from it rather than a comparison
+    // against it. The parabola is symmetric there, so this costs no accuracy and
+    // buys exactness: the result comes out an exactly odd function of the phase,
+    // and the cosine an exactly even one, which a one-sided shift of the phase
+    // cannot manage. Written with `abs` rather than the equivalent comparison
+    // because the phase is unpredictable, so the branch it compiles to is one
+    // the processor cannot call — measured 20% off the whole function — and a
+    // shader would pay more again for the divergence.
+    let half = (phase & (HALF_TURN - 1)) as i32;
+    let folded = QUARTER_TURN - (half - QUARTER_TURN).abs();
 
-    refined << (Q - P)
+    // Half-turns in Q16, rounded. `folded` never exceeds a quarter turn, so `z`
+    // never exceeds `2^15` and the product never exceeds `2^30`.
+    let z = (folded + (1 << (Z_SHIFT - 1))) >> Z_SHIFT;
+    let parabola = z * (Z_ONE - z);
+
+    // `y^2` in Q30. Halving the scale first is what keeps the square inside 31
+    // bits: two Q15 values multiply to a Q30 one exactly.
+    let root = (parabola + (1 << 14)) >> 15;
+    let delta = root * root - parabola;
+
+    // `0.225 * (y^2 - y)`. The delta is bounded by a quarter, so dropping ten of
+    // its bits leaves the correction good to 1e-7 while making room for the
+    // weight. At the peak the delta is exactly zero, which is what keeps the
+    // sine of a quarter turn exactly one.
+    let magnitude = parabola + ((W_SQUARE * (delta >> 10)) >> 5);
+
+    // Negate over the second half turn, again without branching: `sign` is all
+    // ones there and zero elsewhere, and `(m ^ sign) - sign` is `-m` exactly
+    // when it is.
+    let sign = (phase as i32) >> 31;
+    (magnitude ^ sign) - sign
+}
+
+/// Scales a Q30 value in `[-1, 1]` to a signed-normalized bit pattern, in 32
+/// bits.
+///
+/// The counterpart of [`q_to_snorm`] for the approximate tier, and 32-bit clean
+/// for the same reason [`sin_fast_q30`] is. `max` is the bit pattern denoting
+/// `1.0`, always `2^(bits-1) - 1`, and `bits` is the width of the output type.
+///
+/// The obvious `v * max >> 30` is a 61-bit product, which is exactly what is not
+/// available here, so the scale is split by width. Up to sixteen bits the value
+/// is halved to Q15 first, leaving a product of two 16-bit numbers. At 32 bits
+/// `max` is `2^31 - 1`, so the answer is `2v - v/2^30` and the second term is
+/// zero or one — evaluated in `u32`, where `2v` still has somewhere to live.
+pub(crate) const fn q30_to_snorm(v: i32, max: i32, bits: u32) -> i32 {
+    let magnitude = v.unsigned_abs();
+    let scaled = if bits >= 32 {
+        magnitude * 2 - if magnitude > (1 << 29) { 1 } else { 0 }
+    } else {
+        let halved = (magnitude + (1 << 14)) >> 15;
+        (halved * (max as u32) + (1 << 14)) >> 15
+    };
+    // Reapply the sign by mask rather than by branch, as [`sin_fast_q30`] does.
+    let sign = v >> 31;
+    ((scaled as i32) ^ sign) - sign
 }
 
 /// Scales a Q60 value in `[-1, 1]` to a signed-normalized bit pattern.
@@ -720,17 +790,32 @@ pub(crate) const fn asin_bits(value: i64, max: i64, reciprocal: i128, bits: u32)
 /// approximately.
 ///
 /// Rajan's polynomial for arctangent over `[0, 1]`, applied to the smaller
-/// coordinate over the larger and unfolded by octant. Worst-case error is 4.4e-3
-/// radians. See [`rad_to_bits`] for the sign convention.
-pub(crate) const fn atan2_fast_bits(y: i64, x: i64, bits: u32) -> i32 {
-    /// Fractional bits used by the approximation.
-    const P: u32 = 30;
+/// coordinate over the larger and unfolded by octant. See [`rad_to_bits`] for
+/// the sign convention.
+///
+/// 32-bit clean, for the reasons [`sin_fast_q30`] sets out, which is why the
+/// coordinates are `i32` where [`atan2_bits`] takes `i64`. The one division is
+/// deliberate: a `u32` divide is a single instruction on a CPU and slow but
+/// serviceable on a GPU, and avoiding it would cost more code than it saves.
+pub(crate) const fn atan2_fast_bits(y: i32, x: i32, bits: u32) -> i32 {
+    /// Fractional bits of the turn accumulator.
+    ///
+    /// Q30 keeps a full turn, a half turn and a quarter turn all representable
+    /// as `i32`, which the unfolding below needs.
+    const T: u32 = 30;
     /// One turn for the approximation.
-    const TURN: i64 = 1 << P;
+    const TURN: i32 = 1 << T;
+    /// Fractional bits of the ratio of the two coordinates.
+    const R: u32 = 15;
+    /// Bits the divisor is normalized to, so `numerator << R` fits a `u32`.
+    const DIVISOR_BITS: u32 = 16;
     /// `0.273 / (2 * pi)`, the polynomial's correction weight, expressed in
-    /// turns. Derived from [`TWO_PI`] by integer division rather than written
-    /// down, so this file holds no floating-point constant.
-    const CORRECTION: i64 = (((273 * (TURN as i128)) << Q) / (1000 * TWO_PI as i128)) as i64;
+    /// turns, in Q17. Derived from [`TWO_PI`] by integer division rather than
+    /// written down, so this file holds no floating-point constant.
+    ///
+    /// The 128-bit arithmetic is `const`: it runs at compile time and leaves a
+    /// literal behind, so it costs nothing at runtime and constrains no port.
+    const CORRECTION: i32 = (((273_i128 << 17) << Q) / (1000 * TWO_PI as i128)) as i32;
 
     if x == 0 && y == 0 {
         return 0;
@@ -741,13 +826,18 @@ pub(crate) const fn atan2_fast_bits(y: i64, x: i64, bits: u32) -> i32 {
     let steep = ay > ax;
     let (numerator, denominator) = if steep { (ax, ay) } else { (ay, ax) };
 
-    // Shifting both coordinates down to 34 bits keeps `numerator << P` inside a
-    // u64, so the ratio costs one 64-bit division rather than a 128-bit one. The
-    // 34 bits that survive are ten orders of magnitude finer than this
-    // approximation's own error.
-    let excess = (64 - denominator.leading_zeros()).saturating_sub(34);
-    let ratio = (((numerator >> excess) << P) / (denominator >> excess)) as i64;
-    let mut turns = (ratio >> 3) + ((CORRECTION * ((ratio * (TURN - ratio)) >> P)) >> P);
+    // Normalizing the divisor to sixteen bits keeps `numerator << R` inside a
+    // u32, so the ratio costs one 32-bit division. The bits dropped from the
+    // divisor cost 2^-16 of relative error, two orders of magnitude under this
+    // approximation's own.
+    let excess = (32 - denominator.leading_zeros()).saturating_sub(DIVISOR_BITS);
+    let ratio = (((numerator >> excess) << R) / (denominator >> excess)) as i32;
+
+    // `atan(r) = r/8 + C * r * (1 - r)` in turns. The wedge `r * (1 - r)` peaks
+    // at a quarter, so dropping ten of its bits leaves room for the weight and
+    // costs nothing measurable.
+    let wedge = ratio * ((1 << R) - ratio);
+    let mut turns = (ratio << (T - R - 3)) + ((CORRECTION * (wedge >> 10)) >> 7);
 
     // Unfold the octant, then the quadrant.
     if steep {
@@ -760,12 +850,20 @@ pub(crate) const fn atan2_fast_bits(y: i64, x: i64, bits: u32) -> i32 {
         turns = -turns;
     }
 
-    let bit_turns = if bits >= P {
-        turns << (bits - P)
+    if bits >= T {
+        // A half turn is `TURN / 2`, which at 32-bit output shifts to `2^31`:
+        // representable in `u32`, and correct once reinterpreted, since a phase
+        // is what it is modulo a full turn.
+        ((turns as u32) << (bits - T)) as i32
     } else {
-        div_round(turns << bits, TURN)
-    };
-    bit_turns as i32
+        let shift = T - bits;
+        let half = 1 << (shift - 1);
+        if turns >= 0 {
+            (turns + half) >> shift
+        } else {
+            -((-turns + half) >> shift)
+        }
+    }
 }
 
 #[cfg(test)]

@@ -100,9 +100,16 @@ output range is exactly a pitch's, which is why it lives there.
 
 | | `sin` / `cos` / `sin_cos` / `tan` / `atan2` / `asin` / `acos` | `sin_fast` / `cos_fast` / `atan2_fast` |
 |---|---|---|
-| Sine error | correctly rounded | `1.2e-3` |
+| Sine error | correctly rounded | `1.2e-3` (measured `1.1111e-3`) |
 | Arctangent error | within one bit | `4.4e-3` rad |
 | Method | 7-term Taylor over a folded octant, in Q60 `i64`; CORDIC for the arc functions | refined parabola; Rajan's polynomial |
+| Arithmetic | `i64`, and `i128` where correct rounding needs it | `i32`/`u32` only |
+
+The `_fast` column is 32-bit clean on purpose: no 64-bit intermediate, no
+widening multiply, and no operation `WGSL` lacks, so those algorithms transcribe
+directly into a shader and a GPU can reproduce what the simulation computed.
+That is why `atan2_fast` takes `i32` coordinates where `atan2` takes `i64`. The
+exact tier stays CPU-only — correct rounding at 32 bits needs the precision.
 
 Pi is not written down anywhere in this crate. It is evaluated at compile time
 from Machin's formula, `pi = 16*atan(1/5) - 4*atan(1/239)`, using a `const fn`
@@ -114,17 +121,20 @@ identity for pi.
 ## Speed
 
 Integer trigonometry is not a compromise here. Measured on aarch64 with
-`cargo run --release --example bench`, against the platform's own `libm`:
+`cargo run --release --example bench`, against the platform's own `libm`. The
+two `_fast` rows were re-measured on x86-64 after those functions moved to
+32-bit arithmetic; every unchanged row agreed between the two machines to within
+a few percent.
 
 | Operation | ns | Versus `f64` |
 |---|---|---|
 | `Angle16::sin` | 9.1 | **0.71x** |
 | `Angle16::sin_cos` | 17.9 | **0.98x** |
-| `Angle16::sin_fast` | 2.5 | **0.20x** |
+| `Angle16::sin_fast` | 2.5 | **0.22x** |
 | `Angle16::tan` | 19.7 | 1.75x |
 | `Angle16::atan2` | 32.3 | 1.74x |
 | `Angle32::atan2` | 57.7 | 3.11x |
-| `Angle16::atan2_fast` | 12.9 | **0.69x** |
+| `Angle16::atan2_fast` | 3.3 | **0.17x** |
 | `Pitch16::asin` | 57.1 | 6.8x |
 | `I24F8::saturating_mul` | 0.75 | 1.5x |
 | `I24F8::sqrt` | 8.4 | 12x |
@@ -133,7 +143,9 @@ Sine and cosine beat the platform because a Taylor series over a folded octant i
 `i64` is less work than a correctly-rounded `libm` argument reduction. Square root
 loses because the hardware has an instruction for it and an integer square root
 is a loop. The arc functions carry a CORDIC loop and are the slowest thing here;
-`atan2_fast` exists for when that matters.
+`atan2_fast` exists for when that matters, and got 2.3x faster when it moved to
+32-bit arithmetic, since a `u32` divide is much cheaper than the `u64` one it
+used to do.
 
 `i64` throughout, rather than `i128`, is what makes this competitive. The first
 working version computed the polynomial in `i128` with divisions by the factorial
