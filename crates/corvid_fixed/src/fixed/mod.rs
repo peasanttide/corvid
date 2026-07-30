@@ -8,5 +8,6 @@ mod macros;
 
 pub mod angle;
 pub mod factor;
+pub mod pitch;
 pub mod point;
 pub mod signed;

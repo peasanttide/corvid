@@ -8,6 +8,10 @@
     clippy::float_cmp,
     reason = "comparisons are against exactly representable references"
 )]
+#![allow(
+    clippy::panic_in_result_fn,
+    reason = "these tests use ? for the library calls and assert! for the checks"
+)]
 
 use core::mem::{align_of, size_of};
 
@@ -229,12 +233,16 @@ mod num_traits_interop {
 
     /// Generic over anything that can accumulate, to prove the traits compose.
     fn sum_all<T: Zero + SaturatingAdd + Copy>(values: &[T]) -> T {
-        values.iter().fold(T::zero(), |acc, v| SaturatingAdd::saturating_add(&acc, v))
+        values
+            .iter()
+            .fold(T::zero(), |acc, v| SaturatingAdd::saturating_add(&acc, v))
     }
 
     /// The same, for the families that wrap rather than saturate.
     fn turn_all<T: Zero + WrappingAdd + Copy>(values: &[T]) -> T {
-        values.iter().fold(T::zero(), |acc, v| WrappingAdd::wrapping_add(&acc, v))
+        values
+            .iter()
+            .fold(T::zero(), |acc, v| WrappingAdd::wrapping_add(&acc, v))
     }
 
     #[test]
@@ -266,9 +274,15 @@ mod num_traits_interop {
         assert_eq!(ToPrimitive::to_u64(&value), None);
         assert_eq!(ToPrimitive::to_u64(&I8F8::ONE), Some(1));
 
-        assert_eq!(<I8F8 as FromPrimitive>::from_i64(3), Some(I8F8::from_f64(3.0)));
+        assert_eq!(
+            <I8F8 as FromPrimitive>::from_i64(3),
+            Some(I8F8::from_f64(3.0))
+        );
         assert_eq!(<I8F8 as FromPrimitive>::from_i64(1_000_000), None);
-        assert_eq!(<I8F8 as FromPrimitive>::from_u64(3), Some(I8F8::from_f64(3.0)));
+        assert_eq!(
+            <I8F8 as FromPrimitive>::from_u64(3),
+            Some(I8F8::from_f64(3.0))
+        );
         assert_eq!(
             <Factor16 as FromPrimitive>::from_f64(0.5),
             Some(Factor16::from_f64(0.5))
@@ -290,7 +304,10 @@ mod num_traits_interop {
             CheckedAdd::checked_add(&I8F8::ONE, &I8F8::ONE),
             Some(I8F8::from_f64(2.0))
         );
-        assert_eq!(CheckedAdd::checked_add(&Signed16::MAX, &Signed16::MAX), None);
+        assert_eq!(
+            CheckedAdd::checked_add(&Signed16::MAX, &Signed16::MAX),
+            None
+        );
         // Multiplication over the unit interval cannot fail.
         assert_eq!(
             CheckedMul::checked_mul(&Factor16::MAX, &Factor16::MAX),
@@ -302,7 +319,10 @@ mod num_traits_interop {
     fn saturating_traits_clamp() {
         assert_eq!(Saturating::saturating_add(I8F8::MAX, I8F8::ONE), I8F8::MAX);
         assert_eq!(Saturating::saturating_sub(I8F8::MIN, I8F8::ONE), I8F8::MIN);
-        assert_eq!(SaturatingAdd::saturating_add(&I8F8::MAX, &I8F8::ONE), I8F8::MAX);
+        assert_eq!(
+            SaturatingAdd::saturating_add(&I8F8::MAX, &I8F8::ONE),
+            I8F8::MAX
+        );
         assert_eq!(
             SaturatingSub::saturating_sub(&Factor16::ZERO, &Factor16::ONE),
             Factor16::ZERO

@@ -14,6 +14,15 @@
 //!    quietly changes a result fails loudly instead. Regenerate with
 //!    `cargo run --example dump_golden` when a change is meant to move them.
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    reason = "the golden tables are raw bit patterns, converted as such"
+)]
+
 mod common;
 
 use std::hint::black_box;
@@ -45,8 +54,14 @@ const GOLDEN_COS32: &[(u32, i32)] = &[
     (4_294_967_295, 2_147_483_647),
 ];
 
-const GOLDEN_TAN: &[(u16, i32)] =
-    &[(1000, 25), (8192, 256), (16000, 6950), (30000, -70), (45000, 609), (60000, -150)];
+const GOLDEN_TAN: &[(u16, i32)] = &[
+    (1000, 25),
+    (8192, 256),
+    (16000, 6950),
+    (30000, -70),
+    (45000, 609),
+    (60000, -150),
+];
 
 const GOLDEN_ATAN2: &[(i64, i64, u16)] = &[
     (1, 3, 3356),
@@ -68,11 +83,22 @@ const GOLDEN_MUL: &[(i32, i32, i32)] = &[
     (12345, 6789, 327_384),
 ];
 
-const GOLDEN_SQRT: &[(i32, i32)] =
-    &[(0, 0), (1, 16), (256, 256), (512, 362), (1000, 506), (i32::MAX, 741_455)];
+const GOLDEN_SQRT: &[(i32, i32)] = &[
+    (0, 0),
+    (1, 16),
+    (256, 256),
+    (512, 362),
+    (1000, 506),
+    (i32::MAX, 741_455),
+];
 
-const GOLDEN_FACTOR_MUL: &[(u16, u16, u16)] =
-    &[(1, 1, 0), (32768, 32768, 16384), (65535, 12345, 12345), (60000, 60000, 54932), (7, 9, 0)];
+const GOLDEN_FACTOR_MUL: &[(u16, u16, u16)] = &[
+    (1, 1, 0),
+    (32768, 32768, 16384),
+    (65535, 12345, 12345),
+    (60000, 60000, 54932),
+    (7, 9, 0),
+];
 
 const GOLDEN_LERP: &[(i32, i32, u32, i32)] = &[
     (0, 1000, 1_000_000_000, 233),
@@ -81,27 +107,44 @@ const GOLDEN_LERP: &[(i32, i32, u32, i32)] = &[
     (i32::MIN, i32::MAX, 3_000_000_000, 852_516_352),
 ];
 
-const GOLDEN_SNORM_DIV: &[(i16, i16, i16)] =
-    &[(1, 2, 16384), (-32767, 3, -32767), (100, -7, -32767), (32767, 32767, 32767), (5, 1, 32767)];
+const GOLDEN_SNORM_DIV: &[(i16, i16, i16)] = &[
+    (1, 2, 16384),
+    (-32767, 3, -32767),
+    (100, -7, -32767),
+    (32767, 32767, 32767),
+    (5, 1, 32767),
+];
 
 #[test]
 fn sine_matches_the_golden_table() {
     for &(bits, expected) in GOLDEN_SIN16 {
-        assert_eq!(Angle16::from_bits(bits).sin().to_bits(), expected, "sin at {bits}");
+        assert_eq!(
+            Angle16::from_bits(bits).sin().to_bits(),
+            expected,
+            "sin at {bits}"
+        );
     }
 }
 
 #[test]
 fn cosine_matches_the_golden_table() {
     for &(bits, expected) in GOLDEN_COS32 {
-        assert_eq!(Angle32::from_bits(bits).cos().to_bits(), expected, "cos at {bits}");
+        assert_eq!(
+            Angle32::from_bits(bits).cos().to_bits(),
+            expected,
+            "cos at {bits}"
+        );
     }
 }
 
 #[test]
 fn tangent_matches_the_golden_table() {
     for &(bits, expected) in GOLDEN_TAN {
-        assert_eq!(Angle16::from_bits(bits).tan().to_bits(), expected, "tan at {bits}");
+        assert_eq!(
+            Angle16::from_bits(bits).tan().to_bits(),
+            expected,
+            "tan at {bits}"
+        );
     }
 }
 
@@ -123,7 +166,11 @@ fn multiplication_matches_the_golden_table() {
 #[test]
 fn square_root_matches_the_golden_table() {
     for &(a, expected) in GOLDEN_SQRT {
-        assert_eq!(I24F8::from_bits(a).sqrt().to_bits(), expected, "sqrt of {a}");
+        assert_eq!(
+            I24F8::from_bits(a).sqrt().to_bits(),
+            expected,
+            "sqrt of {a}"
+        );
     }
 }
 
@@ -178,12 +225,18 @@ fn the_const_interpreter_and_the_cpu_agree() {
     assert_eq!(COMPILED_COS, angle.cos());
     assert_eq!(COMPILED_SIN_FAST, angle.sin_fast());
     assert_eq!(COMPILED_TAN, black_box(Angle16::from_bits(16000)).tan());
-    assert_eq!(COMPILED_SIN32, black_box(Angle32::from_bits(3_000_000_007)).sin());
+    assert_eq!(
+        COMPILED_SIN32,
+        black_box(Angle32::from_bits(3_000_000_007)).sin()
+    );
 
     let (y, x) = black_box((-31_i64, 17_i64));
     assert_eq!(COMPILED_ATAN2, Angle16::atan2(y, x));
     assert_eq!(COMPILED_ATAN2_FAST, Angle16::atan2_fast(y, x));
-    assert_eq!(COMPILED_FROM_DEGREES, Angle32::from_degrees(black_box(123.456_f64)));
+    assert_eq!(
+        COMPILED_FROM_DEGREES,
+        Angle32::from_degrees(black_box(123.456_f64))
+    );
 
     let a = black_box(I24F8::from_f64(12.5));
     let b = black_box(I24F8::from_f64(-3.25));
@@ -192,8 +245,10 @@ fn the_const_interpreter_and_the_cpu_agree() {
     assert_eq!(COMPILED_ROOT, black_box(I24F8::from_f64(1234.5)).sqrt());
     assert_eq!(
         COMPILED_MIXED,
-        black_box(I24F8::from_f64(-7.5))
-            .lerp(black_box(I24F8::from_f64(11.25)), black_box(Factor32::from_f64(0.3)))
+        black_box(I24F8::from_f64(-7.5)).lerp(
+            black_box(I24F8::from_f64(11.25)),
+            black_box(Factor32::from_f64(0.3))
+        )
     );
     assert_eq!(COMPILED_CONVERTED, I24F8::from_f64(black_box(-98765.4321)));
 }
@@ -218,16 +273,25 @@ fn a_long_mixed_sequence_reproduces_exactly() {
             position = position.saturating_add(I24F8::from_bits(i32::from(cos.to_bits()) / 128));
             position = position.lerp(I24F8::from_f64(100.0), Factor32::from_bits(noise / 64));
 
-            throttle = throttle.mul(Factor16::from_bits(60_000)).saturating_add(Factor16::DELTA);
-            lean = lean.mul(sin).saturating_sub(Signed16::from_bits(sin.to_bits() / 4));
+            throttle = throttle
+                .mul(Factor16::from_bits(60_000))
+                .saturating_add(Factor16::DELTA);
+            lean = lean
+                .mul(sin)
+                .saturating_sub(Signed16::from_bits(sin.to_bits() / 4));
 
-            if noise % 7 == 0 {
+            if noise.is_multiple_of(7) {
                 heading = Angle16::atan2(i64::from(sin.to_bits()), i64::from(cos.to_bits()));
                 position = position.sqrt();
             }
         }
 
-        (position.to_bits(), heading.to_bits(), throttle.to_bits(), lean.to_bits())
+        (
+            position.to_bits(),
+            heading.to_bits(),
+            throttle.to_bits(),
+            lean.to_bits(),
+        )
     }
 
     let first = run();

@@ -270,7 +270,11 @@ macro_rules! impl_num_traits_shared {
             #[inline]
             fn to_u64(&self) -> Option<u64> {
                 let value = Self::to_f64(*self);
-                if value < 0.0 { None } else { Some(value as u64) }
+                if value < 0.0 {
+                    None
+                } else {
+                    Some(value as u64)
+                }
             }
 
             #[inline]

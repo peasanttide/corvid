@@ -14,6 +14,15 @@
     clippy::float_cmp,
     reason = "tests assert; a panic is how a test reports failure"
 )]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    clippy::suboptimal_flops,
+    reason = "these tests feed edge-case bit patterns through narrowing casts on purpose"
+)]
 
 mod common;
 
@@ -139,11 +148,7 @@ fn sine_is_odd_and_cosine_is_even() {
     for bits in 0..=u16::MAX {
         let angle = Angle16::from_bits(bits);
         let mirrored = -angle;
-        assert_eq!(
-            mirrored.sin(),
-            -angle.sin(),
-            "sin(-x) != -sin(x) at {bits}"
-        );
+        assert_eq!(mirrored.sin(), -angle.sin(), "sin(-x) != -sin(x) at {bits}");
         assert_eq!(mirrored.cos(), angle.cos(), "cos(-x) != cos(x) at {bits}");
     }
 }
@@ -311,7 +316,10 @@ fn atan2_is_scale_invariant() {
 #[test]
 fn atan2_survives_extreme_coordinates() {
     // No overflow, no panic, and the quadrant is still right.
-    assert_eq!(Angle16::atan2(i64::MAX, i64::MAX), Angle16::from_degrees(45.0));
+    assert_eq!(
+        Angle16::atan2(i64::MAX, i64::MAX),
+        Angle16::from_degrees(45.0)
+    );
     assert_eq!(
         Angle16::atan2(i64::MIN, i64::MIN),
         Angle16::from_degrees(225.0)
@@ -332,7 +340,10 @@ fn fast_atan2_is_within_its_documented_error() {
             worst = worst.max(exact.abs_diff(fast).to_bits());
         }
     }
-    assert!(worst <= limit, "fast atan2 off by {worst} bits (limit {limit})");
+    assert!(
+        worst <= limit,
+        "fast atan2 off by {worst} bits (limit {limit})"
+    );
 }
 
 #[test]

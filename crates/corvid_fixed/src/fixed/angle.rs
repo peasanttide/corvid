@@ -266,7 +266,7 @@ macro_rules! define_angle {
             #[must_use]
             #[inline]
             pub const fn sin(self) -> $signed {
-                let scale = $signed::MAX.to_bits() as i128;
+                let scale = $signed::MAX.to_bits() as i64;
                 $signed::from_bits(trig::q_to_snorm(trig::sin_q(self.phase()), scale) as $signed_repr)
             }
 
@@ -278,7 +278,7 @@ macro_rules! define_angle {
             #[must_use]
             #[inline]
             pub const fn cos(self) -> $signed {
-                let scale = $signed::MAX.to_bits() as i128;
+                let scale = $signed::MAX.to_bits() as i64;
                 $signed::from_bits(trig::q_to_snorm(trig::cos_q(self.phase()), scale) as $signed_repr)
             }
 
@@ -302,7 +302,7 @@ macro_rules! define_angle {
             #[must_use]
             #[inline]
             pub const fn sin_fast(self) -> $signed {
-                let scale = $signed::MAX.to_bits() as i128;
+                let scale = $signed::MAX.to_bits() as i64;
                 $signed::from_bits(
                     trig::q_to_snorm(trig::sin_fast_q(self.phase()), scale) as $signed_repr
                 )
@@ -313,6 +313,13 @@ macro_rules! define_angle {
             #[inline]
             pub const fn cos_fast(self) -> $signed {
                 self.wrapping_add(Self::QUARTER_TURN).sin_fast()
+            }
+
+            /// The sine and cosine together, approximately.
+            #[must_use]
+            #[inline]
+            pub const fn sin_cos_fast(self) -> ($signed, $signed) {
+                (self.sin_fast(), self.cos_fast())
             }
 
             /// The tangent, as an [`I24F8`].
@@ -342,6 +349,29 @@ macro_rules! define_angle {
             #[inline]
             pub const fn atan2(y: i64, x: i64) -> Self {
                 Self(trig::atan2_bits(y, x, <$repr>::BITS) as $repr)
+            }
+
+            #[doc = concat!("The arccosine of a [`", stringify!($signed), "`], from zero to a half turn.")]
+            ///
+            /// The inverse of [`cos`](Self::cos) over the half turn where the
+            /// cosine is one-to-one. Computed as `pi/2 - asin(value)`, so it
+            /// inherits [`asin`](crate::Pitch16::asin)'s accuracy, and is exact at
+            /// `-1`, `0`, and `1`.
+            ///
+            /// The arcsine's counterpart lives on the pitch types instead, whose
+            /// range is exactly the arcsine's.
+            #[must_use]
+            #[inline]
+            pub const fn acos(value: $signed) -> Self {
+                const SCALE: i64 = $signed::MAX.to_bits() as i64;
+                const RECIPROCAL: i128 = trig::snorm_reciprocal(SCALE);
+                let arcsine = trig::asin_bits(
+                    value.canonicalize().to_bits() as i64,
+                    SCALE,
+                    RECIPROCAL,
+                    <$repr>::BITS,
+                );
+                Self::QUARTER_TURN.wrapping_sub(Self(arcsine as $repr))
             }
 
             /// The angle of the vector `(x, y)`, approximately.

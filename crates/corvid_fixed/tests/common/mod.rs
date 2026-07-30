@@ -5,6 +5,14 @@
     dead_code,
     reason = "each test binary includes this module and uses a different subset of it"
 )]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    reason = "test helpers convert between widths freely; the values are bounded by construction"
+)]
 
 /// A deterministic xorshift64\* generator.
 ///
@@ -19,7 +27,7 @@ impl Rng {
     }
 
     /// The next 64 bits.
-    pub fn next_u64(&mut self) -> u64 {
+    pub const fn next_u64(&mut self) -> u64 {
         self.0 ^= self.0 >> 12;
         self.0 ^= self.0 << 25;
         self.0 ^= self.0 >> 27;
@@ -27,13 +35,13 @@ impl Rng {
     }
 
     /// The next 32 bits.
-    pub fn next_u32(&mut self) -> u32 {
+    pub const fn next_u32(&mut self) -> u32 {
         (self.next_u64() >> 32) as u32
     }
 
     /// A value in `-1.0 ..= 1.0`.
     pub fn next_unit(&mut self) -> f64 {
-        f64::from(self.next_u32()) / f64::from(u32::MAX) * 2.0 - 1.0
+        f64::from(self.next_u32()).mul_add(2.0 / f64::from(u32::MAX), -1.0)
     }
 }
 
@@ -75,7 +83,7 @@ pub struct Worst {
 
 impl Worst {
     /// Folds one comparison in.
-    pub fn observe(&mut self, input: i128, actual: i128, expected: i128) {
+    pub const fn observe(&mut self, input: i128, actual: i128, expected: i128) {
         self.checked += 1;
         let error = (actual - expected).abs();
         if error > 0 {

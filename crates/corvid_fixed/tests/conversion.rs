@@ -8,6 +8,14 @@
     clippy::float_cmp,
     reason = "these tests are about exact float values, so exact comparison is the point"
 )]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    reason = "these tests feed edge-case bit patterns through narrowing casts on purpose"
+)]
 
 mod common;
 
@@ -76,7 +84,10 @@ fn every_8_and_16_bit_value_round_trips_through_f32() {
 fn the_denormal_snorm_encoding_round_trips_to_the_canonical_one() {
     // -128 and -127 are both -1.0, so f64 cannot tell them apart; the round-trip
     // lands on the canonical encoding, and they compare equal either way.
-    assert_eq!(Signed8::from_f64(Signed8::from_bits(-128).to_f64()), Signed8::MIN);
+    assert_eq!(
+        Signed8::from_f64(Signed8::from_bits(-128).to_f64()),
+        Signed8::MIN
+    );
     assert_eq!(Signed8::from_bits(-128), Signed8::from_bits(-127));
     assert_eq!(Signed16::from_bits(i16::MIN), Signed16::MIN);
     assert_eq!(Signed32::from_bits(i32::MIN), Signed32::MIN);
@@ -92,16 +103,32 @@ fn the_32_bit_types_round_trip_through_f64() {
         let signed = raw as i32;
 
         let fixed = I24F8::from_bits(signed);
-        assert_eq!(I24F8::from_f64(fixed.to_f64()), fixed, "I24F8 lost {signed}");
+        assert_eq!(
+            I24F8::from_f64(fixed.to_f64()),
+            fixed,
+            "I24F8 lost {signed}"
+        );
 
         let factor = Factor32::from_bits(raw);
-        assert_eq!(Factor32::from_f64(factor.to_f64()), factor, "Factor32 lost {raw}");
+        assert_eq!(
+            Factor32::from_f64(factor.to_f64()),
+            factor,
+            "Factor32 lost {raw}"
+        );
 
         let snorm = Signed32::from_bits(signed).canonicalize();
-        assert_eq!(Signed32::from_f64(snorm.to_f64()), snorm, "Signed32 lost {signed}");
+        assert_eq!(
+            Signed32::from_f64(snorm.to_f64()),
+            snorm,
+            "Signed32 lost {signed}"
+        );
 
         let angle = Angle32::from_bits(raw);
-        assert_eq!(Angle32::from_turns(angle.to_turns()), angle, "Angle32 lost {raw}");
+        assert_eq!(
+            Angle32::from_turns(angle.to_turns()),
+            angle,
+            "Angle32 lost {raw}"
+        );
     }
 }
 
@@ -148,7 +175,7 @@ fn out_of_range_values_saturate_but_are_detectable() {
     assert_eq!(I8F8::from_f64(-1e9), I8F8::MIN);
     assert_eq!(I8F8::checked_from_f64(1e9), None);
     assert_eq!(I8F8::checked_from_f64(128.0), None);
-    assert_eq!(I8F8::checked_from_f64(127.99609375), Some(I8F8::MAX));
+    assert_eq!(I8F8::checked_from_f64(127.996_093_75), Some(I8F8::MAX));
     // Just under the point where rounding would carry past MAX.
     assert_eq!(I8F8::checked_from_f64(127.998), Some(I8F8::MAX));
     assert_eq!(I8F8::checked_from_f64(127.999), None);
@@ -193,7 +220,7 @@ fn exact_powers_of_two_are_exact_in_the_fixed_point_family() {
         assert_eq!(I8F8::from_f64(value).to_f64(), value, "2^{exponent}");
         assert_eq!(I24F8::from_f64(value).to_f64(), value, "2^{exponent}");
     }
-    assert_eq!(I8F8::from_f64(0.00390625).to_bits(), 1);
+    assert_eq!(I8F8::from_f64(0.003_906_25).to_bits(), 1);
     assert_eq!(I0F8::from_f64(0.25).to_bits(), 64);
 }
 
@@ -244,7 +271,10 @@ fn signed_angle_readings_cover_the_negative_half() {
     assert_eq!(Angle16::QUARTER_TURN.to_signed_turns(), 0.25);
     assert_eq!(Angle16::HALF_TURN.to_signed_turns(), -0.5);
     assert_eq!(Angle16::THREE_QUARTER_TURN.to_signed_turns(), -0.25);
-    assert!((Angle16::THREE_QUARTER_TURN.to_signed_radians() + core::f64::consts::FRAC_PI_2).abs() < 1e-9);
+    assert!(
+        (Angle16::THREE_QUARTER_TURN.to_signed_radians() + core::f64::consts::FRAC_PI_2).abs()
+            < 1e-9
+    );
 
     assert_eq!(Angle8::MAX.to_signed_bits(), -1);
     assert_eq!(Angle16::MAX.to_signed_bits(), -1);

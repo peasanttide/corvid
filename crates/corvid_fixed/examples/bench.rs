@@ -11,15 +11,21 @@
 
 #![allow(
     clippy::print_stdout,
-    clippy::cast_precision_loss,
+    clippy::too_many_lines,
+    clippy::similar_names,
+    clippy::missing_const_for_fn,
     clippy::cast_possible_truncation,
-    reason = "a benchmark's whole job is to print numbers"
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    reason = "a benchmark prints numbers, and reaches into raw bit patterns to build its inputs"
 )]
 
 use std::hint::black_box;
 use std::time::Instant;
 
-use corvid_fixed::{Angle8, Angle16, Angle32, I24F8, Signed16};
+use corvid_fixed::{Angle8, Angle16, Angle32, I24F8, Pitch16, Signed16};
 
 /// Inputs per round.
 const SAMPLES: usize = 4096;
@@ -75,12 +81,14 @@ fn main() {
         .collect();
     let radians32: Vec<f32> = radians.iter().map(|&r| r as f32).collect();
     let coords: Vec<(i64, i64)> = (0..SAMPLES)
-        .map(|_| (rng.next_u64() as i32 as i64, rng.next_u64() as i32 as i64))
+        .map(|_| {
+            (
+                i64::from(rng.next_u64() as i32),
+                i64::from(rng.next_u64() as i32),
+            )
+        })
         .collect();
-    let coords_f: Vec<(f64, f64)> = coords
-        .iter()
-        .map(|&(y, x)| (y as f64, x as f64))
-        .collect();
+    let coords_f: Vec<(f64, f64)> = coords.iter().map(|&(y, x)| (y as f64, x as f64)).collect();
 
     println!("\nsine  ({SAMPLES} inputs x {PASSES} passes, best of {ROUNDS})");
     let native64 = bench("f64::sin", None, || {
@@ -228,6 +236,35 @@ fn main() {
         }
         acc
     });
+    let native_asin = bench("f64::asin", None, || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &r in &radians {
+                acc = acc.wrapping_add((black_box(r) / 8.0).asin().to_bits());
+            }
+        }
+        acc
+    });
+    bench("Pitch16::asin", Some(native_asin), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &phases {
+                let value = Signed16::from_bits(black_box(p) as i16);
+                acc = acc.wrapping_add(Pitch16::asin(value).to_bits() as u64);
+            }
+        }
+        acc
+    });
+    bench("Angle16::acos", Some(native_asin), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &phases {
+                let value = Signed16::from_bits(black_box(p) as i16);
+                acc = acc.wrapping_add(u64::from(Angle16::acos(value).to_bits()));
+            }
+        }
+        acc
+    });
     let native_sqrt = bench("f64::sqrt", None, || {
         let mut acc = 0_u64;
         for _ in 0..PASSES {
@@ -264,6 +301,26 @@ fn main() {
             for &p in &phases {
                 let value = I24F8::from_bits(black_box(p) as i32);
                 acc = acc.wrapping_add(value.saturating_mul(value).to_bits() as u64);
+            }
+        }
+        acc
+    });
+    bench("I24F8::mul_add", Some(native_mul), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &phases {
+                let value = I24F8::from_bits(black_box(p) as i32);
+                acc = acc.wrapping_add(value.mul_add(value, value).to_bits() as u64);
+            }
+        }
+        acc
+    });
+    bench("I24F8::hypot", Some(native_mul), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &phases {
+                let value = I24F8::from_bits((black_box(p) >> 2) as i32);
+                acc = acc.wrapping_add(value.hypot(value).to_bits() as u64);
             }
         }
         acc

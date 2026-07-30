@@ -5,17 +5,31 @@
 //! elsewhere — `tests/trig.rs` and `tests/arithmetic.rs` check against `f64`
 //! references — so this table's job is purely to make an unintended change loud.
 
+#![allow(
+    clippy::print_stdout,
+    reason = "printing the table is this tool's entire purpose"
+)]
+
 use corvid_fixed::{Angle16, Angle32, Factor16, Factor32, I24F8, Signed16};
 
 fn main() {
     print!("const GOLDEN_SIN16: &[(u16, i16)] = &[");
-    for bits in [0_u16, 1, 1000, 8192, 16384, 20000, 32768, 40000, 49152, 60000, 65535, 12345] {
+    for bits in [
+        0_u16, 1, 1000, 8192, 16384, 20000, 32768, 40000, 49152, 60000, 65535, 12345,
+    ] {
         print!("({bits}, {}), ", Angle16::from_bits(bits).sin().to_bits());
     }
     println!("];");
 
     print!("const GOLDEN_COS32: &[(u32, i32)] = &[");
-    for bits in [0_u32, 1, 1_000_000_007, 2_147_483_648, 3_000_000_000, 4_294_967_295] {
+    for bits in [
+        0_u32,
+        1,
+        1_000_000_007,
+        2_147_483_648,
+        3_000_000_000,
+        4_294_967_295,
+    ] {
         print!("({bits}, {}), ", Angle32::from_bits(bits).cos().to_bits());
     }
     println!("];");
@@ -62,7 +76,13 @@ fn main() {
     println!("];");
 
     print!("const GOLDEN_FACTOR_MUL: &[(u16, u16, u16)] = &[");
-    for (a, b) in [(1_u16, 1_u16), (32768, 32768), (65535, 12345), (60000, 60000), (7, 9)] {
+    for (a, b) in [
+        (1_u16, 1_u16),
+        (32768, 32768),
+        (65535, 12345),
+        (60000, 60000),
+        (7, 9),
+    ] {
         let product = Factor16::from_bits(a).mul(Factor16::from_bits(b));
         print!("({a}, {b}, {}), ", product.to_bits());
     }
@@ -81,7 +101,13 @@ fn main() {
     println!("];");
 
     print!("const GOLDEN_SNORM_DIV: &[(i16, i16, i16)] = &[");
-    for (a, b) in [(1_i16, 2_i16), (-32767, 3), (100, -7), (32767, 32767), (5, 1)] {
+    for (a, b) in [
+        (1_i16, 2_i16),
+        (-32767, 3),
+        (100, -7),
+        (32767, 32767),
+        (5, 1),
+    ] {
         let quotient = Signed16::from_bits(a).saturating_div(Signed16::from_bits(b));
         print!("({a}, {b}, {}), ", quotient.to_bits());
     }

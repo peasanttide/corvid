@@ -1,5 +1,5 @@
 //! Deterministic fixed-point scalars: fixed-point numbers, normalized factors,
-//! signed normalized values, and wrapping angles.
+//! signed normalized values, wrapping angles, and clamping pitches.
 //!
 //! Corvid's simulation must produce identical results on every machine that
 //! runs it, and floating point does not cooperate: compilers contract multiplies
@@ -9,19 +9,27 @@
 //! trigonometry — is integer arithmetic. The same inputs give the same bits
 //! everywhere.
 //!
-//! # The four families
+//! # The five families
 //!
 //! | Family | Types | A value `v` denotes | Range |
 //! |---|---|---|---|
 //! | [Fixed point](point) | [`I0F8`], [`I8F8`], [`I24F8`] | `v / 256` | `[-0.5, 0.5)`, `[-128, 128)`, `[-2^23, 2^23)` |
 //! | [Factor](factor) | [`Factor8`], [`Factor16`], [`Factor32`] | `v / MAX` | `0.0 ..= 1.0` |
 //! | [Signed](signed) | [`Signed8`], [`Signed16`], [`Signed32`] | `v / MAX` | `-1.0 ..= 1.0` |
-//! | [Angle](angle) | [`Angle8`], [`Angle16`], [`Angle32`] | `v / 2^BITS` turns | one full turn |
+//! | [Angle](angle) | [`Angle8`], [`Angle16`], [`Angle32`] | `v / 2^BITS` turns | one full turn, wrapping |
+//! | [Pitch](pitch) | [`Pitch8`], [`Pitch16`], [`Pitch32`] | `v / 2^BITS` turns | `-pi/2 ..= pi/2`, clamping |
 //!
 //! They are separate types rather than aliases of one generic, so the compiler
 //! rejects adding an [`Angle16`] to a [`Factor16`] and rustdoc shows real
-//! signatures. All twelve are `#[repr(transparent)]` newtypes over a primitive
+//! signatures. All fifteen are `#[repr(transparent)]` newtypes over a primitive
 //! integer, so they have the size, alignment, and layout of that integer.
+//!
+//! An [`Angle16`] is a heading: it wraps, so turning past a full circle is not an
+//! error and never needs normalizing. A [`Pitch16`] is an elevation: it stops at
+//! straight up and straight down, so looking too far up leaves you looking up
+//! rather than flipping the world over. The two share a scale, so
+//! [`Pitch16::to_angle`] is free and a camera's yaw and pitch are directly
+//! comparable.
 //!
 //! Factors and signed values follow the GPU `UNORM`/`SNORM` convention: `MAX`
 //! is exactly `1.0`. Their bit patterns match `wgpu`'s `Unorm8`, `Snorm16`, and
@@ -49,6 +57,50 @@
 //! `saturating_mul` to choose between; wrapping a [`Signed8`] past `1.0` is not
 //! a meaningful operation, so there is no `wrapping_add`; and an [`Angle16`] has
 //! no bound to check against, so it has no `checked_add`.
+//!
+//! # Beyond arithmetic
+//!
+//! The fixed-point family carries the operations you would reach for on an
+//! `f64`, each exact or correctly rounded and none of them able to panic:
+//! [`floor`](I24F8::floor), [`ceil`](I24F8::ceil), [`round`](I24F8::round),
+//! [`trunc`](I24F8::trunc), [`fract`](I24F8::fract), [`abs`](I24F8::abs),
+//! [`recip`](I24F8::recip), [`sqrt`](I24F8::sqrt),
+//! [`hypot`](I24F8::hypot), and [`mul_add`](I24F8::mul_add) — which, like its
+//! floating-point namesake, rounds once rather than twice. Every family has
+//! [`min`](I24F8::min), [`max`](I24F8::max), [`clamp`](I24F8::clamp), and
+//! [`lerp`](I24F8::lerp), the last of which follows the shortest arc on the
+//! angle types.
+//!
+//! Trigonometry lives on the angle and pitch types, which are the only ones that
+//! know their own units: [`sin`](Angle16::sin), [`cos`](Angle16::cos),
+//! [`sin_cos`](Angle16::sin_cos), [`tan`](Angle16::tan),
+//! [`atan2`](Angle16::atan2), [`acos`](Angle16::acos), and
+//! [`asin`](Pitch16::asin) — whose result range is exactly a pitch's, which is
+//! why it lives there. Each has a `_fast` counterpart that trades a thousandth
+//! of accuracy for a third of the time.
+//!
+//! # Speed
+//!
+//! Integer trigonometry is not a compromise here. Measured on aarch64 with
+//! `cargo run --release --example bench`, against the platform's own `libm`:
+//!
+//! | Operation | Versus `f64` |
+//! |---|---|
+//! | [`sin`](Angle16::sin), [`cos`](Angle16::cos) | **0.71x** |
+//! | [`sin_cos`](Angle16::sin_cos) | **0.98x** |
+//! | [`sin_fast`](Angle16::sin_fast) | **0.20x** |
+//! | [`tan`](Angle16::tan) | 1.75x |
+//! | [`atan2`](Angle16::atan2) | 1.74x for [`Angle16`], 3.1x for [`Angle32`] |
+//! | [`atan2_fast`](Angle16::atan2_fast) | **0.69x** |
+//! | [`asin`](Pitch16::asin), [`acos`](Angle16::acos) | 6.8x |
+//! | multiplication | 1.5x |
+//! | [`sqrt`](I24F8::sqrt) | 12x |
+//!
+//! Sine and cosine beat the platform because a Taylor series over a folded octant
+//! in `i64` is simply less work than a correctly-rounded `libm` reduction. Square
+//! root loses because the hardware has an instruction for it and integer square
+//! root is a loop. The arc functions carry a CORDIC loop, so they are the slowest
+//! thing here; [`atan2_fast`](Angle16::atan2_fast) exists for when that matters.
 //!
 //! # Everything is `const`
 //!
@@ -82,10 +134,11 @@
 //! `to_bits` and `from_bits` are exact inverses for every bit pattern, which is
 //! what makes `bytemuck` and `serde` faithful.
 //!
-//! Going out through a float and back is lossless through `f64` for all twelve
+//! Going out through a float and back is lossless through `f64` for all fifteen
 //! types: the widest carries 32 significant bits against `f64`'s 53. Through
 //! `f32`, with 24 bits of mantissa, it is lossless only for the 8-bit and 16-bit
-//! types. [`I24F8`], [`Factor32`], [`Signed32`], and [`Angle32`] need `f64`.
+//! types. [`I24F8`], [`Factor32`], [`Signed32`], [`Angle32`], and [`Pitch32`]
+//! need `f64`.
 //!
 //! The reverse direction — float to fixed to float — quantizes, so it is lossy
 //! by construction. `0.25` is exact in [`I8F8`] and not in [`Factor16`], because
@@ -144,9 +197,10 @@ extern crate std;
 mod fixed;
 mod trig;
 
-pub use fixed::{angle, factor, point, signed};
+pub use fixed::{angle, factor, pitch, point, signed};
 
 pub use angle::{Angle8, Angle16, Angle32};
 pub use factor::{Factor8, Factor16, Factor32};
+pub use pitch::{Pitch8, Pitch16, Pitch32};
 pub use point::{I0F8, I8F8, I24F8};
 pub use signed::{Signed8, Signed16, Signed32};

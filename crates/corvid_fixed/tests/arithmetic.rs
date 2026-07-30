@@ -9,6 +9,15 @@
     clippy::float_cmp,
     reason = "comparisons are against exactly representable references"
 )]
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    clippy::items_after_statements,
+    reason = "these tests feed edge-case bit patterns through narrowing casts on purpose"
+)]
 
 mod common;
 
@@ -21,7 +30,11 @@ use corvid_fixed::{
 /// The reference result of a fixed-point operation: the true value, rounded to
 /// the type's resolution the way the implementation promises to round.
 fn round_half_away(value: f64) -> f64 {
-    if value >= 0.0 { (value + 0.5).floor() } else { (value - 0.5).ceil() }
+    if value >= 0.0 {
+        (value + 0.5).floor()
+    } else {
+        (value - 0.5).ceil()
+    }
 }
 
 #[test]
@@ -70,12 +83,10 @@ fn i0f8_division_is_exhaustively_correct() {
             let left = I0F8::from_bits(a);
             let right = I0F8::from_bits(b);
             if b == 0 {
-                let expected = if a > 0 {
-                    I0F8::MAX
-                } else if a < 0 {
-                    I0F8::MIN
-                } else {
-                    I0F8::ZERO
+                let expected = match a.cmp(&0) {
+                    core::cmp::Ordering::Greater => I0F8::MAX,
+                    core::cmp::Ordering::Less => I0F8::MIN,
+                    core::cmp::Ordering::Equal => I0F8::ZERO,
                 };
                 assert_eq!(left.saturating_div(right), expected, "{a} / 0");
                 assert_eq!(left.checked_div(right), None, "{a} / 0");
@@ -88,7 +99,11 @@ fn i0f8_division_is_exhaustively_correct() {
                 expected,
                 "{a} / {b}"
             );
-            assert_eq!(left.checked_div(right).is_none(), exact != expected, "{a} / {b}");
+            assert_eq!(
+                left.checked_div(right).is_none(),
+                exact != expected,
+                "{a} / {b}"
+            );
         }
     }
 }
@@ -161,13 +176,19 @@ fn overflow_is_detectable() {
 
     assert_eq!(I8F8::MAX.overflowing_add(I8F8::DELTA), (I8F8::MIN, true));
     assert_eq!(I8F8::MIN.overflowing_sub(I8F8::DELTA), (I8F8::MAX, true));
-    assert_eq!(I8F8::ZERO.overflowing_add(I8F8::DELTA), (I8F8::DELTA, false));
+    assert_eq!(
+        I8F8::ZERO.overflowing_add(I8F8::DELTA),
+        (I8F8::DELTA, false)
+    );
 
     assert_eq!(Factor8::MAX.checked_add(Factor8::DELTA), None);
     assert_eq!(Factor8::ZERO.checked_sub(Factor8::DELTA), None);
     assert_eq!(Signed16::MAX.checked_add(Signed16::DELTA), None);
     assert_eq!(Signed16::MIN.checked_sub(Signed16::DELTA), None);
-    assert_eq!(Signed16::MAX.checked_sub(Signed16::MAX), Some(Signed16::ZERO));
+    assert_eq!(
+        Signed16::MAX.checked_sub(Signed16::MAX),
+        Some(Signed16::ZERO)
+    );
 }
 
 #[test]
@@ -181,7 +202,7 @@ fn fixed_point_arithmetic_wraps_on_demand() {
     let big = I8F8::from_f64(100.0);
     assert_eq!(big.saturating_mul(big), I8F8::MAX);
     assert_ne!(big.wrapping_mul(big), I8F8::MAX);
-    assert_eq!(big.overflowing_mul(big).1, true);
+    assert!(big.overflowing_mul(big).1);
 }
 
 #[test]
@@ -243,7 +264,11 @@ fn multiplication_by_one_is_the_identity() {
     for bits in i16::MIN..=i16::MAX {
         let value = Signed16::from_bits(bits).canonicalize();
         assert_eq!(value.mul(Signed16::MAX), value, "Signed16 at {bits}");
-        assert_eq!(value.mul(Signed16::MIN), -value, "Signed16 negated at {bits}");
+        assert_eq!(
+            value.mul(Signed16::MIN),
+            -value,
+            "Signed16 negated at {bits}"
+        );
     }
 }
 
@@ -255,7 +280,11 @@ fn division_by_one_is_the_identity() {
     }
     for bits in 0..=u16::MAX {
         let value = Factor16::from_bits(bits);
-        assert_eq!(value.saturating_div(Factor16::ONE), value, "Factor16 at {bits}");
+        assert_eq!(
+            value.saturating_div(Factor16::ONE),
+            value,
+            "Factor16 at {bits}"
+        );
     }
 }
 
@@ -287,7 +316,7 @@ fn angles_wrap_under_arithmetic() {
     // Turning by the same amount 2^16 times returns exactly where it started.
     let mut heading = Angle16::from_degrees(37.0);
     let step = Angle16::from_bits(1);
-    for _ in 0..u32::from(u16::MAX) + 1 {
+    for _ in 0..=u32::from(u16::MAX) {
         heading += step;
     }
     assert_eq!(heading, Angle16::from_degrees(37.0));
@@ -295,7 +324,7 @@ fn angles_wrap_under_arithmetic() {
 
 #[test]
 fn the_shortest_arc_is_never_more_than_half_a_turn() {
-    let mut rng = Rng::new(0xa11c_e5);
+    let mut rng = Rng::new(0x00a1_1ce5);
     for _ in 0..20_000 {
         let a = Angle16::from_bits(rng.next_u32() as u16);
         let b = Angle16::from_bits(rng.next_u32() as u16);
@@ -306,7 +335,10 @@ fn the_shortest_arc_is_never_more_than_half_a_turn() {
         assert!(a + arc == b || a - arc == b, "{a:?} +/- {arc:?} != {b:?}");
     }
     assert_eq!(Angle16::ZERO.abs_diff(Angle16::MAX), Angle16::DELTA);
-    assert_eq!(Angle16::ZERO.abs_diff(Angle16::HALF_TURN), Angle16::HALF_TURN);
+    assert_eq!(
+        Angle16::ZERO.abs_diff(Angle16::HALF_TURN),
+        Angle16::HALF_TURN
+    );
 }
 
 #[test]
@@ -319,7 +351,10 @@ fn interpolation_hits_both_endpoints_exactly() {
         assert_eq!(a.lerp(b, Factor32::ONE), b);
 
         let mid = a.lerp(b, Factor32::from_f64(0.5));
-        assert!(mid >= a.min(b) && mid <= a.max(b), "midpoint left the interval");
+        assert!(
+            mid >= a.min(b) && mid <= a.max(b),
+            "midpoint left the interval"
+        );
     }
 
     let f = Factor16::from_bits(1000);
@@ -369,7 +404,7 @@ fn ordering_matches_the_numeric_order() {
     assert_eq!(Signed8::from_bits(-128), Signed8::from_bits(-127));
     assert!(Signed8::from_bits(-128) < Signed8::from_bits(-126));
     assert!(Signed8::from_bits(-127) < Signed8::from_bits(-126));
-    assert!(!(Signed8::from_bits(-128) < Signed8::from_bits(-127)));
+    assert!(Signed8::from_bits(-128) >= Signed8::from_bits(-127));
 }
 
 #[test]
@@ -400,7 +435,11 @@ fn square_roots_are_correct_and_total() {
     // Perfect squares come back exactly.
     for root in 0..=11_i32 {
         let square = I8F8::from_f64(f64::from(root * root));
-        assert_eq!(square.sqrt().to_f64(), f64::from(root), "sqrt of {}^2", root);
+        assert_eq!(
+            square.sqrt().to_f64(),
+            f64::from(root),
+            "sqrt of {root} squared"
+        );
     }
 
     // Factors and signed values root within their own range.
@@ -468,7 +507,7 @@ fn the_edge_bit_patterns_never_misbehave() {
         assert!(snorm.to_f64() >= -1.0 && snorm.to_f64() <= 1.0);
         assert!(snorm.mul(snorm).to_f64().abs() <= 1.0);
         assert!(snorm.abs().to_f64() >= 0.0);
-        assert_eq!(snorm.saturating_add(snorm).to_f64().abs() <= 1.0, true);
+        assert!(snorm.saturating_add(snorm).to_f64().abs() <= 1.0);
 
         let factor = Factor32::from_bits(raw as u32);
         assert!(factor.to_f64() >= 0.0 && factor.to_f64() <= 1.0);
@@ -480,6 +519,211 @@ fn the_edge_bit_patterns_never_misbehave() {
         let _ = angle.sin_cos();
         let _ = angle.tan();
     }
+}
+
+#[test]
+fn rounding_matches_the_float_reference_exhaustively() {
+    for bits in i16::MIN..=i16::MAX {
+        let value = I8F8::from_bits(bits);
+        let exact = value.to_f64();
+
+        // I8F8 cannot hold 128.0, so anything that rounds up out of range
+        // saturates; compare against the clamped reference.
+        let low = I8F8::MIN.to_f64();
+        let high = I8F8::MAX.to_f64();
+        let floor = exact.floor().max(low);
+        let ceil = exact.ceil().min(high);
+        let round = round_half_away(exact).clamp(low, high);
+        let trunc = exact.trunc();
+
+        assert_eq!(value.floor().to_f64(), floor, "floor of {exact}");
+        assert_eq!(value.ceil().to_f64(), ceil, "ceil of {exact}");
+        assert_eq!(value.round().to_f64(), round, "round of {exact}");
+        assert_eq!(value.trunc().to_f64(), trunc, "trunc of {exact}");
+        assert_eq!(value.fract().to_f64(), exact - trunc, "fract of {exact}");
+
+        // The defining identity, which also pins down the sign of fract.
+        assert_eq!(value.trunc().to_f64() + value.fract().to_f64(), exact);
+    }
+}
+
+#[test]
+fn rounding_lands_on_integers_and_leaves_them_alone() {
+    for whole in -100_i32..=100 {
+        let value = I24F8::from_f64(f64::from(whole));
+        assert_eq!(value.floor(), value, "floor moved {whole}");
+        assert_eq!(value.ceil(), value, "ceil moved {whole}");
+        assert_eq!(value.round(), value, "round moved {whole}");
+        assert_eq!(value.trunc(), value, "trunc moved {whole}");
+        assert_eq!(value.fract(), I24F8::ZERO, "fract of {whole} was not zero");
+    }
+
+    // Halfway cases go away from zero, like f64::round.
+    assert_eq!(I24F8::from_f64(0.5).round().to_f64(), 1.0);
+    assert_eq!(I24F8::from_f64(-0.5).round().to_f64(), -1.0);
+    assert_eq!(I24F8::from_f64(1.5).round().to_f64(), 2.0);
+    assert_eq!(I24F8::from_f64(-1.5).round().to_f64(), -2.0);
+    assert_eq!(I24F8::from_f64(0.49).round(), I24F8::ZERO);
+
+    // Floor and ceil differ from trunc on the negative side.
+    assert_eq!(I24F8::from_f64(-2.5).floor().to_f64(), -3.0);
+    assert_eq!(I24F8::from_f64(-2.5).ceil().to_f64(), -2.0);
+    assert_eq!(I24F8::from_f64(-2.5).trunc().to_f64(), -2.0);
+}
+
+#[test]
+fn rounding_saturates_instead_of_leaving_the_range() {
+    assert_eq!(I8F8::MAX.ceil(), I8F8::MAX);
+    assert_eq!(I8F8::MAX.round(), I8F8::MAX);
+    assert_eq!(I8F8::MAX.floor().to_f64(), 127.0);
+    assert_eq!(I8F8::MIN.floor(), I8F8::MIN);
+    assert_eq!(I8F8::MIN.ceil(), I8F8::MIN);
+
+    // Every I0F8 value is under 0.5 in magnitude, so trunc is always zero and
+    // fract is always the whole value.
+    for bits in i8::MIN..=i8::MAX {
+        let value = I0F8::from_bits(bits);
+        assert_eq!(value.trunc(), I0F8::ZERO, "trunc of {bits}");
+        assert_eq!(value.fract(), value, "fract of {bits}");
+    }
+    assert_eq!(
+        I0F8::from_f64(0.25).ceil(),
+        I0F8::MAX,
+        "ceil to 1.0 must saturate"
+    );
+    assert_eq!(
+        I0F8::from_f64(-0.25).floor(),
+        I0F8::MIN,
+        "floor to -1.0 must saturate"
+    );
+}
+
+#[test]
+fn the_reciprocal_is_correct_and_total() {
+    for bits in i16::MIN..=i16::MAX {
+        let value = I8F8::from_bits(bits);
+        if bits == 0 {
+            assert_eq!(value.recip(), I8F8::MAX);
+            assert_eq!(value.checked_recip(), None);
+            continue;
+        }
+        let exact = round_half_away(65_536.0 / f64::from(bits));
+        let clamped = exact.clamp(f64::from(i16::MIN), f64::from(i16::MAX));
+        assert_eq!(
+            f64::from(value.recip().to_bits()),
+            clamped,
+            "recip of {bits}"
+        );
+        assert_eq!(
+            value.checked_recip().is_none(),
+            exact != clamped,
+            "recip of {bits}"
+        );
+    }
+
+    assert_eq!(I24F8::ONE.recip(), I24F8::ONE);
+    assert_eq!(I24F8::from_f64(2.0).recip().to_f64(), 0.5);
+    assert_eq!(I24F8::from_f64(-4.0).recip().to_f64(), -0.25);
+    assert_eq!(I24F8::from_f64(0.25).recip().to_f64(), 4.0);
+    // Everything an I0F8 can hold has a reciprocal of at least 2.
+    assert_eq!(I0F8::from_f64(0.25).recip(), I0F8::MAX);
+    assert_eq!(I0F8::from_f64(-0.25).checked_recip(), None);
+}
+
+#[test]
+fn mul_add_rounds_only_once() {
+    // Multiplying and then adding rounds twice, so it can differ by a step. The
+    // fused form is the one that matches the true value.
+    let small = I24F8::from_bits(3);
+    let one_step = I24F8::from_bits(1);
+    // 3/256 * 3/256 is 9/65536, well under half a step, so it must vanish.
+    assert_eq!(small.mul_add(small, one_step), one_step);
+
+    let base = I24F8::from_f64(1.5);
+    let scale = I24F8::from_f64(2.0);
+    let offset = I24F8::from_f64(-0.25);
+    assert_eq!(base.mul_add(scale, offset).to_f64(), 2.75);
+    assert_eq!(
+        base.mul_add(scale, offset),
+        base.saturating_mul(scale).saturating_add(offset)
+    );
+
+    // Saturates like everything else.
+    assert_eq!(I24F8::MAX.mul_add(I24F8::MAX, I24F8::ZERO), I24F8::MAX);
+    assert_eq!(I24F8::MAX.mul_add(I24F8::MIN, I24F8::ZERO), I24F8::MIN);
+    assert_eq!(I24F8::ZERO.mul_add(I24F8::MAX, I24F8::ONE), I24F8::ONE);
+
+    // Against a reference, across a spread of magnitudes.
+    let mut rng = Rng::new(0x3141_5926);
+    for _ in 0..20_000 {
+        let a = I8F8::from_bits(rng.next_u32() as i16);
+        let b = I8F8::from_bits(rng.next_u32() as i16);
+        let c = I8F8::from_bits(rng.next_u32() as i16);
+        let exact = round_half_away(
+            f64::from(a.to_bits()) * f64::from(b.to_bits()) / 256.0 + f64::from(c.to_bits()),
+        );
+        let expected = exact.clamp(f64::from(i16::MIN), f64::from(i16::MAX));
+        assert_eq!(f64::from(a.mul_add(b, c).to_bits()), expected);
+    }
+}
+
+#[test]
+fn hypot_is_correct_and_never_overflows() {
+    assert_eq!(
+        I24F8::from_f64(3.0).hypot(I24F8::from_f64(4.0)).to_f64(),
+        5.0
+    );
+    assert_eq!(
+        I24F8::from_f64(-3.0).hypot(I24F8::from_f64(4.0)).to_f64(),
+        5.0
+    );
+    assert_eq!(
+        I24F8::from_f64(-3.0).hypot(I24F8::from_f64(-4.0)).to_f64(),
+        5.0
+    );
+    assert_eq!(I24F8::ZERO.hypot(I24F8::ZERO), I24F8::ZERO);
+    assert_eq!(I24F8::from_f64(5.0).hypot(I24F8::ZERO).to_f64(), 5.0);
+
+    // Two large squares would overflow the storage type. The sum is formed at
+    // double width, so the result merely saturates.
+    assert_eq!(I24F8::MAX.hypot(I24F8::MAX), I24F8::MAX);
+    assert_eq!(I24F8::MIN.hypot(I24F8::MIN), I24F8::MAX);
+    assert_eq!(I8F8::MAX.hypot(I8F8::MAX), I8F8::MAX);
+
+    let mut rng = Rng::new(0x2718_2818);
+    for _ in 0..20_000 {
+        let a = I8F8::from_bits((rng.next_u32() as i16) / 2);
+        let b = I8F8::from_bits((rng.next_u32() as i16) / 2);
+        let exact = round_half_away(f64::from(a.to_bits()).hypot(f64::from(b.to_bits())));
+        let expected = exact.min(f64::from(i16::MAX));
+        assert_eq!(
+            f64::from(a.hypot(b).to_bits()),
+            expected,
+            "hypot of {a} and {b}"
+        );
+    }
+}
+
+#[test]
+fn the_float_style_functions_are_available_in_const_context() {
+    const VALUE: I24F8 = I24F8::from_f64(-2.75);
+    const FLOOR: I24F8 = VALUE.floor();
+    const CEIL: I24F8 = VALUE.ceil();
+    const ROUND: I24F8 = VALUE.round();
+    const TRUNC: I24F8 = VALUE.trunc();
+    const FRACT: I24F8 = VALUE.fract();
+    const RECIP: I24F8 = I24F8::from_f64(4.0).recip();
+    const FUSED: I24F8 = VALUE.mul_add(I24F8::from_f64(2.0), I24F8::ONE);
+    const LEG: I24F8 = I24F8::from_f64(3.0).hypot(I24F8::from_f64(4.0));
+
+    assert_eq!(FLOOR.to_f64(), -3.0);
+    assert_eq!(CEIL.to_f64(), -2.0);
+    assert_eq!(ROUND.to_f64(), -3.0);
+    assert_eq!(TRUNC.to_f64(), -2.0);
+    assert_eq!(FRACT.to_f64(), -0.75);
+    assert_eq!(RECIP.to_f64(), 0.25);
+    assert_eq!(FUSED.to_f64(), -4.5);
+    assert_eq!(LEG.to_f64(), 5.0);
 }
 
 #[test]
@@ -500,7 +744,7 @@ fn arithmetic_is_available_in_const_context() {
     assert_eq!(ROOT.to_f64(), 1.5);
     assert_eq!(MIDPOINT.to_f64(), 0.625);
     assert_eq!(CHECKED, None);
-    assert_eq!(OVERFLOWED, true);
+    assert_eq!(OVERFLOWED, I24F8::MAX.overflowing_add(I24F8::DELTA).1);
 
     const FACTOR: Factor16 = Factor16::MAX.mul(Factor16::from_f64(0.5));
     const SNORM: Signed16 = Signed16::MIN.neg();
