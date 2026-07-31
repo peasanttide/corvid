@@ -28,7 +28,7 @@
 //! - [`sin_fast`](Angle16::sin_fast), [`cos_fast`](Angle16::cos_fast), and
 //!   [`atan2_fast`](Angle16::atan2_fast) trade accuracy for speed: worst-case
 //!   error is `1.2e-3` for sine and `4.4e-3` radians for arctangent.
-//!   Exact enough for [`Angle8`]/[`Signed8`](crate::Signed8), coarse for the
+//!   Exact enough for [`Angle8`]/[`Signed8`], coarse for the
 //!   wider types. They are also 32-bit clean — no 64-bit intermediate, and no
 //!   operation `WGSL` lacks — so they transcribe directly into a shader, which
 //!   is why [`atan2_fast`](Angle16::atan2_fast) takes `i32` coordinates where
@@ -50,7 +50,8 @@ use crate::trig;
 /// Generates a wrapping angle type.
 ///
 /// `phase_shift` widens the stored bits to the `u32` phase that [`trig`] works
-/// in; `signed` is the trigonometric output type of matching width.
+/// in; `signed` is the trigonometric output type of matching width, and `pitch`
+/// the clamping angle that shares its scale.
 macro_rules! define_angle {
     (
         $(#[$attr:meta])*
@@ -59,6 +60,7 @@ macro_rules! define_angle {
             phase_shift: $phase_shift:expr,
             signed: $signed:ident($signed_repr:ty),
             factor: $factor:ident,
+            pitch: $pitch:ident,
         }
     ) => {
         define_newtype! {
@@ -328,8 +330,7 @@ macro_rules! define_angle {
             /// every one of the 2^32 phases — from a parabola corrected by a
             /// second parabola in its own output. Exact at multiples of a
             /// quarter turn, and exactly odd in the phase. Within a bit for
-            /// [`Signed8`](crate::Signed8) outputs; about 36 bits coarse for
-            /// [`Signed16`](crate::Signed16).
+            /// [`Signed8`] outputs; about 36 bits coarse for [`Signed16`].
             ///
             /// Computed entirely in 32-bit integer arithmetic, using only
             /// operations a shader has, so the algorithm transcribes directly
@@ -393,11 +394,16 @@ macro_rules! define_angle {
             ///
             /// The inverse of [`cos`](Self::cos) over the half turn where the
             /// cosine is one-to-one. Computed as `pi/2 - asin(value)`, so it
-            /// inherits [`asin`](crate::Pitch16::asin)'s accuracy, and is exact at
-            /// `-1`, `0`, and `1`.
+            #[doc = concat!(
+                "inherits [`asin`](crate::", stringify!($pitch), "::asin)'s accuracy, and is",
+            )]
+            /// exact at `-1`, `0`, and `1`.
             ///
-            /// The arcsine's counterpart lives on the pitch types instead, whose
-            /// range is exactly the arcsine's.
+            #[doc = concat!(
+                "The arcsine's counterpart lives on [`", stringify!($pitch),
+                "`](crate::", stringify!($pitch), ") instead, whose range is exactly the",
+            )]
+            /// arcsine's.
             #[must_use]
             #[inline]
             pub const fn acos(value: $signed) -> Self {
@@ -449,7 +455,7 @@ define_angle! {
     ///
     /// Coarse, but a whole heading in one byte — and coarse enough that
     /// [`sin_fast`](Self::sin_fast) is already accurate to the last bit of its
-    /// [`Signed8`](crate::Signed8) output.
+    /// [`Signed8`] output.
     ///
     /// # Examples
     ///
@@ -468,6 +474,7 @@ define_angle! {
         phase_shift: 24,
         signed: Signed8(i8),
         factor: Factor8,
+        pitch: Pitch8,
     }
 }
 
@@ -519,6 +526,7 @@ define_angle! {
         phase_shift: 16,
         signed: Signed16(i16),
         factor: Factor16,
+        pitch: Pitch16,
     }
 }
 
@@ -533,9 +541,8 @@ define_angle! {
     ///
     /// Finer than `f32` can represent anywhere on the circle. Trigonometry costs
     /// the same as the narrower angles — the shared core computes every result
-    /// at 60 fractional bits regardless — but the wider
-    /// [`Signed32`](crate::Signed32) output is what makes that precision
-    /// visible.
+    /// at 60 fractional bits regardless — but the wider [`Signed32`] output is
+    /// what makes that precision visible.
     ///
     /// # Examples
     ///
@@ -557,5 +564,6 @@ define_angle! {
         phase_shift: 0,
         signed: Signed32(i32),
         factor: Factor32,
+        pitch: Pitch32,
     }
 }

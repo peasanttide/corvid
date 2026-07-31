@@ -1,6 +1,6 @@
 //! General-purpose signed fixed-point numbers.
 //!
-//! These follow the naming convention of the `fixed` crate: `I8F8` is signed,
+//! These follow the naming convention of the `fixed` crate: [`I8F8`] is signed,
 //! with 8 integer bits and 8 fractional bits. A value `v` denotes
 //! `v / 2^FRAC_BITS`, so conversion to and from the raw bits is a shift and
 //! every value is an exact multiple of [`DELTA`](I8F8::DELTA).

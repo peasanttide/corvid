@@ -8,8 +8,9 @@
 //! and the `num-traits` glue.
 //!
 //! The generated types are separate structs rather than aliases of one generic
-//! type. That keeps the families from mixing — a `Factor16` cannot be added to
-//! an `Angle16` — and keeps rustdoc showing concrete signatures.
+//! type. That keeps the families from mixing — a [`Factor16`](crate::Factor16)
+//! cannot be added to an [`Angle16`](crate::Angle16) — and keeps rustdoc showing
+//! concrete signatures.
 //!
 //! # Contract
 //!
@@ -258,7 +259,7 @@ macro_rules! impl_neg {
 /// Declares `ONE` and implements `num_traits::One`.
 ///
 /// Invoked only for types that can represent `1.0`, which excludes
-/// [`I0F8`](crate::I0F8) and the angle family.
+/// [`I0F8`](crate::I0F8) and the [angle family](crate::angle).
 macro_rules! impl_one {
     ($name:ident, $bits:expr) => {
         impl $name {

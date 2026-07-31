@@ -10,13 +10,13 @@
 //! # Units shared with yaw
 //!
 //! A pitch uses the *same* scale as the [angle](super::angle) of matching width:
-//! one turn is `2^BITS`, so [`Pitch16`] and [`Angle16`](crate::Angle16) resolve
-//! to the same 1/65536 of a turn and convert between each other by
+//! one turn is `2^BITS`, so [`Pitch16`] and [`Angle16`] resolve to the same
+//! 1/65536 of a turn and convert between each other by
 //! [`to_angle`](Pitch16::to_angle) with no arithmetic at all. A camera's two
 //! angles are then directly comparable, and the trigonometry below is literally
 //! the same code the wrapping angles use.
 //!
-//! The cost is one bit of the storage type: `Pitch16` only ever holds
+//! The cost is one bit of the storage type: [`Pitch16`] only ever holds
 //! `-16384 ..= 16384` of `i16`'s range. Bit patterns outside that are accepted —
 //! keeping [`from_bits`](Pitch16::from_bits) the exact inverse of
 //! [`to_bits`](Pitch16::to_bits), so `bytemuck` and `serde` stay faithful — and
@@ -390,7 +390,9 @@ macro_rules! define_pitch {
 
             /// The arctangent of `y / x`, clamped to `-pi/2 ..= pi/2`.
             ///
-            /// Scale invariant, like [`atan2`](crate::Angle16::atan2), but folded
+            #[doc = concat!(
+                "Scale invariant, like [`", stringify!($angle), "::atan2`], but folded",
+            )]
             /// onto the right half plane: a negative `x` mirrors rather than
             /// turning past vertical. With `x` positive this is a plain
             /// arctangent, and `atan2(y, 1)` is the arctangent of `y`.
@@ -517,8 +519,7 @@ define_pitch! {
     /// | Range | `-16384 ..= 16384`, denoting `-90 ..= 90` degrees |
     /// | Resolution | `1/65536` turn, or about 0.0055 degrees |
     ///
-    /// The camera pitch to reach for, paired with an
-    /// [`Angle16`](crate::Angle16) yaw.
+    /// The camera pitch to reach for, paired with an [`Angle16`] yaw.
     ///
     /// # Examples
     ///

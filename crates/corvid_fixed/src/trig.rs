@@ -1,4 +1,5 @@
-//! Integer-only trigonometry backing the [angle types](crate::Angle16).
+//! Integer-only trigonometry backing the [angle](crate::angle) and
+//! [pitch](crate::pitch) types.
 //!
 //! Everything here is `const` and uses only integer arithmetic, so results are
 //! bit-identical on every target. No floating-point value is produced, consumed,
@@ -650,8 +651,8 @@ pub(crate) const fn tan_i24f8(phase: u32) -> i32 {
 ///
 /// The result lies in `-2^(bits-1) ..= 2^(bits-1)`, the phase read as a signed
 /// offset from zero rather than as a position on `0 .. 2^bits`. Casting it to
-/// the caller's storage type — signed for a [pitch](crate::Pitch16), unsigned
-/// for an [angle](crate::Angle16) — keeps the `bits` bits that matter and
+/// the caller's storage type — signed for a [pitch](crate::pitch), unsigned
+/// for an [angle](crate::angle) — keeps the `bits` bits that matter and
 /// discards the sign extension, which is exactly the wrapping the phase space
 /// wants. Staying signed all the way to that cast is what lets the pitch types
 /// hold the result without a mask-then-reinterpret round trip.
@@ -757,7 +758,7 @@ pub(crate) const fn atan2_bits(y: i64, x: i64, bits: u32) -> i32 {
 /// over. `max` must be positive, `|value|` must not exceed it, and `reciprocal`
 /// must be [`snorm_reciprocal(max)`](snorm_reciprocal).
 ///
-/// The result is signed, so it drops straight into a [pitch](crate::Pitch16) —
+/// The result is signed, so it drops straight into a [pitch](crate::pitch) —
 /// whose range is exactly the arcsine's — without a wrapping reinterpretation.
 pub(crate) const fn asin_bits(value: i64, max: i64, reciprocal: i128, bits: u32) -> i32 {
     let quarter = 1_i32 << (bits - 2);

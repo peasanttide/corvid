@@ -6,7 +6,7 @@
 //!
 //! # The denormal
 //!
-//! `SNORM` spends one bit pattern twice. For `Signed8`, both `-128` and `-127`
+//! `SNORM` spends one bit pattern twice. For [`Signed8`], both `-128` and `-127`
 //! denote `-1.0`, because the range is clamped rather than wrapped. That is a
 //! genuine wart, and left alone it would break `Hash`/`Eq` agreement — two
 //! values equal as numbers but unequal as bits — which Corvid's state hashing
