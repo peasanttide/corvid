@@ -9,7 +9,7 @@ fixed point transform
 - vec3
 - vec2
 - angle
-- rotation
+- fixed point rotation
 
 ## fixed
 fixed point types.
@@ -68,9 +68,11 @@ compile shaders
 
 spatial audio
 
-## build
+## cli
 
-build script used to help ship game / bundle assets.
+tool for initing, building and shipping corvid games.
+ensures standards are being followed, crate layout, magic values are set, etc.
+does cross platform builds.
 
 ## Asset
 
@@ -79,5 +81,4 @@ build script used to help ship game / bundle assets.
 - async loading
 - placeholders
 - lods
-- referance counted
-
+- reference counted
