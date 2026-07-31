@@ -438,7 +438,7 @@ fn fast_atan2_survives_extreme_coordinates() {
 ///
 /// Ignored because it walks all 2^32 phases. Run it with:
 ///
-/// ```text
+/// ```sh
 /// cargo test -p corvid_fixed --release exhaustively_within -- --ignored
 /// ```
 #[test]

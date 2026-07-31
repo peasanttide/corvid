@@ -1202,7 +1202,7 @@ mod tests {
     /// Ignored because it takes about a minute and a half on eight cores. Run it
     /// with:
     ///
-    /// ```text
+    /// ```sh
     /// cargo test -p corvid_fixed --release exhaustive -- --ignored
     /// ```
     #[test]

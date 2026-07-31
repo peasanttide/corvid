@@ -1,4 +1,4 @@
-# corvid_fixed
+# `corvid_fixed`
 
 Deterministic fixed-point scalars for [Corvid](../..): fixed-point numbers,
 normalized factors, signed normalized values, wrapping angles, and clamping
@@ -66,7 +66,29 @@ and infinities saturate. Every degenerate input has an answer, so the operators
 can exist at all under the workspace's `panic = "deny"` lint.
 
 **Everything is `const`.** Including `sin`, `atan2`, `asin`, and square roots, so
-tables of geometry can be built at compile time.
+tables of geometry can be built at compile time:
+
+```rust
+use corvid_fixed::{Angle16, Signed16};
+
+const SPOKES: usize = 8;
+const DIRECTIONS: [(Signed16, Signed16); SPOKES] = {
+    let mut spokes = [(Signed16::ZERO, Signed16::ZERO); SPOKES];
+    let mut i = 0;
+    while i < SPOKES {
+        let phase = (i * (u16::MAX as usize + 1) / SPOKES) as u16;
+        spokes[i] = Angle16::from_bits(phase).sin_cos();
+        i += 1;
+    }
+    spokes
+};
+
+assert_eq!(DIRECTIONS[0], (Signed16::ZERO, Signed16::MAX));
+assert_eq!(DIRECTIONS[2], (Signed16::MAX, Signed16::ZERO));
+```
+
+Operator traits cannot be `const`, so `a.saturating_add(b)` works in a `const`
+context where `a + b` does not.
 
 **Floating point lives at the boundary.** Arithmetic, comparison, and
 trigonometry never touch it. The conversions do: `from_f64`, `to_f64`, their
@@ -188,6 +210,11 @@ cargo test -p corvid_fixed --all-features
 | `tests/pitch.rs` | Clamping at the poles, out-of-range bit patterns, `asin`/`acos` against `f64` over their whole domain, shared scale with the angle types |
 | `tests/determinism.rs` | Const-evaluated results versus runtime results; golden value tables |
 | `tests/interop.rs` | Layout, hashing, and each optional integration |
+| doctests | Every Rust block in this file and in the type documentation |
+
+That last row is not a formality: this README is the crate's front page, so every
+`rust` block above is compiled and run by `cargo test`, and a claim that stops
+being true stops the build.
 
 Round-trip fidelity, precisely: `to_bits`/`from_bits` are exact inverses for
 every bit pattern. Through `f64`, all fifteen types round-trip losslessly.
