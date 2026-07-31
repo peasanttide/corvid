@@ -190,20 +190,6 @@
 //! Serialization is the raw integer, not a decimal string: it round-trips
 //! exactly, stays stable across versions, and does not invite a reader to think
 //! the value is a float.
-//!
-//! ## Vector math libraries
-//!
-//! `nalgebra` needs nothing from this crate. Its blanket `Scalar` implementation
-//! covers any `Clone + PartialEq + Debug + Any` type, so `Vector3<I24F8>` works
-//! as-is, along with anything built from the operator traits — addition,
-//! subtraction, scaling. `RealField` and `ComplexField` are deliberately not
-//! implemented: they require `exp`, `ln`, and `powf` on the scalar, which a
-//! fixed-point type cannot answer honestly, and implementing them would make
-//! `norm()` compile and then misbehave.
-//!
-//! `mint` is a set of vector and matrix structs with no scalar traits, so a
-//! scalar crate has nothing to interoperate with. Both belong with the vector
-//! types in `corvid_transform`.
 
 #![no_std]
 #![allow(
