@@ -16,8 +16,8 @@
 use core::mem::{align_of, size_of};
 
 use corvid_fixed::{
-    Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I8F8, I24F8, Signed8, Signed16,
-    Signed32,
+    Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I2F30, I8F8, I16F16, I24F8,
+    I48F16, Signed8, Signed16, Signed32,
 };
 
 #[test]
@@ -37,6 +37,10 @@ fn every_type_has_the_layout_of_its_storage_integer() {
     assert_eq!((size_of::<Angle8>(), align_of::<Angle8>()), (1, 1));
     assert_eq!((size_of::<Angle16>(), align_of::<Angle16>()), (2, 2));
     assert_eq!((size_of::<Angle32>(), align_of::<Angle32>()), (4, 4));
+
+    assert_eq!((size_of::<I16F16>(), align_of::<I16F16>()), (4, 4));
+    assert_eq!((size_of::<I2F30>(), align_of::<I2F30>()), (4, 4));
+    assert_eq!((size_of::<I48F16>(), align_of::<I48F16>()), (8, 8));
 }
 
 #[test]

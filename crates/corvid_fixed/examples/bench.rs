@@ -25,7 +25,7 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-use corvid_fixed::{Angle8, Angle16, Angle32, I24F8, Pitch16, Signed16};
+use corvid_fixed::{Angle8, Angle16, Angle32, I2F30, I24F8, Pitch16, Signed16};
 
 /// Inputs per round.
 const SAMPLES: usize = 4096;
@@ -287,6 +287,68 @@ fn main() {
         }
         acc
     });
+    // The reason `rsqrt` exists rather than composing the two operations above:
+    // it is one rounding instead of two, and it runs neither the `isqrt` loop
+    // nor the wide divide.
+    //
+    // These three rows share one input domain — values near 1, where a
+    // reciprocal square root has an answer worth computing. The `sqrt` row
+    // above sweeps the whole type instead, where `1/sqrt(x)` underflows to zero
+    // for most of the range and would flatter `rsqrt` by measuring a branch
+    // rather than the arithmetic.
+    println!("\nreciprocal square root (inputs near 1.0)");
+    let unit_sqrt = bench("I24F8::sqrt", Some(native_sqrt), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &phases {
+                let value = I24F8::from_bits(((black_box(p) >> 22) | 1) as i32);
+                acc = acc.wrapping_add(value.sqrt().to_bits() as u64);
+            }
+        }
+        acc
+    });
+    bench("I24F8::rsqrt", Some(unit_sqrt), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &phases {
+                let value = I24F8::from_bits(((black_box(p) >> 22) | 1) as i32);
+                acc = acc.wrapping_add(value.rsqrt().to_bits() as u64);
+            }
+        }
+        acc
+    });
+    bench("I24F8::sqrt().recip()", Some(unit_sqrt), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &phases {
+                let value = I24F8::from_bits(((black_box(p) >> 22) | 1) as i32);
+                acc = acc.wrapping_add(value.sqrt().recip().to_bits() as u64);
+            }
+        }
+        acc
+    });
+    // The rotation decoders' own domain: a quarter to a bit over one, which is
+    // where `normalize` lands its sum of squares.
+    bench("I2F30::rsqrt", Some(unit_sqrt), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &phases {
+                let value = I2F30::from_bits(((black_box(p) >> 2) | (1 << 28)) as i32);
+                acc = acc.wrapping_add(value.rsqrt().to_bits() as u64);
+            }
+        }
+        acc
+    });
+    bench("I2F30::sqrt().recip()", Some(unit_sqrt), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &phases {
+                let value = I2F30::from_bits(((black_box(p) >> 2) | (1 << 28)) as i32);
+                acc = acc.wrapping_add(value.sqrt().recip().to_bits() as u64);
+            }
+        }
+        acc
+    });
 
     println!("\nmultiplication (fixed point versus float)");
     let native_mul = bench("f64 multiply", None, || {
@@ -334,6 +396,51 @@ fn main() {
             for &p in &phases {
                 let value = Signed16::from_bits(black_box(p) as i16);
                 acc = acc.wrapping_add(value.mul(value).to_bits() as u64);
+            }
+        }
+        acc
+    });
+
+    // The reciprocal square root, over positive inputs only — the negatives
+    // and zero take an early return that would otherwise flatter both tiers.
+    let positives: Vec<i32> = phases.iter().map(|&p| ((p >> 1) | 1) as i32).collect();
+
+    println!("\nreciprocal square root  ({SAMPLES} inputs x {PASSES} passes, best of {ROUNDS})");
+    let native_rsqrt = bench("f64 1.0 / x.sqrt()", None, || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &positives {
+                acc = acc.wrapping_add((1.0 / f64::from(black_box(p)).sqrt()).to_bits());
+            }
+        }
+        acc
+    });
+    bench("I2F30::rsqrt", Some(native_rsqrt), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &positives {
+                let value = I2F30::from_bits(black_box(p));
+                acc = acc.wrapping_add(value.rsqrt().to_bits() as u64);
+            }
+        }
+        acc
+    });
+    bench("I2F30::rsqrt_fast", Some(native_rsqrt), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &positives {
+                let value = I2F30::from_bits(black_box(p));
+                acc = acc.wrapping_add(value.rsqrt_fast().to_bits() as u64);
+            }
+        }
+        acc
+    });
+    bench("I2F30::sqrt().recip()", Some(native_rsqrt), || {
+        let mut acc = 0_u64;
+        for _ in 0..PASSES {
+            for &p in &positives {
+                let value = I2F30::from_bits(black_box(p));
+                acc = acc.wrapping_add(value.sqrt().recip().to_bits() as u64);
             }
         }
         acc

@@ -1,0 +1,48 @@
+[package]
+name = "corvid_rotation"
+description = "Deterministic fixed-point SO(3): compact rotation codecs, orthonormal bases and unit quaternions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["fixed-point", "deterministic", "quaternion", "rotation", "gamedev"]
+categories = ["game-development", "mathematics", "no-std::no-alloc"]
+
+[dependencies]
+arbitrary = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+corvid_fixed = { version = "0.1.0", path = "../corvid_fixed" }
+corvid_vector = { version = "0.1.0", path = "../corvid_vector" }
+mint = { workspace = true, optional = true }
+nalgebra = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+
+[features]
+default = []
+mint = ["dep:mint", "corvid_vector/mint"]
+# `UnitQuaternion::new_normalize` needs `f64: RealField`, which nalgebra gates
+# on one of its own float backends. The workspace pins nalgebra with
+# `default-features = false`, so without `libm` here this feature does not
+# compile on its own — only under `--all-features`, where `std` supplies it.
+nalgebra = ["dep:nalgebra", "nalgebra/libm", "corvid_vector/nalgebra"]
+serde = ["dep:serde", "corvid_vector/serde", "corvid_fixed/serde"]
+bytemuck = ["dep:bytemuck", "corvid_vector/bytemuck", "corvid_fixed/bytemuck"]
+arbitrary = ["dep:arbitrary", "corvid_vector/arbitrary", "corvid_fixed/arbitrary"]
+std = [
+    "bytemuck?/extern_crate_std",
+    "serde?/std",
+    "nalgebra?/std",
+    "corvid_vector/std",
+    "corvid_fixed/std",
+]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

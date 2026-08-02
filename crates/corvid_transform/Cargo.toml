@@ -1,0 +1,45 @@
+[package]
+name = "corvid_transform"
+description = "Deterministic fixed-point rigid transforms, sized for an earth-scale VR game."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["fixed-point", "deterministic", "transform", "no-std", "gamedev"]
+categories = ["game-development", "mathematics", "no-std::no-alloc"]
+
+[dependencies]
+arbitrary = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+corvid_fixed = { version = "0.1.0", path = "../corvid_fixed" }
+corvid_rotation = { version = "0.1.0", path = "../corvid_rotation" }
+corvid_vector = { version = "0.1.0", path = "../corvid_vector" }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+
+[features]
+default = []
+# This crate has no interop code of its own; it re-exports the types and
+# forwards the features, so `mint` and `nalgebra` are not direct dependencies.
+mint = ["corvid_rotation/mint"]
+nalgebra = ["corvid_rotation/nalgebra"]
+serde = ["dep:serde", "corvid_rotation/serde", "corvid_vector/serde", "corvid_fixed/serde"]
+bytemuck = ["dep:bytemuck", "corvid_rotation/bytemuck", "corvid_vector/bytemuck", "corvid_fixed/bytemuck"]
+arbitrary = ["dep:arbitrary", "corvid_rotation/arbitrary", "corvid_vector/arbitrary", "corvid_fixed/arbitrary"]
+std = [
+    "bytemuck?/extern_crate_std",
+    "serde?/std",
+    "corvid_rotation/std",
+    "corvid_vector/std",
+    "corvid_fixed/std",
+]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

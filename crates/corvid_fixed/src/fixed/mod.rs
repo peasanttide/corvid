@@ -5,6 +5,7 @@
 //! crate root, which is where they should be referred to from.
 
 mod macros;
+mod rsqrt;
 
 pub mod angle;
 pub mod factor;

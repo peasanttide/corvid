@@ -5,7 +5,7 @@ Deterministic fixed-point scalars for
 normalized factors, signed normalized values, wrapping angles, and clamping
 pitches — with integer-only trigonometry that outruns the platform's own.
 
-Fifteen concrete types. Every operation is `const` and total, and every one that
+Eighteen concrete types. Every operation is `const` and total, and every one that
 computes on a value is integer arithmetic, so the same inputs give the same bits
 on every machine that runs the simulation.
 
@@ -43,7 +43,7 @@ assert_eq!(a.lerp(b, Factor32::from_f64(0.5)), I24F8::ZERO);
 
 | Family | Types | A value `v` denotes | Range |
 |---|---|---|---|
-| Fixed point | [`I0F8`], [`I8F8`], [`I24F8`] | `v / 256` | `[-0.5, 0.5)`, `[-128, 128)`, `[-2^23, 2^23)` |
+| Fixed point | [`I0F8`], [`I8F8`], [`I24F8`], [`I16F16`], [`I48F16`], [`I2F30`] | `v / 2^FRAC_BITS` | per type: `[-0.5, 0.5)`, `[-128, 128)`, `[-2^23, 2^23)`, `[-2^15, 2^15)`, `[-2^47, 2^47)`, `[-2, 2)` |
 | Factor | [`Factor8`], [`Factor16`], [`Factor32`] | `v / MAX` | `0.0 ..= 1.0` |
 | Signed | [`Signed8`], [`Signed16`], [`Signed32`] | `v / MAX` | `-1.0 ..= 1.0` |
 | Angle | [`Angle8`], [`Angle16`], [`Angle32`] | `v / 2^BITS` turns | one full turn, wrapping |
@@ -118,6 +118,11 @@ The fixed-point family carries what you would reach for on an `f64` — `floor`,
 `mul_add` that rounds once rather than twice. Every family has `min`, `max`,
 `clamp`, and `lerp`, the last of which takes the shortest arc on angles.
 
+There is also `rsqrt`, which is not an `f64` habit but is the operation every
+normalize in the workspace actually wants. It is correctly rounded from a single
+full-width intermediate, where `x.sqrt().recip()` rounds twice and can saturate
+on an intermediate the caller never asked for.
+
 Trigonometry lives on the angle and pitch types, the only ones that know their
 own units: `sin`, `cos`, `sin_cos`, `tan`, `atan2`, `acos`, and `asin` — whose
 output range is exactly a pitch's, which is why it lives there.
@@ -129,11 +134,28 @@ output range is exactly a pitch's, which is why it lives there.
 | Method | 7-term Taylor over a folded octant, in Q60 `i64`; CORDIC for the arc functions | refined parabola; Rajan's polynomial |
 | Arithmetic | `i64`, and `i128` where correct rounding needs it | `i32`/`u32` only |
 
+`rsqrt` has the same pair of tiers, on the point types rather than the angle
+ones:
+
+| | `rsqrt` | `rsqrt_fast` |
+|---|---|---|
+| Error | correctly rounded | `3.2e-5` relative, plus the rounding onto the type |
+| Method | linear seed, Newton at Q30, one step at Q62, then an exact integer correction | the same seed and two Newton steps, all at Q15 |
+| Arithmetic | `u64`, and `u128` for the last step and the correction | `i32`/`u32` only |
+
 The `_fast` column is 32-bit clean on purpose: no 64-bit intermediate, no
 widening multiply, and no operation `WGSL` lacks, so those algorithms transcribe
 directly into a shader and a GPU can reproduce what the simulation computed.
-That is why `atan2_fast` takes `i32` coordinates where `atan2` takes `i64`. The
+That is why `atan2_fast` takes `i32` coordinates where `atan2` takes `i64`, and
+why `rsqrt_fast` exists on every type but [`I48F16`], whose `i64` bit pattern
+cannot be narrowed without the 64-bit operation the tier promises to avoid. The
 exact tier stays CPU-only — correct rounding at 32 bits needs the precision.
+
+Fifteen significant bits is not a step count that could be raised. Newton
+refines by the residual `1 − n q²`, and that product's two factors must each fit
+an operand while the product fits a register — so it carries about 15 bits
+however many times it is iterated. `rsqrt` buys the rest with a 64×64-to-128
+multiply, which is precisely what a shader cannot do.
 
 Pi is not written down anywhere in this crate. It is evaluated at compile time
 from Machin's formula, `pi = 16*atan(1/5) - 4*atan(1/239)`, using a `const fn`
@@ -146,9 +168,9 @@ identity for pi.
 
 Integer trigonometry is not a compromise here. Measured on aarch64 with
 `cargo run --release --example bench`, against the platform's own `libm`. The
-two `_fast` rows were re-measured on x86-64 after those functions moved to
-32-bit arithmetic; every unchanged row agreed between the two machines to within
-a few percent.
+two trigonometry `_fast` rows were re-measured on x86-64 after those functions
+moved to 32-bit arithmetic, as were the two `rsqrt` rows; every unchanged row
+agreed between the two machines to within a few percent.
 
 | Operation | ns | Versus `f64` |
 |---|---|---|
@@ -160,6 +182,8 @@ a few percent.
 | [`Angle32::atan2`] | 57.7 | 3.11x |
 | [`Angle16::atan2_fast`] | 3.3 | **0.17x** |
 | [`Pitch16::asin`] | 57.1 | 6.8x |
+| [`I2F30::rsqrt`] | 20.0 | 6.2x |
+| [`I2F30::rsqrt_fast`] | 5.3 | **1.6x** |
 | [`I24F8::saturating_mul`] | 0.75 | 1.5x |
 | [`I24F8::sqrt`] | 8.4 | 12x |
 
@@ -196,7 +220,7 @@ except `arbitrary`, whose derive macro emits `std` paths.
 `Vector3<I24F8>` work, and the tests keep that true. `RealField` is deliberately
 not implemented — it wants `exp`, `ln`, and `powf`, which a fixed-point scalar
 cannot answer honestly. `mint` has no scalar traits to implement, so both belong
-with the vector types in `corvid_transform`.
+with the vector types in `corvid_vector`.
 
 ## Tests
 
@@ -219,7 +243,8 @@ That last row is not a formality: this README is the crate's front page, so ever
 being true stops the build.
 
 Round-trip fidelity, precisely: `to_bits`/`from_bits` are exact inverses for
-every bit pattern. Through `f64`, all fifteen types round-trip losslessly.
-Through `f32`, only the 8- and 16-bit ones do — `I24F8`, `Factor32`, `Signed32`,
-`Angle32`, and `Pitch32` carry more significant bits than an `f32` mantissa
-holds.
+every bit pattern. Through `f64`, seventeen of the eighteen types round-trip
+losslessly; [`I48F16`] is the exception, because its 63 magnitude bits exceed
+`f64`'s 53-bit mantissa. Through `f32`, only the 8- and 16-bit ones do —
+`I24F8`, `I16F16`, `I2F30`, `I48F16`, `Factor32`, `Signed32`, `Angle32`, and
+`Pitch32` carry more significant bits than an `f32` mantissa holds.

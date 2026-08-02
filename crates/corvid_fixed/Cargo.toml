@@ -3,6 +3,7 @@ name = "corvid_fixed"
 description = "Deterministic fixed-point scalars: fixed-point numbers, normalized factors, and wrapping angles with integer-only trigonometry."
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
 license.workspace = true
@@ -16,7 +17,7 @@ num-traits = { version = "0.2.19", default-features = false, optional = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
-nalgebra = { version = "0.34", default-features = false }
+nalgebra = { workspace = true }
 serde_json = "1"
 
 [features]

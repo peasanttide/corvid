@@ -1,0 +1,44 @@
+[package]
+name = "corvid_vector"
+description = "Deterministic fixed-point 3-vectors: world positions, near-field offsets and unit directions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["fixed-point", "deterministic", "vector", "no-std", "gamedev"]
+categories = ["game-development", "mathematics", "no-std::no-alloc"]
+
+[dependencies]
+arbitrary = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+corvid_fixed = { version = "0.1.0", path = "../corvid_fixed" }
+mint = { workspace = true, optional = true }
+nalgebra = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+
+[features]
+default = []
+mint = ["dep:mint"]
+nalgebra = ["dep:nalgebra"]
+serde = ["dep:serde", "corvid_fixed/serde"]
+bytemuck = ["dep:bytemuck", "corvid_fixed/bytemuck"]
+arbitrary = ["dep:arbitrary", "corvid_fixed/arbitrary"]
+std = [
+    "bytemuck?/extern_crate_std",
+    "serde?/std",
+    "nalgebra?/std",
+    "corvid_fixed/std",
+]
+
+[lints]
+workspace = true
+
+# Every optional integration is off by default, so a plain build documents none
+# of them. Turn them all on for docs.rs.
+[package.metadata.docs.rs]
+all-features = true

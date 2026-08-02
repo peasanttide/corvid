@@ -25,8 +25,8 @@ use std::hint::black_box;
 
 use common::{I32_EDGES, Rng};
 use corvid_fixed::{
-    Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I8F8, I24F8, Pitch16, Signed8,
-    Signed16, Signed32,
+    Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I2F30, I8F8, I16F16, I24F8,
+    I48F16, Pitch16, Signed8, Signed16, Signed32,
 };
 
 /// The reference result of a fixed-point operation: the true value, rounded to
@@ -823,4 +823,309 @@ fn comparison_is_available_in_const_context() {
         denormal.clamp(Signed8::MIN, Signed8::MAX).to_bits()
     );
     assert_eq!(NARROWED.to_bits(), out_of_range.min(Pitch16::MAX).to_bits());
+}
+
+// --- rsqrt -----------------------------------------------------------------
+//
+// The reciprocal square root is the one operation every normalize in Corvid
+// reaches for. It is held to the same standard as `sqrt` and `mul`: correctly
+// rounded, from a single full-width intermediate.
+
+/// The correctly rounded `rsqrt` bit pattern, computed in `f64`.
+///
+/// `f64` carries 53 significant bits and no result here needs more than 31, so
+/// the reference is exact except at ties, which the callers avoid by comparing
+/// against the integer neighbours directly.
+fn rsqrt_reference(bits: i64, frac: u32, max: i64) -> i64 {
+    let value = bits as f64 / (1u64 << frac) as f64;
+    let exact = 1.0 / value.sqrt() * (1u64 << frac) as f64;
+    let rounded = round_half_away(exact);
+    if rounded > max as f64 {
+        max
+    } else {
+        rounded as i64
+    }
+}
+
+#[test]
+fn rsqrt_is_correctly_rounded_for_every_i8f8() {
+    // Exhaustive, which settles correct rounding outright rather than sampling
+    // for it.
+    for bits in 1..=i16::MAX {
+        let value = I8F8::from_bits(bits);
+        let expected = rsqrt_reference(i64::from(bits), 8, i64::from(i16::MAX));
+        assert_eq!(
+            i64::from(value.rsqrt().to_bits()),
+            expected,
+            "rsqrt({}) at bits {bits}",
+            value.to_f64()
+        );
+    }
+}
+
+#[test]
+fn rsqrt_is_correctly_rounded_for_every_i0f8() {
+    // I0F8's values are all under 0.5, so 1/sqrt(x) always exceeds 1.41 and the
+    // result always saturates — the same story as `recip`.
+    for bits in 1..=i8::MAX {
+        assert_eq!(I0F8::from_bits(bits).rsqrt(), I0F8::MAX);
+    }
+}
+
+#[test]
+fn rsqrt_is_correctly_rounded_across_i24f8_and_i16f16_and_i2f30() {
+    let mut rng = Rng::new(0x5153_7274_0000_0001);
+    for _ in 0..200_000 {
+        // Cover every exponent, not just the top of the range: shift a random
+        // value down by a random amount.
+        let raw = ((rng.next_u32() >> 1) >> (rng.next_u32() % 30)) as i32 | 1;
+
+        let coarse = I24F8::from_bits(raw);
+        assert_eq!(
+            i64::from(coarse.rsqrt().to_bits()),
+            rsqrt_reference(i64::from(raw), 8, i64::from(i32::MAX)),
+            "I24F8::rsqrt at bits {raw}"
+        );
+
+        let near = I16F16::from_bits(raw);
+        assert_eq!(
+            i64::from(near.rsqrt().to_bits()),
+            rsqrt_reference(i64::from(raw), 16, i64::from(i32::MAX)),
+            "I16F16::rsqrt at bits {raw}"
+        );
+
+        let entry = I2F30::from_bits(raw);
+        assert_eq!(
+            i64::from(entry.rsqrt().to_bits()),
+            rsqrt_reference(i64::from(raw), 30, i64::from(i32::MAX)),
+            "I2F30::rsqrt at bits {raw}"
+        );
+    }
+}
+
+#[test]
+fn rsqrt_is_correctly_rounded_across_i48f16() {
+    let mut rng = Rng::new(0x5153_7274_0000_0002);
+    for _ in 0..200_000 {
+        // I48F16 is the one type whose to_f64 is lossy, so keep the reference
+        // honest by staying inside 53 significant bits.
+        let raw = (((rng.next_u64() >> 11) >> (rng.next_u64() % 42)) as i64) | 1;
+        let wide = I48F16::from_bits(raw);
+        assert_eq!(
+            wide.rsqrt().to_bits(),
+            rsqrt_reference(raw, 16, i64::MAX),
+            "I48F16::rsqrt at bits {raw}"
+        );
+    }
+}
+
+#[test]
+fn rsqrt_times_sqrt_is_one() {
+    for bits in [1i32, 2, 3, 255, 256, 1_000, 65_536, 1 << 20, i32::MAX] {
+        let value = I16F16::from_bits(bits);
+        let product = value.rsqrt().to_f64() * value.sqrt().to_f64();
+        // sqrt's own quantization dominates at the bottom of the range, where a
+        // last-bit root is a large relative error.
+        let tolerance = if bits < 1 << 10 { 0.05 } else { 1e-3 };
+        assert!(
+            (product - 1.0).abs() < tolerance,
+            "at bits {bits}: rsqrt * sqrt = {product}"
+        );
+    }
+}
+
+#[test]
+fn rsqrt_saturates_on_zero_and_negatives() {
+    assert_eq!(I24F8::ZERO.rsqrt(), I24F8::MAX);
+    assert_eq!(I24F8::from_f64(-1.0).rsqrt(), I24F8::MAX);
+    assert_eq!(I24F8::MIN.rsqrt(), I24F8::MAX);
+    assert_eq!(I24F8::ZERO.checked_rsqrt(), None);
+    assert_eq!(I24F8::from_f64(-1.0).checked_rsqrt(), None);
+    assert_eq!(I2F30::ZERO.rsqrt(), I2F30::MAX);
+    assert_eq!(I48F16::ZERO.rsqrt(), I48F16::MAX);
+}
+
+#[test]
+fn rsqrt_saturates_rather_than_wrapping_when_the_result_is_out_of_range() {
+    // 1/sqrt(0.25) is exactly 2.0, one step past I2F30::MAX.
+    assert_eq!(I2F30::from_f64(0.25).rsqrt(), I2F30::MAX);
+    assert_eq!(I2F30::from_f64(0.25).checked_rsqrt(), None);
+
+    // Just inside, and the checked form succeeds.
+    assert!(I2F30::from_f64(0.26).checked_rsqrt().is_some());
+}
+
+#[test]
+fn rsqrt_is_available_in_const_context() {
+    const ONE: I2F30 = I2F30::ONE.rsqrt();
+    const QUARTER: I2F30 = I2F30::from_bits(1 << 28);
+    const TWO: I2F30 = QUARTER.rsqrt();
+    const FOUR: I16F16 = I16F16::from_bits(4 << 16).rsqrt();
+
+    assert_eq!(ONE, I2F30::ONE);
+    assert_eq!(TWO, I2F30::MAX);
+    assert_eq!(FOUR, I16F16::from_f64(0.5));
+
+    // Const and runtime agree, which is the whole determinism argument.
+    assert_eq!(ONE, black_box(I2F30::ONE).rsqrt());
+    assert_eq!(FOUR, black_box(I16F16::from_bits(4 << 16)).rsqrt());
+}
+
+// --- rsqrt_fast ------------------------------------------------------------
+//
+// The approximate tier. What is under test is not a bit pattern but a bound:
+// `rsqrt_fast` promises a relative error under `3.2e-5` and nothing finer, so
+// every check below is against that bound rather than against an exact answer.
+// The bound is the documented contract, and tightening the implementation must
+// not be allowed to silently loosen it.
+
+/// The relative error `rsqrt_fast` is documented to hold, and the ceiling that
+/// 32-bit arithmetic imposes on it.
+const RSQRT_FAST_TOLERANCE: f64 = 3.2e-5;
+
+/// Whether `got` is inside the error `rsqrt_fast` promises.
+///
+/// The promise has two terms. The approximation itself is good to
+/// [`RSQRT_FAST_TOLERANCE`] *relative*, and landing that answer on the caller's
+/// own resolution costs the half step any rounding costs — a term that
+/// dominates wherever the type is coarse enough that the true answer is only a
+/// handful of last bits wide.
+///
+/// Saturated and zeroed results pass unconditionally: both are the caller's
+/// clamp rather than the approximation's doing, and `rsqrt` clamps to the same
+/// place.
+fn rsqrt_fast_is_within_bound(got: i64, bits: i64, frac: u32, max: i64) -> bool {
+    if got >= max || got == 0 {
+        return true;
+    }
+    let value = bits as f64 / (1u64 << frac) as f64;
+    let want = 1.0 / value.sqrt() * (1u64 << frac) as f64;
+    (got as f64 - want).abs() <= want * RSQRT_FAST_TOLERANCE + 0.5
+}
+
+#[test]
+fn rsqrt_fast_agrees_with_rsqrt_for_every_i0f8() {
+    // Every I0F8 value is under 0.5, so both tiers saturate on every input and
+    // the approximation has nowhere to show.
+    for bits in 1..=i8::MAX {
+        assert_eq!(I0F8::from_bits(bits).rsqrt_fast(), I0F8::MAX, "bits {bits}");
+    }
+}
+
+#[test]
+fn rsqrt_fast_stays_within_a_step_of_rsqrt_for_every_i8f8() {
+    // Exhaustive. At `frac` 8 the type's own resolution is coarser than the
+    // approximation's error over almost the whole range, so the two tiers land
+    // on the same bits or on neighbours.
+    for bits in 1..=i16::MAX {
+        let value = I8F8::from_bits(bits);
+        let fast = i32::from(value.rsqrt_fast().to_bits());
+        let exact = i32::from(value.rsqrt().to_bits());
+        assert!(
+            (fast - exact).abs() <= 1,
+            "I8F8::rsqrt_fast({}) gave {fast}, rsqrt gave {exact}",
+            value.to_f64()
+        );
+    }
+}
+
+#[test]
+fn rsqrt_fast_holds_its_bound_across_every_exponent() {
+    let mut rng = Rng::new(0x5153_5246_0000_0001);
+    for _ in 0..200_000 {
+        // Cover every exponent rather than just the top of the range, the way
+        // the exact tier's sweep does.
+        let raw = ((rng.next_u32() >> 1) >> (rng.next_u32() % 30)) as i32 | 1;
+
+        for (name, got, frac) in [
+            (
+                "I24F8",
+                i64::from(I24F8::from_bits(raw).rsqrt_fast().to_bits()),
+                8,
+            ),
+            (
+                "I16F16",
+                i64::from(I16F16::from_bits(raw).rsqrt_fast().to_bits()),
+                16,
+            ),
+            (
+                "I2F30",
+                i64::from(I2F30::from_bits(raw).rsqrt_fast().to_bits()),
+                30,
+            ),
+        ] {
+            let exact = match frac {
+                8 => i64::from(I24F8::from_bits(raw).rsqrt().to_bits()),
+                16 => i64::from(I16F16::from_bits(raw).rsqrt().to_bits()),
+                _ => i64::from(I2F30::from_bits(raw).rsqrt().to_bits()),
+            };
+            assert!(
+                rsqrt_fast_is_within_bound(got, i64::from(raw), frac, i64::from(i32::MAX)),
+                "{name}::rsqrt_fast at bits {raw} gave {got}, rsqrt gave {exact}"
+            );
+        }
+    }
+}
+
+#[test]
+fn rsqrt_fast_holds_its_bound_at_the_boundaries() {
+    // The ends of the range, the powers of two either side of the seed's two
+    // pieces, and the shifts that saturate — the inputs a sampled sweep is
+    // least likely to reach.
+    for &raw in &[
+        1,
+        2,
+        3,
+        (1 << 28) - 1,
+        1 << 28,
+        (1 << 28) + 1,
+        (1 << 29) - 1,
+        1 << 29,
+        (1 << 29) + 1,
+        (1 << 30) - 1,
+        1 << 30,
+        (1 << 30) + 1,
+        i32::MAX - 1,
+        i32::MAX,
+    ] {
+        assert!(
+            rsqrt_fast_is_within_bound(
+                i64::from(I2F30::from_bits(raw).rsqrt_fast().to_bits()),
+                i64::from(raw),
+                30,
+                i64::from(i32::MAX),
+            ),
+            "I2F30::rsqrt_fast at bits {raw}"
+        );
+    }
+
+    // 1.0 and 0.25 are the two values a normalize leans on, and both are exact
+    // in the approximate tier as well.
+    assert_eq!(I2F30::from_bits(1 << 30).rsqrt_fast().to_bits(), 1 << 30);
+    assert_eq!(I2F30::from_bits(1 << 28).rsqrt_fast().to_bits(), i32::MAX);
+}
+
+#[test]
+fn rsqrt_fast_saturates_where_rsqrt_does() {
+    // Zero and negatives have no reciprocal square root; both tiers answer MAX
+    // rather than panicking, matching how `recip` treats zero.
+    assert_eq!(I2F30::ZERO.rsqrt_fast(), I2F30::MAX);
+    assert_eq!(I2F30::MIN.rsqrt_fast(), I2F30::MAX);
+    assert_eq!(I2F30::from_bits(-1).rsqrt_fast(), I2F30::MAX);
+    assert_eq!(I16F16::ZERO.rsqrt_fast(), I16F16::MAX);
+    assert_eq!(I24F8::from_bits(-77).rsqrt_fast(), I24F8::MAX);
+    assert_eq!(I8F8::ZERO.rsqrt_fast(), I8F8::MAX);
+    assert_eq!(I0F8::ZERO.rsqrt_fast(), I0F8::MAX);
+
+    // The smallest positive input gives the largest answer the type can be
+    // asked for. `I2F30` cannot hold its own — `2^15` against a range that
+    // stops at 2 — while `I16F16`'s `2^8` is comfortably inside, and lands
+    // exactly, because a power of two is a fixed point of the whole routine.
+    assert_eq!(I2F30::DELTA.rsqrt_fast(), I2F30::MAX);
+    assert_eq!(I16F16::DELTA.rsqrt_fast(), I16F16::from_f64(256.0));
+    assert_eq!(I16F16::DELTA.rsqrt_fast(), I16F16::DELTA.rsqrt());
+
+    // At the top of I24F8's range the answer falls below half a step, which is
+    // the branch that returns zero rather than shifting past the word.
+    assert_eq!(I24F8::MAX.rsqrt_fast(), I24F8::ZERO);
 }

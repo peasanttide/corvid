@@ -435,3 +435,44 @@ fn conversions_are_available_in_const_context() {
     assert_eq!(BACK, -12.5);
     assert_eq!(CHECKED, None);
 }
+
+#[test]
+fn the_new_scalars_have_the_documented_range_and_resolution() {
+    use corvid_fixed::{I2F30, I16F16, I48F16};
+
+    assert_eq!(I16F16::FRAC_BITS, 16);
+    assert_eq!(I48F16::FRAC_BITS, 16);
+    assert_eq!(I2F30::FRAC_BITS, 30);
+
+    assert_eq!(I16F16::ONE.to_bits(), 65_536);
+    assert_eq!(I48F16::ONE.to_bits(), 65_536);
+    assert_eq!(I2F30::ONE.to_bits(), 1 << 30);
+
+    // 1.0 is exactly representable in I2F30, which is why the identity basis
+    // is exact.
+    assert_eq!(I2F30::ONE.to_f64(), 1.0);
+    assert!(I2F30::MAX.to_f64() < 2.0);
+
+    assert_eq!(I16F16::MAX.to_f64(), 32_768.0 - 1.0 / 65_536.0);
+    assert_eq!(I16F16::DELTA.to_f64(), 1.0 / 65_536.0);
+    assert_eq!(I48F16::DELTA.to_f64(), 1.0 / 65_536.0);
+
+    // I48F16 spans past the Kuiper belt.
+    assert!(I48F16::MAX.to_f64() > 1.4e14);
+}
+
+#[test]
+fn i48f16_is_the_one_type_whose_to_f64_is_lossy() {
+    use corvid_fixed::I48F16;
+
+    // 63 magnitude bits exceed f64's 53-bit mantissa, so the round trip is not
+    // the identity at the top of the range. Every other type in the family
+    // round-trips exactly.
+    let wide = I48F16::from_bits((1 << 60) + 1);
+    assert_ne!(I48F16::from_f64(wide.to_f64()), wide);
+    assert_eq!(I48F16::from_f64(wide.to_f64()).to_bits(), 1 << 60);
+
+    // Anything inside 53 bits still round-trips exactly.
+    let ordinary = I48F16::from_f64(6.371e6);
+    assert_eq!(I48F16::from_f64(ordinary.to_f64()), ordinary);
+}

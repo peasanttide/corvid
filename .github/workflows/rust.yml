@@ -17,6 +17,44 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      run: cargo build --workspace --verbose
+    # Every optional integration is off by default, so a plain `cargo test`
+    # compiles out the serde, bytemuck, mint and nalgebra tests entirely — the
+    # wire format and the layout assertions among them.
+    - name: Run tests, default features
+      run: cargo test --workspace --verbose
+    - name: Run tests, all features
+      run: cargo test --workspace --all-features --verbose
+    # Neither of the two runs above compiles a feature *on its own*. A feature
+    # that forgets to forward one of its dependency's own features builds fine
+    # under `--all-features`, where something else turns it on, and fails for
+    # the one user who enables only it.
+    - name: Build each feature on its own
+      run: |
+        set -eu
+        for crate in corvid_vector corvid_rotation corvid_transform; do
+          for feature in mint nalgebra serde bytemuck arbitrary std; do
+            echo "== $crate --features $feature"
+            cargo build -p "$crate" --no-default-features --features "$feature"
+          done
+        done
+        for feature in bytemuck serde arbitrary num-traits std; do
+          echo "== corvid_fixed --features $feature"
+          cargo build -p corvid_fixed --no-default-features --features "$feature"
+        done
+    # Overflow checks are on in dev and off in release, so the two profiles
+    # disagree about what a wrapped intermediate does — the one divergence a
+    # bit-exactness crate cannot ship. Both arms have to run.
+    - name: Run tests, release
+      run: cargo test --workspace --all-features --release --verbose
+    # The workspace pins its own rules in `[workspace.lints]` — `unsafe_code`
+    # forbidden, `panic`/`unwrap_used`/`missing_docs` denied. They are only a
+    # convention if something runs them.
+    - name: Clippy
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+    - name: Formatting
+      run: cargo fmt --all --check
+    - name: Docs
+      env:
+        RUSTDOCFLAGS: -D warnings
+      run: cargo doc --workspace --no-deps --all-features

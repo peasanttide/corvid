@@ -4,16 +4,6 @@ Corvid Game Framework
 ## camera
 a position and some intresnics and some utilities to help control cameras
 
-## transform
-fixed point transform
-- vec3
-- vec2
-- angle
-- fixed point rotation
-
-## fixed
-fixed point types.
-
 ## shapes
 
 shapes and stuff
@@ -37,9 +27,6 @@ player is combo of transfrom and action.
 
 ## font
 drawing text
-
-## gui
-bassicly egui
 
 ## time
 time stamps simulation and stepping

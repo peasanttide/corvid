@@ -70,18 +70,34 @@ macro_rules! define_fixed_point {
             #[inline]
             pub const fn checked_from_f64(value: f64) -> Option<Self> {
                 let scaled = value * Self::SCALE;
-                // A NaN fails both comparisons, so it lands in None.
-                if scaled > <$repr>::MIN as f64 - 0.5 && scaled < <$repr>::MAX as f64 + 0.5 {
+                let low = <$repr>::MIN as f64;
+                // `low - 0.5` is exact only while the repr is narrower than
+                // `f64`'s mantissa. At `i64` it collapses back onto `low`, and
+                // the strict `>` would then reject `MIN` itself — an exactly
+                // representable value. `|| scaled >= low` restores that one
+                // endpoint without loosening any other width: where
+                // `low - 0.5` *is* representable the second test is implied by
+                // the first, and at `i64` the next `f64` below `-2^63` is a
+                // full 2048 steps away, so nothing else slips through.
+                //
+                // The upper bound needs no such care: every `f64` strictly
+                // below `MAX as f64 + 0.5` also satisfies the exact bound.
+                //
+                // A NaN fails every comparison, so it lands in `None`.
+                if (scaled > low - 0.5 || scaled >= low)
+                    && scaled < <$repr>::MAX as f64 + 0.5
+                {
                     Some(Self(round_f64(scaled) as $repr))
                 } else {
                     None
                 }
             }
 
-            /// The exact value as an `f64`.
+            /// The value as an `f64`, correctly rounded.
             ///
-            /// Lossless for every type in this family: `f64` carries 53
-            /// significant bits and the widest of these carries 32.
+            /// Lossless for every type in this family except [`I48F16`], whose
+            /// 63 magnitude bits exceed `f64`'s 53-bit mantissa. See that
+            /// type's own documentation.
             #[must_use]
             #[inline]
             pub const fn to_f64(self) -> f64 {
@@ -373,6 +389,40 @@ macro_rules! define_fixed_point {
                 if self.0 < 0 { None } else { Some(self.sqrt()) }
             }
 
+            /// The reciprocal square root, correctly rounded.
+            ///
+            /// One rounding, from a full-width intermediate — unlike
+            /// `x.sqrt().recip()`, which rounds at the square root and again at
+            /// the reciprocal, and whose intermediate can saturate on its own
+            /// for small `x`. There is no division and no `isqrt` loop: the
+            /// estimate is seeded from `leading_zeros` and refined by
+            /// Newton–Raphson, then an exact integer comparison picks between
+            /// the two neighbouring results.
+            ///
+            /// Zero and negatives saturate to [`MAX`](Self::MAX), matching how
+            /// [`recip`](Self::recip) treats zero. Results above
+            /// [`MAX`](Self::MAX) saturate too, which for [`I0F8`] — whose
+            /// values are all under `0.5` — is every input.
+            #[must_use]
+            #[inline]
+            pub const fn rsqrt(self) -> Self {
+                if self.0 <= 0 {
+                    return Self::MAX;
+                }
+                Self::saturate(super::rsqrt::rsqrt_bits(self.0 as u64, $frac) as $wide)
+            }
+
+            /// The reciprocal square root, or `None` for zero, a negative, or a
+            /// result past [`MAX`](Self::MAX).
+            #[must_use]
+            #[inline]
+            pub const fn checked_rsqrt(self) -> Option<Self> {
+                if self.0 <= 0 {
+                    return None;
+                }
+                Self::check(super::rsqrt::rsqrt_bits(self.0 as u64, $frac) as $wide)
+            }
+
             /// Mask selecting the fractional bits.
             const FRAC_MASK: $wide = (1 << $frac) - 1;
 
@@ -550,6 +600,62 @@ const fn round_f64(scaled: f64) -> f64 {
     }
 }
 
+/// Adds the approximate reciprocal square root to one type.
+///
+/// Separate from [`define_fixed_point`] because it does not apply to the whole
+/// family: the kernel behind it is 32-bit clean, so it can only serve types
+/// whose bit pattern fits a `u32`. [`I48F16`] stores an `i64` and gets no
+/// `rsqrt_fast` — narrowing its input first would be a 64-bit operation, which
+/// is the one thing this tier promises not to do.
+macro_rules! define_rsqrt_fast {
+    ($name:ident, $wide:ty, $frac:expr) => {
+        impl $name {
+            /// The reciprocal square root, approximately.
+            ///
+            /// The result is within `3.2e-5` relative of the true reciprocal
+            /// square root, plus the half step that landing on this type's
+            /// resolution costs — about 15 significant bits, measured
+            /// exhaustively. What that comes to in last bits depends on how
+            /// fine the type is: [`I0F8`] agrees with [`rsqrt`](Self::rsqrt) on
+            /// every input, [`I8F8`] and [`I24F8`] are never more than one step
+            /// away, [`I16F16`] reaches 171 steps and [`I2F30`] 56,351.
+            ///
+            /// # When to reach for it
+            ///
+            /// Every intermediate fits 32 bits and no product needs a widening
+            /// multiply, so this is the version that transcribes into a shader
+            /// — and, on a CPU, the version that skips the 128-bit multiplies
+            /// [`rsqrt`](Self::rsqrt) spends on its final step and its exact
+            /// rounding correction. That is worth about 3.7x on a 64-bit host;
+            /// `cargo run --release --example bench` measures it.
+            ///
+            /// Fifteen bits is not a step count that could be raised; it is
+            /// where 32-bit arithmetic stops. Newton's residual `1 - n q²` is a
+            /// product of two values that must each fit an operand, so it
+            /// carries about 15 bits however many times it is iterated. Reach
+            /// for [`rsqrt`](Self::rsqrt) when the last bits matter.
+            ///
+            /// Zero and negatives saturate to [`MAX`](Self::MAX), and results
+            /// past [`MAX`](Self::MAX) saturate too — matching
+            /// [`rsqrt`](Self::rsqrt) in both cases.
+            #[must_use]
+            #[inline]
+            pub const fn rsqrt_fast(self) -> Self {
+                if self.0 <= 0 {
+                    return Self::MAX;
+                }
+                Self::saturate(super::rsqrt::rsqrt_fast_bits(self.0 as u32, $frac) as $wide)
+            }
+        }
+    };
+}
+
+define_rsqrt_fast!(I0F8, i32, 8);
+define_rsqrt_fast!(I8F8, i32, 8);
+define_rsqrt_fast!(I24F8, i64, 8);
+define_rsqrt_fast!(I16F16, i64, 16);
+define_rsqrt_fast!(I2F30, i64, 30);
+
 define_fixed_point! {
     /// A signed fixed-point number with no integer bits and 8 fractional bits.
     ///
@@ -658,5 +764,122 @@ define_fixed_point! {
     }
 }
 
+define_fixed_point! {
+    /// A signed fixed-point number with 16 integer bits and 16 fractional bits.
+    ///
+    /// | | |
+    /// |---|---|
+    /// | Storage | `i32` |
+    /// | Range | `-32768.0 ..= 32767.9999847412109375` |
+    /// | Resolution | `1/65536`, or about `15.26e-6` |
+    ///
+    /// The near-field type: 15.26 µm is about 30× finer than the ~0.5 mm
+    /// threshold at which a headset's wearer perceives a position error, and
+    /// ±32.7 km covers anything a renderer draws at once.
+    ///
+    /// Shares its 16 fractional bits with [`I48F16`], so converting between the
+    /// two is a range check on the integer part with no rounding whatsoever.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use corvid_fixed::{I16F16, I48F16};
+    ///
+    /// let near = I16F16::from_f64(1.5);
+    /// assert_eq!(near.to_bits(), 98_304);
+    ///
+    /// // The shared binary scale: widening is the bit pattern itself.
+    /// let wide = I48F16::from_bits(i64::from(near.to_bits()));
+    /// assert_eq!(wide.to_f64(), near.to_f64());
+    /// ```
+    I16F16(i32) {
+        wide: i64,
+        uwide: u64,
+        frac: 16,
+        factor: Factor32,
+    }
+}
+
+define_fixed_point! {
+    /// A signed fixed-point number with 48 integer bits and 16 fractional bits.
+    ///
+    /// | | |
+    /// |---|---|
+    /// | Storage | `i64` |
+    /// | Range | `-1.407e14 ..= 1.407e14` |
+    /// | Resolution | `1/65536`, or about `15.26e-6` |
+    ///
+    /// Both range and resolution, and it pays for both in width. ±1.407e14 m is
+    /// roughly 940 AU — past the Kuiper belt — while the last bit stays at
+    /// 15.26 µm. This is the type world-space positions widen into before a
+    /// subtraction, which is what makes near-field geometry exact at earth
+    /// scale.
+    ///
+    /// This is the one type in the family whose [`to_f64`](Self::to_f64) is
+    /// lossy: 63 magnitude bits exceed `f64`'s 53-bit mantissa.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use corvid_fixed::I48F16;
+    ///
+    /// // A camera on the earth's surface, and a point about a millimetre away.
+    /// let camera = I48F16::from_f64(6_371_000.0);
+    /// let target = camera + I48F16::from_f64(0.001);
+    ///
+    /// // The difference is exact — the range is spent on the absolute value,
+    /// // not on the offset.
+    /// assert_eq!((target - camera).to_bits(), I48F16::from_f64(0.001).to_bits());
+    /// ```
+    I48F16(i64) {
+        wide: i128,
+        uwide: u128,
+        frac: 16,
+        factor: Factor32,
+    }
+}
+
+define_fixed_point! {
+    /// A signed fixed-point number with 2 integer bits and 30 fractional bits.
+    ///
+    /// | | |
+    /// |---|---|
+    /// | Storage | `i32` |
+    /// | Range | `-2.0 ..= 1.999999999068677425384521484375` |
+    /// | Resolution | `2^-30`, or about `9.31e-10` |
+    ///
+    /// The rotation-matrix entry type. [`Signed32`](crate::Signed32) is the
+    /// obvious choice for a unit-range value and is not the right one: `SNORM`
+    /// divides by `2^31 − 1`, which is not a power of two, so every rotated
+    /// vector component would pay a constant division. `I2F30` pays a single
+    /// `>> 30` instead, spending one bit of range it does not need — rotation
+    /// entries live in `[-1, 1]` and this type reaches `±2` — to buy it.
+    ///
+    /// `1.0` is exactly `2^30`, so the identity basis is exact, and the last
+    /// bit corresponds to about `5e-8°` of angular error.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use corvid_fixed::I2F30;
+    ///
+    /// assert_eq!(I2F30::ONE.to_bits(), 1 << 30);
+    /// assert_eq!(I2F30::ONE.to_f64(), 1.0);
+    ///
+    /// // The whole point: scaling by a matrix entry is a shift, not a divide.
+    /// let half = I2F30::from_f64(0.5);
+    /// assert_eq!((half * half).to_f64(), 0.25);
+    /// ```
+    I2F30(i32) {
+        wide: i64,
+        uwide: u64,
+        frac: 30,
+        factor: Factor32,
+    }
+}
+
 impl_one!(I8F8, 256);
 impl_one!(I24F8, 256);
+impl_one!(I16F16, 65_536);
+impl_one!(I48F16, 65_536);
+impl_one!(I2F30, 1 << 30);

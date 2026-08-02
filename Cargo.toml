@@ -17,6 +17,11 @@ members = ["crates/*"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+# Set by `u32::is_multiple_of` (1.87) in `corvid_fixed`'s `rsqrt`; `u64::isqrt`
+# in a `const` context (1.84) and edition 2024 (1.85) are the next two floors
+# down. Declared so a downstream on an older toolchain gets a version error
+# rather than a wall of missing-method errors.
+rust-version = "1.87"
 repository = "https://github.com/peasanttide/corvid"
 publish = true
 license = "GPL-2.0-or-later"
@@ -26,6 +31,10 @@ thiserror = "2"
 serde = { version = "1", default-features = false, features = ["derive"] }
 bytemuck = { version = "1", features = ["derive"] }
 arbitrary = { version = "1", features = ["derive"] }
+# Pinned here rather than per crate: the cross-crate `From` impls only line up
+# while every crate resolves the same `mint::Vector3` and `nalgebra::Vector3`.
+mint = "0.5"
+nalgebra = { version = "0.34", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

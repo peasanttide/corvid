@@ -125,10 +125,13 @@ macro_rules! impl_shared {
                 self.cmp_key() == 0
             }
 
-            /// The value as an `f32`, correctly rounded.
+            /// The value as an `f32`.
             ///
-            /// Widening to `f64` first means the result is rounded once rather
-            /// than twice.
+            /// Correctly rounded for every type whose
+            /// [`to_f64`](Self::to_f64) is exact, which is every one but
+            /// [`I48F16`](crate::I48F16): there the `f64` intermediate is
+            /// itself a rounding, so a value sitting beside an `f32` halfway
+            /// point can round twice and land one `f32` step out.
             #[must_use]
             #[inline]
             pub const fn to_f32(self) -> f32 {
@@ -308,11 +311,21 @@ macro_rules! impl_num_traits_shared {
 
         #[cfg(feature = "num-traits")]
         impl ::num_traits::ToPrimitive for $name {
+            /// The integer part, truncated toward zero.
+            ///
+            /// Routed through `f64`, so for [`I48F16`](crate::I48F16) — whose
+            /// [`to_f64`](Self::to_f64) is lossy — the answer can be one
+            /// greater than the true integer part, and can exceed the type's
+            /// own range. Reach for `to_bits() >> FRAC_BITS` when that
+            /// matters.
             #[inline]
             fn to_i64(&self) -> Option<i64> {
                 Some(Self::to_f64(*self) as i64)
             }
 
+            /// The integer part, truncated toward zero, or `None` if negative.
+            ///
+            /// Carries `to_i64`'s `I48F16` caveat.
             #[inline]
             fn to_u64(&self) -> Option<u64> {
                 let value = Self::to_f64(*self);
