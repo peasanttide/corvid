@@ -21,7 +21,5 @@
   <circle cx="180" cy="420" r="4.5"/>
   <circle cx="460" cy="245" r="3.5"/>
  </g>
- <circle cx="300" cy="175" r="16" fill="#E53E3E" opacity=".25"/>
- <circle cx="300" cy="175" r="8" fill="#E53E3E"/>
- <circle cx="300" cy="175" r="3" fill="#FFF"/>
+ <circle cx="300" cy="175" r="10" fill="#facfcf" stroke-width="6" stroke="#ff4a4ac0"/>
 </svg>
