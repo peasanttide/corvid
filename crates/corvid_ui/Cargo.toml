@@ -1,0 +1,59 @@
+[package]
+name = "corvid_ui"
+description = "A retained widget tree that lays out in fixed point and names no device: one focus that a pad, a mouse, a finger and an XR ray all drive, and paint data a renderer turns into pixels."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "ui", "layout", "fixed-point", "no-std"]
+categories = ["game-development", "gui", "no-std"]
+
+[dependencies]
+corvid_fixed = { workspace = true }
+corvid_bits = { workspace = true }
+# The colours a style holds. Client ring, `no_std`, and the same `Rgba8` a game
+# writes into its own uniform buffer.
+corvid_color = { version = "0.1", path = "../corvid_color", default-features = false }
+# The digest a subtree is compared by. It is a `core::hash::Hasher`, which is
+# what makes the digest free: everything here already derives `Hash`.
+corvid_hash = { version = "0.1", path = "../corvid_hash", default-features = false }
+# The raycast behind `Painted::panel_to_layout`, and nothing else. A UI panel in
+# world space is a quad, and casting at it is this crate's job rather than a
+# headset runtime's.
+corvid_shape = { version = "0.1", path = "../corvid_shape", default-features = false }
+# `I16F16`, which every length resolves to, and `Factor16`, which every share
+# and every slider value is.
+corvid_transform = { version = "0.1", path = "../corvid_transform", default-features = false }
+# Optional, and off by default: only a caller that turns paint data into the
+# bytes of a vertex buffer needs it, and that caller is a ring above this one.
+bytemuck = { version = "1", features = ["derive"], optional = true }
+
+[dev-dependencies]
+corvid_vector = { workspace = true }
+corvid_input = { workspace = true }
+
+[features]
+default = []
+# `Pod` and `Zeroable` on the paint data, so a slice of resolved rectangles
+# casts to the bytes of an instance buffer without `unsafe`, which is forbidden
+# here. Forwarded to the crates whose types are inside them, because a
+# `PaintedRect` cannot be `Pod` while the `Rgba8` and `I16F16` in it are not.
+bytemuck = ["dep:bytemuck", "corvid_color/bytemuck", "corvid_transform/bytemuck"]
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate — which is the whole point: there
+# is nothing here that a target with no operating system cannot run.
+std = [
+    "bytemuck?/extern_crate_std",
+    "corvid_color/std",
+    "corvid_hash/std",
+    "corvid_shape/std",
+    "corvid_transform/std",
+]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
