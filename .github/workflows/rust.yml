@@ -8,6 +8,13 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # `sccache` in front of rustc, with GitHub's own action cache behind it. Four
+  # jobs compile overlapping halves of the same thirty-six packages — `check`
+  # and `features` share everything below the runtime, and `cross` and
+  # `determinism` share the simulation ring with both — so the object a second
+  # job needs has usually already been built by a first.
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
 
 jobs:
   # Does it build, does it pass, and does it say what it means. One job, because
@@ -22,7 +29,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - uses: mozilla-actions/sccache-action@v0.0.9
     - uses: Swatinem/rust-cache@v2
+      with:
+        # `sccache` holds the object files now. This one stays for the registry
+        # index and the git checkouts, which it caches and `sccache` does not —
+        # caching the target directory as well would be two copies of the same
+        # build, restored twice.
+        cache-targets: false
     # The two system libraries this workspace's device halves are built against.
     # `corvid_audio/device` reaches `cpal` and then `alsa-sys`, and
     # `corvid_window/gamepad` reaches `gilrs` and then `libudev-sys`; both probe
@@ -100,7 +114,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - uses: mozilla-actions/sccache-action@v0.0.9
     - uses: Swatinem/rust-cache@v2
+      with:
+        # `sccache` holds the object files now. This one stays for the registry
+        # index and the git checkouts, which it caches and `sccache` does not —
+        # caching the target directory as well would be two copies of the same
+        # build, restored twice.
+        cache-targets: false
     - uses: taiki-e/install-action@cargo-hack
     # As in `check`, and for a sharper reason: this job's whole point is to
     # compile each feature *on its own*, so `corvid_audio/device` and
@@ -140,7 +161,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - uses: mozilla-actions/sccache-action@v0.0.9
     - uses: Swatinem/rust-cache@v2
+      with:
+        # `sccache` holds the object files now. This one stays for the registry
+        # index and the git checkouts, which it caches and `sccache` does not —
+        # caching the target directory as well would be two copies of the same
+        # build, restored twice.
+        cache-targets: false
     - run: rustup target add ${{ matrix.target }}
     # The simulation ring and the client ring's data types: everything two peers
     # have to agree about, plus everything a capture is made of. The runtime is
@@ -179,7 +207,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - uses: mozilla-actions/sccache-action@v0.0.9
     - uses: Swatinem/rust-cache@v2
+      with:
+        # `sccache` holds the object files now. This one stays for the registry
+        # index and the git checkouts, which it caches and `sccache` does not —
+        # caching the target directory as well would be two copies of the same
+        # build, restored twice.
+        cache-targets: false
     # As in `check`. None of the three suites below opens a sound card or reads
     # a pad, but `examples/pong` ships with `window` on by default and that
     # reaches `corvid_audio/device` and `corvid_window/gamepad` — so both are
