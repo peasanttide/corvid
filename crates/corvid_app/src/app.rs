@@ -388,12 +388,15 @@ where
 
     /// Where the save slots live.
     ///
-    /// The default is `./saves/NAME/`, from the game's
-    /// [`NAME`](State::NAME), and it is a relative path on purpose: a
-    /// relative default is one a test can point at and one that needs no
-    /// dependency to compute, where a platform's application-data directory is
-    /// neither. A game that wants that directory knows where it is on the
-    /// machine it is running on, and says so here or with `--saves`.
+    /// The default is `$XDG_DATA_HOME/NAME/saves/`, from the game's
+    /// [`NAME`](State::NAME) — so `~/.local/share/NAME/saves/` on a machine
+    /// that has not set it, and `%APPDATA%\NAME\saves\` on Windows. A
+    /// player's saves belong with the rest of their data rather than beside
+    /// whatever directory the game was launched from.
+    ///
+    /// An environment that names no home at all falls back to `./saves/NAME/`,
+    /// which is where every run used to write. A test points this at a
+    /// scratch directory rather than relying on either.
     #[must_use]
     pub fn saves(mut self, directory: impl Into<PathBuf>) -> Self {
         self.saves = Some(directory.into());

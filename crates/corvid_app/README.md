@@ -360,7 +360,7 @@ tested.
 | `--retain N` \| `--retain all` | keep at least `N` ticks of the session, or all of it |
 | `--replay FILE` | open on the session recorded in `FILE` |
 | `--load N` | open on save slot `N` |
-| `--saves DIR` | put the save slots under `DIR` rather than under `./saves/NAME/` |
+| `--saves DIR` | put the save slots under `DIR` rather than under `$XDG_DATA_HOME/NAME/saves/` |
 | `--help`, `-h` | the usage |
 
 Every one of those is a thing the *operator* decides: whether this machine has a
@@ -384,7 +384,7 @@ is the same reading of the command line for one.
 
 `Command::Save` and `Command::Read` are in the closed vocabulary already, and
 the runtime is what acts on them. A slot is resolved against `--saves DIR` if
-the operator named one and `./saves/NAME/` otherwise, from
+the operator named one and `$XDG_DATA_HOME/NAME/saves/` otherwise, from
 [`State::NAME`](corvid_behavior::State::NAME); what goes in it is the
 session and the state, through `corvid_wire`; and reading one back is
 [`Session::seek`](corvid_replay::Session::seek) — the same call rollback and
@@ -392,10 +392,11 @@ time-walk are, so a save that cannot be replayed is refused at the load rather
 than a hundred ticks later. **A game implements nothing for this.** Its `State`
 is `Data`, and that is the whole requirement.
 
-The default is a relative directory on purpose. A platform's application-data
-directory needs a dependency to find and cannot be pointed at by a test;
-`./saves/NAME/` needs neither, and a game that wants the platform's own knows
-where that is on the machine it is running on.
+The default follows the XDG Base Directory specification: an absolute
+`XDG_DATA_HOME` if the environment sets one, `$HOME/.local/share` if it does
+not, and `%APPDATA%` on Windows. Written out rather than taken from a crate,
+because the rule is those three lines. An environment that names no home at all
+falls back to `./saves/NAME/`, which is where every run used to write.
 
 The operator's word beats the builder's, whichever order the two are written in,
 and an argument nobody gave changes nothing — so a game keeps every default it

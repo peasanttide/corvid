@@ -19,15 +19,52 @@ use serde::{Deserialize, Serialize};
 
 use crate::Error;
 
-/// The directory slots land in when nobody named one, under the game's
-/// [`NAME`](State::NAME).
+/// The leaf a game's slots sit in, under its own directory in the user's data
+/// home.
 ///
-/// Relative, and deliberately not a platform's application-data directory. A
-/// relative path is one a test can point at, one a `.gitignore` can name, and
-/// one that needs no dependency to compute; a game that wants the platform's
-/// own directory passes `--saves`, and knows where that is on the machine it is
-/// running on better than this crate does.
+/// A leaf rather than the whole path, because the data home is
+/// `$XDG_DATA_HOME/<name>/` and saves are one kind of thing a game keeps
+/// there — a capture and a binding file are others, and they want to be
+/// siblings rather than to be mixed in among the slots.
 const SAVES: &str = "saves";
+
+/// Where a user's own data lives, per the XDG Base Directory specification.
+///
+/// [`None`] when the environment names nowhere, which is a login shell with no
+/// `HOME` and a service account. The caller falls back to a relative path
+/// there, because refusing to run is the wrong answer to "this machine has an
+/// unusual environment".
+///
+/// # Why this is written out rather than taken from a crate
+///
+/// It is the spec, and the spec is short: an absolute `XDG_DATA_HOME` wins,
+/// and `$HOME/.local/share` is the documented default when it is unset or
+/// relative. Windows has no `XDG_DATA_HOME` to read and `%APPDATA%` is the
+/// answer there, which is the one platform branch this needs.
+fn data_home() -> Option<PathBuf> {
+    // "If $XDG_DATA_HOME is either not set or empty, a default equal to
+    // $HOME/.local/share should be used." The spec also requires the value to
+    // be an absolute path and says relative ones are to be ignored.
+    if let Some(set) = std::env::var_os("XDG_DATA_HOME") {
+        let path = PathBuf::from(set);
+        if path.is_absolute() {
+            return Some(path);
+        }
+    }
+    // Read before `HOME` rather than after it, because a Windows shell that has
+    // both — MSYS and Git Bash both set `HOME` — means the Unix one for its own
+    // programs and `%APPDATA%` for everything else.
+    #[cfg(windows)]
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        let path = PathBuf::from(appdata);
+        if path.is_absolute() {
+            return Some(path);
+        }
+    }
+    let home = PathBuf::from(std::env::var_os("HOME")?);
+    home.is_absolute()
+        .then(|| home.join(".local").join("share"))
+}
 
 /// What one slot's file is called.
 const EXTENSION: &str = "corvid";
@@ -65,11 +102,27 @@ pub(crate) struct Saves {
 }
 
 impl Saves {
-    /// `--saves DIR` if the operator named one, and `./saves/NAME/` otherwise.
+    /// `--saves DIR` if the operator named one, and the user's own data
+    /// directory otherwise.
+    ///
+    /// That is `$XDG_DATA_HOME/NAME/saves/` — so `~/.local/share/NAME/saves/`
+    /// on a machine that has not set it, and `%APPDATA%\NAME\saves\` on
+    /// Windows. A game's saves belong with the user's other data rather than
+    /// beside whatever directory it happened to be launched from, which is
+    /// where they used to land.
+    ///
+    /// The old relative `./saves/NAME/` survives as the fallback for an
+    /// environment that names no home at all. Nothing that runs a game
+    /// ordinarily hits it, and a run refusing to start because a service
+    /// account has no `HOME` would be the worse answer.
     pub(crate) fn resolve(named: Option<PathBuf>, name: &str) -> Self {
-        Self {
-            root: named.unwrap_or_else(|| Path::new(SAVES).join(name)),
-        }
+        let root = named.unwrap_or_else(|| {
+            data_home().map_or_else(
+                || Path::new(SAVES).join(name),
+                |home| home.join(name).join(SAVES),
+            )
+        });
+        Self { root }
     }
 
     /// The directory itself.

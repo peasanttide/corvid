@@ -26,7 +26,7 @@ use crate::Retention;
 /// | `--retain N` \| `--retain all` | keep at least `N` ticks of the session, or all of it |
 /// | `--replay FILE` | open on the session recorded in `FILE` |
 /// | `--load N` | open on save slot `N` |
-/// | `--saves DIR` | put the save slots under `DIR` rather than under `./saves/NAME/` |
+/// | `--saves DIR` | put the save slots under `DIR` rather than under `$XDG_DATA_HOME/NAME/saves/` |
 /// | `--help`, `-h` | write this table to stdout and stop, successfully |
 ///
 /// Every one of them is a thing the *operator* decides rather than the game:
@@ -111,7 +111,7 @@ corvid: [--headless] [--ticks N] [--capture DIR] [--retain N|all]
   --replay FILE     open on the session recorded in FILE, which is the session
                     file a --capture wrote, and carry it on
   --load N          open on save slot N rather than on the game's own opening
-  --saves DIR       put the save slots under DIR rather than under saves/NAME
+  --saves DIR       put the save slots under DIR rather than the user data dir
   --help, -h        this";
 
 impl Arguments {
