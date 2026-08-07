@@ -24,7 +24,34 @@ use crate::{
 /// The predicate [`App::until`] takes, named because it is written down three
 /// times and because `Box<dyn Fn(&S, Tick) -> bool>` is
 /// not a thing to read twice.
-pub(crate) type Stop<S> = Box<dyn Fn(&S, Tick) -> bool>;
+///
+/// A newtype rather than the alias it used to be, so that the two structs
+/// holding one can derive [`Debug`]. A closure has nothing to print, but
+/// "there is a predicate here" is a fact about a run's settings worth keeping
+/// in the line that prints them.
+pub(crate) struct Stop<S>(Predicate<S>);
+
+/// The boxed closure a [`Stop`] wraps, named so that the newtype's own field
+/// is a word rather than the signature.
+type Predicate<S> = Box<dyn Fn(&S, Tick) -> bool>;
+
+impl<S> Stop<S> {
+    /// Boxes a caller's predicate.
+    pub(crate) fn new(predicate: impl Fn(&S, Tick) -> bool + 'static) -> Self {
+        Self(Box::new(predicate))
+    }
+
+    /// Whether the run stops on `state` at `at`.
+    pub(crate) fn reached(&self, state: &S, at: Tick) -> bool {
+        (self.0)(state, at)
+    }
+}
+
+impl<S> fmt::Debug for Stop<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Stop(<predicate>)")
+    }
+}
 
 /// Where a run has got to, for whoever is watching it from another thread.
 ///
@@ -123,6 +150,21 @@ impl<S: State> fmt::Debug for Outcome<S> {
 ///
 /// The one setting with no default is the [`opening`](Self::opening), because
 /// nothing can invent a game's opening state for it.
+///
+/// # What printing one shows
+///
+/// Everything, including the opening. The three configs are
+/// [`Data`](corvid_behavior::Data), which is already `Debug`; the clock and the
+/// transport are trait objects whose traits say so; and the two boxed closures
+/// are behind newtypes that name themselves. So this is a derive rather than a
+/// hand-written impl that had to be kept in step with the fields above it.
+///
+/// The cost is that an opening prints a whole level and a whole state, which is
+/// a long line for a game with a big one. That is the right way round: a
+/// builder printing what it was actually given is what a `{:#?}` in a bug
+/// report is for, and a caller who wants the short version prints the fields
+/// they care about.
+#[derive(Debug)]
 pub struct App<S: State, C = (), R = (), A = ()>
 where
     C: Controller<S>,
@@ -198,54 +240,6 @@ where
     /// Whether the event loop may run off the main thread.
     #[cfg(feature = "window")]
     any_thread: bool,
-}
-
-#[allow(
-    clippy::missing_fields_in_debug,
-    reason = "the three configs are a game's own types with no `Debug` bound on them, and an opening would print a whole level and a whole state into a log line"
-)]
-impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> fmt::Debug for App<S, C, R, A> {
-    /// The settings that can be printed, and a `bool` for each of the three
-    /// that cannot.
-    ///
-    /// A clock and a stop predicate are boxed closures with nothing to print,
-    /// and printing an opening would print a whole level and a whole state into
-    /// a log line.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut printed = f.debug_struct("App");
-        let printed = printed
-            .field("opening", &self.opening.is_some())
-            .field("clock", &self.clock.is_some())
-            .field("rate", &self.rate)
-            .field("seat", &self.seat)
-            .field("input", &self.input)
-            .field("inputs", &self.feed.is_some())
-            .field("capture", &self.capture)
-            .field("retention", &self.retention)
-            .field("arguments", &self.arguments)
-            .field("saves", &self.saves)
-            .field("load", &self.load)
-            .field("replay", &self.replay)
-            .field("until", &self.stop.is_some())
-            .field("ticks", &self.ticks)
-            .field("progress", &self.progress.is_some());
-        // A transport is a trait object with no `Debug` bound, so what can be
-        // printed about it is whether there is one — which is the field that
-        // decides whether this run has other machines in it and is worth
-        // saying.
-        #[cfg(feature = "net")]
-        let printed = printed
-            .field("transport", &self.transport.is_some())
-            .field("budget", &self.budget);
-        #[cfg(feature = "window")]
-        let printed = printed
-            .field("window", &self.windowed)
-            .field("bindings", &self.bindings.is_some())
-            .field("any_thread", &self.any_thread);
-        #[cfg(feature = "render")]
-        let printed = printed.field("offscreen", &self.offscreen);
-        printed.finish()
-    }
 }
 
 impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Default for App<S, C, R, A>
@@ -607,7 +601,7 @@ where
     /// two of them would be two answers about the same keyboard.
     #[must_use]
     pub fn inputs(mut self, source: impl FnMut(Tick) -> Input + 'static) -> Self {
-        self.feed = Some(Box::new(source));
+        self.feed = Some(crate::runtime::Feed::new(source));
         self
     }
 
@@ -646,7 +640,7 @@ where
     /// has no window to close.
     #[must_use]
     pub fn until(mut self, stop: impl Fn(&S, Tick) -> bool + 'static) -> Self {
-        self.stop = Some(Box::new(stop));
+        self.stop = Some(Stop::new(stop));
         self
     }
 

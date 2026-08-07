@@ -368,7 +368,11 @@ impl std::error::Error for SendError {}
 /// mutability. `&mut self` would put a `&mut dyn Transport` on every path that
 /// wants to send — including from inside [`poll`](Self::poll), which is the
 /// borrow that does not work.
-pub trait Transport: Send {
+/// [`Debug`] for the reason [`Clock`](corvid_time::Clock) is: a transport is
+/// held behind a `Box<dyn Transport>` by a runtime that derives its own, and a
+/// trait object prints only what its trait allows. What a backend owes is a
+/// name and its own bookkeeping, not the traffic through it.
+pub trait Transport: Send + core::fmt::Debug {
     /// Sends unreliably and unordered: the action stream, where a late packet
     /// is worthless because rollback has already covered for it.
     ///

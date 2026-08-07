@@ -6,7 +6,7 @@ use corvid_control::Controller;
 use corvid_render::Render;
 use corvid_replay::LevelRef;
 use corvid_sound::Auralizer;
-use std::{mem, sync::Arc};
+use std::{fmt, mem, sync::Arc};
 
 use corvid_behavior::{ExitCode, Player, PlayerId, SaveSlot, Time};
 use corvid_fixed::Factor16;
@@ -36,7 +36,33 @@ use corvid_behavior::State;
 /// once per displayed frame by the window, and without this a run with no window
 /// plays the whole way through on one snapshot — so a menu press, a click and a
 /// release cannot be written down in a test at all.
-pub(crate) type Feed = Box<dyn FnMut(Tick) -> Input>;
+///
+/// A newtype rather than the alias it used to be, for the reason
+/// [`Stop`](crate::app::Stop) is one: the two structs that hold a feed derive
+/// [`Debug`], and a boxed closure has none.
+pub(crate) struct Feed(Source);
+
+/// The boxed closure a [`Feed`] wraps, named for the reason
+/// [`Stop`](crate::app::Stop)'s is.
+type Source = Box<dyn FnMut(Tick) -> Input>;
+
+impl Feed {
+    /// Boxes a caller's source of frames.
+    pub(crate) fn new(source: impl FnMut(Tick) -> Input + 'static) -> Self {
+        Self(Box::new(source))
+    }
+
+    /// What the devices say at `at`.
+    pub(crate) fn read(&mut self, at: Tick) -> Input {
+        (self.0)(at)
+    }
+}
+
+impl fmt::Debug for Feed {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Feed(<source>)")
+    }
+}
 
 /// Everything a run is, before it has a backend to display itself on.
 ///
@@ -436,7 +462,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
     /// the whole of keeping them in step.
     fn read_devices(&mut self) {
         if let Some(feed) = self.feed.as_mut() {
-            let fresh = feed(self.at);
+            let fresh = feed.read(self.at);
             self.input.clone_from(&fresh);
             self.unspent
                 .get_or_insert_with(|| Input::new(fresh.sets()))
@@ -571,7 +597,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         if self
             .stop
             .as_ref()
-            .is_some_and(|stop| stop(&self.current, self.at))
+            .is_some_and(|stop| stop.reached(&self.current, self.at))
         {
             return Ok(Flow::Stop(ExitCode::SUCCESS));
         }

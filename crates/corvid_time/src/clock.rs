@@ -32,7 +32,11 @@ use core::time::Duration;
 /// subtract two absolute times is the one place a clock going backwards can
 /// turn into a negative interval. Returning an interval directly means the
 /// answer is unsigned all the way through.
-pub trait Clock {
+/// A clock is [`Debug`] because it is held behind a `Box<dyn Clock>` in a
+/// runtime that derives its own, and a trait object is only as printable as its
+/// trait says it is. Every clock here is a couple of durations and a counter,
+/// so there is nothing to weigh against saying so.
+pub trait Clock: core::fmt::Debug {
     /// The time that has passed since the last call.
     ///
     /// The first call measures from whenever the clock was created.
