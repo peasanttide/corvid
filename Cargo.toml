@@ -198,7 +198,12 @@ corvid_render = { version = "0.2", path = "crates/corvid_render" }
 # The sound card. Its own `device` feature is what pulls `cpal`, so a crate
 # naming this one still builds on a target with no audio backend.
 corvid_audio = { version = "0.2", path = "crates/corvid_audio", default-features = false }
-thiserror = "2"
+# The `Display` and `Error` impls, derived. `default-features = false` like every
+# `no_std` crate here: the `std` feature only decides which `Error` trait the
+# derive names, and `core::error::Error` is the one a crate in the simulation
+# ring can implement. A `std` crate that wants the other spelling asks for the
+# feature by name.
+thiserror = { version = "2", default-features = false }
 # `rc` is what gives `Arc<T>` a `Serialize` and a `Deserialize`, and without it
 # `corvid_behavior::Frame` — four `Arc` handles and two numbers — could not be
 # written down at all. It is not a default feature and never has been, so no

@@ -250,16 +250,9 @@ impl From<FinePoint> for GlobalPoint {
 /// Carries no detail on purpose: the only way a narrowing fails is that the
 /// value lies outside the target's range, and the value itself is still in the
 /// caller's hand.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, thiserror::Error)]
+#[error("value is outside the target type's range")]
 pub struct OutOfRange;
-
-impl core::fmt::Display for OutOfRange {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("value is outside the target type's range")
-    }
-}
-
-impl core::error::Error for OutOfRange {}
 
 impl TryFrom<GlobalFinePoint> for FinePoint {
     type Error = OutOfRange;

@@ -12,6 +12,9 @@ categories = ["game-development", "mathematics", "no-std::no-alloc"]
 
 [dependencies]
 corvid_bits = { workspace = true }
+# `Display` and `core::error::Error` on `OutOfRange`, derived. No `std` feature:
+# this crate is `no_std`, and the derive names `core::error::Error` without one.
+thiserror = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 corvid_fixed = { version = "0.2.0", path = "../corvid_fixed" }
