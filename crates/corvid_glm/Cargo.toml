@@ -1,0 +1,38 @@
+[package]
+name = "corvid_glm"
+description = "The workspace's f32 vectors and matrices: nalgebra, in the column-major order a shader reads, with the aliases a game spells them by."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["nalgebra", "matrix", "vector", "no-std", "gamedev"]
+categories = ["game-development", "mathematics", "no-std"]
+
+[dependencies]
+# The one linear algebra library in this workspace, and this is the one crate
+# that names it for its `f32` types. `libm` because a `no_std` build still needs
+# a square root to normalize a vector, and nalgebra gates that on one of its own
+# float backends.
+nalgebra = { workspace = true, features = ["libm"] }
+# `Pod` and `Zeroable` on the matrices, which is what lets a camera be written
+# into a uniform buffer without an `unsafe` block. Named through nalgebra's own
+# forwarding feature rather than as a dependency here, so there is one bytemuck
+# in the graph and nalgebra's impls are the ones in it.
+bytemuck = { workspace = true, optional = true }
+# Interoperation, for the same reason `corvid_vector` offers it: a game with a
+# glTF loader or a physics engine of its own speaks one of these.
+mint = { workspace = true, optional = true }
+
+[features]
+default = []
+bytemuck = ["dep:bytemuck", "nalgebra/convert-bytemuck"]
+mint = ["dep:mint", "nalgebra/mint"]
+std = ["nalgebra/std", "bytemuck?/extern_crate_std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
