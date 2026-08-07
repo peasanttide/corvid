@@ -10,51 +10,169 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  # Does it build, does it pass, and does it say what it means. One job, because
+  # these all want the same checkout and the same warm target directory.
+  check:
     runs-on: ubuntu-latest
+    # The backstop of last resort. Every test here that waits on another thread
+    # carries a deadline of its own, and this is what catches the wait that
+    # nobody wrapped: a wedged test binary keeps a runner for six hours and
+    # reports nothing, which has happened.
+    timeout-minutes: 30
 
     steps:
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --workspace --verbose
-    # Every optional integration is off by default, so a plain `cargo test`
-    # compiles out the serde, bytemuck, mint and nalgebra tests entirely — the
-    # wire format and the layout assertions among them.
-    - name: Run tests, default features
-      run: cargo test --workspace --verbose
-    - name: Run tests, all features
-      run: cargo test --workspace --all-features --verbose
-    # Neither of the two runs above compiles a feature *on its own*. A feature
-    # that forgets to forward one of its dependency's own features builds fine
-    # under `--all-features`, where something else turns it on, and fails for
-    # the one user who enables only it.
-    - name: Build each feature on its own
-      run: |
-        set -eu
-        for crate in corvid_vector corvid_rotation corvid_transform; do
-          for feature in mint nalgebra serde bytemuck arbitrary std; do
-            echo "== $crate --features $feature"
-            cargo build -p "$crate" --no-default-features --features "$feature"
-          done
-        done
-        for feature in bytemuck serde arbitrary num-traits std; do
-          echo "== corvid_fixed --features $feature"
-          cargo build -p corvid_fixed --no-default-features --features "$feature"
-        done
-    # Overflow checks are on in dev and off in release, so the two profiles
-    # disagree about what a wrapped intermediate does — the one divergence a
-    # bit-exactness crate cannot ship. Both arms have to run.
-    - name: Run tests, release
-      run: cargo test --workspace --all-features --release --verbose
-    # The workspace pins its own rules in `[workspace.lints]` — `unsafe_code`
-    # forbidden, `panic`/`unwrap_used`/`missing_docs` denied. They are only a
-    # convention if something runs them.
-    - name: Clippy
-      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+    - uses: Swatinem/rust-cache@v2
+
     - name: Formatting
       run: cargo fmt --all --check
+    # A warning that nobody fails on is a warning that accumulates. The
+    # workspace pins its own rules in `[workspace.lints]` — `unsafe_code`
+    # forbidden, `panic`/`unwrap_used`/`missing_docs` denied — and this is what
+    # makes them rules rather than a convention. `-D warnings` goes here rather
+    # than in `RUSTFLAGS`, which would hold every crates.io dependency to rules
+    # this workspace wrote for itself.
+    - name: Clippy
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
     - name: Docs
       env:
         RUSTDOCFLAGS: -D warnings
       run: cargo doc --workspace --no-deps --all-features
+
+    # Every optional integration is off by default, so a plain `cargo test`
+    # compiles out the serde, bytemuck, mint and nalgebra tests entirely — the
+    # wire format and the layout assertions among them. Both arms are needed.
+    - name: Tests, default features
+      run: cargo test --workspace
+    - name: Tests, all features
+      run: cargo test --workspace --all-features
+    # Overflow checks are on in dev and off in release, so the two profiles
+    # disagree about what a wrapped intermediate does — the one divergence a
+    # bit-exactness workspace cannot ship.
+    - name: Tests, all features, release
+      run: cargo test --workspace --all-features --release
+
+    # A target with no operating system is the check with teeth: a crate that
+    # quietly reached for `std` fails here rather than being discovered by
+    # whoever first builds a dedicated server or a console port.
+    #
+    # Four crates rather than the whole simulation ring, and the ceiling is not
+    # this workspace's: `corvid_float` depends on `const_soft_float`, which does
+    # not declare `#![no_std]`, so everything above `corvid_float` — which is
+    # `corvid_fixed` and therefore all of the arithmetic — has no bare-metal
+    # build to check. These four sit below or beside it. The workflow used to
+    # claim the whole ring built here, which had not been true since
+    # `corvid_float` was added; the wider portability claim is the `cross` job,
+    # where it is checked on targets that do have an operating system.
+    - name: Build for a target with no operating system
+      run: |
+        set -eu
+        rustup target add thumbv7em-none-eabi
+        for crate in corvid_bits corvid_hash corvid_wire corvid_files; do
+          echo "== $crate"
+          cargo build -p "$crate" --no-default-features --target thumbv7em-none-eabi
+        done
+
+  # Neither arm above compiles a feature *on its own*. A feature that forgets to
+  # forward one of its dependency's own features builds fine under
+  # `--all-features`, where something else turns it on, and fails for the first
+  # downstream that asks for exactly it.
+  #
+  # This used to be two hundred lines of hand-written loops over crates and
+  # feature names, which meant a new crate was covered only if somebody
+  # remembered to add it. `cargo hack` reads the manifests instead, so it is
+  # both shorter and strictly more thorough.
+  features:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
+    - uses: taiki-e/install-action@cargo-hack
+    # 154 configurations across the workspace as this is written.
+    #
+    # `examples/pong` is excluded because its feature declarations do not
+    # currently hold up: `src/play.rs` names `corvid::platform`, which is gated
+    # behind `corvid/window`, so the crate needs `window` — while `src/lib.rs`
+    # carries a `#[cfg(not(feature = "render"))]` implementation for a build
+    # that cannot happen, and `render = ["dep:bytemuck"]` never turns on
+    # `corvid/render`. The example builds and passes under the features it
+    # actually ships with, which is what `check` runs it under. This exclusion
+    # is a note that the manifest is wrong, not that the sweep is optional.
+    - name: Every feature on its own, and none of them
+      run: cargo hack check --workspace --exclude pong --each-feature --no-dev-deps
+
+  # The claim the whole design rests on is that a simulation computes the same
+  # bits on every machine. This job is the half that says the code *compiles*
+  # elsewhere — that no crate below the runtime has quietly grown a dependency
+  # on a pointer width, an operating system or a float. What it says nothing
+  # about is what those builds compute; that is `determinism` below.
+  cross:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          # A second 64-bit architecture, with a different code generator and a
+          # different floating-point story.
+          - aarch64-unknown-linux-gnu
+          # A 32-bit pointer target, which is the one that would find a `usize`
+          # reaching a digest at the target's width rather than at the sixty-four
+          # bits `corvid_hash` absorbs it as — and a peer platform rather than a
+          # curiosity, since a browser peer plays against a native one.
+          - wasm32-unknown-unknown
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
+    - run: rustup target add ${{ matrix.target }}
+    # The simulation ring and the client ring's data types: everything two peers
+    # have to agree about, plus everything a capture is made of. The runtime is
+    # not here — `corvid_app` is unconditionally `std`, and the crates that own
+    # a device are `std` with it.
+    #
+    # `cargo build` of a library produces an rlib and links nothing, so no
+    # cross-linker is needed for any of these.
+    - name: Build the portable crates
+      run: |
+        set -eu
+        for crate in corvid_bits corvid_float corvid_fixed corvid_vector \
+                     corvid_rotation corvid_transform corvid_hash corvid_time \
+                     corvid_wire corvid_files corvid_behavior corvid_replay \
+                     corvid_lockstep corvid_shape corvid_camera corvid_color \
+                     corvid_sound corvid_input corvid_mesh corvid_ui; do
+          echo "== $crate for ${{ matrix.target }}"
+          cargo build -p "$crate" --no-default-features --target ${{ matrix.target }}
+        done
+
+  # The other half, and the one about output rather than about compiling:
+  # `examples/pong`'s `tests/baseline.rs` holds the simulation to two digests
+  # recorded before the contracts were rewritten. It would notice the arithmetic
+  # moving, a field's width altering, or the loop's order changing — none of
+  # which any test comparing one run against another can see.
+  #
+  # Run on aarch64, which is what makes "the same digest everywhere" a checked
+  # property rather than an argument from the source being integer-only: the
+  # numbers in `baseline.rs` were recorded on x86-64, and `check` above already
+  # replays them there. This arm is the one that would notice an architecture
+  # disagreeing, and a red arm named `determinism` says so without anybody
+  # reading a log.
+  determinism:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: Swatinem/rust-cache@v2
+    # Three suites, and none of them asks for an adapter — the baseline is a
+    # headless simulation, which is what lets it run on a machine with no GPU.
+    # Both profiles, because overflow checks are on in dev and off in release,
+    # and a digest that moved with the profile is exactly the failure this
+    # exists to catch.
+    - name: The frozen digests, debug
+      run: cargo test -p pong --test baseline --test table --test bot
+    - name: The frozen digests, release
+      run: cargo test -p pong --test baseline --test table --test bot --release
