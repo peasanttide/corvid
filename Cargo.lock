@@ -368,6 +368,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_mesh_render"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "corvid_camera",
+ "corvid_fixed",
+ "corvid_glm",
+ "corvid_mesh",
+ "corvid_render",
+ "corvid_rotation",
+ "corvid_shape",
+ "corvid_transform",
+ "corvid_vector",
+ "png",
+ "wgpu",
+]
+
+[[package]]
 name = "corvid_net"
 version = "0.1.0"
 dependencies = [
