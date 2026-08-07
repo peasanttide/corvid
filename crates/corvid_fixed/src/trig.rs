@@ -19,8 +19,8 @@
 //! product compiles to one multiply-high instruction pair; doing the *whole*
 //! computation in `i128` costs three multiplies per product, and an `i128`
 //! division by a constant becomes a call into `__divti3`. Measured on aarch64,
-//! moving the polynomial from `i128` arithmetic with divisions to `i64`
-//! arithmetic with reciprocal coefficients took a sine from 85 ns to under 8 ns.
+//! the polynomial in `i128` arithmetic with divisions costs 85 ns per sine
+//! against under 8 ns for the `i64` arithmetic with reciprocal coefficients here.
 //! `cargo run --release --example bench` reproduces the comparison.
 //!
 //! `i128` earns its keep in two places: [`asin_bits`] at 32-bit output, where the
@@ -45,7 +45,7 @@
 //! None of this touches the 8- and 16-bit outputs. Their last bit is coarse
 //! enough that Q60 already rounds every one of their inputs correctly, and their
 //! domains are small enough to prove it by walking them, so they take the fast
-//! path unconditionally and cost exactly what they always did.
+//! path unconditionally and cost what that path costs.
 //!
 //! # Derived constants
 //!
@@ -706,7 +706,7 @@ const fn atan2_q(y: i64, x: i64, iters: usize) -> i64 {
         let ay = y.unsigned_abs();
         if ax > ay { ax } else { ay }
     };
-    let shift = CORDIC_SCALE_BITS as i32 - (64 - magnitude.leading_zeros()) as i32;
+    let shift = CORDIC_SCALE_BITS as i32 - corvid_bits::bit_length_u64(magnitude) as i32;
     let (mut px, mut py) = if shift >= 0 {
         (
             (((x as i128) << shift) as i64),
@@ -833,7 +833,7 @@ pub(crate) const fn atan2_fast_bits(y: i32, x: i32, bits: u32) -> i32 {
     // u32, so the ratio costs one 32-bit division. The bits dropped from the
     // divisor cost 2^-16 of relative error, two orders of magnitude under this
     // approximation's own.
-    let excess = (32 - denominator.leading_zeros()).saturating_sub(DIVISOR_BITS);
+    let excess = corvid_bits::bit_length_u32(denominator).saturating_sub(DIVISOR_BITS);
     let ratio = (((numerator >> excess) << R) / (denominator >> excess)) as i32;
 
     // `atan(r) = r/8 + C * r * (1 - r)` in turns. The wedge `r * (1 - r)` peaks

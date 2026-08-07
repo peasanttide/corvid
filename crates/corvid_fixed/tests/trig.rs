@@ -146,8 +146,8 @@ fn sin_and_cos_are_within_one_bit_for_angle32() {
 /// table — fourteen deliberately hunted near-ties, phases whose scaled sine
 /// lands within `3e-4` of a halfway case. Those are the only inputs where a
 /// rounding can go wrong, and they are exactly the ones a sampled sweep is least
-/// likely to visit. `2688335011` is the phase that caught the old seven-term
-/// polynomial rounding the wrong way.
+/// likely to visit. `2688335011` is one the seven-term Q60 polynomial rounds the
+/// wrong way on its own, so it is what the exact tier is here to answer for.
 ///
 /// Generated offline by summing the Taylor series at 80 digits with pi from
 /// Machin's formula, then cross-checked against a second reduction that folds no

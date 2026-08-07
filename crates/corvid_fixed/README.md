@@ -31,6 +31,9 @@ let far = I24F8::from_f64(1_000_000.0);
 assert_eq!(far * far, I24F8::MAX);
 assert_eq!(far.checked_mul(far), None);
 
+// An integer converts when it cannot lose anything, and only then.
+assert_eq!(I24F8::from(3_i16), I24F8::from_f64(3.0));
+
 // Interpolation is exact at both ends.
 let a = I24F8::from_f64(-10.0);
 let b = I24F8::from_f64(10.0);
@@ -98,6 +101,31 @@ trigonometry never touch it. The conversions do: `from_f64`, `to_f64`, their
 `Display` all compute in `f64` and cast. They are how a value gets in and out,
 not how it is computed on — so a path that must be bit-identical everywhere
 should convert at its edges and carry fixed-point values in between.
+
+**An integer converts only where it cannot lose anything.** Four of the six
+fixed-point types have a `From` from one integer type, and it is the widest
+*signed* one whose whole range they hold exactly:
+
+| Type | Takes | Because |
+|---|---|---|
+| [`I8F8`] | `i8` | `[-128, 127]` is exactly its integer range |
+| [`I24F8`] | `i16` | `i32` needs 8 more bits than the storage has |
+| [`I16F16`] | `i16` | `[-32768, 32767]` is exactly its integer range |
+| [`I48F16`] | `i32` | `i64` shifted by 16 is not an `i64` |
+
+[`I0F8`] and [`I2F30`] get none — they stop at 0.5 and 2, so no integer type has
+a range they cover — and neither do the factor, signed, angle or pitch families,
+for the same reason. `f64` gets none either: `from_f64` rounds, and a conversion
+that rounds should say so at the call site rather than happening because a value
+was passed to something.
+
+The set is deliberately not *every* integer type that would convert exactly.
+[`I16F16`] also holds every `i8` and every `u8`, and implementing those would
+break `finepoint(1, 2, 3)` in `corvid_vector`: an unsuffixed literal reaching an
+`impl Into<I16F16>` parameter is an inference variable, rustc commits it to an
+impl only when exactly one candidate applies, and with three it falls back to
+`i32` — which is not one of them. So each type takes one integer, and a `u8`
+reaches these types through `i16::from(byte)`.
 
 **Results are correctly rounded.** Multiplication, division, square root, and
 interpolation each round once from a full-width intermediate. Sine and cosine
@@ -191,17 +219,16 @@ Sine and cosine beat the platform because a Taylor series over a folded octant i
 `i64` is less work than a correctly-rounded `libm` argument reduction. Square root
 loses because the hardware has an instruction for it and an integer square root
 is a loop. The arc functions carry a CORDIC loop and are the slowest thing here;
-`atan2_fast` exists for when that matters, and got 2.3x faster when it moved to
-32-bit arithmetic, since a `u32` divide is much cheaper than the `u64` one it
-used to do.
+`atan2_fast` exists for when that matters, and works in 32-bit arithmetic, where
+a `u32` divide is much cheaper than a `u64` one — worth 2.3x on its own.
 
-`i64` throughout, rather than `i128`, is what makes this competitive. The first
-working version computed the polynomial in `i128` with divisions by the factorial
-denominators and took **85 ns** per sine — 7x slower than `libm`. Two changes
-fixed it: store Q60 values in `i64` so a product is one widening multiply instead
-of three, and precompute the coefficients as reciprocals so the polynomial has no
-division at all. `i128` survives in exactly two places, both measured: the
-widening product inside a multiply, and the 120-bit radicand of a 32-bit `asin`.
+`i64` throughout, rather than `i128`, is what makes this competitive. The same
+polynomial in `i128`, with divisions by the factorial denominators, costs **85
+ns** per sine — 7x slower than `libm`. Two things buy that back: Q60 values
+stored in `i64`, so a product is one widening multiply instead of three, and
+coefficients precomputed as reciprocals, so the polynomial has no division at
+all. `i128` survives in exactly two places, both measured: the widening product
+inside a multiply, and the 120-bit radicand of a 32-bit `asin`.
 
 ## Features
 
@@ -215,6 +242,14 @@ except `arbitrary`, whose derive macro emits `std` paths.
 | `arbitrary` | `Arbitrary`, for fuzzing (links `std`) |
 | `num-traits` | `Zero`, `One`, `Bounded`, `ToPrimitive`, `FromPrimitive`, and the checked, saturating, and wrapping operator traits |
 | `std` | Forwards `std` to whichever of the above are enabled |
+
+`Hash` is written by hand rather than derived, and it is the one implementation
+that has to agree with something else the crate does. A value absorbs the
+canonical bit pattern — the same one `Eq` and `Ord` compare on, so `Signed8`'s
+two encodings of `-1.0` and a `Pitch16`'s out-of-range patterns fold there too.
+A digest that told those apart would have two peers holding the same value
+exchange different marks and each conclude the other had desynced, which is the
+one failure a state hash exists to catch rather than cause.
 
 `nalgebra` needs no feature: its blanket `Scalar` implementation already makes
 `Vector3<I24F8>` work, and the tests keep that true. `RealField` is deliberately
@@ -230,7 +265,7 @@ cargo test -p corvid_fixed --all-features
 
 | File | Covers |
 |---|---|
-| `tests/conversion.rs` | Float round-trips, exhaustive for the 8- and 16-bit types; rounding; `NaN`; infinities; saturation |
+| `tests/conversion.rs` | Float round-trips, exhaustive for the 8- and 16-bit types; rounding; `NaN`; infinities; saturation; every integer of every implemented `From`, and why the next type up has none |
 | `tests/arithmetic.rs` | Every 8-bit operand pair against an `f64` reference; saturation, wrapping, overflow detection, division by zero, square roots, rounding, `recip`, `mul_add`, `hypot`, interpolation |
 | `tests/trig.rs` | Every `Angle8` and `Angle16` input against `f64`; identities; `atan2` round-trips; both accuracy tiers |
 | `tests/pitch.rs` | Clamping at the poles, out-of-range bit patterns, `asin`/`acos` against `f64` over their whole domain, shared scale with the angle types |
@@ -248,3 +283,21 @@ losslessly; [`I48F16`] is the exception, because its 63 magnitude bits exceed
 `f64`'s 53-bit mantissa. Through `f32`, only the 8- and 16-bit ones do —
 `I24F8`, `I16F16`, `I2F30`, `I48F16`, `Factor32`, `Signed32`, `Angle32`, and
 `Pitch32` carry more significant bits than an `f32` mantissa holds.
+
+## Moving at a velocity
+
+`Carry<T>` is the answer to a question every game with a velocity asks and most
+get slightly wrong: a velocity times a time step almost never lands on a
+representable value, and rounding it away every frame loses **the same fraction
+in the same direction** forever, because the velocity a player is holding is
+constant. At 4 m/s into an `I24F8` at 240 Hz that is 6% of the speed — and worse
+the faster the display runs, which is the most confusing possible symptom.
+
+It divides exactly, hands back the quotient and keeps the remainder. After any
+sequence of steps the total is within one representable step of exact, however
+many steps there were. It is generic over `Fixed`, which every family here
+implements, so it integrates a position in metres, an angle a turret slews
+through and a factor a fade runs at with one implementation.
+
+`src/carry.rs` is where the argument lives, including why the division truncates
+towards zero rather than flooring — a test settled that one.

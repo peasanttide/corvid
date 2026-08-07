@@ -93,7 +93,7 @@ pub(super) const fn rsqrt_bits(x: u64, frac: u32) -> u64 {
     //    length is at most 63 and the shift is never negative. Rounding the
     //    shift down to even keeps `3 * frac + shift` even, which is what makes
     //    the rescale in step 5 an exact power of two rather than a half power.
-    let bit_length = 64 - x.leading_zeros();
+    let bit_length = corvid_bits::bit_length_u64(x);
     let shift_up = (63 - bit_length) & !1;
     let n = x << shift_up;
 
@@ -234,7 +234,7 @@ pub(super) const fn rsqrt_fast_bits(x: u32, frac: u32) -> u32 {
     //    is at most 31 and the shift is never negative. Rounding the shift down
     //    to even keeps `3 * frac + shift` even, which is what makes the rescale
     //    in step 5 a whole power of two rather than a half power.
-    let bit_length = 32 - x.leading_zeros();
+    let bit_length = corvid_bits::bit_length_u32(x);
     let shift_up = (31 - bit_length) & !1;
     let n = x << shift_up;
 

@@ -14,9 +14,11 @@
 #[cfg(feature = "arbitrary")]
 extern crate std;
 
+mod carry;
 mod fixed;
 mod trig;
 
+pub use carry::{Carry, Fixed};
 pub use fixed::{angle, factor, pitch, point, signed};
 
 pub use angle::{Angle8, Angle16, Angle32};

@@ -50,6 +50,37 @@ macro_rules! define_newtype {
 /// Implements bit access, comparison, and formatting.
 macro_rules! impl_shared {
     ($name:ident, $repr:ty, $unit:expr) => {
+        /// The bit access [`Carry`](crate::Carry) is written against.
+        ///
+        /// Nothing about units crosses this trait, which is what lets one
+        /// integrator serve a position in metres, an angle a turret slews
+        /// through and a factor a fade runs at.
+        impl $crate::Fixed for $name {
+            type Bits = $repr;
+
+            const ZERO: Self = Self::ZERO;
+
+            #[inline]
+            fn to_bits(self) -> $repr {
+                self.0
+            }
+
+            #[inline]
+            fn from_bits(bits: $repr) -> Self {
+                Self(bits)
+            }
+
+            #[inline]
+            fn to_wide(self) -> i128 {
+                self.0 as i128
+            }
+
+            #[inline]
+            fn from_wide(wide: i128) -> Self {
+                Self(wide.clamp(<$repr>::MIN as i128, <$repr>::MAX as i128) as $repr)
+            }
+        }
+
         impl $name {
             /// The zero value.
             pub const ZERO: Self = Self(0);

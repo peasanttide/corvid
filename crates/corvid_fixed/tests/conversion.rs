@@ -308,13 +308,13 @@ fn angles_wrap_at_any_turn_count() {
     // Whole turns are discarded before scaling, so a large turn count wraps
     // like a small one. Scaling first would push the intermediate past the i64
     // the conversion casts through, and the cast would saturate: the quarter
-    // turn below came back as 0.99999999977 of a turn before that was fixed.
+    // turn below would come back as 0.99999999977 of a turn.
     assert_eq!(Angle32::from_turns(2_147_483_648.25), Angle32::QUARTER_TURN);
     assert_eq!(Angle32::from_turns(1e15 + 0.5), Angle32::HALF_TURN);
     assert_eq!(Angle16::from_turns(1e15 + 0.5), Angle16::HALF_TURN);
     assert_eq!(Angle8::from_turns(-1e12 - 0.25), Angle8::THREE_QUARTER_TURN);
 
-    // Every width, every quarter, far past where the old scaling gave out.
+    // Every width, every quarter, far past where scaling first gives out.
     for turns in [0.0_f64, 0.25, 0.5, 0.75] {
         for whole in [0.0_f64, 1.0, 1e6, 2.0_f64.powi(31), 2.0_f64.powi(48)] {
             let expected = Angle32::from_turns(turns);
@@ -475,4 +475,111 @@ fn i48f16_is_the_one_type_whose_to_f64_is_lossy() {
     // Anything inside 53 bits still round-trips exactly.
     let ordinary = I48F16::from_f64(6.371e6);
     assert_eq!(I48F16::from_f64(ordinary.to_f64()), ordinary);
+}
+
+/// Walks a whole integer type through `From` and back, and states the shift the
+/// conversion is.
+///
+/// The round trip alone would pass for a conversion that saturated, since
+/// saturation is the identity on values that fit. So the bit pattern is checked
+/// too: it must be the integer shifted by the type's own `FRAC_BITS`, which is
+/// what says the conversion placed the value on the scale rather than merely
+/// somewhere reproducible.
+macro_rules! assert_int_conversion_exhaustive {
+    ($name:ident, $int:ty) => {
+        for value in <$int>::MIN..=<$int>::MAX {
+            let converted = $name::from(value);
+            assert_eq!(
+                i64::from(converted.to_bits()),
+                i64::from(value) << $name::FRAC_BITS,
+                concat!(
+                    stringify!($name),
+                    "::from(",
+                    stringify!($int),
+                    ") misplaced {}"
+                ),
+                value
+            );
+            assert_eq!(
+                converted.to_f64(),
+                f64::from(value),
+                concat!(stringify!($name), "::from(", stringify!($int), ") lost {}"),
+                value
+            );
+        }
+    };
+}
+
+#[test]
+fn every_integer_that_converts_lands_on_its_own_value() {
+    use corvid_fixed::{I8F8, I16F16, I48F16};
+
+    // The three narrow pairs are small enough to walk completely.
+    assert_int_conversion_exhaustive!(I8F8, i8);
+    assert_int_conversion_exhaustive!(I24F8, i16);
+    assert_int_conversion_exhaustive!(I16F16, i16);
+
+    // `I48F16` takes an `i32`, which is too wide to walk; its endpoints and the
+    // patterns either side of zero are where a shift goes wrong.
+    for value in [i32::MIN, i32::MIN + 1, -65_537, -1, 0, 1, 65_536, i32::MAX] {
+        let converted = I48F16::from(value);
+        assert_eq!(converted.to_bits(), i64::from(value) << 16);
+        assert_eq!(converted.to_f64(), f64::from(value));
+    }
+}
+
+#[test]
+fn the_next_integer_type_up_would_not_have_fitted() {
+    use corvid_fixed::{I8F8, I16F16, I48F16};
+
+    // The exhaustive test above says every value of the implemented integer
+    // type survives. This one says why there is no impl for the next type up:
+    // that type has values these scalars cannot hold, so a `From` for it would
+    // be the silent precision loss the whole rule exists to keep out.
+    //
+    // `checked_from_f64` is the reading: it returns `None` for exactly the
+    // values that are out of range, which is the question being asked.
+    assert_eq!(I8F8::checked_from_f64(f64::from(i16::MAX)), None);
+    assert_eq!(I16F16::checked_from_f64(f64::from(i32::MAX)), None);
+    assert_eq!(I24F8::checked_from_f64(f64::from(i32::MAX)), None);
+    assert_eq!(I48F16::checked_from_f64(i64::MAX as f64), None);
+
+    // And a value that is only just past the top of the implemented integer
+    // type, so the bound is the integer's rather than something far away. Two
+    // of these four scalars stop exactly where their integer type does...
+    assert_eq!(I8F8::checked_from_f64(128.0), None);
+    assert_eq!(I16F16::checked_from_f64(32_768.0), None);
+    assert_eq!(I8F8::from(i8::MIN), I8F8::MIN);
+    assert_eq!(I16F16::from(i16::MIN), I16F16::MIN);
+
+    // ...and the other two have range to spare, so their integer type is
+    // limited by the type one step wider not fitting rather than by the scalar.
+    assert!(I24F8::from(i16::MIN) > I24F8::MIN);
+    assert!(I24F8::checked_from_f64(f64::from(u16::MAX)).is_some());
+    assert!(I48F16::from(i32::MIN) > I48F16::MIN);
+    assert!(I48F16::checked_from_f64(f64::from(u32::MAX)).is_some());
+}
+
+#[test]
+fn an_integer_literal_reaches_a_generic_conversion() {
+    use corvid_fixed::{I8F8, I16F16, I48F16};
+
+    // The property the single-integer-impl-per-type rule exists for, and the
+    // one a second impl would silently take away. An unsuffixed literal arriving
+    // at an `impl Into<T>` parameter has to commit to some integer type, and it
+    // can only do that while exactly one candidate applies.
+    fn widen<T>(value: impl Into<T>) -> T {
+        value.into()
+    }
+
+    assert_eq!(widen::<I8F8>(3), I8F8::from_f64(3.0));
+    assert_eq!(widen::<I24F8>(3), I24F8::from_f64(3.0));
+    assert_eq!(widen::<I16F16>(3), I16F16::from_f64(3.0));
+    assert_eq!(widen::<I48F16>(3), I48F16::from_f64(3.0));
+
+    // And the scalar itself still reaches it, through the reflexive `From`.
+    assert_eq!(
+        widen::<I16F16>(I16F16::from_f64(1.5)),
+        I16F16::from_f64(1.5)
+    );
 }

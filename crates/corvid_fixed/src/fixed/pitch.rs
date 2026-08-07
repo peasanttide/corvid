@@ -430,6 +430,20 @@ macro_rules! define_pitch {
             }
         }
 
+        #[doc = concat!("The same phase as an [`", stringify!($angle), "`], which is [`to_angle`](", stringify!($name), "::to_angle).")]
+        ///
+        /// Total and free: the two types share a scale, so this is the identity
+        /// on the bit pattern for every value in range. The other direction
+        /// clamps, so it is
+        #[doc = concat!("[`from_angle`](", stringify!($name), "::from_angle)")]
+        /// and deliberately has no `From`.
+        impl From<$name> for $angle {
+            #[inline]
+            fn from(pitch: $name) -> Self {
+                pitch.to_angle()
+            }
+        }
+
         impl_shared!($name, $repr, " turn");
         impl_binop!($name, Add::add, AddAssign::add_assign, saturating_add);
         impl_binop!($name, Sub::sub, SubAssign::sub_assign, saturating_sub);

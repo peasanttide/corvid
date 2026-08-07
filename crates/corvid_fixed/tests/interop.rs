@@ -221,6 +221,91 @@ mod arbitrary_interop {
     }
 }
 
+mod digest_interop {
+    use core::hash::Hash;
+    use std::collections::HashSet;
+
+    use corvid_fixed::{I48F16, Pitch8};
+    use corvid_hash::{Digest, Hasher, digest};
+
+    use super::{Angle8, Angle16, Factor8, I0F8, Signed8};
+
+    /// A scalar whose storage integer is already sixty-four bits absorbs one
+    /// whole word, which is what `absorb` writes — so this one scalar's digest
+    /// can be written out in a `const` context by hand and compared against the
+    /// runtime path.
+    const DEEP: Digest = Hasher::new().absorb(0x0123_4567_89ab_cdef).digest();
+
+    /// The number of distinct digests over an 8-bit type's whole range.
+    fn spread<T: Hash>(of: impl Fn(i8) -> T) -> usize {
+        (i8::MIN..=i8::MAX)
+            .map(|bits| digest(&of(bits)))
+            .collect::<HashSet<Digest>>()
+            .len()
+    }
+
+    #[test]
+    fn const_and_runtime_evaluation_agree() {
+        assert_eq!(DEEP, digest(&I48F16::from_bits(0x0123_4567_89ab_cdef)));
+    }
+
+    #[test]
+    fn a_scalar_absorbs_its_storage_integer_at_its_own_width() {
+        // A narrower scalar absorbs as many bytes as its storage integer has,
+        // so two families at two widths are two encodings and the same number
+        // at two widths is two inputs.
+        let mut narrow = Hasher::new();
+        Angle16::QUARTER_TURN.to_bits().hash(&mut narrow);
+        assert_eq!(narrow.digest(), digest(&Angle16::QUARTER_TURN));
+        assert_ne!(
+            digest(&Angle16::QUARTER_TURN),
+            digest(&u64::from(Angle16::QUARTER_TURN.to_bits()))
+        );
+    }
+
+    #[test]
+    fn every_i0f8_bit_pattern_digests_uniquely() {
+        assert_eq!(spread(I0F8::from_bits), 256, "two values shared a digest");
+    }
+
+    #[test]
+    fn the_other_faithful_families_separate_their_whole_range_too() {
+        // These three encode each value exactly once, so all 256 patterns are
+        // 256 values and none of them may collide.
+        assert_eq!(spread(|bits| Angle8::from_bits(bits.cast_unsigned())), 256);
+        assert_eq!(spread(|bits| Factor8::from_bits(bits.cast_unsigned())), 256);
+        assert_eq!(spread(Signed8::from_bits), 255, "the denormal is a value");
+    }
+
+    #[test]
+    fn a_digest_agrees_with_equality_wherever_the_encoding_is_redundant() {
+        // Signed8 spends one pattern twice and Pitch8 accepts patterns outside
+        // its own range, so both have values with more than one encoding. A
+        // digest that told two of them apart would report a desync between two
+        // peers holding the same value, which is the one thing it exists to
+        // avoid — so it folds exactly where `Eq` and `Hash` do.
+        for left in i8::MIN..=i8::MAX {
+            for right in i8::MIN..=i8::MAX {
+                let (a, b) = (Signed8::from_bits(left), Signed8::from_bits(right));
+                assert_eq!(a == b, digest(&a) == digest(&b), "{left} versus {right}");
+
+                let (a, b) = (Pitch8::from_bits(left), Pitch8::from_bits(right));
+                assert_eq!(a == b, digest(&a) == digest(&b), "{left} versus {right}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_denormal_digests_as_the_value_it_denotes() {
+        assert_eq!(digest(&Signed8::from_bits(-128)), digest(&Signed8::MIN));
+    }
+
+    #[test]
+    fn an_out_of_range_pitch_digests_as_the_pole_it_clamps_to() {
+        assert_eq!(digest(&Pitch8::from_bits(i8::MAX)), digest(&Pitch8::MAX));
+    }
+}
+
 #[cfg(feature = "num-traits")]
 mod num_traits_interop {
     use num_traits::{

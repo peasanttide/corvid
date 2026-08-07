@@ -161,6 +161,30 @@ macro_rules! define_angle {
                 self.to_signed_bits() as f64 / Self::TURN
             }
 
+            /// Half this angle, as a signed elevation.
+            ///
+            /// The step from a field of view to the elevation of its top edge,
+            /// which is the one trigonometric quantity a frustum has. It was
+            /// written out privately in the camera crate before it was here,
+            /// which made it a conversion between two of this crate's scalars
+            /// living somewhere neither of them does.
+            ///
+            /// A [`Pitch32`](crate::Pitch32) rather than the pitch of matching
+            /// width, because the result goes straight into a tangent, where
+            /// the extra bits are free and the rounding would not be. Halving
+            /// an [`Angle8`] or an [`Angle16`] is therefore exact; halving an
+            /// [`Angle32`] rounds, having nowhere wider to land.
+            ///
+            /// An angle past a half turn has no elevation to name and
+            /// saturates at [`Pitch32::MAX`](crate::Pitch32::MAX), which is
+            /// what makes a degenerate field of view a flat frustum rather
+            /// than a panic.
+            #[must_use]
+            #[inline]
+            pub const fn half(self) -> $crate::Pitch32 {
+                $crate::Pitch32::from_f64(self.to_f64() / 2.0)
+            }
+
             /// The angle in radians, in `-pi .. pi`.
             ///
             /// The signed convention `atan2` and shortest-arc code expect.

@@ -76,6 +76,10 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "bytemuck",
+ "corvid_bits",
+ "corvid_float",
+ "corvid_hash",
+ "corvid_wire",
  "nalgebra",
  "num-traits",
  "serde",

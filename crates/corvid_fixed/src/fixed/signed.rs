@@ -468,3 +468,36 @@ define_signed! {
         factor: Factor32,
     }
 }
+
+impl Signed32 {
+    /// This value as an [`I16F16`](crate::I16F16), rounded.
+    ///
+    /// A normalized position on an axis becoming a fixed-point length: what a
+    /// cursor's normalized device coordinate is turned into before it is
+    /// multiplied by a frustum's slope. It lived privately in the camera crate
+    /// before it lived here, which made it a conversion between two of this
+    /// crate's own scalars kept somewhere neither of them is.
+    ///
+    /// Fifteen bits of the thirty-one are dropped, so the result carries a
+    /// step of `1/65536` — two orders of magnitude finer than a pixel on any
+    /// display, and the rounding is to nearest rather than toward zero so the
+    /// error does not accumulate a bias across the screen.
+    ///
+    /// ```
+    /// use corvid_fixed::{I16F16, Signed32};
+    ///
+    /// assert_eq!(Signed32::MAX.to_i16f16(), I16F16::ONE);
+    /// assert_eq!(Signed32::ZERO.to_i16f16(), I16F16::ZERO);
+    /// assert_eq!(Signed32::from_f64(-0.5).to_i16f16(), I16F16::from_f64(-0.5));
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_i16f16(self) -> crate::I16F16 {
+        // Q31 to Q16 is fifteen bits, and the half-step added first is what
+        // makes the shift a round rather than a floor. The sum cannot leave
+        // `i64`, so the narrowing below is the only place a bound is needed.
+        crate::I16F16::from_bits(corvid_bits::narrow_i64(
+            (self.to_bits() as i64 + (1 << 14)) >> 15,
+        ))
+    }
+}

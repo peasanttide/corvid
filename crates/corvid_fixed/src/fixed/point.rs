@@ -588,16 +588,60 @@ macro_rules! define_fixed_point {
     };
 }
 
+/// Implements `From<$int>` for a fixed-point type that holds every `$int` value
+/// exactly.
+///
+/// The conversion is `bits = value << FRAC_BITS` and nothing else, so it is
+/// lossless by construction — but only while `$int::MIN` and `$int::MAX` shifted
+/// by `frac` both still fit `$repr`, which is a fact about the pair rather than
+/// about either half. `tests/conversion.rs` checks each pair at its endpoints,
+/// and checks that the next integer type up would not have fitted.
+macro_rules! impl_from_int {
+    ($name:ident, $repr:ty, $int:ty, $frac:expr) => {
+        #[doc = concat!("Converts an integer number of units. Exact: every `", stringify!($int), "` is a `", stringify!($name), "`.")]
+        impl From<$int> for $name {
+            #[inline]
+            fn from(value: $int) -> Self {
+                Self((value as $repr) << $frac)
+            }
+        }
+    };
+}
+
+// One integer type per scalar, and it is deliberately not every integer type
+// that would convert exactly.
+//
+// `I16F16` also holds every `i8` and every `u8`, and `I24F8` also holds every
+// `u16`; implementing those would make `finepoint(1, 2, 3)` stop compiling. An
+// integer literal reaches a `impl Into<I16F16>` parameter as an inference
+// variable, and rustc commits it to an impl only when exactly one candidate
+// applies — with three, the literal falls back to `i32`, which is not one of
+// them, and the caller is told `I16F16: From<i32>` is missing. So each type
+// takes the widest *signed* integer it holds exactly, which is the type an
+// unsuffixed literal is trying to be, and a `u8` reaches these types through
+// `i16::from(byte)`.
+//
+// `I0F8` and `I2F30` get none: their ranges stop at 0.5 and 2, so no integer
+// type has a range they cover. `I48F16` stops at `i32` because `i64::MAX << 16`
+// is not an `i64`.
+impl_from_int!(I8F8, i16, i8, 8);
+impl_from_int!(I24F8, i32, i16, 8);
+impl_from_int!(I16F16, i32, i16, 16);
+impl_from_int!(I48F16, i64, i32, 16);
+
 /// Rounds an `f64` half away from zero, keeping `NaN` at zero.
 ///
 /// The caller casts the result to an integer, where Rust's saturating
 /// float-to-int conversion supplies the clamping and the `NaN` behavior.
+///
+/// This used to be `scaled ± 0.5` here, left to the cast to truncate. That is
+/// the same answer everywhere the conversions are actually used and a
+/// different one at exactly one input: the largest `f64` below a half, where
+/// adding a half rounds up to one and the truncation then reports the integer
+/// above. `corvid_float`'s is a true round, so that input now converts to zero
+/// the way its documentation always said it did.
 const fn round_f64(scaled: f64) -> f64 {
-    if scaled >= 0.0 {
-        scaled + 0.5
-    } else {
-        scaled - 0.5
-    }
+    corvid_float::wide::round(scaled)
 }
 
 /// Adds the approximate reciprocal square root to one type.
