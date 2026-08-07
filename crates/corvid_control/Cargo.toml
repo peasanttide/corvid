@@ -1,0 +1,70 @@
+[package]
+name = "corvid_control"
+description = "The Controller contract: what a player is doing, where they are looking, and what their pad should feel."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "input", "camera", "controller", "gamepad"]
+categories = ["game-development"]
+
+# No graphics stack. That is the whole shape change: this crate used to extend
+# `corvid_render`, so declaring what a game's camera was meant compiling `wgpu`
+# — even for a game that drew nothing. A `Controller` names a `Camera`, an
+# `Input` and a `State`, and none of those knows a device exists.
+[dependencies]
+# The pose a `Camera` carries, and the maths under it.
+corvid_vector = { workspace = true, features = ["std"] }
+corvid_rotation = { workspace = true, features = ["std"] }
+corvid_transform = { workspace = true, features = ["std"] }
+corvid_fixed = { workspace = true, features = ["std"] }
+corvid_behavior = { workspace = true, features = ["std"] }
+# `platform` unconditionally, for a reason worth writing down.
+# `Controller::bindings` hands back a `Bindings`, and a game authoring a binding
+# table is stating *data*: which control raises which action, hashed by nothing
+# and sent to nobody. What that feature also holds is `Devices`, which reads a
+# keyboard — and nothing in this crate names it. The alternative was a trait
+# whose shape depended on a feature.
+corvid_input = { workspace = true, features = ["platform", "std"] }
+# The client ring's a la carte crates. This crate uses none of the three — it is
+# where they are grouped rather than what needs them, which is the same job it
+# already does for `corvid_input` and `corvid_sound`. Grouping them here is what
+# lets a game reaching the contracts reach a camera, a shape and a colour
+# without a second manifest entry.
+corvid_camera = { workspace = true, features = ["std"] }
+corvid_color = { workspace = true, features = ["std"] }
+corvid_shape = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+# A test game names a `State`, a `Level` and an `Action`, and `Data` demands
+# every one of them be serializable. A game's own manifest carries the same
+# line, so this is what the fixture is showing rather than a detail of testing
+# it.
+serde = { version = "1", default-features = false, features = ["derive", "std"] }
+
+[features]
+default = []
+# `Serialize`/`Deserialize` on what a controller's `Config` is made of.
+#
+# A `Config` is `Data`, so a game's own settings type already serializes; this
+# is for the Corvid types a settings struct is likely to hold. The audio frame
+# is not among them any more — `hear` belongs to the auralizer now, and
+# `corvid_sound` is no longer a dependency of this crate at all.
+serde = ["corvid_camera/serde", "corvid_color/serde", "corvid_shape/serde"]
+
+# There is no `std` feature. There was one, it added no API, and it existed so
+# that a downstream could forward `std` uniformly without special-casing this
+# crate. What keeps `std` here now is `corvid_input`'s `platform` feature, which
+# reads a keyboard — not a graphics stack, which this crate stopped depending on
+# when `Present` became `Controller`. So every line above that inherits the
+# workspace's `default-features = false` names `std` back unconditionally.
+
+[lints]
+workspace = true
+
+# Every optional integration is off by default, so a plain build documents none
+# of the serde impls.
+[package.metadata.docs.rs]
+all-features = true

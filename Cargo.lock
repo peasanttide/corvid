@@ -114,6 +114,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_control"
+version = "0.1.0"
+dependencies = [
+ "corvid_behavior",
+ "corvid_camera",
+ "corvid_color",
+ "corvid_fixed",
+ "corvid_input",
+ "corvid_rotation",
+ "corvid_shape",
+ "corvid_transform",
+ "corvid_vector",
+ "serde",
+]
+
+[[package]]
 name = "corvid_files"
 version = "0.1.0"
 
