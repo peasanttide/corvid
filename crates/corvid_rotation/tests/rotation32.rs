@@ -24,6 +24,7 @@
 mod common;
 
 use common::Rng;
+use corvid_fixed::I2F30;
 use corvid_rotation::{Basis, Rotation, Versor};
 
 /// The stated budget for this tier.
@@ -113,17 +114,29 @@ fn repacking_is_stable_and_bounded() {
     for _ in 0..SAMPLES {
         let once = Rotation::from_versor(common::random_versor(&mut rng));
         let twice = Rotation::from_versor(once.to_versor());
+        // Which is exactly what `is_canonical` asks, so the share counted below
+        // is the share of encoder output that is not canonical — the figure the
+        // docs quote against the 0.58% for arbitrary patterns.
+        assert_eq!(once.is_canonical(), twice.to_bits() == once.to_bits());
         if twice.to_bits() != once.to_bits() {
             moved += 1;
             worst = worst.max(once.to_versor().angle_to(twice.to_versor()).to_degrees());
         }
     }
 
-    println!("Rotation repack: {moved} of {SAMPLES} patterns moved, worst {worst:.4} deg");
+    let share = f64::from(moved) / f64::from(SAMPLES);
+    println!(
+        "Rotation repack: {moved} of {SAMPLES} patterns moved ({share:.5}), worst {worst:.4} deg"
+    );
     // Chart ties are a measure-zero set; quantization makes them merely rare.
+    // Banded rather than bounded above, because 0.065% is the figure the type
+    // docs and the README quote for the encoder's own output — the number that
+    // says the guarantee is "much smaller" and not "zero". An upper bound alone
+    // would let a codec change drive it to zero and quietly make the prose
+    // understate the type.
     assert!(
-        f64::from(moved) / f64::from(SAMPLES) < 0.001,
-        "{moved} of {SAMPLES} patterns changed bits"
+        (0.0004..0.0010).contains(&share),
+        "{moved} of {SAMPLES} encoded patterns changed bits, a share of {share}"
     );
     // And the ones that move stay well inside the tier's budget.
     assert!(
@@ -159,12 +172,80 @@ fn identity_is_exact() {
 }
 
 #[test]
+fn a_quantization_tie_rounds_away_from_zero_in_both_directions() {
+    // `quantize` rounds half away from zero, the rule every other reduction in
+    // the crate uses, so a rotation and its mirror image encode to fields that
+    // are exact negations rather than landing one step apart. Only an exact tie
+    // can tell that apart from rounding half up, and a random pose never lands
+    // on one: this pair is built to.
+    //
+    // `w` is `1022` times `x`, and a field holds `round(x / w * 511)`, so
+    // `x / w` is exactly half a field step. `1022 * UNIT` is just under `1.0` at
+    // Q30, which makes the pair unit to within `from_xyzw`'s tolerance and
+    // leaves `w` the chart.
+    const UNIT: i32 = 1_050_627;
+    let build = |x: i32| {
+        Versor::from_xyzw(
+            I2F30::from_bits(x),
+            I2F30::ZERO,
+            I2F30::ZERO,
+            I2F30::from_bits(1022 * UNIT),
+        )
+        .expect("the constructed pair is unit to within the tolerance")
+    };
+    // The `x` field is the low one, since the chart is index 3.
+    let field = |q| (Rotation::from_versor(q).to_bits() & 0x3FF) as i32 - 512;
+
+    assert_eq!(Rotation::from_versor(build(UNIT)).to_bits() >> 30, 3);
+    assert_eq!(field(build(UNIT)), 1, "a positive tie rounded toward zero");
+    assert_eq!(
+        field(build(-UNIT)),
+        -1,
+        "a negative tie rounded toward zero"
+    );
+}
+
+#[test]
 fn the_double_cover_packs_to_one_pattern() {
     let mut rng = Rng::new(0x3200_0005);
     for _ in 0..50_000 {
         let q = common::random_versor(&mut rng);
         assert_eq!(Rotation::from_versor(q), Rotation::from_versor(q.negate()));
     }
+}
+
+#[test]
+fn about_six_patterns_in_a_thousand_are_not_canonical() {
+    // The figure the type docs and the README quote, and the whole reason
+    // `canonicalize` exists: `Eq`, `Hash` and `digest` are all on the raw
+    // pattern here, so two peers that decoded one rotation from two patterns
+    // disagree until someone folds them. Stating "a few" would let the number
+    // drift; a codec change that moved it by a factor should have to say so.
+    let mut rng = Rng::new(0x3200_0007);
+    const SAMPLES: u32 = 1_000_000;
+    let mut uncanonical = 0u32;
+
+    for _ in 0..SAMPLES {
+        let bits = rng.next_u32();
+        let folded = Rotation::from_bits(bits).canonicalize();
+        if folded.to_bits() != bits {
+            uncanonical += 1;
+        }
+        // Folding twice has to be folding once, or a peer could not settle on
+        // one pattern by folding.
+        assert_eq!(
+            folded.canonicalize(),
+            folded,
+            "bits {bits:#x} did not settle"
+        );
+    }
+
+    let share = f64::from(uncanonical) / f64::from(SAMPLES);
+    println!("Rotation: {uncanonical} of {SAMPLES} patterns are not canonical ({share:.5})");
+    assert!(
+        (0.005..0.007).contains(&share),
+        "{uncanonical} of {SAMPLES} patterns were not canonical, a share of {share}"
+    );
 }
 
 #[test]

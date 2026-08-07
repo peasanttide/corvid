@@ -463,9 +463,28 @@ impl Versor {
     ///
     /// Interpolates along the short way round: if the two versors are more than
     /// a half turn apart on the double cover, `to` is negated first.
+    ///
+    /// # Exact at both ends
+    ///
+    /// At [`Factor32::ZERO`] this returns `self` and at [`Factor32::ONE`] it
+    /// returns `to`, bit for bit and including the sign the caller passed `to`
+    /// in with. Both are short-circuits rather than what the arithmetic
+    /// happens to produce: the renormalize this ends on moves a component of an
+    /// already-unit versor about half the time, so without them an endpoint
+    /// came back naming the same rotation as the one that went in and not
+    /// carrying the same bits. A capture compares bytes, so `nearly` is a
+    /// different property from `exactly` here, and this is the cheaper of the
+    /// two to hold.
     #[must_use]
     #[inline]
     pub const fn nlerp(self, to: Self, weight: Factor32) -> Self {
+        // Before the negation below, so that the versor handed back at `ONE` is
+        // the one the caller passed rather than its double-cover twin — the
+        // same choice [`rotate_towards`](Self::rotate_towards) makes, and for
+        // the same reason: `Versor`'s equality is on the bits.
+        if weight.to_bits() == Factor32::ONE.to_bits() {
+            return to;
+        }
         let to = if self.dot(to).is_negative() {
             to.negate()
         } else {
@@ -478,6 +497,12 @@ impl Versor {
     /// cover, so the caller's own dot product is not computed a second time.
     #[inline]
     const fn nlerp_canonical(self, to: Self, weight: Factor32) -> Self {
+        // A zero weight is `self` whichever side of the double cover `to` came
+        // in on, so this guard serves the public entry point and the
+        // zero-length step `rotate_towards` routes through here alike.
+        if weight.to_bits() == 0 {
+            return self;
+        }
         let (a, b) = (self.bits(), to.bits());
         let t = weight.to_bits() as i64;
         let full = Factor32::MAX.to_bits() as i64;
@@ -519,9 +544,17 @@ impl Versor {
     /// Falls back to `nlerp` when the two rotations are within a whisker of
     /// each other, where the sines underflow and the formula loses all its
     /// precision.
+    ///
+    /// Exact at both ends, the way [`nlerp`](Self::nlerp) is and for the same
+    /// reason.
     #[must_use]
     #[inline]
     pub const fn slerp(self, to: Self, weight: Factor32) -> Self {
+        // As in `nlerp`: before the negation, so `to` comes back as it was
+        // passed.
+        if weight.to_bits() == Factor32::ONE.to_bits() {
+            return to;
+        }
         // One dot serves both the sign test and the cosine. `negate` is exact
         // on unit components and the rounding in `dot` is symmetric, so the dot
         // against the negated versor is exactly this one negated.
@@ -533,11 +566,19 @@ impl Versor {
     /// [`slerp`](Self::slerp) with `to` already on the near side of the double
     /// cover and `cosine` the non-negative dot product between them.
     ///
-    /// Both public entry points already hold those two values, and `acos` is
-    /// the slowest function the crate has — [`rotate_towards`](Self::rotate_towards)
-    /// paid for a second one, a third of its cost, before this existed.
+    /// Both public entry points already hold those two values, and `acos` is the
+    /// slowest function the crate has: a `slerp` that recomputed the dot product
+    /// would cost [`rotate_towards`](Self::rotate_towards) a second `acos`, which
+    /// is about a third of what that call costs in total.
     #[inline]
     pub(crate) const fn slerp_canonical(self, to: Self, weight: Factor32, cosine: i64) -> Self {
+        // As in `nlerp_canonical`, and this is the guard that makes a
+        // `rotate_towards` of no angle at all leave the rotation alone: it
+        // arrives here with a zero fraction, and the arithmetic below would
+        // renormalize `self` into a neighbouring bit pattern.
+        if weight.to_bits() == 0 {
+            return self;
+        }
         // Within about a thousandth of a turn the sines underflow; nlerp and
         // slerp agree to well under a last bit there anyway.
         if cosine >= ONE - SLERP_FALLBACK {

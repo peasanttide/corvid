@@ -89,7 +89,7 @@ const fn normalize4_tier(v: [i64; 4], fast: bool) -> [i32; 4] {
         return [0, 0, 0, ONE as i32];
     }
 
-    let bit_length = 64 - largest.leading_zeros();
+    let bit_length = corvid_bits::bit_length_u64(largest);
     let t = if bit_length > 30 {
         let down = bit_length - 30;
         [

@@ -54,9 +54,15 @@ Right-handed, **+X right, +Y forward, +Z up**.
 | [`Basis`] | 36 B | Working 3×3 matrix; rotating many points, free inverse |
 | [`Versor`] | 16 B | Working unit quaternion; cheap composition |
 
-The packed forms are canonical, so working types never accumulate drift across
-frames: anything long-lived round-trips through [`Rotation`] or
-[`FineRotation`].
+A packed form decodes to the same bits every time it is asked, and packing an
+unmodified decode is stationary: a first repack can land one step over, because
+both encoders round after normalizing and a lattice point is not always the
+closest lattice point to its own normalized direction, but it goes no further.
+So the frame loop of unpack, use and repack has nowhere to drift to, and a
+working type rebuilt from a packed one starts where it started rather than where
+the last frame left it: anything long-lived is stored as a [`Rotation`] or a
+[`FineRotation`] and unpacked on use. `tests/determinism.rs` pins both halves,
+for both tiers and through both working types.
 
 ### `Rotation` — 32 bits, Gibbs linear 2+10+10+10
 
@@ -128,6 +134,48 @@ per point.
 `sin`, both on `corvid_fixed`'s CORDIC path where the crate's slowest functions
 live. `nlerp` is a lerp plus one normalize, and over the few degrees a frame
 actually spans its departure from constant angular velocity is not observable.
+
+## Every interpolation here returns its endpoints unchanged
+
+`nlerp`, `slerp` and `rotate_towards` hand back the rotation they were given at
+a weight of `ZERO`, at a weight of `ONE`, and — for `rotate_towards` — on a step
+of no angle at all and on a step that covers the whole gap. Bit for bit, and
+including the sign the caller passed a versor in with, since a versor and its
+negation name one rotation and are two values.
+
+That is a short-circuit rather than a property of the arithmetic, and the
+arithmetic is why it has to be. A `normalize4` moves a component of an
+already-unit versor about half the time, and `Versor::nlerp` at `ZERO` is a mix
+in proportion zero — which is the versor it started from — followed by exactly
+that normalize. So the drift the short-circuit hides is still measurable without
+unpicking anything: `renormalize` is that same `normalize4` and nothing else,
+and `examples/rotation_quality.rs` calls it on a million uniform versors. It
+moves **499727** of them. `Basis` loses a conversion at each end on top of that
+and moves **855716**.
+
+The rotation is never wrong by more than a representation. The largest gap over
+that million is **0.00000083°** by the chord form `4·asin(chord/2)` in `f64`,
+about a four-thousandth of the fine codec's own 0.0033° quantum. It matters
+anyway, because a golden capture compares bytes and "within a quantum" and
+"equal" are different answers to that comparison. `tests/ops.rs` walks twenty
+thousand random pairs per interpolation.
+
+### A zero step is a no-op, and measuring cannot make it one
+
+`rotate_towards` asks whether the remaining angle fits inside the step. That
+question goes through `angle_to`, an `acos`, which is ill-conditioned at `1` and
+reports a flat zero for any pair closer than about 0.0025°. Two rotations inside
+that resolution therefore satisfy `remaining <= max_step` at a `max_step` of
+`ZERO` — and a guard that answers *that* by returning the target has moved a
+caller who asked to stand still, to a rotation that was never theirs.
+
+So the zero step is decided before the angle is measured, and at each tier
+rather than only at the versor: `Basis::rotate_towards` picks its answer by
+comparing versors, and about one in five hundred neighbouring matrix pairs share
+one, which is the same failure with the measurement removed. `tests/ops.rs`
+builds its pairs by nudging a rotation a fraction of a degree instead of drawing
+two, because two uniform rotations are most of a turn apart and never reach
+either blind spot.
 
 ## `Basis` cannot be built from arbitrary entries
 
@@ -211,6 +259,37 @@ Every integration is optional and off by default.
 | `bytemuck` | `Pod` and `Zeroable` — see the note below |
 | `arbitrary` | `Arbitrary`, for fuzzing (links `std`) |
 | `std` | Forwards `std` to whichever of the above are enabled |
+
+`Hash` absorbs what each type compares by, which differs across the four for
+the reasons `Eq` already differs. A [`FineRotation`] folds the double cover, so
+a pattern that arrived with the other sign marks as the rotation it denotes; a
+[`Rotation`] does not, because folding it costs a decode and a re-encode and its
+`Eq` declines to pay that too. A [`Versor`] and a [`Basis`] absorb their
+components as stored, and a versor and its negation are two values there — which
+is another reason a long-lived orientation belongs in a packed type, where the
+same rotation encodes to the same bits and a versor's negation encodes to those
+same bits too.
+
+Encoding is the operative word, and for a [`Rotation`] it narrows the problem
+rather than removing it. All `2³²` patterns are valid rotations, and 0.58% of
+arbitrary ones re-encode to bits other than the ones they came in as, which
+`from_bits`, `serde`, `bytemuck` and `arbitrary` each hand through untouched.
+Restricting to what the encoder itself produced drops that to 0.065%, not to
+zero: where two quaternion components tie in magnitude either can serve as the
+chart, and a re-encode picks the other one. Two peers can then hold one rotation
+as two patterns, compare unequal, and exchange marks that disagree — the same
+divergence this section warns about, arriving through the other door. So an
+orientation that came in raw wants `canonicalize` at the boundary, which is
+where the decode and re-encode is paid once instead of on every comparison for
+the rest of that value's life. Both figures are measured in
+`tests/rotation32.rs`.
+
+Whether the residual 0.065% can bite a lockstep simulation depends on how the
+two peers got there. Peers running the same operations on the same inputs reach
+the same bits, ties included, because the tie-break is deterministic; the risk
+is two peers reaching one orientation by different routes — one from a decoded
+network pattern, one from its own composition — and then comparing or marking.
+That is the same boundary `canonicalize` already guards.
 
 `serde` on the packed rotations serializing as a bare `u32`/`u64` is what makes
 `corvid_transform`'s 16 B and 32 B figures mean something over the wire, so

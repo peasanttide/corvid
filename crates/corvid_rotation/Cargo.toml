@@ -11,6 +11,7 @@ keywords = ["fixed-point", "deterministic", "quaternion", "rotation", "gamedev"]
 categories = ["game-development", "mathematics", "no-std::no-alloc"]
 
 [dependencies]
+corvid_bits = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 corvid_fixed = { version = "0.1.0", path = "../corvid_fixed" }
@@ -20,6 +21,14 @@ nalgebra = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
+# The workspace's one encoding, so this crate's byte goldens are recorded in the
+# format a capture is written in. A position is most of what a snapshot holds,
+# and a component's width is the one change nothing else here can see.
+corvid_wire = { workspace = true }
+# The digest the tests here check a rotation's encoding against. Nothing in the
+# source names it: a rotation's `Hash` folds the double cover, and what the
+# tests pin is what that emission comes to under this workspace's one hasher.
+corvid_hash = { workspace = true }
 serde_json = "1"
 
 [features]

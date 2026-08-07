@@ -48,7 +48,7 @@ fn the_worst_case_row_sum_stays_inside_i64_with_room_to_spare() {
     let row_sum = 3 * entry * component;
     assert!(row_sum < i64::MAX, "row sum {row_sum} must fit i64");
 
-    // The spec's number: sqrt(3) * 2^30 * 2^31 = 3.99e18.
+    // The bound in closed form: sqrt(3) * 2^30 * 2^31 = 3.99e18.
     assert!(row_sum < 4_000_000_000_000_000_000, "row sum {row_sum}");
     // A 131% margin — the headroom is larger than the value itself.
     assert!(

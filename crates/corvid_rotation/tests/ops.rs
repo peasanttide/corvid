@@ -24,7 +24,7 @@
 mod common;
 
 use common::Rng;
-use corvid_fixed::{Angle32, I2F30, Pitch32, Signed32};
+use corvid_fixed::{Angle32, Factor32, I2F30, Pitch32, Signed32};
 use corvid_rotation::{Basis, Versor};
 use corvid_vector::Direction;
 
@@ -133,10 +133,11 @@ fn yaw_pitch_roll_round_trips() {
 /// The band just short of the pole, which the round-trip test above skips.
 ///
 /// The degenerate branch throws roll away, so it must not fire while roll is
-/// still determined. It used to fire from 89.84°, where `cos(pitch)` is
-/// `2.8e-3` and the discarded roll cost 0.30° of round-trip error — 60× the
-/// 0.005° the codec itself carries — right where a head-tracked pose looking
-/// nearly straight up lives.
+/// still determined. `POLE_MARGIN` is what decides where it fires, and a margin
+/// wide enough to fire from 89.84° — where `cos(pitch)` is `2.8e-3` and roll is
+/// fully determined — costs 0.30° of round-trip error, 60× the 0.005° the codec
+/// itself carries, right where a head-tracked pose looking nearly straight up
+/// lives.
 #[test]
 fn near_the_poles_roll_is_still_recovered() {
     for &pitch_degrees in &[89.0, 89.5, 89.83, 89.85, 89.9, 89.95] {
@@ -385,6 +386,155 @@ fn rotate_towards_lands_exactly_when_the_step_covers_the_gap() {
     let b = Versor::from_axis_angle(Z, Angle32::from_degrees(3.0));
     assert_eq!(a.rotate_towards(b, Angle32::from_degrees(90.0)), b);
     assert_eq!(a.rotate_towards(a, Angle32::from_degrees(1.0)), a);
+}
+
+/// The endpoints of every interpolation in this crate, over enough random pairs
+/// that the rounding has room to bite.
+///
+/// A near-miss is what these reject. `nlerp` ends on a renormalize and `slerp`
+/// on another, and a renormalize moves a component of an already-unit versor
+/// about half the time — so before the short-circuits went in, half a million
+/// of the million pairs below came back from a zero-weight `nlerp` naming the
+/// rotation they went in as and not carrying its bits. Nothing about the
+/// *rotation* was wrong then and nothing is better about it now; what changed
+/// is that a byte comparison agrees, which is what a golden capture does.
+#[test]
+fn every_interpolation_returns_its_endpoints_bit_for_bit() {
+    let mut rng = Rng::new(0x207A_0002);
+    for _ in 0..20_000 {
+        let a = common::random_versor(&mut rng);
+        let b = common::random_versor(&mut rng);
+
+        assert_eq!(a.nlerp(b, Factor32::ZERO), a);
+        assert_eq!(a.slerp(b, Factor32::ZERO), a);
+        // `b` itself, and never its double-cover twin: the two name one
+        // rotation and are two values, and this one is the value the caller
+        // passed in.
+        assert_eq!(a.nlerp(b, Factor32::ONE), b);
+        assert_eq!(a.slerp(b, Factor32::ONE), b);
+        // Including on the far side of the cover, which is where the negation
+        // inside each of them would otherwise hand back `-b`.
+        let far = b.negate();
+        assert_eq!(a.nlerp(far, Factor32::ONE), far);
+        assert_eq!(a.slerp(far, Factor32::ONE), far);
+
+        // The matrix tier, which loses an endpoint twice over if it is left to
+        // the versor: once converting in and once converting back.
+        let (m, n) = (a.to_basis(), b.to_basis());
+        assert_eq!(m.nlerp(n, Factor32::ZERO), m);
+        assert_eq!(m.slerp(n, Factor32::ZERO), m);
+        assert_eq!(m.nlerp(n, Factor32::ONE), n);
+        assert_eq!(m.slerp(n, Factor32::ONE), n);
+    }
+}
+
+/// The same property where `rotate_towards` reaches it: a step of no angle at
+/// all, and a step that covers the whole gap.
+#[test]
+fn rotate_towards_holds_still_for_a_zero_step_and_lands_on_the_target() {
+    let mut rng = Rng::new(0x207A_0003);
+    // Half a turn, which is the whole range `angle_to` reports.
+    let whole = Angle32::from_degrees(180.0);
+    for _ in 0..20_000 {
+        let a = common::random_versor(&mut rng);
+        let b = common::random_versor(&mut rng);
+
+        assert_eq!(a.rotate_towards(b, Angle32::ZERO), a);
+        assert_eq!(a.rotate_towards(b, whole), b);
+        // And on the boundary itself, where a step of exactly the remaining
+        // angle has to count as covering it. Falling through to the
+        // interpolation here would hand back a renormalized near-miss, and on
+        // the far side of the double cover it would hand back the twin.
+        assert_eq!(a.rotate_towards(b, a.angle_to(b)), b);
+
+        let (m, n) = (a.to_basis(), b.to_basis());
+        assert_eq!(m.rotate_towards(n, Angle32::ZERO), m);
+        assert_eq!(m.rotate_towards(n, whole), n);
+        assert_eq!(m.rotate_towards(n, m.angle_to(n)), n);
+    }
+}
+
+/// The zero step against pairs that `angle_to` cannot tell apart, which is the
+/// blind spot two independently random rotations never land in.
+///
+/// Two uniform rotations are most of a turn apart, so the test above only ever
+/// exercises the arithmetic path — the remaining angle is large, the fraction
+/// of it to travel rounds to zero, and the interpolation's own zero-weight
+/// guard returns `self`. It says nothing about the guard *above* that path.
+/// `angle_to` is an `acos` and goes flat below about 0.0025°, so a pair inside
+/// that resolution measures as no angle apart, `remaining <= max_step` holds
+/// at `max_step == ZERO`, and a guard that answers that case with the target
+/// hands back the wrong rotation entirely. The counts below are what keeps the
+/// pairs honest: nearly all of the ten thousand are two distinct versors, and
+/// most of those measure as no angle apart. Bounds rather than equalities,
+/// because the generator runs on `f64` transcendentals and the exact tallies
+/// are a property of the platform's libm; `examples/rotation_quality.rs` is
+/// where exact figures are measured.
+#[test]
+fn a_zero_step_holds_still_inside_the_acos_resolution() {
+    let mut rng = Rng::new(0x207A_0004);
+    let mut unresolved = 0_u32;
+    let mut distinct = 0_u32;
+    for _ in 0..10_000 {
+        let a = common::random_versor(&mut rng);
+        // At most 8192 units of a turn — 0.00069°, comfortably inside the
+        // resolution and comfortably outside a versor's own last bit, so the
+        // pair is two values that measure as one.
+        let b = common::nudged(&mut rng, a, 8192);
+        distinct += u32::from(a != b);
+        unresolved += u32::from(a.angle_to(b) == Angle32::ZERO);
+
+        assert_eq!(a.rotate_towards(b, Angle32::ZERO), a);
+        assert_eq!(b.rotate_towards(a, Angle32::ZERO), b);
+
+        let (m, n) = (a.to_basis(), b.to_basis());
+        assert_eq!(m.rotate_towards(n, Angle32::ZERO), m);
+        assert_eq!(n.rotate_towards(m, Angle32::ZERO), n);
+    }
+    // Pinned so that a change to the generator or to `acos` cannot quietly
+    // move the pairs out of the blind spot and leave the test passing on the
+    // arithmetic path the test above already covers.
+    assert!(distinct > 9_900, "only {distinct} pairs were two versors");
+    assert!(
+        unresolved > 5_000,
+        "only {unresolved} pairs landed inside the resolution"
+    );
+}
+
+/// The zero step where two *matrices* share one versor, which is the case the
+/// versor's own guard cannot reach.
+///
+/// `Basis::rotate_towards` works in versor form and then decides which of the
+/// three answers to hand back by comparing versors, because the round trip is
+/// lossy and a matrix that went out and came back is not the one that left.
+/// When both matrices land on the same versor that comparison cannot tell them
+/// apart, the `target` arm wins, and a caller who asked for no movement is
+/// handed the other matrix. A `Basis` carries nine components where a `Versor`
+/// carries four, so the collision is real rather than theoretical: about half
+/// of the hundred thousand pairs below are two distinct matrices, and roughly
+/// one in five hundred of those shares a versor with its partner.
+#[test]
+fn a_zero_step_holds_still_when_two_matrices_share_one_versor() {
+    let mut rng = Rng::new(0x207A_0005);
+    let mut distinct = 0_u32;
+    let mut shared = 0_u32;
+    for _ in 0..100_000 {
+        let a = common::random_versor(&mut rng);
+        // Four units of a turn at the widest. The collision needs the two
+        // matrices to differ while the versors they reduce to do not, so the
+        // separation has to sit inside a versor's last bit and outside a
+        // matrix entry's.
+        let b = common::nudged(&mut rng, a, 4);
+        let (m, n) = (a.to_basis(), b.to_basis());
+        if m != n {
+            distinct += 1;
+            shared += u32::from(m.to_versor_const() == n.to_versor_const());
+        }
+        assert_eq!(m.rotate_towards(n, Angle32::ZERO), m);
+        assert_eq!(n.rotate_towards(m, Angle32::ZERO), n);
+    }
+    assert!(distinct > 40_000, "only {distinct} pairs were two matrices");
+    assert!(shared > 20, "only {shared} pairs shared a versor");
 }
 
 #[test]

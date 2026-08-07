@@ -36,10 +36,11 @@ const ONE: i64 = 1 << 30;
 /// `cos(pitch) ≥ 4.9e-4` — 19 bits, an angular floor near `1e-4°`, comfortably
 /// under the `0.005°` the codec itself carries.
 ///
-/// The previous `1 << 12` fired from **89.84°**, where `cos(pitch)` is still
-/// `2.8e-3` and roll is fully determined; discarding it and attributing the
-/// whole turn to yaw cost `0.30°` of round-trip error — 60× the codec floor —
-/// in a band head tracking passes through routinely.
+/// A wider margin costs accuracy rather than buying it. At `1 << 12` the branch
+/// fires from **89.84°**, where `cos(pitch)` is still `2.8e-3` and roll is fully
+/// determined; discarding it and attributing the whole turn to yaw costs `0.30°`
+/// of round-trip error — 60× the codec floor — in a band head tracking passes
+/// through routinely.
 const POLE_MARGIN: i64 = 1 << 7;
 
 /// Converts a [`Signed32`] into a Q30 bit pattern, rounded once.
@@ -149,14 +150,13 @@ impl Versor {
         // from `from`.
         //
         // The test is on `dot` alone. Also requiring the cross product to be
-        // *exactly* zero — as this once did — narrowed the branch to exactly
-        // opposite inputs and nothing else: at the edge of this window the two
-        // are `0.04°` from opposite, where the cross is still about `2^19` at
-        // Q30. Everything between there and exact opposition fell through to
-        // the formula below, where `1 + dot` has underflowed to a handful of
-        // last bits and the cross carries as few, and came back a rotation
-        // missing `to` by degrees — 2.8° at `0.006°` of separation, over 100°
-        // below that.
+        // *exactly* zero would narrow the branch to exactly opposite inputs and
+        // nothing else: at the edge of this window the two are `0.04°` from
+        // opposite, where the cross is still about `2^19` at Q30. Everything
+        // between there and exact opposition would fall through to the formula
+        // below, where `1 + dot` has underflowed to a handful of last bits and
+        // the cross carries as few, and would come back a rotation missing `to`
+        // by degrees — 2.8° at `0.006°` of separation, over 100° below that.
         if dot <= -ONE + (1 << 8) {
             let axis = perpendicular_to(f);
             return Self::from_xyzw_unchecked(normalize4([axis[0], axis[1], axis[2], 0]));
@@ -222,11 +222,24 @@ impl Versor {
     /// Steps toward `target` by at most `max_step`.
     ///
     /// Never overshoots: when the remaining angle is under `max_step` the
-    /// target is returned exactly. Pays for an `acos` to know the true angle,
-    /// which is why [`nlerp`](Self::nlerp) exists for the per-frame case.
+    /// target is returned exactly, and a `max_step` of [`Angle32::ZERO`] leaves
+    /// this versor exactly where it is. Pays for an `acos` to know the true
+    /// angle, which is why [`nlerp`](Self::nlerp) exists for the per-frame
+    /// case.
+    ///
+    /// The zero step is decided before the angle is measured and not by it,
+    /// because the measurement cannot decide it. See
+    /// [`angle_to`](Self::angle_to): the `acos` reports a flat zero for any
+    /// pair closer than about 0.0025°, so `remaining <= max_step` is *true* at
+    /// a zero step for two rotations that are genuinely two rotations, and a
+    /// guard that then returns the target has moved a caller who asked to
+    /// stand still.
     #[must_use]
     #[inline]
     pub const fn rotate_towards(self, target: Self, max_step: Angle32) -> Self {
+        if max_step.to_bits() == 0 {
+            return self;
+        }
         // One dot and one `acos` for the whole call. Going through `angle_to`
         // and then `slerp` computed both twice — and `acos` is the slowest
         // function in `corvid_fixed`, so on a per-entity-per-frame steering
@@ -234,10 +247,12 @@ impl Versor {
         let signed = self.dot(target).to_bits() as i64;
         let cosine = clamp_q30(signed.abs());
         let remaining = angle_from_cosine(cosine);
-        if remaining.to_bits() <= max_step.to_bits() || remaining.to_bits() == 0 {
+        if remaining.to_bits() <= max_step.to_bits() {
             // The *original* `target`, not the double-cover twin below: the
             // documented guarantee is that the target comes back exactly, and
-            // `Versor`'s equality is on the bits.
+            // `Versor`'s equality is on the bits. A `remaining` of zero lands
+            // here too, and should: `max_step` is non-zero by now, so the step
+            // covers every gap the measurement can see.
             return target;
         }
         // The fraction of the way to travel, as a `Factor32`.
@@ -435,31 +450,97 @@ impl Basis {
     }
 
     /// Steps toward `target` by at most `max_step`, never overshooting.
+    ///
+    /// Lands on `target` exactly once the step covers the remaining angle, and
+    /// on `self` exactly for a `max_step` of [`Angle32::ZERO`] — the zero step
+    /// unconditionally, for the reason
+    /// [`Versor::rotate_towards`](Versor::rotate_towards) gives.
     #[must_use]
     #[inline]
     pub const fn rotate_towards(self, target: Self, max_step: Angle32) -> Self {
-        self.to_versor_const()
-            .rotate_towards(target.to_versor_const(), max_step)
-            .to_basis()
+        // First, and at this tier rather than only inside the versor: a matrix
+        // does not survive the round trip below, and two matrices a rounding
+        // apart share one versor, in which case the `to` test would win and
+        // hand back the other one.
+        if max_step.to_bits() == 0 {
+            return self;
+        }
+        let (from, to) = (self.to_versor_const(), target.to_versor_const());
+        let stepped = from.rotate_towards(to, max_step);
+        // The endpoints are recognised here rather than left to the round trip,
+        // because the round trip is what loses them: `Versor::rotate_towards`
+        // hands an endpoint back bit for bit, and then `from_basis` and
+        // `to_basis` each renormalize, so a matrix that went out and came back
+        // is within a rounding of the one it started as and not on it.
+        if same_versor(stepped, to) {
+            target
+        } else if same_versor(stepped, from) {
+            self
+        } else {
+            stepped.to_basis()
+        }
     }
 
     /// Normalized linear interpolation, by way of the versor form.
+    ///
+    /// Exact at both ends: `ZERO` is `self` and `ONE` is `to`, bit for bit.
     #[must_use]
     #[inline]
     pub const fn nlerp(self, to: Self, weight: corvid_fixed::Factor32) -> Self {
-        self.to_versor_const()
-            .nlerp(to.to_versor_const(), weight)
-            .to_basis()
+        // Checked at this tier and not only inside `Versor::nlerp`, because the
+        // matrix does not survive its own conversion to versor form and back.
+        match endpoint(self, to, weight) {
+            Some(end) => end,
+            None => self
+                .to_versor_const()
+                .nlerp(to.to_versor_const(), weight)
+                .to_basis(),
+        }
     }
 
     /// Spherical linear interpolation, by way of the versor form.
+    ///
+    /// Exact at both ends, the way [`nlerp`](Self::nlerp) is.
     #[must_use]
     #[inline]
     pub const fn slerp(self, to: Self, weight: corvid_fixed::Factor32) -> Self {
-        self.to_versor_const()
-            .slerp(to.to_versor_const(), weight)
-            .to_basis()
+        match endpoint(self, to, weight) {
+            Some(end) => end,
+            None => self
+                .to_versor_const()
+                .slerp(to.to_versor_const(), weight)
+                .to_basis(),
+        }
     }
+}
+
+/// Whichever basis an interpolation at `weight` is required to reproduce
+/// exactly, and [`None`] anywhere between the two ends.
+#[inline]
+const fn endpoint(from: Basis, to: Basis, weight: corvid_fixed::Factor32) -> Option<Basis> {
+    if weight.to_bits() == 0 {
+        Some(from)
+    } else if weight.to_bits() == corvid_fixed::Factor32::ONE.to_bits() {
+        Some(to)
+    } else {
+        None
+    }
+}
+
+/// Whether two versors carry the same four bit patterns.
+///
+/// `PartialEq` says this too, and cannot be called from a `const fn`.
+#[inline]
+const fn same_versor(a: Versor, b: Versor) -> bool {
+    let (a, b) = (a.to_xyzw(), b.to_xyzw());
+    let mut i = 0;
+    while i < 4 {
+        if a[i].to_bits() != b[i].to_bits() {
+            return false;
+        }
+        i += 1;
+    }
+    true
 }
 
 /// The product of three Q30 values, brought back to Q60.
@@ -522,7 +603,7 @@ const fn cross_normalized(a: Direction, b: Direction) -> Option<Direction> {
 
     // Bring the largest term into `[2^30, 2^31)` so the whole triple survives
     // the narrowing to `i32` with every bit it had.
-    let bit_length = 64 - largest.leading_zeros();
+    let bit_length = corvid_bits::bit_length_u64(largest);
     let scaled = if bit_length > 31 {
         let down = bit_length - 31;
         [

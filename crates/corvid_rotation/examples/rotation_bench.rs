@@ -118,7 +118,7 @@ fn bench(name: &str, baseline: Option<f64>, mut body: impl FnMut() -> u64) -> f6
 /// behind whichever components nothing reads — two of three here, eight of nine
 /// for a `Basis::compose`. `black_box` on the *inputs* does not stop it, and
 /// the `f32` baselines below are immune only because they compute one scalar to
-/// begin with. Measured understatement before this was fixed: 4.8x on
+/// begin with. Measured understatement without this fold: 4.8x on
 /// `rotate_fine`, 6.3x on `Basis::compose`, 6.9x on `Versor::compose`.
 fn fold_point(acc: u64, p: FinePoint) -> u64 {
     let [x, y, z] = p.to_array();

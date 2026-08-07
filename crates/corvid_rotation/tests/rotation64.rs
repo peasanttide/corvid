@@ -110,10 +110,27 @@ fn repacking_is_stable_and_bounded() {
         }
     }
 
-    println!("FineRotation repack: {moved} of {SAMPLES} patterns moved, worst {worst:.5} deg");
+    let share = f64::from(moved) / f64::from(SAMPLES);
+    println!(
+        "FineRotation repack: {moved} of {SAMPLES} patterns moved ({share:.5}), worst {worst:.5} deg"
+    );
+    // Banded rather than bounded above, for the reason the same measurement in
+    // `tests/rotation32.rs` is. 1.58% is the figure `tests/determinism.rs`
+    // quotes for this tier when it says a repack settles rather than sits still,
+    // and the bound this replaces — `< 0.05` — admitted everything from nothing
+    // moving at all to one pattern in twenty moving, so it did not support that
+    // sentence at either end. An encoder made self-stationary, quantizing its
+    // own output once more before returning it, measures 0.000 here and passed
+    // that bound while leaving the prose claiming 1.58%.
+    //
+    // This is a guard on the quoted figure and not on the codec; a codec change
+    // moves the frozen checksum in `tests/determinism.rs` too, which is the test
+    // that exists to stop it. The measurement is deterministic — a fixed seed
+    // over a fixed sample count — so the band has no noise to absorb and is
+    // drawn close.
     assert!(
-        f64::from(moved) / f64::from(SAMPLES) < 0.05,
-        "{moved} of {SAMPLES} patterns changed bits"
+        (0.014..0.018).contains(&share),
+        "{moved} of {SAMPLES} patterns changed bits, a share of {share}"
     );
     assert!(
         worst < BUDGET_DEGREES,

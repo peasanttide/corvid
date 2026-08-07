@@ -53,17 +53,24 @@ const FIELD_BIAS: i32 = 1 << (FIELD_BITS - 1);
 ///
 /// Unlike [`FineRotation`](crate::FineRotation), whose `Eq` and [`Hash`] route
 /// through its own cheap canonicalization, this type compares and hashes its
-/// raw `u32`. The encoding is **not** injective: about 0.6% of arbitrary `u32`
+/// raw `u32`. The encoding is **not** injective: 0.58% of arbitrary `u32`
 /// patterns decode to a quaternion that re-encodes to different bits — the
 /// one-past-the-end field pattern folds onto `-511`, and a Gibbs vector sitting
 /// on a chart boundary can name either of two charts. Two such patterns are the
 /// same rotation and still compare unequal.
 ///
-/// Encoding always lands on a canonical pattern, so this only bites values that
-/// arrived as raw bits — over a wire, from `bytemuck`, from `arbitrary`. Put
-/// them through [`canonicalize`](Self::canonicalize) first if they are going to
-/// be compared or used as a key. It is not free: unlike `FineRotation`'s, it
-/// costs a decode and a re-encode, which is why it is not folded into `Eq`.
+/// Encoding narrows that; it does not close it. Of the patterns the encoder
+/// itself produced, 0.065% are still non-canonical, the residue being the chart
+/// ties: where two quaternion components are equal in magnitude either can serve
+/// as the chart, and a re-encode picks the lower-indexed one and requantizes
+/// there. So the case to plan for is mostly a value that arrived as raw bits —
+/// over a wire, from `bytemuck`, from `arbitrary` — but not only that.
+/// [`canonicalize`](Self::canonicalize) is what settles either, and it is
+/// idempotent, so one pass is enough. It is not free: unlike `FineRotation`'s,
+/// it costs a decode and a re-encode, which is why it is not folded into `Eq`.
+///
+/// Both figures are measured in `tests/rotation32.rs`, over a million arbitrary
+/// patterns and a hundred thousand encoded ones.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(::serde::Serialize, ::serde::Deserialize))]

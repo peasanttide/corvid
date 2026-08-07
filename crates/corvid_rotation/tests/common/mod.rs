@@ -5,6 +5,10 @@
     reason = "the helpers are only ever called at run time"
 )]
 #![allow(
+    clippy::panic,
+    reason = "a helper that cannot produce what it was asked for has to say so, and a panic in a test is a failed test, which is what a test is for"
+)]
+#![allow(
     unreachable_pub,
     dead_code,
     reason = "each test binary includes this module and uses a different subset of it"
@@ -190,8 +194,14 @@ pub fn random_fine_point(rng: &mut Rng, range: f64) -> FinePoint {
 }
 
 /// A uniformly distributed unit direction.
+///
+/// Rejection-sampled, and bounded: a `normalize` that answered [`None`] for
+/// every draw would otherwise spin a core for as long as anybody left the suite
+/// running, which is a hang with no thread in it and no message when it is
+/// finally noticed. A draw from the cube fails only within a hair of the
+/// origin, so [`DRAWS`] attempts in a row is not luck.
 pub fn random_direction(rng: &mut Rng) -> Direction {
-    loop {
+    for _ in 0..DRAWS {
         let candidate = corvid_vector::GlobalPoint::new(
             corvid_fixed::I24F8::from_f64(rng.next_unit()),
             corvid_fixed::I24F8::from_f64(rng.next_unit()),
@@ -201,6 +211,27 @@ pub fn random_direction(rng: &mut Rng) -> Direction {
             return direction;
         }
     }
+    panic!(
+        "{DRAWS} draws from the cube in a row would not normalize, so `normalize` is refusing everything rather than the origin"
+    );
+}
+
+/// How many rejections [`random_direction`] takes as evidence that nothing will
+/// ever be accepted.
+const DRAWS: u32 = 1_000;
+
+/// A rotation a hair away from `from`, about a random axis, by `1 ..= most`
+/// units of a full turn.
+///
+/// Two independently random rotations are most of a turn apart, so anything
+/// that only misbehaves when two rotations nearly coincide needs its pairs
+/// built rather than drawn.
+pub fn nudged(rng: &mut Rng, from: Versor, most: u32) -> Versor {
+    let axis = random_direction(rng);
+    from.compose(Versor::from_axis_angle(
+        axis,
+        corvid_fixed::Angle32::from_bits(rng.next_u32() % most + 1),
+    ))
 }
 
 /// The negation of a direction.
