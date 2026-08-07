@@ -528,6 +528,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_ui_render"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "corvid_color",
+ "corvid_fixed",
+ "corvid_float",
+ "corvid_render",
+ "corvid_ui",
+ "wgpu",
+]
+
+[[package]]
 name = "corvid_vector"
 version = "0.1.0"
 dependencies = [

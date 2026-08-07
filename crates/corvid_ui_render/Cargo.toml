@@ -1,0 +1,60 @@
+[package]
+name = "corvid_ui_render"
+description = "The device half of a corvid_ui layout: two instanced pipelines, a scissor per clip region, and the upload between them."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "ui", "wgpu", "renderer"]
+categories = ["game-development", "graphics"]
+
+[dependencies]
+corvid_fixed = { workspace = true, features = ["std"] }
+# The device. Pinned at the workspace level, which is what keeps one `wgpu` and
+# one `raw-window-handle` in the graph now that it is named here rather than
+# reached through `corvid_render`.
+wgpu = { workspace = true }
+corvid_float = { workspace = true }
+# The layout. This crate adds a device to it and nothing else.
+#
+# `std` is named here rather than forwarded from a feature of this crate,
+# because there is nothing to decide: this crate is `std` unconditionally — it
+# holds `wgpu` buffers — so the answer it gives `corvid_ui` is the same in every
+# build it has. That is also what keeps `corvid_ui/std` reachable from inside
+# this workspace at all, since nothing else here turns it on.
+corvid_ui = { version = "0.1", path = "../corvid_ui", features = ["bytemuck", "std"] }
+# The device — **through this crate and not through `wgpu` directly**, because
+# `corvid_render` is the only crate in this workspace that names `wgpu` and it
+# re-exports it. A manifest entry for `wgpu` here would be a second version of
+# it in the graph the day the two pins drifted, and `tests/manifest.rs` is what
+# stops one being added back.
+corvid_render = { version = "0.1", path = "../corvid_render" }
+# An instance buffer is bytes to `wgpu`, and this is the workspace's one safe
+# way to turn a struct into them. Without it the casts would need `unsafe`,
+# which is forbidden here. Not optional, unlike everywhere else in the
+# workspace: a crate whose whole job is to hand a device some bytes and cannot
+# is not useful.
+bytemuck = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+# The colour a rectangle carries, which `tests/instances.rs` builds one from.
+# A dev-dependency rather than a real one: this crate turns a `corvid_ui`
+# layout into instances and the colour rides along inside it.
+corvid_color = { workspace = true, features = ["std"] }
+
+# No features. There was a `std` one, which added no API and existed so that a
+# downstream could forward `std` uniformly across the workspace without
+# special-casing this crate. The audit that came with `corvid_control` losing
+# its own applies here for the same reason and one step further: a `std` flag
+# earns its place on a crate that has a build without an operating system, and
+# this crate has never had one — it holds `wgpu` buffers. Nothing in the
+# workspace ever enabled it. What it used to forward is now named directly on
+# the `corvid_ui` line above, so the layout crate sees exactly what it saw.
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
