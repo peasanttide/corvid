@@ -1,0 +1,63 @@
+[package]
+name = "corvid_test"
+description = "The determinism assertions and the golden comparison, as public API rather than as something every game reinvents."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "deterministic", "golden", "replay", "testing"]
+categories = ["game-development", "development-tools::testing"]
+
+[dependencies]
+corvid_input = { workspace = true, features = ["std"] }
+corvid_render = { workspace = true }
+# The runtime a run is played on. `is_reproducible` builds two `App`s and
+# `replays_to_itself` is handed what one left behind, so this crate names the
+# loop rather than reimplementing it: a second loop would be a second definition
+# of what a session is, and the two would drift.
+corvid_app = { workspace = true }
+# `ticks_agree_without_the_scratch`, which is the whole of what
+# `scratch_is_a_memo_throughout` does per tick, and `Player`, which is what a
+# roster is rebuilt into. The obligation is stated there and checked along a
+# trajectory here.
+corvid_behavior = { workspace = true, features = ["std"] }
+# `Present`, because a run needs the client-local half: the runtime calls
+# `intend` every tick and `draw` every frame, and a check that skipped them
+# would be checking a smaller game than the one that ships. One bound covers
+# both now — `Present` is built on `Render` — so this is the only client-ring
+# entry a check's signature needs. No `std` feature: `corvid_control` is not a
+# `no_std` crate any more, so the flag that forwarded one is gone.
+corvid_control = { workspace = true }
+# `Session` and `Opening` — what a check is pointed at, and what it walks.
+corvid_replay = { workspace = true, features = ["std"] }
+# The digest two runs are compared by.
+corvid_hash = { workspace = true, features = ["std"] }
+# `Tick`, which is the one thing every failure here has to name.
+corvid_time = { workspace = true, features = ["std", "serde"] }
+# The error a session answers with when it cannot be written down. This crate
+# encodes nothing itself — `Session::save` does — but it reports what that
+# refused with, so the type is in a signature here.
+corvid_wire = { workspace = true, features = ["std"] }
+
+# The decoder half of the capture seam. A frame is written as a PNG by
+# `corvid_render` and read back here, and reading a PNG is all this crate does
+# itself with anything a device produced: `images_agree` compares two decoded
+# rasters and never opens an adapter. `wgpu` is in this graph — it arrives under
+# `corvid_app`, which is built on `corvid_render` unconditionally now — but it is
+# compiled rather than called, so a determinism check still *runs* on a machine
+# with no graphics stack.
+png = "0.18"
+
+[dev-dependencies]
+# The camera a `Controller::look` answers, for the fixture that has one.
+corvid_camera = { workspace = true, features = ["std"] }
+corvid_sound = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["derive", "std"] }
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

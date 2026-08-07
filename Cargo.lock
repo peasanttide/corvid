@@ -691,6 +691,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_test"
+version = "0.1.0"
+dependencies = [
+ "corvid_app",
+ "corvid_behavior",
+ "corvid_camera",
+ "corvid_control",
+ "corvid_hash",
+ "corvid_input",
+ "corvid_render",
+ "corvid_replay",
+ "corvid_sound",
+ "corvid_time",
+ "corvid_wire",
+ "png",
+ "serde",
+]
+
+[[package]]
 name = "corvid_time"
 version = "0.1.0"
 dependencies = [
