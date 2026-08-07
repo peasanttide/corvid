@@ -15,6 +15,88 @@ license.workspace = true
 [lints]
 workspace = true
 
+# The facade is one dependency, because `corvid_app` is the crate that already
+# re-exports the two contracts, the maths stack, the client-ring data types and
+# the session. Naming each of them here as well would be a second list to keep
+# in step with the first.
+[dependencies]
+corvid_app = { workspace = true }
+# Named individually rather than reached through `corvid_app`, because this is
+# the workspace's one facade and every other crate re-exports nothing. A chain
+# of forwarding crates gave the same type four spellings and no way to tell
+# which was meant; one list in one place is the trade.
+corvid_asset = { workspace = true }
+corvid_behavior = { workspace = true, features = ["std"] }
+corvid_bits = { workspace = true }
+corvid_camera = { workspace = true, features = ["std", "bytemuck"] }
+corvid_color = { workspace = true, features = ["std"] }
+corvid_dev = { workspace = true }
+corvid_fixed = { workspace = true, features = ["std"] }
+corvid_float = { workspace = true }
+corvid_glm = { workspace = true, features = ["std"] }
+corvid_hash = { workspace = true, features = ["std"] }
+corvid_input = { workspace = true }
+corvid_mesh = { workspace = true }
+corvid_mesh_render = { workspace = true, optional = true }
+corvid_control = { workspace = true }
+corvid_render = { workspace = true, optional = true }
+corvid_replay = { workspace = true, features = ["std"] }
+corvid_rotation = { workspace = true, features = ["std"] }
+corvid_shape = { workspace = true, features = ["std"] }
+corvid_signal = { workspace = true }
+corvid_sound = { workspace = true, features = ["std"] }
+corvid_time = { workspace = true, features = ["std"] }
+corvid_transform = { workspace = true, features = ["std"] }
+corvid_ui = { workspace = true, features = ["std"] }
+corvid_ui_render = { workspace = true, optional = true }
+corvid_vector = { workspace = true, features = ["std"] }
+corvid_window = { workspace = true, optional = true }
+corvid_wire = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+# The doctest above derives `Serialize` and `Deserialize` on a game's own state,
+# which `corvid_behavior::Data` demands of it. A game's manifest carries the
+# same line, so this is what the example is showing rather than a detail of
+# testing it.
+serde = { workspace = true, features = ["derive", "std"] }
+
+# Three, and they are `corvid_app`'s three. `gamepad` is not among them, because
+# `corvid_app` folded pads, a keyboard and a sound card into `window`: the three
+# were describing one machine.
+[features]
+default = []
+# The scratch-discarding runtime. It changes what a build computes rather than
+# what it exposes, which is why it is forwarded under its own name rather than
+# folded into anything else.
+dev = ["corvid_app/dev"]
+# Playing against other machines. The loop grows a `Peer` and a transport, and
+# `App::transport` is the whole of what a caller sees of it — a game implements
+# nothing. Off by default, because a single-seat run should not compile one.
+net = ["corvid_app/net"]
+# A graphics stack. Off by default, and that is the point: `wgpu` is most of
+# what one weighs, and a dedicated server, a determinism check in CI and a game
+# that has not drawn anything yet all want a build with none of it. A game owes
+# `Present` either way; `Render` is what this adds.
+#
+# `cargo tree -p corvid --no-default-features -i wgpu` finds nothing, and
+# `crates/corvid_app/tests/graphicless.rs` is where that is a test rather than a
+# claim.
+render = [
+    "corvid_app/render",
+    "dep:corvid_render",
+    "dep:corvid_mesh_render",
+    "dep:corvid_ui_render",
+]
+# A window, a keyboard, a pad and a sound card: everything that is only ever
+# true of a run with a player in front of it. One name rather than three,
+# because the three were describing the same machine — and it implies `render`,
+# because a window is a surface and a surface is a device.
+window = ["render", "corvid_app/window", "dep:corvid_window", "corvid_input/platform"]
+
+# As every crate in `crates/*` carries.
+[package.metadata.docs.rs]
+all-features = true
+
 [workspace]
 resolver = "3"
 members = ["crates/*"]

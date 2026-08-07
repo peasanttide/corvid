@@ -364,6 +364,37 @@ dependencies = [
 [[package]]
 name = "corvid"
 version = "0.1.0"
+dependencies = [
+ "corvid_app",
+ "corvid_asset",
+ "corvid_behavior",
+ "corvid_bits",
+ "corvid_camera",
+ "corvid_color",
+ "corvid_control",
+ "corvid_dev",
+ "corvid_fixed",
+ "corvid_float",
+ "corvid_glm",
+ "corvid_hash",
+ "corvid_input",
+ "corvid_mesh",
+ "corvid_mesh_render",
+ "corvid_render",
+ "corvid_replay",
+ "corvid_rotation",
+ "corvid_shape",
+ "corvid_signal",
+ "corvid_sound",
+ "corvid_time",
+ "corvid_transform",
+ "corvid_ui",
+ "corvid_ui_render",
+ "corvid_vector",
+ "corvid_window",
+ "corvid_wire",
+ "serde",
+]
 
 [[package]]
 name = "corvid_app"
