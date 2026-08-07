@@ -1,0 +1,301 @@
+# `corvid_wire`
+
+The one encoding a [Corvid](https://github.com/peasanttide/corvid) snapshot is
+written down in: little-endian, variable-length integers, and carrying nothing
+about a value that the value did not carry itself.
+
+Two functions, and the comparison every golden table in the workspace is checked
+by. There is no configuration to pass, because a configuration that could be
+passed is a second wire format waiting to be chosen by whoever is in a hurry.
+
+```rust
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct Shot { tick: u32, shooter: u16 }
+
+let bytes = corvid_wire::encode(&Shot { tick: 1, shooter: 2 })?;
+
+// Two bytes: one for each number, because each is small. The width each field
+// was declared at is not in the bytes, which is the subject of the next section.
+assert_eq!(bytes, [0x01, 0x02]);
+assert_eq!(corvid_wire::decode::<Shot>(&bytes)?, Shot { tick: 1, shooter: 2 });
+
+// And a capture that grew a field fails to load rather than loading as
+// something it is not.
+let mut grown = bytes.clone();
+grown.extend_from_slice(&[0x00, 0x00]);
+assert!(corvid_wire::decode::<Shot>(&grown).is_err());
+# Ok::<(), corvid_wire::Error>(())
+```
+
+## What a number costs
+
+Every integer wider than a byte is written as a variable-length quantity, and
+the rule is short enough to state in full:
+
+| The value | Written as |
+|---|---|
+| 0 to 250 | one byte, the number itself |
+| anything larger | a marker byte, then the number little-endian at the marker's width |
+
+The marker names the width: `fb` two bytes, `fc` four, `fd` eight, `fe` sixteen,
+and the narrowest one that holds the value is the one used. A `u8` or an `i8` is
+never marked — it is its one byte, whatever it holds, which is why `ff` is
+`u8::MAX` and not a marker. A signed value is zigzagged before any of this, so
+`-1` is `01`, `1` is `02`, and a small negative costs a byte rather than eight.
+
+```rust
+// A small number is one byte at every declared width.
+assert_eq!(corvid_wire::encode(&1_u16)?, [0x01]);
+assert_eq!(corvid_wire::encode(&1_u32)?, [0x01]);
+
+// Past 250 the marker appears, and the payload is as narrow as it can be.
+assert_eq!(corvid_wire::encode(&300_u32)?, [0xfb, 0x2c, 0x01]);
+assert_eq!(corvid_wire::encode(&u32::MAX)?, [0xfc, 0xff, 0xff, 0xff, 0xff]);
+
+// Zigzag, so the sign is in the low bit rather than in seven leading `ff`s.
+assert_eq!(corvid_wire::encode(&-1_i32)?, [0x01]);
+# Ok::<(), corvid_wire::Error>(())
+```
+
+### What that buys
+
+Small numbers, which is most of what a game writes down. A count in front of a
+sequence is the clearest case: it is a `u64`, it is almost always far below 251,
+and it is paid once per *list* rather than once per element — so a `[T; 3]`
+position beside a three-element `Vec` differs by one byte, and a list of ten
+thousand differs by one byte too. Enum variant indices, seat numbers, tick
+numbers in the first few hours of a session, and every counter a game keeps are
+all in the one-byte range and stay there.
+
+At the scale this workspace is designed for — fifty thousand entities, the
+number `corvid_time`'s `TickRate::CRADLE` budgets a rollback for, each with an
+identifier, a position, a packed rotation and two counters — a snapshot is
+1,230,240 bytes, and 570,275 through `deflate`.
+
+### What it costs
+
+Two things, and both are worth stating plainly.
+
+The first is a field that uses its bits. A varint is smaller than a declared
+width only when the number is smaller than the width it was declared at, and
+larger when it is not: a packed rotation is a `u32` whose bits are all
+meaningful, so it costs five bytes rather than four, and a `u64` digest costs
+nine rather than eight. A trace, which is one digest per tick and nothing else,
+is therefore *larger* here than a fixed-width encoding would make it. The
+per-column measurement over the same fifty thousand entities:
+
+| Fifty thousand of | Bytes | Deflated |
+|---|---|---|
+| packed rotations (`u32`, bits used) | 249,997 | 225,074 |
+| positions (`I24F8` triples, metres) | 730,739 | 235,969 |
+| sequential entity ids (`u32`) | 149,501 | 105,666 |
+
+The second, and the one that shapes how the rest of this workspace is tested: an
+integer's declared width is not in the bytes. `u16(1)` and `u32(1)` are the same
+single byte, so **no byte golden anywhere in this workspace can see a field
+widen**. That change compiles, passes every round trip, passes every recorded
+byte row — and breaks the peer on the old build at the first field holding a
+number big enough to need the extra bytes.
+
+Two things do catch it, and neither is these bytes.
+
+The first is the **digest**. `corvid_hash` absorbs an integer as its declared
+bytes and injects the count of them at the end, so a widened field changes the
+digest of every value it appears in. That is what two peers actually compare
+every tick, and it is what every crate's `tests/golden.rs` records. It is the
+strong one.
+
+The second is `corvid_replay`'s **`Schema`**, which hashes a description a person
+wrote — `"State.count"`, `"i64"` — and is compared when a capture is loaded. It
+catches a widening only if the description is edited along with the type, which
+`Schema`'s own documentation is explicit about. It is the one that gives a clean
+refusal at load rather than a divergence at the first tick.
+
+One shape escapes both, and it is worth knowing: trading width between two
+fields, where one integer widens and another narrows to pay for it. The bytes are
+identical and the digest is identical, because the hasher absorbs the same words
+and the same total count. `Schema` is all that is left. `tests/visible.rs`
+records that case as an exact value.
+
+## What a recorded table can see
+
+Three tables, and each is blind where the others see. This is why a crate whose
+types go into a snapshot keeps more than one, and why the helpers for all three
+live here.
+
+| A recorded golden of | field order | field name | variant number | added field | **integer width** |
+|---|---|---|---|---|---|
+| Self-describing text (JSON) | visible | visible | invisible — it writes names | visible | invisible |
+| These bytes | visible *if the two fields' recorded values differ* | invisible | visible | visible *unless the field encodes to nothing* | invisible |
+| A `corvid_hash` digest | visible *if the two fields' recorded values differ* | invisible | visible | visible | **visible** |
+
+Every row is about a table of recorded output. None of the columns is visible to
+a serialize-then-deserialize test under any format, because the writer and the
+reader move together.
+
+The qualifications on the byte row are the price of carrying no names, and JSON
+does not pay them. Swapping two fields of the *same* type moves the bytes only
+because their values land in the other order, so a row recorded from `{x: 1, y: 1}`
+is the same row afterwards: both declarations write `0101`, while JSON writes
+`{"x":1,"y":1}` and `{"y":1,"x":1}` and can tell. Adding a field is visible for
+any field that writes bytes, and a `()` is not one of those — `{x, marker: (), y}`
+writes the same two bytes as `{x, y}`, where JSON gains a `"marker":null`. Both
+are measured in `tests/blind.rs`.
+
+Little-endian explicitly, on every target, matching what `corvid_hash` documents
+for the digest — a capture recorded on an aarch64 laptop is read by an x86-64
+server, and "the machine's own order" is not an order.
+
+## What it writes
+
+| | Bytes |
+|---|---|
+| A `u8` or an `i8` | its one byte |
+| Any wider integer | a varint, as the section above sets out |
+| `char` | its UTF-8, one to four bytes, and no count |
+| `bool` | one byte, `00` or `01` |
+| A struct | its fields in declaration order, and nothing else |
+| An enum | a varint variant index, then that variant's fields |
+| `Option` | one tag byte, then the payload if there is one |
+| A sequence, a string | a varint count, then the elements or the UTF-8 |
+| A fixed-size array | its elements, and **no count** — the length is in the type |
+| A field name, a type name | nothing |
+
+Declaration order *is* the encoding, and so is a variant's position. Neither is
+stated anywhere in a type's source, which is why every crate that serializes
+anything keeps a table of what its types encode to, and why the helper for
+writing that table lives here. An integer's width is *not* in the encoding, and
+that is why the same crates keep a digest table beside the byte one.
+
+## The golden table
+
+A byte golden is a table of labelled rows and one call. The comparison runs both
+ways round — that today's encoder writes the recorded bytes, and that the
+recorded bytes still read back as the value they were recorded from — and reports
+every row that moved at once, formatted the way the table is written, so a
+deliberate format change is one paste.
+
+```rust
+use corvid_wire::golden::{Row, check};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+struct Shot { tick: u32, shooter: u16 }
+
+/// **Changing a value in this table is a wire-format break.**
+const GOLDEN: &[Row<'_>] = &[
+    ("the first shot", "0102"),
+    ("the second", "0202"),
+];
+
+let fixture = [
+    Shot { tick: 1, shooter: 2 },
+    Shot { tick: 2, shooter: 2 },
+];
+check("Shot", GOLDEN, &fixture).unwrap();
+```
+
+The second direction is the one a round trip cannot supply and a game actually
+depends on. A serialize-then-deserialize test is symmetric: the writer and the
+reader are derived from one declaration and move together, so reordering two
+fields of different types, renumbering a variant and adding a field all leave it
+green while changing what yesterday's capture means. Only a literal that nobody
+regenerated sees any of that.
+
+Two more comparisons live beside it, and both are here for a reason about
+duplication rather than about encoding. `golden::check_digests` takes a table of
+`corvid_hash` digests as `u64`, and `golden::check_text` takes a table of what a
+*self-describing* format wrote. Neither is a format this crate defines and
+nothing here computes a digest or writes text. But a crate whose types go into a
+snapshot needs all three tables, because each is blind where the others see. A
+comparison written once per crate is one that gets fixed in one place and drifts
+in the rest, so all three live here.
+
+The three tables between them are the whole picture, and freezing all three is
+the workspace's convention for any type that goes on a wire or into a file. A
+byte table is the only one that is a capture; a text table sees a field
+or a variant renamed, which no byte table can, and sees the two orderings a byte
+table can miss; a digest table sees what a peer actually exchanges, and is the
+only one of the three that sees an integer widen. A change that moves none of
+them has not moved anything a peer can observe.
+
+## Trailing bytes are refused
+
+`decode` reads a value and then insists that the bytes are finished. This is not
+strictness for its own sake: a capture that grew a field is a byte string whose
+*prefix* still parses as the old type, so a decoder that stopped when it had
+enough would return a value that is not what was recorded and report success. A
+save file from a newer build, a snapshot from a peer one commit ahead, and a
+golden row regenerated against a changed type all arrive in exactly that shape.
+
+```rust
+let bytes = corvid_wire::encode(&(1_u16, 2_u16))?;
+assert_eq!(corvid_wire::decode::<(u16, u16)>(&bytes)?, (1, 2));
+
+let mut grown = bytes.clone();
+grown.push(0);
+assert!(matches!(
+    corvid_wire::decode::<(u16, u16)>(&grown),
+    Err(corvid_wire::Error::Trailing { used: 2, len: 3 }),
+));
+# Ok::<(), corvid_wire::Error>(())
+```
+
+Truncation is refused by the decoder itself, which runs out of bytes and says
+so. Between the two, the length of a capture is part of what it means.
+
+## A hostile length prefix, and where the bound for one belongs
+
+A sequence is a count and then its elements, and a decoder reads the count
+before the elements. The count is a `u64`, so nine bytes a peer wrote can ask for
+sixteen exabytes, and the obvious defence is a size ceiling.
+
+There is none, because `decode` takes a `&[u8]` and that already settles it. The
+elements a count promises have to come out of a slice whose length the caller
+knows, so the count is never acted on — it is compared against what is there.
+Measured: a `Vec<u32>` whose count is `u64::MAX` fails identically with and
+without a ceiling, and identically to an honest count of two over the same
+truncated bytes, down to how many bytes the decoder says it was short. In a
+program that does nothing else, peak resident memory is about two mebibytes
+either way. A bound that refuses nothing is not a defence, and this one would
+not be free: `bincode` applies a limit on the read path alone, so a crate with a
+sixty-four mebibyte ceiling writes a sixty-five mebibyte capture happily and
+then refuses to read it back, reporting a legitimate save file as
+`LimitExceeded`. `tests/trailing.rs` pins both halves.
+
+Where a bound does belong is a transport that reads from a socket, because there
+the bytes have not arrived yet and a count is a request to go and get them. This
+crate has no transport and does not solve that. Bytes from a peer are still bytes
+from a peer.
+
+## Features
+
+| Feature | Effect |
+|---|---|
+| `std` | Forwards `std` to `serde` and to the encoder. Adds no API. |
+
+The crate is `no_std` with `alloc` either way, and [`Error`] implements
+`core::error::Error` either way.
+
+## Tests
+
+```sh
+cargo test -p corvid_wire --all-features
+```
+
+| File | Covers |
+|---|---|
+| `tests/golden.rs` | The encoding itself, frozen as literals: every integer width and both sides of the marker, `bool`, `Option`, sequences, fixed-size arrays, strings, structs, enums, and nesting — with the two shapes it writes alike |
+| `tests/visible.rs` | Which recorded table sees each of the four changes: a reordered field, a renumbered variant and an added field in the bytes, a widened integer in the digest and not in the bytes, and a traded width in neither |
+| `tests/blind.rs` | The two the table above qualifies: same-typed fields holding one value swapping unseen, and a field that writes nothing being added unseen — with what JSON writes for both |
+| `tests/trailing.rs` | That a longer and a shorter byte string are each refused and named differently, that a hostile count fails as a short one does, and that a capture larger than any ceiling worth setting still reads |
+| `tests/named.rs` | Which half a type that wants its field names fails in: `#[serde(flatten)]` at `encode`, an untagged enum at `decode` |
+| `tests/table.rs` | The golden helper: what it accepts, what it reports, and that its report is paste-ready |
+| doctests | Every Rust block in this file |
+
+`tests/visible.rs` is the load-bearing one. It writes a fixture down under two
+declarations that differ by exactly one of the four changes and records what each
+table answers — so which change is caught by which table is a set of exact values
+in the repository rather than a paragraph in a README.
