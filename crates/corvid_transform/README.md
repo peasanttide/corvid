@@ -6,17 +6,17 @@ game. Transform points between world and local space using nothing but
 fixed-point arithmetic, so every machine running the simulation computes the
 same bits.
 
-This crate re-exports [`corvid_fixed`], [`corvid_vector`] and
+This crate is built on [`corvid_fixed`], [`corvid_vector`] and
 [`corvid_rotation`], so downstream code depends on one name.
 
 ```rust
-use corvid_transform::{
-    Angle32, FineRotation, FineTransform, GlobalFinePoint, I48F16, Pitch32, Rotation,
-    Transform, GlobalPoint, I24F8, Versor,
-};
+use corvid_fixed::{Angle32, I24F8, I48F16, Pitch32};
+use corvid_rotation::{FineRotation, Rotation, Versor};
+use corvid_transform::{GlobalFineTransform, Transform};
+use corvid_vector::{GlobalFinePoint, GlobalPoint};
 
 // A head pose on the earth's surface, 6371 km from the origin.
-let camera = FineTransform::new(
+let camera = GlobalFineTransform::new(
     GlobalFinePoint::splat(I48F16::from_f64(6_371_000.0)),
     FineRotation::from_versor(Versor::from_yaw_pitch_roll(
         Angle32::from_degrees(30.0),
@@ -43,7 +43,7 @@ let object = Transform::new(
     Rotation::IDENTITY,
 );
 assert_eq!(size_of::<Transform>(), 16);
-assert_eq!(size_of::<FineTransform>(), 32);
+assert_eq!(size_of::<GlobalFineTransform>(), 32);
 assert_eq!(object.inverse().compose(object), Transform::IDENTITY);
 ```
 
@@ -52,10 +52,10 @@ assert_eq!(object.inverse().compose(object), Transform::IDENTITY);
 | | Position | Rotation | Size |
 |---|---|---|---|
 | [`Transform`] | [`GlobalPoint`] — ±8388 km at 3.9 mm | [`Rotation`] — 0.186° | **16 B** |
-| [`FineTransform`] | [`GlobalFinePoint`] — ±1.407e14 m at 15.26 µm | [`FineRotation`] — 0.0033° | **32 B** |
+| [`GlobalFineTransform`] | [`GlobalFinePoint`] — ±1.407e14 m at 15.26 µm | [`FineRotation`] — 0.0033° | **32 B** |
 
 Objects in the world are [`Transform`]. The camera and VR tracked poses are
-[`FineTransform`]. Both are generated from one macro, so the operation family is
+[`GlobalFineTransform`]. Both are generated from one macro, so the operation family is
 written once and cannot drift between them.
 
 **Both widen to `I48F16` internally.** `Transform`'s own position is a
@@ -76,9 +76,11 @@ first**, then `a`.
 ## World → local, the hot path
 
 ```rust
-use corvid_transform::{FineTransform, GlobalFinePoint, GlobalPoint, I48F16};
+use corvid_fixed::I48F16;
+use corvid_transform::GlobalFineTransform;
+use corvid_vector::{GlobalFinePoint, GlobalPoint};
 
-let camera = FineTransform::new(
+let camera = GlobalFineTransform::new(
     GlobalFinePoint::splat(I48F16::from_f64(1.0e13)),
     Default::default(),
 );
@@ -125,9 +127,11 @@ Every conversion above decodes the packed rotation on the way in, and that
 decode dominates the cost. A loop over thousands of points should decode once:
 
 ```rust
-use corvid_transform::{FineTransform, GlobalFinePoint, I48F16};
+use corvid_fixed::I48F16;
+use corvid_transform::GlobalFineTransform;
+use corvid_vector::GlobalFinePoint;
 
-let camera = FineTransform::default();
+let camera = GlobalFineTransform::default();
 let objects = [GlobalFinePoint::splat(I48F16::from_f64(3.0)); 4];
 
 // Once, not once per point.
@@ -158,18 +162,33 @@ of the fast path is what is left for everything else in the frame.
 ## Converting between the tiers
 
 ```rust
-use corvid_transform::{FineTransform, GlobalFinePoint, I48F16, Transform};
+use corvid_fixed::{Angle32, I48F16, Pitch32};
+use corvid_rotation::{FineRotation, Versor};
+use corvid_transform::{GlobalFineTransform, Transform};
+use corvid_vector::GlobalFinePoint;
 
 let object = Transform::default();
 let fine = object.to_fine_transform();
 assert_eq!(fine.to_coarse_transform(), Some(object));
 
 // Range is the only reason the downgrade fails.
-let far = FineTransform::new(
+let far = GlobalFineTransform::new(
     GlobalFinePoint::splat(I48F16::from_f64(1.0e13)),
     Default::default(),
 );
 assert_eq!(far.to_coarse_transform(), None);
+
+// The rotation is never the reason: an awkward one at a reachable position
+// converts like any other.
+let turned = GlobalFineTransform::new(
+    GlobalFinePoint::splat(I48F16::from_f64(1.0)),
+    FineRotation::from_versor(Versor::from_yaw_pitch_roll(
+        Angle32::from_degrees(37.0),
+        Pitch32::from_degrees(-12.0),
+        Angle32::from_degrees(81.0),
+    )),
+);
+assert!(turned.to_coarse_transform().is_some());
 ```
 
 `to_fine_transform` cannot fail, but it is **not lossless in the way the name
@@ -178,13 +197,14 @@ adding up to `FineRotation`'s 0.0033° on top of the 0.186° the `Rotation`
 already carries. That is a 1.8% increase in a quantity already dominated by the
 coarse codec.
 
-`to_coarse_transform` returns `None` **only** on position range; the rotation
-always converts, losing accuracy down to the 32-bit tier.
+`to_coarse_transform` returns `None` **only** on position range, which is the
+last two assertions above; the rotation always converts, losing accuracy down to
+the 32-bit tier.
 
-> **Naming note.** The design document called these `to_fine` and `to_coarse`.
+> **Naming note.** The tier conversions carry a `_transform` suffix because
 > `Transform::to_fine` is already the world→eye point conversion above, and two
-> inherent methods cannot share a name, so the tier conversions carry the
-> `_transform` suffix. `From` and `TryFrom` impls exist alongside.
+> inherent methods cannot share a name. `From` and `TryFrom` impls exist
+> alongside.
 
 ## Operation family
 
@@ -194,6 +214,66 @@ their inverses, the six conversions above, `look_at`, `looking_to`,
 `looking_at`, `lerp`, `move_towards`, `rotate_towards`, `direction_to`,
 `distance_to`, `translated_by`, `rotated_by`, `with_position`, `with_rotation`,
 `forward` / `right` / `up`.
+
+Plus the two lowercase constructors, [`transform`] and [`globalfinetransform`], which
+are `new` with both arguments converted. They exist because a call site usually
+has neither a position type nor a packed rotation in hand — it has three numbers
+and a [`Versor`] or a [`Basis`] — and spelling out both conversions is most of
+the line.
+
+```rust
+use corvid_rotation::{Rotation, Versor};
+use corvid_transform::transform;
+use corvid_vector::globalpoint;
+
+// A tuple, three integers and an unpacked rotation.
+let tower = transform((10, 0, 2), Versor::IDENTITY);
+assert_eq!(tower.position(), globalpoint(10, 0, 2));
+assert_eq!(tower.rotation(), Rotation::from(Versor::IDENTITY));
+```
+
+The rotation goes through the packed type's own `From`, so it is the same
+quantization `Rotation::from` performs rather than a second path with its own
+rounding. `corvid_vector`'s constructors and its integer conversions are
+re-exported here too, which is where the `(10, 0, 2)` above comes from.
+
+### The endpoints come back whole
+
+`lerp` at `Factor32::ZERO` is the transform it started from and at
+`Factor32::ONE` is the transform it was aiming at, in the position *and* in the
+packed rotation. `move_towards` and `rotate_towards` do the same at the two ends
+of their own ranges: a step of nothing leaves the transform alone, and a step
+that covers the whole gap arrives on the target's own bits.
+
+Only the position half of that was ever free. At an endpoint the versor comes
+through untouched — `Versor::nlerp` recognises its own endpoints — and then the
+codec repacks it, so what a computed endpoint costs here is exactly one repack
+round trip. `corvid_rotation`'s `examples/rotation_quality.rs` measures it over
+a million uniform rotations: `FineRotation::from_versor(r.to_versor())` differs
+from `r` **15102** times, and `Rotation`'s **702**.
+
+How far the rotation moved is a different question from how many bits changed,
+and the two answers are not alike. At `Transform`'s coarse tier the worst move
+is a flat **zero**: every pair the repack disturbs is two codes naming one
+rotation, so the bytes change and the versor does not. At `GlobalFineTransform`'s the
+worst is **0.0029°**, inside the fine codec's own 0.0033° quantum and far
+below anything an eye resolves.
+
+Neither answer lets a computed endpoint stand, because a capture is a golden: an
+interpolated pose is compared as bytes against poses recorded by other builds on
+other machines, and a rotation field that names the right rotation in the wrong
+code is a field that differs. So both tiers recognise their endpoints and return
+them rather than computing them, and `tests/ops.rs` walks ten thousand random
+pairs per interpolation to say so.
+
+A `rotate_towards` of no angle is the one endpoint that cannot be recognised by
+measuring. `Versor::angle_to` is an `acos` and reports a flat zero below about
+0.0025°, which is the same size as `FineRotation`'s own 0.0033° quantum — so
+half the neighbouring fine codes measure as *no angle apart*, "the step covers
+the gap" comes back true at a step of nothing, and the pose would be repacked
+onto its neighbour's code. Both tiers answer a zero step before they measure
+anything, and `tests/ops.rs` builds pairs a fraction of a degree apart to reach
+the case, since two random poses never do.
 
 ## Determinism
 
@@ -221,8 +301,19 @@ Every integration is optional and off by default.
 | `arbitrary` | `Arbitrary`, for fuzzing (links `std`) |
 | `std` | Forwards `std` to whichever of the above are enabled |
 
+Every feature here forwards to the layers below, so a game that turns on
+`corvid_transform/serde` gets `Serialize` for the scalars, the points and the
+rotations as well — one crate to depend on and one feature to name.
+
 ## Out of scope
 
 Transform hierarchies — Corvid has none, by design. Scale, uniform or not: a
 transform here is rigid, so the inverse is exact and composition stays in SO(3).
 View and projection matrices. Distribution-adaptive rotation codebooks.
+
+[`GlobalPoint`]: corvid_vector::GlobalPoint
+[`GlobalFinePoint`]: corvid_vector::GlobalFinePoint
+[`Rotation`]: corvid_rotation::Rotation
+[`FineRotation`]: corvid_rotation::FineRotation
+[`Versor`]: corvid_rotation::Versor
+[`Basis`]: corvid_rotation::Basis

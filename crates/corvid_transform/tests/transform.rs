@@ -20,15 +20,14 @@ mod common;
 use core::mem::size_of;
 
 use common::Rng;
-use corvid_transform::{
-    FineRotation, FineTransform, GlobalFinePoint, GlobalPoint, I16F16, I24F8, I48F16, Rotation,
-    Transform,
-};
-
+use corvid_fixed::{I16F16, I24F8, I48F16};
+use corvid_rotation::{FineRotation, Rotation};
+use corvid_transform::{GlobalFineTransform, Transform};
+use corvid_vector::{GlobalFinePoint, GlobalPoint};
 #[test]
 fn the_sizes_are_contractual() {
     assert_eq!(size_of::<Transform>(), 16);
-    assert_eq!(size_of::<FineTransform>(), 32);
+    assert_eq!(size_of::<GlobalFineTransform>(), 32);
 }
 
 #[test]
@@ -42,7 +41,10 @@ fn identity_leaves_every_point_alone() {
     assert_eq!(Transform::IDENTITY.to_local(p), Some(p));
     assert_eq!(Transform::IDENTITY.inverse(), Transform::IDENTITY);
     assert_eq!(Transform::default(), Transform::IDENTITY);
-    assert_eq!(FineTransform::default(), FineTransform::IDENTITY);
+    assert_eq!(
+        GlobalFineTransform::default(),
+        GlobalFineTransform::IDENTITY
+    );
 }
 
 #[test]
@@ -99,7 +101,7 @@ fn inverting_a_transform_near_the_origin_is_tight() {
             round_tripped
                 .rotation()
                 .to_versor()
-                .angle_to(corvid_transform::Versor::IDENTITY)
+                .angle_to(corvid_rotation::Versor::IDENTITY)
                 .to_degrees()
                 < 0.02
         );
@@ -131,7 +133,7 @@ fn compose_applies_the_right_hand_operand_first() {
 #[test]
 fn a_camera_at_earth_radius_still_resolves_the_near_field() {
     // 6.37e6 m from the origin, looking at something a millimetre away.
-    let camera = FineTransform::new(
+    let camera = GlobalFineTransform::new(
         GlobalFinePoint::splat(I48F16::from_f64(6_371_000.0)),
         FineRotation::IDENTITY,
     );
@@ -160,7 +162,7 @@ fn world_to_eye_is_bit_exact_before_the_rotation() {
     // Steps 1-3 introduce no rounding at all. Prove it with the identity
     // rotation, where step 4 is exact too, and walk the whole fractional space
     // of one component at 1e13 m from the origin.
-    let camera = FineTransform::new(
+    let camera = GlobalFineTransform::new(
         GlobalFinePoint::splat(I48F16::from_f64(1.0e13)),
         FineRotation::IDENTITY,
     );
@@ -178,7 +180,7 @@ fn world_to_eye_is_bit_exact_before_the_rotation() {
 
 #[test]
 fn none_appears_only_when_the_difference_leaves_range() {
-    let camera = FineTransform::new(GlobalFinePoint::ZERO, FineRotation::IDENTITY);
+    let camera = GlobalFineTransform::new(GlobalFinePoint::ZERO, FineRotation::IDENTITY);
 
     let inside = GlobalFinePoint::splat(I48F16::from_f64(30_000.0));
     assert!(camera.to_fine_global(inside).is_some());
@@ -271,7 +273,7 @@ fn to_fine_transform_is_total_and_says_what_it_costs() {
 
 #[test]
 fn to_coarse_transform_fails_only_on_position_range() {
-    let far = FineTransform::new(
+    let far = GlobalFineTransform::new(
         GlobalFinePoint::splat(I48F16::from_f64(1.0e13)),
         FineRotation::IDENTITY,
     );
@@ -279,7 +281,7 @@ fn to_coarse_transform_fails_only_on_position_range() {
 
     // Just inside GlobalPoint's range succeeds, however coarse the rotation
     // becomes.
-    let inside = FineTransform::new(
+    let inside = GlobalFineTransform::new(
         GlobalFinePoint::splat(I48F16::from_f64(8_000_000.0)),
         common::pose(37.0, -12.0, 3.0),
     );
@@ -296,8 +298,8 @@ fn to_coarse_transform_fails_only_on_position_range() {
     // The trait conversions agree.
     assert!(Transform::try_from(far).is_err());
     assert_eq!(
-        FineTransform::from(Transform::IDENTITY),
-        FineTransform::IDENTITY
+        GlobalFineTransform::from(Transform::IDENTITY),
+        GlobalFineTransform::IDENTITY
     );
 }
 
@@ -312,7 +314,7 @@ fn the_local_path_never_touches_i128() {
         let target = common::near(&mut rng, camera.position(), 30_000.0);
         if let Some(near) = target
             .checked_sub(camera.position())
-            .and_then(corvid_transform::GlobalFinePoint::to_fine)
+            .and_then(corvid_vector::GlobalFinePoint::to_fine)
         {
             // Every component fits i32, so the row sums fit i64.
             for component in near.to_array() {
@@ -325,17 +327,55 @@ fn the_local_path_never_touches_i128() {
 #[test]
 fn the_transform_family_is_available_in_const_context() {
     const T: Transform = Transform::IDENTITY;
-    const F: FineTransform = FineTransform::IDENTITY;
+    const F: GlobalFineTransform = GlobalFineTransform::IDENTITY;
     const COMPOSED: Transform = T.compose(T);
     const INVERTED: Transform = T.inverse();
-    const UPGRADED: FineTransform = T.to_fine_transform();
+    const UPGRADED: GlobalFineTransform = T.to_fine_transform();
     const LOCAL: Option<GlobalPoint> = T.to_local(GlobalPoint::ZERO);
-    const NEAR: Option<corvid_transform::FinePoint> = F.to_fine_global(GlobalFinePoint::ZERO);
+    const NEAR: Option<corvid_vector::FinePoint> = F.to_fine_global(GlobalFinePoint::ZERO);
 
     assert_eq!(COMPOSED, Transform::IDENTITY);
     assert_eq!(INVERTED, Transform::IDENTITY);
-    assert_eq!(UPGRADED, FineTransform::IDENTITY);
+    assert_eq!(UPGRADED, GlobalFineTransform::IDENTITY);
     assert_eq!(LOCAL, Some(GlobalPoint::ZERO));
-    assert_eq!(NEAR, Some(corvid_transform::FinePoint::ZERO));
+    assert_eq!(NEAR, Some(corvid_vector::FinePoint::ZERO));
     assert_eq!(Rotation::IDENTITY, T.rotation());
+}
+
+#[test]
+fn the_lowercase_constructors_are_the_uppercase_ones() {
+    use corvid_rotation::{Basis, Versor};
+    use corvid_transform::{globalfinetransform, transform};
+    use corvid_vector::globalpoint;
+    // A tuple for the position and a rotation that has not been packed yet is
+    // the shape a call site actually has. Both halves convert, and the result is
+    // the same value `new` would have built.
+    let by_hand = Transform::new(globalpoint(10, 0, 2), Rotation::IDENTITY);
+    assert_eq!(transform((10, 0, 2), Rotation::IDENTITY), by_hand);
+    assert_eq!(transform([10, 0, 2], Rotation::IDENTITY), by_hand);
+
+    // A `Versor` and a `Basis` are rotations too, and they go through the packed
+    // type's own `From` — so this is the same quantization `Rotation::from` does
+    // rather than a second path with its own rounding.
+    assert_eq!(
+        transform((10, 0, 2), Versor::IDENTITY),
+        Transform::new(globalpoint(10, 0, 2), Rotation::from(Versor::IDENTITY))
+    );
+    assert_eq!(
+        transform((10, 0, 2), Basis::IDENTITY),
+        Transform::new(globalpoint(10, 0, 2), Rotation::from(Basis::IDENTITY))
+    );
+
+    // The fine tier takes a wider integer, which is the whole reason it is a
+    // separate function rather than one generic over the position type: an `i16`
+    // of metres would not reach the earth's surface.
+    let camera = globalfinetransform((0, 0, 6_371_000), FineRotation::IDENTITY);
+    assert_eq!(camera.position().z(), I48F16::from_f64(6_371_000.0));
+    assert_eq!(
+        camera,
+        GlobalFineTransform::new(
+            GlobalFinePoint::new(I48F16::ZERO, I48F16::ZERO, I48F16::from_f64(6_371_000.0)),
+            FineRotation::IDENTITY,
+        )
+    );
 }

@@ -13,10 +13,10 @@
 mod common;
 
 use common::Rng;
-use corvid_transform::{
-    Angle32, Direction, Factor32, FineTransform, GlobalPoint, I24F8, Rotation, Signed32, Transform,
-};
-
+use corvid_fixed::{Angle32, Factor32, I24F8, Signed32};
+use corvid_rotation::{FineRotation, Rotation};
+use corvid_transform::{GlobalFineTransform, Transform};
+use corvid_vector::{Direction, GlobalFinePoint, GlobalPoint};
 const UP: Direction = Direction::new(Signed32::ZERO, Signed32::ZERO, Signed32::MAX);
 
 #[test]
@@ -181,29 +181,178 @@ fn lerp_is_exact_at_both_ends() {
         let a = common::random_transform(&mut rng, 1000.0);
         let b = common::random_transform(&mut rng, 1000.0);
 
-        assert_eq!(a.lerp(b, Factor32::ZERO).position(), a.position());
-        assert_eq!(a.lerp(b, Factor32::ONE).position(), b.position());
-
-        // The rotation lands on each end to within the codec's own quantum.
-        assert!(
-            a.lerp(b, Factor32::ZERO)
-                .basis()
-                .angle_to(a.basis())
-                .to_degrees()
-                < 0.4
-        );
-        assert!(
-            a.lerp(b, Factor32::ONE)
-                .basis()
-                .angle_to(b.basis())
-                .to_degrees()
-                < 0.4
-        );
+        // The whole transform, and not only its position: `nlerp` renormalizes
+        // and the codec repacks, so before `lerp` recognised its endpoints the
+        // rotation came back a representation bit out about once in a hundred
+        // pairs — near enough for a camera and not near enough for a capture,
+        // which compares bytes.
+        assert_eq!(a.lerp(b, Factor32::ZERO), a);
+        assert_eq!(a.lerp(b, Factor32::ONE), b);
 
         // And the midpoint is halfway in position, exactly.
         let mid = a.lerp(b, Factor32::from_f64(0.5));
         let expected = a.position().lerp(b.position(), Factor32::from_f64(0.5));
         assert_eq!(mid.position(), expected);
+    }
+}
+
+/// The fine tier's endpoints, which is where a capture golden reads them.
+///
+/// Separate from the coarse tier's because `FineRotation` is the packing a
+/// pose is recorded in, and it is the finer of the two: its quantum is small
+/// enough that a rounding lands on a neighbouring code more often, not less.
+#[test]
+fn the_fine_tier_lerps_to_its_endpoints_bit_for_bit() {
+    let mut rng = Rng::new(0x0B50_0007);
+    for _ in 0..10_000 {
+        let a = common::random_fine_transform(&mut rng, 1000.0);
+        let b = common::random_fine_transform(&mut rng, 1000.0);
+        assert_eq!(a.lerp(b, Factor32::ZERO), a);
+        assert_eq!(a.lerp(b, Factor32::ONE), b);
+    }
+}
+
+/// `rotate_towards` at the two ends of its own range.
+///
+/// The same property as the `lerp` tests above, reached the other way: a step
+/// of no angle must leave the pose alone, and a step that covers the gap must
+/// land on the target's own packing rather than on a repacking of it.
+#[test]
+fn rotate_towards_holds_still_for_a_zero_step_and_lands_on_the_target() {
+    let mut rng = Rng::new(0x0B50_0008);
+    let whole = Angle32::from_degrees(180.0);
+    for _ in 0..10_000 {
+        let a = common::random_transform(&mut rng, 1000.0);
+        let b = common::random_transform(&mut rng, 1000.0);
+        assert_eq!(a.rotate_towards(b, Angle32::ZERO), a);
+        assert_eq!(a.rotate_towards(b, whole).rotation(), b.rotation());
+        // The position is the mover's throughout; only the rotation travels.
+        assert_eq!(a.rotate_towards(b, whole).position(), a.position());
+        // And on the boundary, where a step of exactly the remaining angle has
+        // to count as covering it rather than interpolating the whole way and
+        // repacking whatever comes out. Measured between the versors the
+        // packings decode to, which is where `rotate_towards` measures it;
+        // `basis()` rebuilds a versor from a matrix and lands a hair off, and
+        // a hair short of the boundary is the far side of it.
+        let gap = a.rotation().to_versor().angle_to(b.rotation().to_versor());
+        assert_eq!(a.rotate_towards(b, gap).rotation(), b.rotation());
+
+        let (c, d) = (
+            common::random_fine_transform(&mut rng, 1000.0),
+            common::random_fine_transform(&mut rng, 1000.0),
+        );
+        assert_eq!(c.rotate_towards(d, Angle32::ZERO), c);
+        assert_eq!(c.rotate_towards(d, whole).rotation(), d.rotation());
+    }
+}
+
+/// The zero step where the target is a neighbouring packing rather than a
+/// rotation away, which is the case two independently random poses never
+/// produce.
+///
+/// `FineRotation`'s quantum, 0.0033°, is the same size as the resolution of
+/// `Versor::angle_to` — an `acos`, flat below about 0.0025°. So adjacent fine
+/// codes routinely measure as *no angle apart*, and a `rotate_towards` that
+/// asks whether the remaining angle fits inside the step is told yes even when
+/// the step is `ZERO`; answering that with the target repacks the pose onto
+/// somebody else's code. About two in five of the ten thousand pairs below
+/// pack to two different fine codes, and about half of those measure as no
+/// angle apart. The coarse tier's 0.19° quantum puts it far outside the
+/// resolution, so it is here to stay outside rather than because it was ever
+/// caught.
+#[test]
+fn a_zero_step_holds_still_between_neighbouring_packings() {
+    let mut rng = Rng::new(0x0B50_000A);
+    let mut distinct = 0_u32;
+    let mut unresolved = 0_u32;
+    for _ in 0..10_000 {
+        let from = common::random_versor(&mut rng);
+        // 24576 units of a turn is 0.0021°: under the `acos` resolution and
+        // over the fine codec's quantum, which is the overlap this tests.
+        let to = common::nudged(&mut rng, from, 24576);
+
+        let c = GlobalFineTransform::new(GlobalFinePoint::ZERO, FineRotation::from_versor(from));
+        let d = GlobalFineTransform::new(GlobalFinePoint::ZERO, FineRotation::from_versor(to));
+        if c.rotation() != d.rotation() {
+            distinct += 1;
+            unresolved += u32::from(
+                c.rotation().to_versor().angle_to(d.rotation().to_versor()) == Angle32::ZERO,
+            );
+        }
+        assert_eq!(c.rotate_towards(d, Angle32::ZERO), c);
+        assert_eq!(d.rotate_towards(c, Angle32::ZERO), d);
+
+        let e = Transform::new(GlobalPoint::ZERO, Rotation::from_versor(from));
+        let f = Transform::new(GlobalPoint::ZERO, Rotation::from_versor(to));
+        assert_eq!(e.rotate_towards(f, Angle32::ZERO), e);
+        assert_eq!(f.rotate_towards(e, Angle32::ZERO), f);
+    }
+    // Bounded so the pairs cannot drift out of the overlap and leave this
+    // passing on the same ground the test above already covers. Bounds and not
+    // equalities because the generator runs on `f64` transcendentals, so the
+    // exact tallies belong to the platform's libm; exact figures come from
+    // `corvid_rotation`'s `examples/rotation_quality.rs`.
+    assert!(distinct > 2_500, "only {distinct} pairs were two codes");
+    assert!(
+        unresolved > 1_000,
+        "only {unresolved} pairs landed inside the resolution"
+    );
+}
+
+/// The zero step where two coarse codes decode to one versor, which is the
+/// case the versor's own guard cannot reach.
+///
+/// `rotate_towards` steps in versor form and then picks its answer by
+/// comparing versors, so when both packings decode to the same one the
+/// `target` arm wins and a caller who asked for no movement is handed the
+/// other pose's rotation. `Rotation` spends fewer bits than the `I2F30`
+/// quadruple it decodes into, so two neighbouring codes landing on one versor
+/// is rare rather than impossible: about a third of the hundred thousand pairs
+/// below pack to two different codes, and roughly one in three thousand of
+/// those decodes to a single versor. The fine tier's blind spot is the other
+/// one, and the test above holds it.
+#[test]
+fn a_zero_step_holds_still_when_two_codes_decode_to_one_versor() {
+    let mut rng = Rng::new(0x0B50_000B);
+    let mut distinct = 0_u32;
+    let mut shared = 0_u32;
+    for _ in 0..100_000 {
+        let from = common::random_versor(&mut rng);
+        // 0.088° at the widest, about half the coarse quantum: wide enough
+        // that the pair often straddles a code boundary, narrow enough that
+        // the two codes stay adjacent when it does.
+        let to = common::nudged(&mut rng, from, 1_048_576);
+
+        let e = Transform::new(GlobalPoint::ZERO, Rotation::from_versor(from));
+        let f = Transform::new(GlobalPoint::ZERO, Rotation::from_versor(to));
+        if e.rotation() != f.rotation() {
+            distinct += 1;
+            shared += u32::from(e.rotation().to_versor() == f.rotation().to_versor());
+        }
+        assert_eq!(e.rotate_towards(f, Angle32::ZERO), e);
+        assert_eq!(f.rotate_towards(e, Angle32::ZERO), f);
+    }
+    assert!(distinct > 25_000, "only {distinct} pairs were two codes");
+    assert!(shared > 3, "only {shared} pairs decoded to one versor");
+}
+
+/// `move_towards` at the two ends of its own range, for completeness.
+///
+/// This half was already exact — the scalar `lerp` underneath it is — and the
+/// assertion is here so it stays that way rather than because it was ever
+/// found broken.
+#[test]
+fn move_towards_holds_still_for_a_zero_step_and_lands_on_the_target() {
+    let mut rng = Rng::new(0x0B50_0009);
+    for _ in 0..10_000 {
+        let a = common::random_transform(&mut rng, 1000.0);
+        let b = common::random_transform(&mut rng, 1000.0);
+        assert_eq!(a.move_towards(b, I24F8::ZERO), a);
+        assert_eq!(
+            a.move_towards(b, I24F8::MAX).position(),
+            b.position(),
+            "a step past the whole distance arrives"
+        );
     }
 }
 
@@ -256,7 +405,7 @@ fn accessors_report_the_local_axes() {
 
 #[test]
 fn the_fine_tier_has_the_same_family() {
-    let a = FineTransform::IDENTITY;
+    let a = GlobalFineTransform::IDENTITY;
     let b = common::random_fine_transform(&mut Rng::new(0x0B50_0006), 100.0);
     assert_eq!(a.lerp(b, Factor32::ZERO).position(), a.position());
     assert_eq!(a.lerp(b, Factor32::ONE).position(), b.position());
@@ -273,16 +422,16 @@ fn the_fine_tier_has_the_same_family() {
 /// Every other case here runs at metres, where `GlobalFinePoint` has range to
 /// spare. These run at `1e14` m with the two points on opposite sides of the
 /// origin, which is where a saturating difference and a saturating `distance`
-/// stop telling the truth — and where `FineTransform`'s widen-then-subtract is
+/// stop telling the truth — and where `GlobalFineTransform`'s widen-then-subtract is
 /// a no-op, because it already *is* the wide type.
 #[test]
 fn the_fine_tier_is_exact_at_the_far_corners() {
-    use corvid_transform::{GlobalFinePoint, I48F16};
-
+    use corvid_fixed::I48F16;
+    use corvid_vector::GlobalFinePoint;
     let at = |x: f64, y: f64| {
-        FineTransform::new(
+        GlobalFineTransform::new(
             GlobalFinePoint::new(I48F16::from_f64(x), I48F16::from_f64(y), I48F16::ZERO),
-            corvid_transform::FineRotation::IDENTITY,
+            corvid_rotation::FineRotation::IDENTITY,
         )
     };
 

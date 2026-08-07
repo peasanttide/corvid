@@ -6,7 +6,7 @@
 //! ```
 //!
 //! Reports nanoseconds per conversion and the fraction of the 11.1 ms frame
-//! budget consumed, and quantifies the two decisions the design rests on:
+//! budget consumed, and quantifies the two decisions the fast path rests on:
 //!
 //! - **Subtracting before narrowing.** The `i64` local path against the `i128`
 //!   global path.
@@ -27,11 +27,13 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-use corvid_transform::{
-    Angle32, FinePoint, FineRotation, FineTransform, GlobalFinePoint, GlobalPoint, I48F16, Pitch32,
-    Versor,
-};
+use corvid_fixed::{Angle32, I48F16, Pitch32};
 
+use corvid_rotation::{FineRotation, Versor};
+
+use corvid_transform::GlobalFineTransform;
+
+use corvid_vector::{FinePoint, GlobalFinePoint, GlobalPoint};
 /// Objects converted per frame.
 const OBJECTS: usize = 10_000;
 
@@ -101,10 +103,10 @@ fn bench(name: &str, baseline: Option<f64>, mut body: impl FnMut() -> u64) -> f6
 /// behind the two components nothing reads. `black_box` on the *inputs* does
 /// not stop it — and the `to_fine_global` baseline happens to be immune,
 /// because its `Option` depends on all three axes, so the cases compared
-/// against it were the only ones being shortened. Measured understatement
-/// before this was fixed: 2.8x on the `i64` path and 3.0x on the `i128` one,
-/// which turned a real win from hoisting the basis into a much larger reported
-/// one.
+/// against it are the only ones that would be shortened. Measured
+/// understatement without this fold: 2.8x on the `i64` path and 3.0x on the
+/// `i128` one, which turns a real win from hoisting the basis into a much larger
+/// reported one.
 fn fold_fine(acc: u64, p: FinePoint) -> u64 {
     let [x, y, z] = p.to_array();
     acc.wrapping_add(x.to_bits() as u32 as u64)
@@ -131,7 +133,7 @@ fn fold_coarse(acc: u64, p: GlobalPoint) -> u64 {
 fn main() {
     let mut rng = Rng(0x2024_c0de_face_b00c);
 
-    let camera = FineTransform::new(
+    let camera = GlobalFineTransform::new(
         GlobalFinePoint::splat(I48F16::from_f64(CAMERA_DISTANCE)),
         FineRotation::from_versor(Versor::from_yaw_pitch_roll(
             Angle32::from_degrees(37.0),
@@ -159,7 +161,7 @@ fn main() {
     );
 
     // The shipped path: decodes the packed rotation on every call.
-    let per_call = bench("FineTransform::to_fine_global", None, || {
+    let per_call = bench("GlobalFineTransform::to_fine_global", None, || {
         let mut acc = 0_u64;
         for _ in 0..FRAMES {
             for &p in &scene {
@@ -206,17 +208,21 @@ fn main() {
     });
 
     // The coarser output, for anything not drawn at eye resolution.
-    bench("FineTransform::to_local_global", Some(per_call), || {
-        let mut acc = 0_u64;
-        for _ in 0..FRAMES {
-            for &p in &scene {
-                if let Some(local) = black_box(&camera).to_local_global(black_box(p)) {
-                    acc = fold_coarse(acc, local);
+    bench(
+        "GlobalFineTransform::to_local_global",
+        Some(per_call),
+        || {
+            let mut acc = 0_u64;
+            for _ in 0..FRAMES {
+                for &p in &scene {
+                    if let Some(local) = black_box(&camera).to_local_global(black_box(p)) {
+                        acc = fold_coarse(acc, local);
+                    }
                 }
             }
-        }
-        acc
-    });
+            acc
+        },
+    );
 
     // And the return trip.
     let near: Vec<FinePoint> = scene
@@ -227,7 +233,7 @@ fn main() {
         "\n  eye->world over the {} points that landed in near field",
         near.len()
     );
-    bench("FineTransform::to_world", Some(per_call), || {
+    bench("GlobalFineTransform::to_world", Some(per_call), || {
         let mut acc = 0_u64;
         for _ in 0..FRAMES {
             for &v in &near {

@@ -27,7 +27,7 @@ use corvid_fixed::I48F16;
 use corvid_rotation::FineRotation;
 use corvid_vector::{Direction, FinePoint, GlobalFinePoint, GlobalPoint};
 
-use crate::{FineTransform, Transform};
+use crate::{GlobalFineTransform, Transform};
 
 /// Generates the conversion family for one transform tier.
 macro_rules! impl_conversions {
@@ -162,7 +162,7 @@ macro_rules! impl_conversions {
 }
 
 impl_conversions!(Transform);
-impl_conversions!(FineTransform);
+impl_conversions!(GlobalFineTransform);
 
 impl Transform {
     /// Upgrades to the fine tier. Total.
@@ -174,8 +174,8 @@ impl Transform {
     /// quantity already dominated by the coarse codec, not a free upgrade.
     #[must_use]
     #[inline]
-    pub const fn to_fine_transform(self) -> FineTransform {
-        FineTransform::new(
+    pub const fn to_fine_transform(self) -> GlobalFineTransform {
+        GlobalFineTransform::new(
             self.position().to_global_fine(),
             FineRotation::from_rotation(self.rotation()),
         )
@@ -200,7 +200,7 @@ impl Transform {
     }
 }
 
-impl FineTransform {
+impl GlobalFineTransform {
     /// Downgrades to the coarse tier, or `None` if the position does not fit.
     ///
     /// `None` comes **only** from position range — `GlobalFinePoint`'s
@@ -238,15 +238,15 @@ impl FineTransform {
     }
 }
 
-impl From<Transform> for FineTransform {
+impl From<Transform> for GlobalFineTransform {
     #[inline]
     fn from(t: Transform) -> Self {
         t.to_fine_transform()
     }
 }
 
-/// The error from narrowing a [`FineTransform`] to a [`Transform`].
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// The error from narrowing a [`GlobalFineTransform`] to a [`Transform`].
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct PositionOutOfRange;
 
 impl core::fmt::Display for PositionOutOfRange {
@@ -255,11 +255,13 @@ impl core::fmt::Display for PositionOutOfRange {
     }
 }
 
-impl TryFrom<FineTransform> for Transform {
+impl core::error::Error for PositionOutOfRange {}
+
+impl TryFrom<GlobalFineTransform> for Transform {
     type Error = PositionOutOfRange;
 
     #[inline]
-    fn try_from(t: FineTransform) -> Result<Self, Self::Error> {
+    fn try_from(t: GlobalFineTransform) -> Result<Self, Self::Error> {
         t.to_coarse_transform().ok_or(PositionOutOfRange)
     }
 }

@@ -21,10 +21,13 @@
 
 mod common;
 
-use corvid_transform::{
-    Angle32, FineRotation, FineTransform, GlobalFinePoint, I48F16, Rotation, Versor,
-};
+use corvid_fixed::{Angle32, I48F16};
 
+use corvid_rotation::{FineRotation, Rotation, Versor};
+
+use corvid_transform::GlobalFineTransform;
+
+use corvid_vector::GlobalFinePoint;
 /// A brisk but realistic head sweep.
 const SWEEP_DEGREES_PER_SECOND: f64 = 200.0;
 
@@ -69,7 +72,7 @@ fn a_static_pose_decodes_identically_on_every_frame() {
 fn a_static_camera_projects_a_static_point_every_frame() {
     // The whole pipeline, not just the codec: a fixed camera and a fixed world
     // point must give bit-identical eye coordinates every frame.
-    let camera = FineTransform::new(
+    let camera = GlobalFineTransform::new(
         GlobalFinePoint::splat(I48F16::from_f64(6_371_000.0)),
         common::pose(37.0, -12.0, 3.0),
     );
@@ -195,7 +198,7 @@ fn signed_yaw_step(from: Versor, to: Versor) -> f64 {
 const fn yaw(degrees: f64) -> Versor {
     Versor::from_yaw_pitch_roll(
         Angle32::from_degrees(degrees),
-        corvid_transform::Pitch32::ZERO,
+        corvid_fixed::Pitch32::ZERO,
         Angle32::ZERO,
     )
 }

@@ -1,7 +1,7 @@
 //! The two rigid transform types.
 //!
 //! Objects in the world are [`Transform`]. The camera and the VR tracked poses
-//! are [`FineTransform`]. Both come from one macro, so the operation family is
+//! are [`GlobalFineTransform`]. Both come from one macro, so the operation family is
 //! written once and cannot drift between them.
 //!
 //! **Both widen to `I48F16` internally.** `Transform`'s own position is a
@@ -188,7 +188,7 @@ macro_rules! define_transform {
             /// leaves a position residual of roughly `|t| × quantum`. For
             /// [`Transform`], whose 0.186° is 3.2e-3 radians, that is tens of
             /// kilometres at 8000 km out. This is why the camera is a
-            /// [`FineTransform`]: its quantum is 55× smaller *and* its position
+            /// [`GlobalFineTransform`]: its quantum is 55× smaller *and* its position
             /// resolution 256× finer.
             #[must_use]
             #[inline]
@@ -205,6 +205,7 @@ macro_rules! define_transform {
                 }
             }
         }
+
     };
 }
 
@@ -218,7 +219,7 @@ define_transform! {
     /// | Rotation | 0.1856° worst case |
     ///
     /// This is what ordinary objects use. The camera and any VR tracked pose
-    /// want [`FineTransform`] instead.
+    /// want [`GlobalFineTransform`] instead.
     ///
     /// # A zeroed `Transform` is not the identity
     ///
@@ -226,7 +227,7 @@ define_transform! {
     /// about `(-1, 1, 1)` — the chart-`x` Gibbs vector `(-1, -1, -1)`. So
     /// `bytemuck::zeroed()`, a calloc'd scene buffer, or a zero-filled network
     /// packet gives an object that is *rotated*, where the same idiom on a
-    /// [`FineTransform`] gives the identity. Use
+    /// [`GlobalFineTransform`] gives the identity. Use
     /// [`IDENTITY`](Self::IDENTITY) or [`Default`] to mean "unrotated".
     Transform {
         position: GlobalPoint,
@@ -246,7 +247,21 @@ define_transform! {
     ///
     /// The extra width is what lets a camera sit 6.37e6 m — or 1e13 m — from
     /// the origin while near-field geometry still resolves to the last bit.
-    FineTransform {
+    ///
+    /// # Why `Global` is in the name
+    ///
+    /// This was `FineTransform` until the name was the problem. Its position is
+    /// a [`GlobalFinePoint`] and always has been — `i64` an axis, the whole
+    /// world at 15.26 µm — but "fine" alone reads as though it were built on
+    /// [`FinePoint`](corvid_vector::FinePoint), which stops at ±32.7 km and is
+    /// what a `corvid_sound::Source`, a `Cue` and
+    /// [`to_fine_global`](Self::to_fine_global) genuinely do use.
+    ///
+    /// Two widths one word apart, and only one of them was in a name. A camera
+    /// pose written against the wrong one compiles, is right near the origin,
+    /// and is wrong by four thousand kilometres at the edge of a planet — which
+    /// is exactly the class of mistake a name is supposed to prevent.
+    GlobalFineTransform {
         position: GlobalFinePoint,
         rotation: FineRotation,
         widen: to_global_fine,
@@ -270,7 +285,7 @@ impl Transform {
     }
 }
 
-impl FineTransform {
+impl GlobalFineTransform {
     /// The identity narrowing: this tier already works at `I48F16`.
     #[inline]
     pub(crate) const fn narrow_saturating(point: GlobalFinePoint) -> GlobalFinePoint {
@@ -296,14 +311,62 @@ const fn saturate_global(value: I48F16) -> I24F8 {
     }
 }
 
+/// Builds a [`Transform`] from anything that is a position and anything that is
+/// a rotation.
+///
+/// The lowercase spelling of [`Transform::new`], for the same reason
+/// `corvid_vector`'s constructors have one: the position arrives as a tuple, an
+/// array or three integers, and the rotation as a [`Versor`](corvid_rotation::Versor)
+/// or a [`Basis`] rather than something already packed.
+///
+/// ```
+/// use corvid_rotation::Rotation;
+/// use corvid_transform::transform;
+///
+/// let tower = transform((10, 0, 2), Rotation::IDENTITY);
+/// assert_eq!(tower.position(), corvid_vector::globalpoint(10, 0, 2));
+/// ```
+#[must_use]
+#[inline]
+pub fn transform(position: impl Into<GlobalPoint>, rotation: impl Into<Rotation>) -> Transform {
+    Transform::new(position.into(), rotation.into())
+}
+
+/// Builds a [`GlobalFineTransform`] from anything that is a position and anything that
+/// is a rotation.
+///
+/// The camera and VR tier's [`transform`]. The position type is wider, so the
+/// integer literals it takes are wider too — an `i32` of metres rather than an
+/// `i16`.
+///
+/// ```
+/// use corvid_rotation::FineRotation;
+/// use corvid_transform::globalfinetransform;
+///
+/// let camera = globalfinetransform((0, 0, 6_371_000), FineRotation::IDENTITY);
+/// assert_eq!(camera.position().z().to_f64(), 6_371_000.0);
+/// ```
+#[must_use]
+#[inline]
+pub fn globalfinetransform(
+    position: impl Into<GlobalFinePoint>,
+    rotation: impl Into<FineRotation>,
+) -> GlobalFineTransform {
+    GlobalFineTransform::new(position.into(), rotation.into())
+}
+
 impl core::fmt::Debug for Transform {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Transform({:?}, {:?})", self.position, self.rotation)
     }
 }
 
-impl core::fmt::Debug for FineTransform {
+impl core::fmt::Debug for GlobalFineTransform {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "FineTransform({:?}, {:?})", self.position, self.rotation)
+        write!(
+            f,
+            "GlobalFineTransform({:?}, {:?})",
+            self.position, self.rotation
+        )
     }
 }

@@ -9,10 +9,27 @@
 //! concern.
 
 use corvid_fixed::{Angle32, Factor32, I24F8, I48F16};
-use corvid_rotation::{Basis, FineRotation, Rotation};
+use corvid_rotation::{Basis, FineRotation, Rotation, Versor};
 use corvid_vector::{Direction, GlobalFinePoint, GlobalPoint};
 
-use crate::{FineTransform, Transform};
+use crate::{GlobalFineTransform, Transform};
+
+/// Whether two versors carry the same four bit patterns.
+///
+/// `PartialEq` says this too, and cannot be called from a `const fn`, which is
+/// what the operations below are.
+#[inline]
+const fn same_versor(a: Versor, b: Versor) -> bool {
+    let (a, b) = (a.to_xyzw(), b.to_xyzw());
+    let mut i = 0;
+    while i < 4 {
+        if a[i].to_bits() != b[i].to_bits() {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
 
 /// Generates the operation family for one transform tier.
 macro_rules! impl_ops {
@@ -92,10 +109,28 @@ macro_rules! impl_ops {
             /// [`Versor::slerp`](corvid_rotation::Versor::slerp) directly when
             /// constant angular velocity genuinely matters.
             ///
-            /// Exact at both ends.
+            /// # Exact at both ends, in the position and in the packed rotation
+            ///
+            /// At [`Factor32::ZERO`] this is `self` and at [`Factor32::ONE`] it
+            /// is `to`, bit for bit in both fields. The position gets that from
+            /// the scalar `lerp` underneath it; the rotation gets it from the
+            /// two lines below, because it cannot get it from the arithmetic —
+            /// `nlerp` renormalizes and the codec repacks, and either step can
+            /// land a rotation one representation bit from where it started.
+            ///
+            /// The reason to hold the whole of it rather than most of it is
+            /// that a capture is a golden: an interpolated pose is compared as
+            /// bytes against poses recorded by other builds, and a rotation
+            /// field that is right to within a quantum is a field that differs.
             #[must_use]
             #[inline]
             pub const fn lerp(self, to: Self, weight: Factor32) -> Self {
+                if weight.to_bits() == 0 {
+                    return self;
+                }
+                if weight.to_bits() == Factor32::ONE.to_bits() {
+                    return to;
+                }
                 Self::new(
                     self.position().lerp(to.position(), weight),
                     // Straight in and out of versor form. Going through
@@ -130,7 +165,7 @@ macro_rules! impl_ops {
                 // fraction taken against a too-small denominator overshoots,
                 // and `never overshoots` is this method's contract. Widening to
                 // `I48F16` is enough for this tier's own positions but not for
-                // `FineTransform`'s, whose positions already are `I48F16`.
+                // `GlobalFineTransform`'s, whose positions already are `I48F16`.
                 let remaining = wide_distance(target.origin(), self.origin());
                 let step = (max_distance.to_bits() as i128) * Self::POSITION_SCALE;
                 if remaining <= step || remaining == 0 {
@@ -147,15 +182,34 @@ macro_rules! impl_ops {
             /// Turns toward `target`'s rotation by at most `max_step`, never
             /// overshooting.
             ///
-            /// The position is left alone.
+            /// The position is left alone. Lands on `target`'s packed rotation
+            /// exactly once the step covers the remaining angle, and leaves
+            /// this one exactly as it is for a `max_step` of
+            /// [`Angle32::ZERO`] — both by recognising the endpoint rather than
+            /// by repacking onto it, for the reason [`lerp`](Self::lerp) gives.
+            ///
+            /// The zero step is decided here and never from the measured angle.
+            /// `Versor::angle_to` is an `acos` and reports a flat zero below
+            /// about 0.0025°, which is as wide as `FineRotation`'s own 0.0033°
+            /// quantum — so two neighbouring packings measure as no angle
+            /// apart, and a step of no angle at all would otherwise be told it
+            /// covered the gap and would repack onto the target.
             #[must_use]
             #[inline]
             pub const fn rotate_towards(self, target: Self, max_step: Angle32) -> Self {
-                self.with_rotation($rotation::from_versor(
-                    self.rotation()
-                        .to_versor()
-                        .rotate_towards(target.rotation().to_versor(), max_step),
-                ))
+                if max_step.to_bits() == 0 {
+                    return self;
+                }
+                let from = self.rotation().to_versor();
+                let to = target.rotation().to_versor();
+                let stepped = from.rotate_towards(to, max_step);
+                if same_versor(stepped, to) {
+                    self.with_rotation(target.rotation())
+                } else if same_versor(stepped, from) {
+                    self
+                } else {
+                    self.with_rotation($rotation::from_versor(stepped))
+                }
             }
         }
     };
@@ -191,7 +245,7 @@ const fn wide_distance(a: GlobalFinePoint, b: GlobalFinePoint) -> i128 {
         }
         i += 1;
     }
-    let bit_length = 128 - largest.leading_zeros();
+    let bit_length = corvid_bits::bit_length_u128(largest);
     let shift = bit_length.saturating_sub(62);
 
     let (x, y, z) = (d[0] >> shift, d[1] >> shift, d[2] >> shift);
@@ -210,4 +264,10 @@ const fn wide_distance(a: GlobalFinePoint, b: GlobalFinePoint) -> i128 {
 // `I24F8` and `I48F16` differ by eight fractional bits; `I48F16` is the working
 // scale itself.
 impl_ops!(Transform, GlobalPoint, I24F8, Rotation, 256);
-impl_ops!(FineTransform, GlobalFinePoint, I48F16, FineRotation, 1);
+impl_ops!(
+    GlobalFineTransform,
+    GlobalFinePoint,
+    I48F16,
+    FineRotation,
+    1
+);

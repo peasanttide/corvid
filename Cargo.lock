@@ -120,9 +120,12 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "bytemuck",
+ "corvid_bits",
  "corvid_fixed",
+ "corvid_hash",
  "corvid_rotation",
  "corvid_vector",
+ "corvid_wire",
  "serde",
  "serde_json",
 ]

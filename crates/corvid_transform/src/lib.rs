@@ -22,13 +22,4 @@ mod ops;
 mod transform;
 
 pub use convert::PositionOutOfRange;
-pub use transform::{FineTransform, Transform};
-
-// One name for downstream code to depend on: everything the layers below
-// provide is re-exported here, so a game reaches for `corvid_transform` alone.
-pub use corvid_fixed::{
-    self as fixed, Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I2F30, I8F8,
-    I16F16, I24F8, I48F16, Pitch8, Pitch16, Pitch32, Signed8, Signed16, Signed32,
-};
-pub use corvid_rotation::{self as rotation, Basis, FineRotation, Rotation, Versor};
-pub use corvid_vector::{self as vector, Direction, FinePoint, GlobalFinePoint, GlobalPoint};
+pub use transform::{GlobalFineTransform, Transform, globalfinetransform, transform};
