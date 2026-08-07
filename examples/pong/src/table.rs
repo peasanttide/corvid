@@ -117,6 +117,28 @@ impl Court {
         if seat == 0 { -from_wall } else { from_wall }
     }
 
+    /// Where the centre of one seat's paddle is, in `x`.
+    ///
+    /// Half a paddle's thickness *behind* [`face`](Self::face), away from the
+    /// middle of the court, so that the face is the paddle's court-facing edge
+    /// rather than a line through the middle of it.
+    ///
+    /// This is what a client draws the paddle around, and it exists because
+    /// getting it wrong is invisible to every test and obvious to every player:
+    /// drawing the rectangle centred on `face` puts its near edge
+    /// [`paddle.x()`](Self::paddle) closer to the middle than the plane the
+    /// ball actually reflects off, so the ball sinks into the sprite by its own
+    /// width plus the paddle's before it comes back.
+    #[must_use]
+    pub fn centre(&self, seat: usize) -> I16F16 {
+        let face = self.face(seat);
+        if seat == 0 {
+            face - self.paddle.x()
+        } else {
+            face + self.paddle.x()
+        }
+    }
+
     /// The furthest a paddle's centre may travel from the middle before it
     /// would leave the court.
     #[must_use]

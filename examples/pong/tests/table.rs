@@ -294,3 +294,50 @@ fn a_hundred_ticks_are_the_same_hundred_ticks_every_time() {
     };
     assert_eq!(play(), play());
 }
+
+/// The plane the ball bounces off is the drawn paddle's court-facing edge.
+///
+/// `Court::face` is the bounce plane and `Court::centre` is what the client
+/// draws the rectangle around, and the two are only consistent while they
+/// differ by exactly half a paddle. They used to be the same number: the
+/// renderer centred the sprite on `face`, so the ball reached the drawn edge
+/// `paddle.x() + ball` before the plane and buried itself in the paddle on
+/// every return.
+///
+/// Nothing about this is visible to a digest — both peers computed the same
+/// wrong-looking bounce — which is exactly why it wants an assertion.
+#[test]
+fn the_bounce_plane_is_the_drawn_paddles_near_edge() {
+    let level = court();
+    for seat in 0..SEATS {
+        let face = level.face(seat);
+        let centre = level.centre(seat);
+        let half = level.paddle.x();
+
+        // The near edge of the rectangle spanning `centre ± half`, on the side
+        // the middle of the court is.
+        let near = if seat == 0 {
+            centre + half
+        } else {
+            centre - half
+        };
+        assert_eq!(
+            near, face,
+            "seat {seat} draws a paddle whose near edge is {near:?} and bounces \
+             the ball off {face:?}",
+        );
+
+        // And the whole rectangle is outside the face rather than straddling
+        // it, which is the same statement from the other end.
+        let far = if seat == 0 {
+            centre - half
+        } else {
+            centre + half
+        };
+        assert!(
+            far.abs() > face.abs(),
+            "seat {seat}'s paddle reaches {far:?}, which is nearer the middle \
+             than its own face at {face:?}",
+        );
+    }
+}

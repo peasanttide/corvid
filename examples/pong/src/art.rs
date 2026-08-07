@@ -402,7 +402,10 @@ fn paint(into: &mut Vec<Vertex>, space: &Space, frame: &Painted, court: &Court) 
         let tint = if seat == 0 { LEFT } else { RIGHT };
         space.quad(
             into,
-            [court.face(seat).to_f32(), at],
+            // `centre`, not `face`: the face is the plane the ball bounces off,
+            // which is this rectangle's court-facing edge rather than a line
+            // through the middle of it.
+            [court.centre(seat).to_f32(), at],
             [court.paddle.x().to_f32(), court.paddle.y().to_f32()],
             tint,
         );
