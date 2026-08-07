@@ -1,0 +1,81 @@
+[package]
+name = "corvid_render"
+description = "The wgpu half: a device, a surface or an offscreen target, and the Render trait a game records its own frame through."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "wgpu", "renderer", "headless"]
+categories = ["game-development", "graphics"]
+
+[dependencies]
+corvid_fixed = { workspace = true, features = ["std"] }
+# The client-local half a renderer draws *for*. `Render` extends `Present`, so
+# the view a `draw` reads is declared a crate down from here — which is what
+# lets a game that draws nothing state its camera without a graphics stack
+# behind it, and is the whole reason the two traits are this way round.
+corvid_control = { version = "0.1", path = "../corvid_control" }
+# For `Icon`, which moved here from the controller crate: a picture for a title
+# bar is a picture, and this is the half of a game that deals in those.
+corvid_color = { workspace = true, features = ["std"] }
+# The deterministic contract, for the one type `draw` is handed: a `Frame`.
+# `Render` is the base of the client-local half now, so this is the whole of
+# what it needs above a device — `corvid_control` depends on this crate rather
+# than the other way round.
+corvid_behavior = { workspace = true, features = ["std"] }
+# The cameras, and the `f32` matrices they become. Both halves of the crossing
+# from fixed point to floating point live there now rather than here: it names
+# no graphics library, so a headless determinism check builds the same matrices
+# a windowed run does.
+corvid_camera = { workspace = true, features = ["std"] }
+# The rays and hits a cursor resolves to. Nothing here names one; it is
+# re-exported so that a game that draws reaches the camera and the primitives it
+# is picked against through the crate it already depends on for the device.
+corvid_shape = { workspace = true, features = ["std"] }
+# The fixed-point poses a camera and an instance are. `matrix` is the boundary
+# between those and the `f32` a device wants, and it is the only thing in this
+# crate that has an opinion about arithmetic.
+corvid_transform = { version = "0.1.0", path = "../corvid_transform", default-features = false, features = ["std"] }
+# `OctDirection`, which is a mesh vertex's normal, with `bytemuck` because a
+# vertex buffer is bytes and that is the workspace's one safe way to make them.
+corvid_vector = { version = "0.1.0", path = "../corvid_vector", default-features = false, features = ["bytemuck", "std"] }
+# The device. Everything about a GPU that this workspace knows is behind this
+# one name.
+wgpu = { workspace = true }
+# `request_adapter` and `request_device` are futures and this crate has no
+# executor and wants none: a renderer's setup happens once, on the thread that
+# owns the window, and blocking on it there is the honest description of what
+# happens.
+pollster = { workspace = true }
+# Vertex and index buffers are bytes to `wgpu`, and this is the workspace's one
+# safe way to turn a struct into them. Without it the casts would need
+# `unsafe`, which is forbidden here.
+bytemuck = { workspace = true }
+# What a read-back frame is written as. The capture seam is a PNG now that
+# there is no draw list to serialize, and the crate that owns the readback is
+# the crate that owns turning it into a file somebody can open.
+png = "0.18"
+# What a dropped frame, a lost surface and a chosen adapter are reported as.
+tracing = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+# The README's game derives `Serialize`/`Deserialize`, which `Data` demands of
+# every type a state is made of. A game's own manifest carries the same line.
+serde = { version = "1", default-features = false, features = ["derive", "std"] }
+# Named by the doctests: a game's `Present` implementation declares its input
+# sets and hears an audio frame, and the examples here show a whole game.
+corvid_sound = { workspace = true }
+# Named by the doctests: a game's `Present` implementation declares its input
+# sets and hears an audio frame, and the examples here show a whole game.
+corvid_input = { workspace = true }
+corvid_glm = { workspace = true }
+corvid_rotation = { workspace = true, features = ["std"] }
+tracing = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
