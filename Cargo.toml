@@ -169,6 +169,11 @@ winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11
 # window. Nothing in this workspace has an async runtime and nothing here wants
 # one.
 pollster = "0.4"
+# The capture seam's file format. Pinned here for the reason every other shared
+# crate is: three manifests name it — `corvid_render` encodes a read-back frame,
+# `corvid_test` and `corvid_mesh_render` decode one — and a golden compared
+# across two versions of an encoder is a golden that says nothing.
+png = "0.18"
 corvid_window = { version = "0.1", path = "crates/corvid_window" }
 # The device. The base of a game's client-local half and the one crate here that
 # names `wgpu`, which is why every other crate that draws reaches the graphics

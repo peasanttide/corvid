@@ -48,12 +48,13 @@ corvid_wire = { workspace = true, features = ["std"] }
 # `corvid_app`, which is built on `corvid_render` unconditionally now — but it is
 # compiled rather than called, so a determinism check still *runs* on a machine
 # with no graphics stack.
-png = "0.18"
+png = { workspace = true }
 
 [dev-dependencies]
 # The camera a `Controller::look` answers, for the fixture that has one.
 corvid_camera = { workspace = true, features = ["std"] }
-corvid_sound = { workspace = true, features = ["std"] }
+# The fixture game's own state, written down. `Data` demands it of every type a
+# state is made of, and a game's own manifest carries the same line.
 serde = { workspace = true, features = ["derive", "std"] }
 
 [lints]

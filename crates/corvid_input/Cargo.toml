@@ -25,7 +25,7 @@ serde = { workspace = true, optional = true }
 # shown by a format that writes them down; and `corvid_wire`, the workspace's one
 # encoding, because a field's *position* can only be shown by one that does not.
 corvid_wire = { workspace = true }
-serde_json = "1"
+serde_json = { workspace = true }
 # The third table, and the only one of the three that can see an integer's
 # width. Neither encoding above can: `corvid_wire` writes a varint, so a small
 # number is the same byte at every declared width, and a self-describing format

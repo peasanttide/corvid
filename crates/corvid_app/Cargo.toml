@@ -79,14 +79,16 @@ corvid_net = { workspace = true, optional = true }
 corvid_lockstep = { workspace = true, features = ["std"], optional = true }
 
 [dev-dependencies]
-# The harness in `tests/common` writes a real pipeline, the way a game does.
+# The harness in `tests/common` writes a real pipeline, the way a game does:
+# `wgpu` by name rather than through `corvid_render`'s re-export, because that is
+# what a game's own manifest carries.
 wgpu = { workspace = true }
-corvid_transform = { workspace = true, features = ["std"] }
+# The positions the harness's game moves and the normals its cube carries.
+# Nothing above names them, so this is the one edge the test binary adds.
 corvid_vector = { workspace = true, features = ["std"] }
-serde = { workspace = true, features = ["derive", "std"] }
-# The subscriber the unhandled-command test installs. A claim that something
-# warns is only checkable by collecting what it emitted.
-tracing = { workspace = true, features = ["std"] }
+# `serde` and `tracing` are not here: both are already dependencies above — the
+# first for `corvid_wire::encode`'s bound and the second for the unhandled-request
+# warning — and a dependency is already linkable from a test.
 
 [features]
 default = []

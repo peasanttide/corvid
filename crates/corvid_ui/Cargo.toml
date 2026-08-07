@@ -31,8 +31,10 @@ corvid_transform = { version = "0.1", path = "../corvid_transform", default-feat
 bytemuck = { version = "1", features = ["derive"], optional = true }
 
 [dev-dependencies]
+# The direction a focus move is asked for in and the point one is cast from.
+# Nothing this crate exposes names either — a `Painted` is rectangles — so the
+# test binary is the only thing that gains the edge.
 corvid_vector = { workspace = true }
-corvid_input = { workspace = true }
 
 [features]
 default = []

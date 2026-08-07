@@ -25,7 +25,6 @@ corvid_transform = { version = "0.1.0", path = "../corvid_transform", default-fe
 serde = { workspace = true, optional = true, features = ["alloc"] }
 
 [dev-dependencies]
-corvid_replay = { workspace = true }
 # The encoding a recorded byte string is recorded under, which is a
 # workspace-wide decision rather than this crate's: `corvid_wire` writes a
 # varint and no names, so what a golden row of it can see is a field's position,
@@ -41,7 +40,7 @@ corvid_wire = { workspace = true }
 # `corvid_wire` writes none, so a field or a variant renamed moves not one byte
 # of its table and not one digest either; the text table in `tests/golden.rs` is
 # the only thing in this crate that sees it.
-serde_json = "1"
+serde_json = { workspace = true }
 
 [features]
 default = []

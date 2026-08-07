@@ -16,7 +16,7 @@ serde = { workspace = true, features = ["alloc"] }
 # at its declared width. This is the only place in the workspace that names a
 # *compact* format crate, and that is the point of the crate — a second one
 # somewhere else is a second wire format, which is what this exists to stop.
-# Eight crates name `serde_json` as a dev-dependency and that is deliberate: a
+# Ten crates name `serde_json` as a dev-dependency and that is deliberate: a
 # JSON table sees a field's name and this encoding cannot, so the two tables
 # cover different halves and neither is a capture format. `tests/golden.rs`
 # freezes the bytes this produces, so an upgrade that moved them fails here
@@ -31,15 +31,14 @@ bincode = { version = "2", default-features = false, features = ["alloc", "serde
 # The dependency is acyclic — `corvid_hash` has none of its own — and it is a
 # dev-dependency because nothing in this crate computes a digest.
 corvid_hash = { workspace = true }
-# Only to write a fixture down twice under two declarations, which is how the
-# tests show which of the four changes a recorded table can see. Nothing in the
-# crate itself derives anything.
-serde = { workspace = true, features = ["alloc", "derive"] }
 # The format the README's comparison table measures this one against. It is here
 # so that the table's self-describing row is checked rather than asserted —
 # `tests/blind.rs` writes one fixture both ways and shows which changes each can
 # see. Nothing in this crate encodes anything as JSON.
-serde_json = "1"
+#
+# `serde` is not here: `derive` arrives with the workspace entry, so the
+# dependency above already gives the tests everything they write a fixture with.
+serde_json = { workspace = true }
 
 [features]
 default = []

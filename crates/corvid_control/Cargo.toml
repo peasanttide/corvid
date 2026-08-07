@@ -42,7 +42,7 @@ corvid_shape = { workspace = true, features = ["std"] }
 # every one of them be serializable. A game's own manifest carries the same
 # line, so this is what the fixture is showing rather than a detail of testing
 # it.
-serde = { version = "1", default-features = false, features = ["derive", "std"] }
+serde = { workspace = true, features = ["derive", "std"] }
 
 [features]
 default = []

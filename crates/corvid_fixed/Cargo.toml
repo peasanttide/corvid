@@ -36,8 +36,17 @@ corvid_wire = { workspace = true }
 # source names it: a scalar's `Hash` is `core`'s, and what the tests pin is what
 # that emission comes to under this workspace's one hasher.
 corvid_hash = { workspace = true }
+# Named here and nowhere in the source, which is the claim: nalgebra's blanket
+# `Scalar` impl already covers every scalar in this crate, so a `Vector3` of
+# fixed point needs no code from either side. `tests/interop.rs` is what says so
+# rather than the README alone. It is not the float-matrix dependency the root
+# manifest reserves to `corvid_glm` — nothing here has a float in it.
 nalgebra = { workspace = true }
-serde_json = "1"
+# A self-describing format, for the shape `corvid_wire` cannot show. A varint
+# writes a transparent newtype and a struct of one field identically;
+# `tests/interop.rs` pins that a scalar is written as its raw integer, which is
+# the only place a wrapper gaining a field would be visible.
+serde_json = { workspace = true }
 
 [features]
 default = []

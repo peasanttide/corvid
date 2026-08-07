@@ -38,7 +38,7 @@ corvid_sound = { version = "0.1", path = "../corvid_sound", default-features = f
 [dev-dependencies]
 # A test game names a `State`, a `Level`, a `Rules` and an `Action`, and `Data`
 # demands every one of them be serializable.
-serde = { version = "1", default-features = false, features = ["derive", "std"] }
+serde = { workspace = true, features = ["derive", "std"] }
 
 [features]
 default = []
