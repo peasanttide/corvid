@@ -1,0 +1,48 @@
+[package]
+name = "corvid_audio"
+description = "The device half: an AudioFrame's cues turned into procedurally generated waveforms and mixed to a sound card."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "audio", "cpal", "mixer", "rollback"]
+categories = ["game-development", "multimedia::audio"]
+
+[dependencies]
+corvid_fixed = { workspace = true, features = ["std"] }
+corvid_time = { workspace = true, features = ["std"] }
+corvid_vector = { workspace = true, features = ["std"] }
+corvid_float = { workspace = true }
+# What this crate consumes and the only thing it knows about the game. An
+# `AudioFrame` is data with no device type in it, which is what lets the same
+# frame be heard here and written into a capture there.
+corvid_sound = { workspace = true, features = ["std"] }
+# The device, and the only thing in this crate that knows a sound card exists.
+# Optional, because a build that only wants the mixing arithmetic — a test, a
+# dedicated server, a target this crate has no backend for — should not link a
+# platform audio API to get it.
+cpal = { version = "0.18", optional = true }
+# What an opened device, a broken stream and a queue the callback could not read
+# are reported as. A backend that could only fail loudly or not at all would
+# have to choose between a game that stops because a sound card is busy and a
+# game that goes quiet with no way to find out why. Optional alongside `cpal`,
+# because every one of those events happens inside the device half: a build
+# without it has nothing to report and should not link a subscriber's worth of
+# machinery to say so.
+tracing = { workspace = true, features = ["std"], optional = true }
+
+[features]
+default = []
+# The sound card. Everything else in this crate builds and is testable without
+# it, which is deliberate: the mixing arithmetic is the part that can be wrong
+# in a way a person would notice, and a test for it should not need a machine
+# with speakers.
+device = ["dep:cpal", "dep:tracing"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
