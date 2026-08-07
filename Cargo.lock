@@ -80,6 +80,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_hash"
+version = "0.1.0"
+
+[[package]]
 name = "corvid_rotation"
 version = "0.1.0"
 dependencies = [
