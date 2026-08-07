@@ -95,7 +95,19 @@ fn a_perfect_link_never_rolls_back() -> Fallible {
 fn a_domestic_link_agrees() -> Fallible {
     let mut playing = Match::new(Schedule::DOMESTIC, SEED, [chase, chase])?;
     playing.play(TICKS)?;
-    traces_agree(playing.traces())?;
+
+    let line = traces_agree(playing.traces())?;
+    // Both peers open on the same `opening()`, so tick zero agrees before
+    // anything has happened. Without a floor on how far the confirmed line got,
+    // a regression that stalled this schedule near the start would pass here by
+    // comparing one trivially identical mark — which is the failure the mobile
+    // test guards against with its rollback count and this one had nothing
+    // against at all.
+    assert!(
+        line.0 >= TICKS - 8,
+        "a domestic link should confirm almost to the end, and it confirmed to {}",
+        line.0,
+    );
     Ok(())
 }
 
