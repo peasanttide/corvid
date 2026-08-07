@@ -366,6 +366,36 @@ name = "corvid"
 version = "0.1.0"
 
 [[package]]
+name = "corvid_app"
+version = "0.1.0"
+dependencies = [
+ "corvid_audio",
+ "corvid_behavior",
+ "corvid_camera",
+ "corvid_control",
+ "corvid_fixed",
+ "corvid_hash",
+ "corvid_input",
+ "corvid_lockstep",
+ "corvid_mesh",
+ "corvid_mesh_render",
+ "corvid_net",
+ "corvid_render",
+ "corvid_replay",
+ "corvid_signal",
+ "corvid_sound",
+ "corvid_time",
+ "corvid_transform",
+ "corvid_vector",
+ "corvid_window",
+ "corvid_wire",
+ "serde",
+ "serde_json",
+ "tracing",
+ "wgpu",
+]
+
+[[package]]
 name = "corvid_asset"
 version = "0.1.0"
 dependencies = [
