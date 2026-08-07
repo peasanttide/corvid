@@ -18,7 +18,7 @@ categories = ["game-development", "caching"]
 [dependencies]
 # For `Locate`, whose associated types are `Simulate`'s, and for the
 # `compile_fail` doctest that shows a `Handle` cannot satisfy `Data`.
-corvid_behavior = { version = "0.1", path = "../corvid_behavior", features = ["std"] }
+corvid_behavior = { version = "0.2", path = "../corvid_behavior", features = ["std"] }
 # The filesystem, which used to be defined here. It moved below `std` so that
 # `corvid_behavior` could name `Source` in `Level::load`; `Files` stayed, and is
 # the only part of it that ever needed an operating system.

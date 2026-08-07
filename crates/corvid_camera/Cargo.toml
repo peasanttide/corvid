@@ -18,8 +18,8 @@ corvid_bits = { workspace = true }
 # The ray a projection answers with, and the primitives a cursor is resolved
 # against. This crate is the reason that one is a separate crate rather than a
 # module here: a game can cast at its own geometry without owning a camera.
-corvid_shape = { version = "0.1.0", path = "../corvid_shape", default-features = false }
-corvid_transform = { version = "0.1.0", path = "../corvid_transform", default-features = false }
+corvid_shape = { version = "0.2.0", path = "../corvid_shape", default-features = false }
+corvid_transform = { version = "0.2.0", path = "../corvid_transform", default-features = false }
 # The `f32` matrices a device binds. This crate is where the workspace's
 # fixed-point poses cross into them, so it is where the two are named together —
 # and `bytemuck` on it is what makes `Eye` the bytes of a uniform block rather

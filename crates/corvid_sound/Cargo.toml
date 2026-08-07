@@ -20,8 +20,8 @@ corvid_fixed = { workspace = true }
 corvid_vector = { workspace = true }
 corvid_hash = { workspace = true }
 # `Tick` alone, and not the crate whole — see the `std` feature below.
-corvid_time = { version = "0.1.0", path = "../corvid_time", default-features = false }
-corvid_transform = { version = "0.1.0", path = "../corvid_transform", default-features = false }
+corvid_time = { version = "0.2.0", path = "../corvid_time", default-features = false }
+corvid_transform = { version = "0.2.0", path = "../corvid_transform", default-features = false }
 serde = { workspace = true, optional = true, features = ["alloc"] }
 
 [dev-dependencies]

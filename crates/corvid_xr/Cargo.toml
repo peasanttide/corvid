@@ -24,10 +24,10 @@ corvid_camera = { workspace = true }
 corvid_float = { workspace = true }
 # The pose. A head is a `FineTransform` with a `GlobalFinePoint` position,
 # which is the tier whose 15 µm is finer than the shimmer a wearer sees.
-corvid_transform = { version = "0.1", path = "../corvid_transform", default-features = false, features = ["serde", "std"] }
+corvid_transform = { version = "0.2", path = "../corvid_transform", default-features = false, features = ["serde", "std"] }
 # A track is a file, so a recording made on a real headset is something a test
 # can carry. This is the workspace's one encoding and there is no second one.
-corvid_wire = { version = "0.1", path = "../corvid_wire", default-features = false, features = ["std"] }
+corvid_wire = { version = "0.2", path = "../corvid_wire", default-features = false, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
 
 # The real runtime. Off by default, so the vocabulary above compiles and tests

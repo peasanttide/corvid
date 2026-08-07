@@ -15,17 +15,17 @@ corvid_fixed = { workspace = true }
 corvid_bits = { workspace = true }
 # The colours a style holds. Client ring, `no_std`, and the same `Rgba8` a game
 # writes into its own uniform buffer.
-corvid_color = { version = "0.1", path = "../corvid_color", default-features = false }
+corvid_color = { version = "0.2", path = "../corvid_color", default-features = false }
 # The digest a subtree is compared by. It is a `core::hash::Hasher`, which is
 # what makes the digest free: everything here already derives `Hash`.
-corvid_hash = { version = "0.1", path = "../corvid_hash", default-features = false }
+corvid_hash = { version = "0.2", path = "../corvid_hash", default-features = false }
 # The raycast behind `Painted::panel_to_layout`, and nothing else. A UI panel in
 # world space is a quad, and casting at it is this crate's job rather than a
 # headset runtime's.
-corvid_shape = { version = "0.1", path = "../corvid_shape", default-features = false }
+corvid_shape = { version = "0.2", path = "../corvid_shape", default-features = false }
 # `I16F16`, which every length resolves to, and `Factor16`, which every share
 # and every slider value is.
-corvid_transform = { version = "0.1", path = "../corvid_transform", default-features = false }
+corvid_transform = { version = "0.2", path = "../corvid_transform", default-features = false }
 # Optional, and off by default: only a caller that turns paint data into the
 # bytes of a vertex buffer needs it, and that caller is a ring above this one.
 bytemuck = { workspace = true, optional = true }

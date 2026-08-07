@@ -26,7 +26,7 @@ corvid_replay = { workspace = true, features = ["std"] }
 # `std` for `Wall`, which is the clock a run in front of a player uses and the
 # one every other crate in the workspace refuses to forward. This is the crate
 # that runs the loop, so this is where a wall clock is asked for.
-corvid_time = { version = "0.1.0", path = "../corvid_time", features = ["std", "serde"] }
+corvid_time = { version = "0.2.0", path = "../corvid_time", features = ["std", "serde"] }
 # The workspace's one encoding. Every file a capture contains is written through
 # it, which is what makes a capture readable by `Session::load` rather than by
 # something this crate would have had to define.

@@ -16,7 +16,7 @@ corvid_hash = { workspace = true }
 # `serde` for the same reason `corvid_behavior` turns it on rather than
 # forwarding it: a `Tick` that could not be written down is a `Tick` an action
 # log could not record against.
-corvid_time = { version = "0.1.0", path = "../corvid_time", features = ["serde"] }
+corvid_time = { version = "0.2.0", path = "../corvid_time", features = ["serde"] }
 # `rc` is named here rather than left to the workspace so that a standalone
 # `-p corvid_replay` build has it. This crate's own `Opening` is written down
 # through a by-value shim that never asks `Arc` to serialize itself — see
