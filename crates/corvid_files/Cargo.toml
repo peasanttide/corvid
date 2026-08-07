@@ -1,0 +1,24 @@
+[package]
+name = "corvid_files"
+description = "The filesystem a level is read through: one trait, two failures, and a map in memory."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "filesystem", "no-std", "vfs"]
+categories = ["game-development", "filesystem", "no-std"]
+
+# No dependencies at all, and `no_std` with an allocator. That is the whole
+# design constraint: `corvid_behavior` is `no_std` and names `Source` in
+# `Level::load`'s signature, so this trait has to live somewhere a `no_std`
+# crate can reach. Everything that opens an actual directory is `corvid_asset`'s
+# `Files`, one layer up, where `std` is already paid for.
+[dependencies]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
