@@ -171,6 +171,13 @@ corvid_test = { version = "0.1", path = "crates/corvid_test" }
 # `raw-window-handle` they mean, and two versions of that in one graph is a
 # surface that cannot be created from a window that plainly exists.
 wgpu = { version = "30", default-features = false, features = ["wgsl", "vulkan", "metal", "dx12", "webgpu"] }
+# The half of `wgpu` that takes a handle somebody else made. Pinned here for a
+# sharper reason than any other entry: `corvid_xr` calls `Device::as_hal` and
+# `create_texture_from_hal`, whose type parameter is the `wgpu_hal::api::Vulkan`
+# that *`wgpu` itself* was built against. A `wgpu-hal` resolved independently of
+# `wgpu` is a different crate with the same name, and the error says
+# "expected `wgpu_hal::api::Vulkan`, found `wgpu_hal::api::Vulkan`".
+wgpu-hal = { version = "30", default-features = false, features = ["vulkan"] }
 # The window. Pinned here for the same reason, and it is the other half of that
 # agreement.
 winit = { version = "0.30", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen"] }

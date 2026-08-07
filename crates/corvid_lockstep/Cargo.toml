@@ -25,7 +25,7 @@ corvid_wire = { version = "0.1", path = "../corvid_wire", default-features = fal
 # a standalone `-p corvid_lockstep` build unifies with nothing: an `Opening`
 # carries its level, rules and origin behind `Arc`, and without `rc` serde has
 # no impl for one. It changes no byte — `Arc<T>` is written as `T`.
-serde = { version = "1", default-features = false, features = ["alloc", "derive", "rc"] }
+serde = { workspace = true, features = ["alloc"] }
 
 [features]
 default = []

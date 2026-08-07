@@ -28,7 +28,7 @@ corvid_transform = { version = "0.1", path = "../corvid_transform", default-feat
 # A track is a file, so a recording made on a real headset is something a test
 # can carry. This is the workspace's one encoding and there is no second one.
 corvid_wire = { version = "0.1", path = "../corvid_wire", default-features = false, features = ["std"] }
-serde = { version = "1", default-features = false, features = ["derive", "std"] }
+serde = { workspace = true, features = ["std"] }
 
 # The real runtime. Off by default, so the vocabulary above compiles and tests
 # on a machine with no graphics stack at all.
@@ -36,8 +36,8 @@ openxr = { version = "0.21", default-features = false, features = ["loaded"], op
 # The seam. `wgpu-hal` is what turns the handles OpenXR gives out into
 # something `wgpu` will accept, and `ash` is the type vocabulary both sides
 # speak in.
-wgpu-hal = { version = "30", default-features = false, features = ["vulkan"], optional = true }
-wgpu = { version = "30", default-features = false, features = ["vulkan"], optional = true }
+wgpu-hal = { workspace = true, optional = true }
+wgpu = { workspace = true, optional = true }
 ash = { version = "0.38", default-features = false, optional = true }
 
 [dev-dependencies]

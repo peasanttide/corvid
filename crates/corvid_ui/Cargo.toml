@@ -28,7 +28,7 @@ corvid_shape = { version = "0.1", path = "../corvid_shape", default-features = f
 corvid_transform = { version = "0.1", path = "../corvid_transform", default-features = false }
 # Optional, and off by default: only a caller that turns paint data into the
 # bytes of a vertex buffer needs it, and that caller is a ring above this one.
-bytemuck = { version = "1", features = ["derive"], optional = true }
+bytemuck = { workspace = true, optional = true }
 
 [dev-dependencies]
 # The direction a focus move is asked for in and the point one is cast from.
