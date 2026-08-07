@@ -366,6 +366,15 @@ name = "corvid"
 version = "0.1.0"
 
 [[package]]
+name = "corvid_asset"
+version = "0.1.0"
+dependencies = [
+ "corvid_behavior",
+ "corvid_files",
+ "serde",
+]
+
+[[package]]
 name = "corvid_audio"
 version = "0.1.0"
 dependencies = [

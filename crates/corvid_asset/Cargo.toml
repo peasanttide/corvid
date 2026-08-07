@@ -1,0 +1,41 @@
+[package]
+name = "corvid_asset"
+description = "Asynchronous loading, caching, placeholders and levels of detail, behind a handle no hashed state can hold."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "assets", "loader", "cache", "lod"]
+categories = ["game-development", "caching"]
+
+# This crate opens files and owns a thread, so it is `std` and does not
+# cross-build for `thumbv7em-none-eabi` the way the client ring does. That is
+# what makes `Handle<T>` un-hashable rather than merely undocumented: an asset
+# lives on one machine, and the ring rule is a compile error here rather than a
+# review note.
+[dependencies]
+# For `Locate`, whose associated types are `Simulate`'s, and for the
+# `compile_fail` doctest that shows a `Handle` cannot satisfy `Data`.
+corvid_behavior = { version = "0.1", path = "../corvid_behavior", features = ["std"] }
+# The filesystem, which used to be defined here. It moved below `std` so that
+# `corvid_behavior` could name `Source` in `Level::load`; `Files` stayed, and is
+# the only part of it that ever needed an operating system.
+corvid_files = { workspace = true }
+# And no `serde`, which is the same point from the other side: nothing this
+# crate defines is written down. An `Asset` decodes bytes the game chose the
+# format of, and a `Handle` that could be serialized would be one step from a
+# `Handle` in a `State`.
+
+[dev-dependencies]
+# A test game names a `State`, a `Level`, a `Rules` and an `Action`, and `Data`
+# demands every one of them be serializable. A game's own manifest carries the
+# same line.
+serde = { version = "1", default-features = false, features = ["derive", "std"] }
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
