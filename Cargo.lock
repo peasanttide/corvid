@@ -451,6 +451,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_dev"
+version = "0.1.0"
+dependencies = [
+ "corvid_behavior",
+ "corvid_fixed",
+ "corvid_hash",
+ "corvid_replay",
+ "corvid_sound",
+ "corvid_time",
+ "corvid_transform",
+ "serde",
+]
+
+[[package]]
 name = "corvid_files"
 version = "0.1.0"
 
