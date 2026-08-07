@@ -14,6 +14,10 @@ categories = ["game-development", "no-std"]
 # The filesystem `Level::load` reads through. `no_std` with no dependencies
 # of its own, which is what lets this crate name a `Source` in a signature.
 corvid_files = { workspace = true }
+# `Display` and `core::error::Error` on `Unfaithful`, derived. No `std`
+# feature: this crate is `no_std`, and the derive names `core::error::Error`
+# without one.
+thiserror = { workspace = true }
 corvid_fixed = { workspace = true }
 corvid_hash = { workspace = true }
 # `serde` is turned on rather than forwarded, because `Data` demands

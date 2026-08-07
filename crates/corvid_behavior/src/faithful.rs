@@ -14,10 +14,11 @@ use crate::Data;
 /// none of them is visible from inside a single peer's simulation: the state a
 /// game computes is right, and the state its neighbour reconstructs from the
 /// bytes is not the same one.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, thiserror::Error)]
 #[non_exhaustive]
 pub enum Unfaithful {
     /// The value could not be written down at all, with the format's reason.
+    #[error("the value could not be serialized: {0}")]
     Wrote(String),
     /// The bytes could not be read back, with the format's reason.
     ///
@@ -26,8 +27,16 @@ pub enum Unfaithful {
     /// them. That is a finding rather than a false alarm: it is the shape of a
     /// type that cannot be sent compactly, and the runtime sends states
     /// compactly.
+    #[error("what was written down did not read back: {0}")]
     Read(String),
     /// It came back, and it is not what went in.
+    ///
+    /// The message depends on whether the two digests agree, which is why this
+    /// variant formats through a function rather than a literal: two equal
+    /// digests here mean the round trip lost something this game's `Eq` can see
+    /// and its `Hash` cannot, and that is worth saying rather than printing one
+    /// digest twice.
+    #[error(fmt = changed)]
     Changed {
         /// The digest of the value that was written down.
         before: Digest,
@@ -36,32 +45,33 @@ pub enum Unfaithful {
     },
 }
 
-impl fmt::Display for Unfaithful {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Wrote(why) => write!(f, "the value could not be serialized: {why}"),
-            Self::Read(why) => write!(f, "what was written down did not read back: {why}"),
-            // Equal digests and unequal values is the same trap
-            // [`Divergence`](crate::Divergence) names, one function over: the
-            // round trip did lose something, and the digest is the half that
-            // cannot see it. A message that printed one digest twice would look
-            // like the check contradicting itself.
-            Self::Changed { before, after } if before == after => write!(
-                f,
-                "the value that came back compares unequal and digests alike \
-                 ({before}): the round trip lost something this game's Eq can \
-                 see and its Hash cannot"
-            ),
-            Self::Changed { before, after } => write!(
-                f,
-                "the value changed in the round trip: {before} went in and \
-                 {after} came back"
-            ),
-        }
+/// How [`Unfaithful::Changed`] reads, which depends on its two digests.
+///
+/// Equal digests and unequal values is the same trap
+/// [`Divergence`](crate::Divergence) names, one function over: the round trip
+/// did lose something, and the digest is the half that cannot see it. A message
+/// that printed one digest twice would look like the check contradicting itself,
+/// so that case says what it means instead.
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the signature is the derive's rather than this crate's: `#[error(fmt = …)]` hands each field of the variant over by reference, and a `Digest` taken by value does not typecheck against it"
+)]
+fn changed(before: &Digest, after: &Digest, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if before == after {
+        write!(
+            f,
+            "the value that came back compares unequal and digests alike \
+             ({before}): the round trip lost something this game's Eq can \
+             see and its Hash cannot"
+        )
+    } else {
+        write!(
+            f,
+            "the value changed in the round trip: {before} went in and \
+             {after} came back"
+        )
     }
 }
-
-impl core::error::Error for Unfaithful {}
 
 /// Serializes `value`, deserializes it, and reports whether what came back is
 /// the same value — by comparison and by digest.
