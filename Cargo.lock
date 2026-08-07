@@ -154,6 +154,20 @@ name = "corvid_hash"
 version = "0.1.0"
 
 [[package]]
+name = "corvid_input"
+version = "0.1.0"
+dependencies = [
+ "corvid_bits",
+ "corvid_fixed",
+ "corvid_hash",
+ "corvid_transform",
+ "corvid_vector",
+ "corvid_wire",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "corvid_lockstep"
 version = "0.1.0"
 dependencies = [
