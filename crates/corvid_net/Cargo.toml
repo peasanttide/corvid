@@ -1,0 +1,34 @@
+[package]
+name = "corvid_net"
+description = "Bytes to a peer and bytes back, and a network that lies on purpose: scriptable latency, jitter, loss and reorder from a seed."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["networking", "deterministic", "transport", "simulation", "gamedev"]
+categories = ["network-programming", "game-development", "simulation"]
+
+[dependencies]
+# The roster is published rather than returned, because a consumer that missed
+# three joins wants the set that is here now rather than three stale ones.
+corvid_signal = { version = "0.1", path = "../corvid_signal" }
+# `Factor16` is what a loss curve is written in: a share of one, exact at both
+# ends, and the same type a game already tunes with.
+corvid_fixed = { version = "0.1", path = "../corvid_fixed" }
+# The workspace's one hasher, used here as a counter-based random stream. A
+# `MockNet` draw is a hash of `(seed, link, sequence, counter)` and never a
+# system RNG, which is the whole of its determinism.
+corvid_hash = { version = "0.1", path = "../corvid_hash" }
+
+[features]
+# There are none. `MockNet` reaches no further than `std`, and the trait it
+# implements is the vocabulary a backend that does reach further implements too.
+default = []
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
