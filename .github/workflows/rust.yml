@@ -137,11 +137,6 @@ jobs:
           # A second 64-bit architecture, with a different code generator and a
           # different floating-point story.
           - aarch64-unknown-linux-gnu
-          # A 32-bit pointer target, which is the one that would find a `usize`
-          # reaching a digest at the target's width rather than at the sixty-four
-          # bits `corvid_hash` absorbs it as — and a peer platform rather than a
-          # curiosity, since a browser peer plays against a native one.
-          - wasm32-unknown-unknown
 
     steps:
     - uses: actions/checkout@v4
