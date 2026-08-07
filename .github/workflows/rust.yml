@@ -23,6 +23,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: Swatinem/rust-cache@v2
+    # The two system libraries this workspace's device halves are built against.
+    # `corvid_audio/device` reaches `cpal` and then `alsa-sys`, and
+    # `corvid_window/gamepad` reaches `gilrs` and then `libudev-sys`; both probe
+    # with `pkg-config` in a build script and panic when the `.pc` file is
+    # absent, so a runner without them fails before rustc is asked anything.
+    # Every step below that passes `--all-features` compiles both.
+    #
+    # Nothing else here needs a system library: `wgpu`'s Vulkan backend loads
+    # the loader at runtime through `ash`, and `winit` is pinned with `x11` and
+    # `wayland-dlopen`, which do the same.
+    - name: System libraries the device halves link against
+      run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
 
     - name: Formatting
       run: cargo fmt --all --check
@@ -90,6 +102,12 @@ jobs:
     - uses: actions/checkout@v4
     - uses: Swatinem/rust-cache@v2
     - uses: taiki-e/install-action@cargo-hack
+    # As in `check`, and for a sharper reason: this job's whole point is to
+    # compile each feature *on its own*, so `corvid_audio/device` and
+    # `corvid_window/gamepad` are each reached by a configuration of their own
+    # rather than only under `--all-features`.
+    - name: System libraries the device halves link against
+      run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
     # 154 configurations across the workspace as this is written.
     #
     # `examples/pong` is excluded because its feature declarations do not
@@ -167,6 +185,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: Swatinem/rust-cache@v2
+    # As in `check`. None of the three suites below opens a sound card or reads
+    # a pad, but `examples/pong` ships with `window` on by default and that
+    # reaches `corvid_audio/device` and `corvid_window/gamepad` — so both are
+    # *compiled* here even though neither is called, and a build script that
+    # cannot find its `.pc` file fails whether or not the code runs.
+    - name: System libraries the device halves link against
+      run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
     # Three suites, and none of them asks for an adapter — the baseline is a
     # headless simulation, which is what lets it run on a machine with no GPU.
     # Both profiles, because overflow checks are on in dev and off in release,
