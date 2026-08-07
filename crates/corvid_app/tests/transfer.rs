@@ -262,6 +262,50 @@ fn a_machine_handed_a_state_restarts_on_it() -> Fallible {
     Ok(())
 }
 
+/// A state from a seat that does not answer for the session is dropped.
+///
+/// Adopting one assigns this machine's tick and its whole simulation and
+/// forgets every row before them. So the question of *who sent it* is the whole
+/// question, and the answer used to be nobody's: any peer that put a
+/// `Transfer` on the wire was obeyed, whether this machine had asked or not.
+///
+/// Seat zero is the authority here, which is what makes this checkable from one
+/// process: this run **is** seat zero, so a state arriving from seat one is by
+/// construction one the session does not take its answers from.
+#[test]
+fn a_state_from_a_seat_that_does_not_answer_is_dropped() -> Fallible {
+    let at = Tick(500);
+    let handed = Handover {
+        at,
+        state: Tally {
+            count: 4_242,
+            now: at,
+            movers: Vec::new(),
+        },
+        departed: Vec::new(),
+    };
+    let bytes = corvid_wire::encode(&handed)?;
+    let ticks = 8;
+    let (outcome, _sent) = play(0, ticks, vec![(PeerId(1), bytes, Some(Channel::Transfer))])?;
+
+    assert_eq!(
+        outcome.traffic.rescues, 0,
+        "a state from a seat that does not answer was adopted",
+    );
+    assert!(
+        outcome.state.now.0 <= ticks,
+        "the run was carried to tick {} by a state it should have dropped",
+        outcome.state.now.0,
+    );
+    assert_eq!(
+        outcome.session.first(),
+        Tick::ZERO,
+        "the session was reopened by a state it should have dropped, which \
+         would have thrown away every row before tick {at}",
+    );
+    Ok(())
+}
+
 /// A state carries the roster's departures with it.
 ///
 /// Without them the rescued machine adopts the state and goes on simulating a

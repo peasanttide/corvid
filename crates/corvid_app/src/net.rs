@@ -484,7 +484,9 @@ impl<S: State> Link<S> {
         let mut gone: Vec<PeerId> = Vec::new();
         let mut heard: Vec<(PeerId, Control)> = Vec::new();
         let mut arrived: Vec<PeerId> = Vec::new();
-        let mut transferred: Vec<Transfer<S>> = Vec::new();
+        // Paired with the peer that sent it, because who sent a state is half
+        // of whether to adopt it. See `rescue`.
+        let mut transferred: Vec<(PeerId, Transfer<S>)> = Vec::new();
         self.transport.poll(&mut |from, delivery| match delivery {
             Delivery::Datagram(bytes) => inbox.push(bytes.to_vec()),
             Delivery::Stream {
@@ -503,7 +505,7 @@ impl<S: State> Link<S> {
                 channel: Channel::Transfer,
                 bytes,
             } => match corvid_wire::decode::<Transfer<S>>(bytes) {
-                Ok(transfer) => transferred.push(transfer),
+                Ok(transfer) => transferred.push((from, transfer)),
                 Err(why) => tracing::warn!(
                     name: "corvid_app.unreadable_transfer",
                     peer = %from,
@@ -563,9 +565,7 @@ impl<S: State> Link<S> {
         // which keeps the earliest, so two machines proposing different ticks
         // land on the same one.
         self.agree(&gone, &heard, &arrived, traffic)?;
-        // A state that arrived is the answer to this machine having been stuck,
-        // and the newest one wins: two peers may both have answered.
-        if let Some(transfer) = transferred.into_iter().max_by_key(|transfer| transfer.at) {
+        if let Some(transfer) = self.solicited(transferred) {
             self.rescue(transfer, traffic)?;
         }
 
@@ -826,7 +826,69 @@ impl<S: State> Link<S> {
         Ok(())
     }
 
+    /// The state to adopt out of everything that arrived, if any of it counts.
+    ///
+    /// **Only from the authority.** Adopting a state assigns this machine's
+    /// tick and its whole simulation outright and forgets every row before
+    /// them, so which peer sent one decides what this machine is playing.
+    /// [`send_state`](Self::send_state) already refuses to answer unless this
+    /// machine is the authority; this is that same rule read from the receiving
+    /// end, which is the end it was missing from — any peer that cared to send
+    /// a `Transfer` was obeyed.
+    ///
+    /// The newest wins among what is left, because the authority may have
+    /// answered twice — a second `Stuck` sent while the first answer was still
+    /// in flight is one request, and the later state is the more useful one.
+    ///
+    /// # What this does not check
+    ///
+    /// That this machine asked. [`is_stuck`](Self::is_stuck) is the condition
+    /// under which it sends a `Stuck`, and a flag set there and cleared here
+    /// would refuse a state the authority pushed unprompted. That is worth
+    /// having against an authority that is merely *wrong* rather than hostile,
+    /// and it is deliberately not here yet: it changes when a legitimate rescue
+    /// is accepted, and the arrival window for one is exactly the case this
+    /// crate's tests do not yet drive.
+    fn solicited(&self, transferred: Vec<(PeerId, Transfer<S>)>) -> Option<Transfer<S>> {
+        let authority = self.authority();
+        transferred
+            .into_iter()
+            .filter(|(from, _)| {
+                if seat_of(*from) == authority {
+                    return true;
+                }
+                tracing::warn!(
+                    name: "corvid_app.unsolicited_transfer",
+                    peer = %from,
+                    authority = authority.0,
+                    "a state arrived from a seat that does not answer for this \
+                     session; dropped",
+                );
+                false
+            })
+            .max_by_key(|(_, transfer)| transfer.at)
+            .map(|(_, transfer)| transfer)
+    }
+
     /// Adopts a state somebody sent, departures and all.
+    ///
+    /// # Who may call this
+    ///
+    /// [`collect`](Self::collect) decides, through
+    /// [`solicited`](Self::solicited), and it is the only caller: the state has
+    /// to have come from [`authority`](Self::authority). Adopting one assigns
+    /// the tick and the state outright and forgets every row before them, so
+    /// which peer sent it is what decides what this machine plays.
+    ///
+    /// # What this still trusts
+    ///
+    /// The authority. A designated seat that lies about `at` or about the state
+    /// is a seat that decides where this session goes, and nothing here checks
+    /// its answer against one this machine derived — there is nothing to check
+    /// it against, which is the whole reason a rescue exists. So the roster is
+    /// the trust boundary: peers are other players, not arbitrary senders. A
+    /// deployment where they are not wants authentication under
+    /// [`Transport`](corvid_net::Transport), not a further test here.
     ///
     /// # Errors
     ///
