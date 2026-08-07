@@ -488,7 +488,7 @@ macro_rules! define_point {
                     $bits(self.0[1]) as i128,
                     $bits(self.0[2]) as i128,
                 ];
-                crate::point::normalize_bits(bits, false)
+                Direction::normalize_bits(bits, false)
             }
 
             /// The unit direction along this vector, approximately, or `None`
@@ -513,7 +513,7 @@ macro_rules! define_point {
                     $bits(self.0[1]) as i128,
                     $bits(self.0[2]) as i128,
                 ];
-                crate::point::normalize_bits(bits, true)
+                Direction::normalize_bits(bits, true)
             }
 
             /// The unit direction from here to `other`, or `None` if the two
@@ -534,7 +534,7 @@ macro_rules! define_point {
                     $bits(other.0[1]) as i128 - $bits(self.0[1]) as i128,
                     $bits(other.0[2]) as i128 - $bits(self.0[2]) as i128,
                 ];
-                crate::point::normalize_bits(bits, false)
+                Direction::normalize_bits(bits, false)
             }
 
             /// The unit direction from here to `other`, approximately, or
@@ -553,7 +553,7 @@ macro_rules! define_point {
                     $bits(other.0[1]) as i128 - $bits(self.0[1]) as i128,
                     $bits(other.0[2]) as i128 - $bits(self.0[2]) as i128,
                 ];
-                crate::point::normalize_bits(bits, true)
+                Direction::normalize_bits(bits, true)
             }
         }
 
@@ -842,94 +842,94 @@ impl Direction {
 
     /// Up.
     pub const Z: Self = Self([Signed32::ZERO, Signed32::ZERO, Signed32::MAX]);
-}
 
-/// Normalizes three raw bit patterns into a unit [`Direction`].
-///
-/// Shared by all four point types, because normalizing is scale-free: the
-/// component scale cancels, so only the ratios matter and one implementation
-/// serves every input width.
-///
-/// The reduction in step 3 is the reason [`I2F30`] exists in the shape it does.
-/// The sum of squares, relative to the largest component, lands in `[0.25, 3]`,
-/// which does not fit a type that stops at `±2` — but the sum can always be
-/// brought into `[0.25, 1)` by an *even* shift, and `rsqrt` of that lands in
-/// `(1, 2]`, which fits exactly.
-///
-/// `fast` picks the approximate reciprocal square root in step 3 and changes
-/// nothing else. It is a literal at every call site, so the branch folds away
-/// and neither tier pays for the other's existence.
-#[inline]
-pub(crate) const fn normalize_bits(bits: [i128; 3], fast: bool) -> Option<Direction> {
-    // 1. Rescale so the largest component sits just under 2^30. Shifting rather
-    //    than dividing costs at most a last bit of the smallest component,
-    //    which is below a unit vector's own resolution.
-    let mut largest = bits[0].unsigned_abs();
-    if bits[1].unsigned_abs() > largest {
-        largest = bits[1].unsigned_abs();
-    }
-    if bits[2].unsigned_abs() > largest {
-        largest = bits[2].unsigned_abs();
-    }
-    if largest == 0 {
-        // A zero vector has no direction to normalize. The only failure.
-        return None;
-    }
-
-    let bit_length = corvid_bits::bit_length_u128(largest);
-    let scaled = if bit_length > 30 {
-        let down = bit_length - 30;
-        [
-            shift_down(bits[0], down),
-            shift_down(bits[1], down),
-            shift_down(bits[2], down),
-        ]
-    } else {
-        let up = 30 - bit_length;
-        [bits[0] << up, bits[1] << up, bits[2] << up]
-    };
-
-    // Every component now fits comfortably inside `i64`, and the largest is in
-    // `[2^29, 2^30)`.
-    let t = [scaled[0] as i64, scaled[1] as i64, scaled[2] as i64];
-
-    // 2. The sum of squares at Q30. Each square is at most 2^60 and there are
-    //    three of them, so this stays inside `i64`.
-    let sum = (t[0] * t[0] + t[1] * t[1] + t[2] * t[2]) >> 30;
-
-    // 3. Bring it into `[0.25, 1)` by an even shift, so `rsqrt` lands in the
-    //    `(1, 2]` that `I2F30` was given its spare bit of range for.
-    let (reduced, halve) = if sum >= 1 << 30 {
-        (sum >> 2, true)
-    } else {
-        (sum, false)
-    };
-    let inverse = if reduced == 1 << 28 {
-        // `rsqrt(0.25)` is exactly `2.0`, one step past `I2F30::MAX`, so the
-        // type saturates. That is precisely the axis-aligned case, whose answer
-        // ought to be exactly ±1 — so take this one value by hand rather than
-        // lose a last bit to a clamp.
-        1i64 << 31
-    } else {
-        let root = I2F30::from_bits(reduced as i32);
-        if fast {
-            root.rsqrt_fast()
-        } else {
-            root.rsqrt()
+    /// Normalizes three raw bit patterns into a unit [`Direction`].
+    ///
+    /// Shared by all four point types, because normalizing is scale-free: the
+    /// component scale cancels, so only the ratios matter and one implementation
+    /// serves every input width.
+    ///
+    /// The reduction in step 3 is the reason [`I2F30`] exists in the shape it does.
+    /// The sum of squares, relative to the largest component, lands in `[0.25, 3]`,
+    /// which does not fit a type that stops at `±2` — but the sum can always be
+    /// brought into `[0.25, 1)` by an *even* shift, and `rsqrt` of that lands in
+    /// `(1, 2]`, which fits exactly.
+    ///
+    /// `fast` picks the approximate reciprocal square root in step 3 and changes
+    /// nothing else. It is a literal at every call site, so the branch folds away
+    /// and neither tier pays for the other's existence.
+    #[inline]
+    pub(crate) const fn normalize_bits(bits: [i128; 3], fast: bool) -> Option<Self> {
+        // 1. Rescale so the largest component sits just under 2^30. Shifting rather
+        //    than dividing costs at most a last bit of the smallest component,
+        //    which is below a unit vector's own resolution.
+        let mut largest = bits[0].unsigned_abs();
+        if bits[1].unsigned_abs() > largest {
+            largest = bits[1].unsigned_abs();
         }
-        .to_bits() as i64
-    };
+        if bits[2].unsigned_abs() > largest {
+            largest = bits[2].unsigned_abs();
+        }
+        if largest == 0 {
+            // A zero vector has no direction to normalize. The only failure.
+            return None;
+        }
 
-    // 4. Scale each component by it, undo the reduction's shift, and convert to
-    //    `Signed32` — all in one expression, so the whole normalize rounds
-    //    exactly once. `Signed32`'s scale is `2^31 − 1` rather than a power of
-    //    two, which is the only non-shift factor in the whole routine.
-    let shift = if halve { 31 } else { 30 };
-    Some(Direction::new(
-        unit_component(t[0], inverse, shift),
-        unit_component(t[1], inverse, shift),
-        unit_component(t[2], inverse, shift),
-    ))
+        let bit_length = corvid_bits::bit_length_u128(largest);
+        let scaled = if bit_length > 30 {
+            let down = bit_length - 30;
+            [
+                shift_down(bits[0], down),
+                shift_down(bits[1], down),
+                shift_down(bits[2], down),
+            ]
+        } else {
+            let up = 30 - bit_length;
+            [bits[0] << up, bits[1] << up, bits[2] << up]
+        };
+
+        // Every component now fits comfortably inside `i64`, and the largest is in
+        // `[2^29, 2^30)`.
+        let t = [scaled[0] as i64, scaled[1] as i64, scaled[2] as i64];
+
+        // 2. The sum of squares at Q30. Each square is at most 2^60 and there are
+        //    three of them, so this stays inside `i64`.
+        let sum = (t[0] * t[0] + t[1] * t[1] + t[2] * t[2]) >> 30;
+
+        // 3. Bring it into `[0.25, 1)` by an even shift, so `rsqrt` lands in the
+        //    `(1, 2]` that `I2F30` was given its spare bit of range for.
+        let (reduced, halve) = if sum >= 1 << 30 {
+            (sum >> 2, true)
+        } else {
+            (sum, false)
+        };
+        let inverse = if reduced == 1 << 28 {
+            // `rsqrt(0.25)` is exactly `2.0`, one step past `I2F30::MAX`, so the
+            // type saturates. That is precisely the axis-aligned case, whose answer
+            // ought to be exactly ±1 — so take this one value by hand rather than
+            // lose a last bit to a clamp.
+            1i64 << 31
+        } else {
+            let root = I2F30::from_bits(reduced as i32);
+            if fast {
+                root.rsqrt_fast()
+            } else {
+                root.rsqrt()
+            }
+            .to_bits() as i64
+        };
+
+        // 4. Scale each component by it, undo the reduction's shift, and convert to
+        //    `Signed32` — all in one expression, so the whole normalize rounds
+        //    exactly once. `Signed32`'s scale is `2^31 − 1` rather than a power of
+        //    two, which is the only non-shift factor in the whole routine.
+        let shift = if halve { 31 } else { 30 };
+        Some(Self::new(
+            unit_component(t[0], inverse, shift),
+            unit_component(t[1], inverse, shift),
+            unit_component(t[2], inverse, shift),
+        ))
+    }
 }
 
 /// `value >> shift`, truncating **toward zero** rather than toward negative

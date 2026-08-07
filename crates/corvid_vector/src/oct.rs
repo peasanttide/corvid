@@ -147,8 +147,8 @@ impl OctDirection {
             y.canonicalize().to_bits() as i64,
             z.canonicalize().to_bits() as i64,
         );
-        let (a, b, c) = (x.abs(), y.abs(), z.abs());
-        let sum = a + b + c;
+        let (abs_x, abs_y, abs_z) = (x.abs(), y.abs(), z.abs());
+        let sum = abs_x + abs_y + abs_z;
         if sum == 0 {
             return Self::UP;
         }
@@ -160,7 +160,10 @@ impl OctDirection {
         let (nu, nv) = if z >= 0 {
             (x, y)
         } else {
-            (sign_not_zero(x) * (sum - b), sign_not_zero(y) * (sum - a))
+            (
+                sign_not_zero(x) * (sum - abs_y),
+                sign_not_zero(y) * (sum - abs_x),
+            )
         };
 
         Self([quantize(nu, sum), quantize(nv, sum)])
@@ -180,8 +183,8 @@ impl OctDirection {
         let v = self.0[1].canonicalize().to_bits() as i128;
         // Height above the diamond, at the same scale. Negative exactly inside
         // the four corners, which is where the lower hemisphere went.
-        let w = UNIT as i128 - u.abs() - v.abs();
-        let (x, y) = if w < 0 {
+        let height = UNIT as i128 - u.abs() - v.abs();
+        let (x, y) = if height < 0 {
             (
                 sign_not_zero_wide(u) * (UNIT as i128 - v.abs()),
                 sign_not_zero_wide(v) * (UNIT as i128 - u.abs()),
@@ -190,9 +193,9 @@ impl OctDirection {
             (u, v)
         };
 
-        match crate::point::normalize_bits([x, y, w], false) {
+        match Direction::normalize_bits([x, y, height], false) {
             Some(direction) => direction,
-            // `w` is zero only when `|u| + |v|` is 127, and then at least one of
+            // `height` is zero only when `|u| + |v|` is 127, and then at least one of
             // the two is non-zero — so the three are never all zero and the
             // normalize never fails. Naming the answer beats naming a panic.
             None => Direction::new(Signed32::ZERO, Signed32::ZERO, Signed32::MAX),
