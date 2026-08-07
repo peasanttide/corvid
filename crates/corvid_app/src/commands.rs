@@ -41,17 +41,6 @@ pub enum Answer {
     Unhandled,
 }
 
-impl fmt::Display for Answer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Done => f.write_str("done"),
-            Self::Empty => f.write_str("empty"),
-            Self::Failed => f.write_str("failed"),
-            Self::Unhandled => f.write_str("unhandled"),
-        }
-    }
-}
-
 /// One request a tick made, and what became of it.
 ///
 /// `R` is the game's [`Level::Reference`](corvid_behavior::Level::Reference),
