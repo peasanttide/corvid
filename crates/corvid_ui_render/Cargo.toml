@@ -38,6 +38,12 @@ corvid_render = { version = "0.1", path = "../corvid_render" }
 # is not useful.
 bytemuck = { version = "1", features = ["derive"] }
 
+[dev-dependencies]
+# The colour a rectangle carries, which `tests/instances.rs` builds one from.
+# A dev-dependency rather than a real one: this crate turns a `corvid_ui`
+# layout into instances and the colour rides along inside it.
+corvid_color = { workspace = true, features = ["std"] }
+
 # No features. There was a `std` one, which added no API and existed so that a
 # downstream could forward `std` uniformly across the workspace without
 # special-casing this crate. The audit that came with `corvid_control` losing

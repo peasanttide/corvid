@@ -28,6 +28,29 @@ corvid_render = { workspace = true }
 # `unsafe`, which is forbidden here.
 bytemuck = { workspace = true }
 
+[dev-dependencies]
+# The scale a mesh carries, which the README's example names.
+corvid_fixed = { workspace = true, features = ["std"] }
+# The three `tests/offscreen.rs` reaches for directly. Each is already a
+# dependency of `corvid_render` below this crate, so this pins nothing new: the
+# test brings its own pipeline and its own shader, the way a game does, and
+# that means naming `wgpu` and `bytemuck` in its own source rather than through
+# a re-export. `png` is the decoder half — the device encodes a read-back frame
+# and never reads one back in, so the round trip is only assertable from a test.
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+png = "0.18"
+# What `tests/offscreen.rs` builds a scene out of: a camera to look with, a
+# rotation and a transform to place the cube by, and the vector and shape types
+# they are spelled in. Every one of them is already under `corvid_render`, so
+# the test binary is the only thing that gains an edge.
+corvid_camera = { workspace = true, features = ["std"] }
+corvid_glm = { workspace = true }
+corvid_rotation = { workspace = true, features = ["std"] }
+corvid_shape = { workspace = true, features = ["std"] }
+corvid_transform = { workspace = true, features = ["std"] }
+corvid_vector = { workspace = true, features = ["bytemuck", "std"] }
+
 [lints]
 workspace = true
 

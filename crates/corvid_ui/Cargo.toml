@@ -30,6 +30,10 @@ corvid_transform = { version = "0.1", path = "../corvid_transform", default-feat
 # bytes of a vertex buffer needs it, and that caller is a ring above this one.
 bytemuck = { version = "1", features = ["derive"], optional = true }
 
+[dev-dependencies]
+corvid_vector = { workspace = true }
+corvid_input = { workspace = true }
+
 [features]
 default = []
 # `Pod` and `Zeroable` on the paint data, so a slice of resolved rectangles

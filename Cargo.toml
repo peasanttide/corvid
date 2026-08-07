@@ -53,6 +53,13 @@ corvid_vector = { workspace = true, features = ["std"] }
 corvid_window = { workspace = true, optional = true }
 corvid_wire = { workspace = true, features = ["std"] }
 
+[dev-dependencies]
+# The doctest above derives `Serialize` and `Deserialize` on a game's own state,
+# which `corvid_behavior::Data` demands of it. A game's manifest carries the
+# same line, so this is what the example is showing rather than a detail of
+# testing it.
+serde = { workspace = true, features = ["derive", "std"] }
+
 # Three, and they are `corvid_app`'s three. `gamepad` is not among them, because
 # `corvid_app` folded pads, a keyboard and a sound card into `window`: the three
 # were describing one machine.

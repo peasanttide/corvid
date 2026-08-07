@@ -50,6 +50,12 @@ corvid_wire = { workspace = true, features = ["std"] }
 # with no graphics stack.
 png = "0.18"
 
+[dev-dependencies]
+# The camera a `Controller::look` answers, for the fixture that has one.
+corvid_camera = { workspace = true, features = ["std"] }
+corvid_sound = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["derive", "std"] }
+
 [lints]
 workspace = true
 

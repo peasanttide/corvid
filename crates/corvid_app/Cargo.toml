@@ -78,6 +78,16 @@ corvid_audio = { workspace = true }
 corvid_net = { workspace = true, optional = true }
 corvid_lockstep = { workspace = true, features = ["std"], optional = true }
 
+[dev-dependencies]
+# The harness in `tests/common` writes a real pipeline, the way a game does.
+wgpu = { workspace = true }
+corvid_transform = { workspace = true, features = ["std"] }
+corvid_vector = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["derive", "std"] }
+# The subscriber the unhandled-command test installs. A claim that something
+# warns is only checkable by collecting what it emitted.
+tracing = { workspace = true, features = ["std"] }
+
 [features]
 default = []
 # Discards the accumulated `Scratch` on a schedule that is part of the session,

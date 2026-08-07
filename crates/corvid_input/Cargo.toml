@@ -19,6 +19,24 @@ corvid_bits = { workspace = true }
 corvid_transform = { version = "0.1.0", path = "../corvid_transform", default-features = false }
 serde = { workspace = true, optional = true }
 
+[dev-dependencies]
+# Two of the three tables a binding file's encoding is frozen as. A
+# self-describing format, because the field names and their order can only be
+# shown by a format that writes them down; and `corvid_wire`, the workspace's one
+# encoding, because a field's *position* can only be shown by one that does not.
+corvid_wire = { workspace = true }
+serde_json = "1"
+# The third table, and the only one of the three that can see an integer's
+# width. Neither encoding above can: `corvid_wire` writes a varint, so a small
+# number is the same byte at every declared width, and a self-describing format
+# writes the same number. `corvid_hash` absorbs an integer as its declared bytes
+# and injects the count, so a `DigitalId` widened from `u16` to `u32` moves a
+# digest and nothing else in this crate. A dev-dependency because the library
+# hashes nothing — an identifier reaches a hash trace inside somebody else's
+# state, and the crate that owns that state is the one that depends on the
+# hasher.
+corvid_hash = { workspace = true }
+
 [features]
 default = []
 # The identifiers and the two value types, written down. A saved binding file

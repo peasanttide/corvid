@@ -22,6 +22,13 @@ corvid_hash = { workspace = true }
 corvid_fixed = { version = "0.1.0", path = "../corvid_fixed", default-features = false }
 serde = { workspace = true, optional = true }
 
+[dev-dependencies]
+# The encoding a recorded byte string is recorded under, which is a
+# workspace-wide decision rather than this crate's. Depending on it here rather
+# than on a format crate is the point: a test file that named a format could
+# name a different one.
+corvid_wire = { workspace = true }
+
 [features]
 default = []
 # Only the integer types gain an encoding, because only they have one that

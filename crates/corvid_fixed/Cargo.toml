@@ -26,6 +26,19 @@ corvid_float = { workspace = true }
 num-traits = { version = "0.2.19", default-features = false, optional = true }
 serde = { workspace = true, optional = true }
 
+[dev-dependencies]
+# The workspace's one encoding, so that this crate's byte goldens are recorded
+# in the format a capture is actually written in rather than in a stand-in.
+# Every scalar here goes inside somebody's snapshot, and a width is the one
+# change nothing else in this crate can see.
+corvid_wire = { workspace = true }
+# The digest the tests here check a scalar's encoding against. Nothing in the
+# source names it: a scalar's `Hash` is `core`'s, and what the tests pin is what
+# that emission comes to under this workspace's one hasher.
+corvid_hash = { workspace = true }
+nalgebra = { workspace = true }
+serde_json = "1"
+
 [features]
 default = []
 std = [
