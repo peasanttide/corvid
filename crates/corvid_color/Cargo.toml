@@ -1,0 +1,52 @@
+[package]
+name = "corvid_color"
+description = "Colour, as data: 8-bit sRGB storage, linear float for a shader, and Oklab for anything that has to blend."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["color", "srgb", "oklab", "no-std", "gamedev"]
+categories = ["game-development", "no-std"]
+
+[dependencies]
+corvid_shape = { workspace = true }
+corvid_bits = { workspace = true }
+bytemuck = { workspace = true, optional = true }
+corvid_hash = { workspace = true }
+# Integer trigonometry, for `Oklch`'s hue. `core` has no `atan2` and no
+# `sin_cos`, and this workspace already owns both — reaching for them here is
+# cheaper than a `libm` dependency and gives the hue a type that says it wraps,
+# which an `f32` of radians does not.
+corvid_fixed = { version = "0.1.0", path = "../corvid_fixed", default-features = false }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+# The encoding a recorded byte string is recorded under, which is a
+# workspace-wide decision rather than this crate's. Depending on it here rather
+# than on a format crate is the point: a test file that named a format could
+# name a different one.
+corvid_wire = { workspace = true }
+
+[features]
+default = []
+# Only the integer types gain an encoding, because only they have one that
+# survives a round trip on another target.
+serde = ["dep:serde", "corvid_fixed/serde"]
+# `Pod` and `Zeroable` on the four colour types, so a slice of them casts to the
+# bytes of a vertex attribute or a uniform buffer without `unsafe`, which the
+# workspace forbids. Forwarded to `corvid_fixed`, because the channels inside a
+# colour have to be `Pod` for the colour to be.
+bytemuck = ["dep:bytemuck", "corvid_fixed/bytemuck"]
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+std = ["bytemuck?/extern_crate_std", "corvid_hash/std", "corvid_fixed/std", "serde?/std"]
+
+[lints]
+workspace = true
+
+# Every optional integration is off by default, so a plain build documents none
+# of the serde impls.
+[package.metadata.docs.rs]
+all-features = true
