@@ -1,0 +1,43 @@
+[package]
+name = "corvid_lockstep"
+description = "The simulation ring of a Corvid session: prediction, rollback, and the digest exchange, over frames of bytes and no transport at all."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["lockstep", "rollback", "netcode", "deterministic", "no-std"]
+categories = ["game-development", "no-std"]
+
+[dependencies]
+corvid_behavior = { version = "0.1", path = "../corvid_behavior", default-features = false }
+corvid_hash = { version = "0.1", path = "../corvid_hash", default-features = false }
+corvid_replay = { version = "0.1", path = "../corvid_replay", default-features = false }
+# Named directly rather than reached through `corvid_replay` for the `serde`
+# feature: a `Datagram` carries two ticks and they have to go on the wire.
+# `corvid_time/std` is deliberately absent, as it is everywhere in the
+# simulation ring — the API it adds is `Wall`, and nothing that computes part of
+# a tick may ask what time it is.
+corvid_time = { version = "0.1", path = "../corvid_time", default-features = false, features = ["serde"] }
+corvid_wire = { version = "0.1", path = "../corvid_wire", default-features = false }
+# `rc` is named here rather than left to workspace feature unification, because
+# a standalone `-p corvid_lockstep` build unifies with nothing: an `Opening`
+# carries its level, rules and origin behind `Arc`, and without `rc` serde has
+# no impl for one. It changes no byte — `Arc<T>` is written as `T`.
+serde = { version = "1", default-features = false, features = ["alloc", "derive", "rc"] }
+
+[features]
+default = []
+# The bisector. It adds `bisect` and fills `Desync::fields`; without it a desync
+# reports and resynchronises from a full state transfer instead.
+dev = []
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+std = ["corvid_behavior/std", "corvid_hash/std", "corvid_replay/std", "corvid_wire/std", "serde/std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
