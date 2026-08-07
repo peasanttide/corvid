@@ -533,7 +533,7 @@ a game that has a `draw` and does not call it.
 A windowed run differs in two more ways, both documented on the builders that
 cause them. Its input snapshot is refilled from the window's devices every
 frame, so the snapshot given to `input` supplies the *declaration* and not the
-values. And its default clock is [`Wall`] rather than [`Clock::stepping`],
+values. And its default clock is [`Clock::wall`] rather than [`Clock::stepping`],
 because a window in front of a player runs in real time.
 
 The event loop owns `main` on a windowed run, because on iOS, Android and the
@@ -638,7 +638,7 @@ be compared against the wrong build eventually.
 [`State`]: corvid_behavior::State
 [`Auralizer`]: corvid_sound::Auralizer
 [`Step`]: corvid_time::Step
-[`Wall`]: corvid_time::Wall
+[`Clock::wall`]: corvid_time::Clock::wall
 [`Arguments::parse`]: crate::Arguments::parse
 [`App::window`]: crate::App::window
 [`App::bindings`]: crate::App::bindings

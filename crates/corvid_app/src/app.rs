@@ -142,8 +142,8 @@ impl<S: State> fmt::Debug for Outcome<S> {
 ///
 /// Nothing here runs until [`run`](Self::run), and everything before it is a
 /// setting with a default. The defaults are the ones a headless run wants,
-/// because a headless run is the kind that needs no setting up: a
-/// [`Fake`](corvid_time::Fake) clock stepping one period per call, the
+/// because a headless run is the kind that needs no setting up: a clock
+/// [stepping](corvid_time::Clock::stepping) one period per call, the
 /// [`CRADLE`](TickSpan::CRADLE) rate, seat zero, an input snapshot with nothing
 /// held, no capture, and [`Retention::RECENT`] — which is the one default that
 /// reads another setting, since a run being captured keeps everything instead.
@@ -474,8 +474,8 @@ where
     /// default against an explicit `Clock::stepping(rate.period())` at a rate
     /// that is not the default one, where any other period owes a different
     /// number of ticks per reading. A run in front of a player passes
-    /// [`Wall`](corvid_time::Clock) here, and that is the only way a wall clock
-    /// enters this crate.
+    /// [`Clock::wall`](corvid_time::Clock::wall) here, and that is the only way
+    /// a wall clock enters this crate.
     #[must_use]
     pub fn clock(mut self, clock: impl Elapsed + 'static) -> Self {
         self.clock = Some(Box::new(clock));
@@ -1043,10 +1043,10 @@ where
     /// [`RELEASED`](corvid_input::Digital::RELEASED) to every query
     /// for the whole run.
     ///
-    /// The default clock becomes [`Wall`](corvid_time::Clock), because a window
-    /// in front of a player runs in real time and the
-    /// [`Fake`](corvid_time::Fake) a headless run defaults to would run the
-    /// simulation as fast as the display asked for frames.
+    /// The default clock becomes [`Clock::wall`](corvid_time::Clock::wall),
+    /// because a window in front of a player runs in real time and the
+    /// [`Clock::stepping`](corvid_time::Clock::stepping) a headless run defaults
+    /// to would run the simulation as fast as the display asked for frames.
     ///
     /// # What this does not change
     ///

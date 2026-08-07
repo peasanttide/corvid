@@ -196,14 +196,14 @@ whole purpose is that the loop can be handed a different one in a test:
 |---|---|---|
 | [`Clock::stepping(period)`](Clock::stepping) | exactly `period`, every call | Every headless test. One tick per iteration, forever |
 | [`Clock::still`] + [`advance`](Clock::advance) | whatever was queued | Handing the loop an irregular or absurd frame time on purpose |
-| [`Wall`] (`std`) | the monotonic system clock | A game that is actually running |
+| [`Clock::wall`] (`std`) | the monotonic system clock | A game that is actually running |
 
 [`elapsed`](Clock::elapsed) returns an interval rather than a timestamp. An
 implementation that subtracts two absolute times is the one place a clock moving
 backwards turns into a negative interval; returning the interval directly keeps
-the answer unsigned the whole way. [`Wall`] uses the monotonic clock, so setting
-the system time does not move it, and saturates rather than panicking if it ever
-appears to move backwards anyway.
+the answer unsigned the whole way. [`Clock::wall`] uses the monotonic clock, so
+setting the system time does not move it, and saturates rather than panicking if
+it ever appears to move backwards anyway.
 
 An interval is consumed by being read, which is why no clock here is `Copy` —
 the same reason [`Step`] is not. A copy of a clock still holds the interval the
@@ -225,7 +225,7 @@ All off by default. The crate is `no_std` and allocates nothing.
 | Feature | Effect |
 |---|---|
 | `serde` | `Serialize`/`Deserialize` for [`Tick`] and [`TickSpan`], transparently as the number. A rate of zero is refused by the deserializer rather than becoming a division by zero later |
-| `std` | [`Wall`]. The only feature that adds API |
+| `std` | [`Clock::wall`]. The only feature that adds API |
 
 [`Step`] and [`Clock`] have neither a wire format nor a digest, on purpose. They
 are the runtime's business: what they hold is how far behind this machine is,
