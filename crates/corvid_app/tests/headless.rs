@@ -332,7 +332,7 @@ fn the_clock_the_app_was_given_is_what_decides_how_often_a_tick_runs() {
         "quarter",
         Progress {
             tick: Tick::ZERO,
-            mark: None,
+            mark: Digest::ZERO,
             frames: 0,
             finished: false,
         },
@@ -358,7 +358,7 @@ fn the_clock_the_app_was_given_is_what_decides_how_often_a_tick_runs() {
         "whole",
         Progress {
             tick: Tick::ZERO,
-            mark: None,
+            mark: Digest::ZERO,
             frames: 0,
             finished: false,
         },
@@ -506,7 +506,7 @@ fn frames_of(app: App<Tally, Hands, Painted, Ears>) -> u64 {
         "frames",
         Progress {
             tick: Tick::ZERO,
-            mark: None,
+            mark: Digest::ZERO,
             frames: 0,
             finished: false,
         },
@@ -602,7 +602,7 @@ fn a_run_reports_where_it_has_got_to_while_it_is_still_running() {
         "run",
         Progress {
             tick: Tick::ZERO,
-            mark: None,
+            mark: Digest::ZERO,
             frames: 0,
             finished: false,
         },
@@ -654,5 +654,8 @@ fn a_run_reports_where_it_has_got_to_while_it_is_still_running() {
     assert_eq!(last.tick, Tick(TICKS));
     assert_eq!(last.tick, reached);
     assert_eq!(last.frames, TICKS);
-    assert!(last.mark.is_some());
+    // The seed this channel was opened with, which is what the field holds
+    // until the loop publishes over it — so this says a real mark arrived
+    // rather than merely that the field has a type.
+    assert_ne!(last.mark, Digest::ZERO);
 }

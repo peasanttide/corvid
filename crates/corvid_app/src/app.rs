@@ -35,9 +35,14 @@ pub(crate) type Stop<S> = Box<dyn Fn(&S, Tick) -> bool>;
 pub struct Progress {
     /// The tick the runtime's current state is at.
     pub tick: Tick,
-    /// The digest of that state, or [`None`] for a tick the trace has no mark
-    /// for — which happens only if a caller replaced the session's trace.
-    pub mark: Option<Digest>,
+    /// The digest of that state.
+    ///
+    /// Always a mark rather than an [`Option`]: the loop pushes one for every
+    /// tick it advances, so the trace can answer for [`tick`](Self::tick) in
+    /// every run this crate drives. The one way it could not is a caller having
+    /// replaced the session's trace, and the honest answer there is the digest
+    /// of the state in hand rather than a `None` every reader has to branch on.
+    pub mark: Digest,
     /// How many frames have been displayed.
     pub frames: u64,
     /// Whether the loop has stopped. The last value published before

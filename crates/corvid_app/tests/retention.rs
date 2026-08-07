@@ -18,6 +18,7 @@ mod common;
 use common::{Action, Ears, Hands, Painted, Rules, Scratchpad, Tally, mark, opening, seat};
 use corvid_app::{App, Outcome, Progress, Retention};
 use corvid_behavior::PlayerId;
+use corvid_hash::Digest;
 use corvid_replay::Unreachable;
 use corvid_replay::{Session, Snapshots};
 use corvid_signal::channel;
@@ -322,7 +323,7 @@ fn a_bounded_run_still_publishes_the_mark_for_the_tick_it_is_on() {
         "retention",
         Progress {
             tick: Tick::ZERO,
-            mark: None,
+            mark: Digest::ZERO,
             frames: 0,
             finished: false,
         },
@@ -341,7 +342,7 @@ fn a_bounded_run_still_publishes_the_mark_for_the_tick_it_is_on() {
     assert_eq!(last.tick, Tick(TICKS));
     assert_eq!(
         last.mark,
-        Some(mark(&run.state)),
+        mark(&run.state),
         "the last progress published names the digest of the state the run \
          stopped at",
     );

@@ -911,7 +911,16 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         if let Some(emitter) = &self.progress {
             emitter.set(Progress {
                 tick: self.at,
-                mark: self.play.session().marks.get(self.at),
+                // The trace answers for every tick the loop advanced, which is
+                // the normal path and a lookup rather than a hash. Computing
+                // one is the fallback for a caller that replaced the trace,
+                // where the state in hand is still the truth about `at`.
+                mark: self
+                    .play
+                    .session()
+                    .marks
+                    .get(self.at)
+                    .unwrap_or_else(|| digest(&*self.current)),
                 frames: self.backend.frames(),
                 finished,
             });

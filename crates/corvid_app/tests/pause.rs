@@ -39,7 +39,7 @@ use std::time::Duration;
 use common::{Ears, Hands, Holding, Painted, Rules, Tally, action, opening};
 use corvid_app::{App, Outcome, Progress};
 use corvid_control::Controller;
-use corvid_hash::digest;
+use corvid_hash::{Digest, digest};
 use corvid_input::{Digital, Input};
 use corvid_signal::channel;
 use corvid_time::{Clock, Tick, TickRate};
@@ -141,7 +141,7 @@ fn play(holding: Holding, on: u64, stall: Duration) -> (Outcome<Tally>, Progress
         "pause",
         Progress {
             tick: Tick::ZERO,
-            mark: None,
+            mark: Digest::ZERO,
             frames: 0,
             finished: false,
         },
