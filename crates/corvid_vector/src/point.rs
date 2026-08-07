@@ -67,6 +67,8 @@ const fn signed32_bits(value: Signed32) -> i32 {
 /// - `bits` names the reader that turns a component into its bit pattern. It is
 ///   not simply `to_bits`, because [`Signed32`] has a redundant encoding — see
 ///   [`signed32_bits`].
+/// - `build` is the lowercase free function that builds the type from three
+///   things that convert into its component, so `finepoint(1, 2, 3)` reads.
 macro_rules! define_point {
     (
         $(#[$attr:meta])*
@@ -76,6 +78,7 @@ macro_rules! define_point {
             one: $one:expr,
             neg: $neg:ident,
             bits: $bits:ident,
+            build: $build:ident,
         }
     ) => {
         $(#[$attr])*
@@ -120,6 +123,44 @@ macro_rules! define_point {
             #[inline]
             pub const fn to_array(self) -> [$scalar; 3] {
                 self.0
+            }
+
+            /// The components as a slice, in `x`, `y`, `z` order.
+            #[must_use]
+            #[inline]
+            pub const fn as_slice(&self) -> &[$scalar] {
+                &self.0
+            }
+
+            /// The components as a mutable slice, in `x`, `y`, `z` order.
+            #[must_use]
+            #[inline]
+            pub const fn as_mut_slice(&mut self) -> &mut [$scalar] {
+                &mut self.0
+            }
+
+            /// Borrows the three components in **`x`, `y`, `z` order**.
+            ///
+            /// The order is part of the type rather than an implementation
+            /// detail: it is the order [`to_array`](Self::to_array) returns, the
+            /// order the digest absorbs, and the order the wire format writes,
+            /// and the tests pin all four to each other.
+            #[inline]
+            pub fn iter(&self) -> core::slice::Iter<'_, $scalar> {
+                self.0.iter()
+            }
+
+            /// Borrows the three components mutably, in `x`, `y`, `z` order.
+            ///
+            /// A point is three independent numbers, so assigning one of them
+            /// is always meaningful. [`Direction`] is the one type here that
+            /// carries an expectation beyond its components — that they name a
+            /// unit vector — and nothing renormalizes after a write, exactly as
+            /// nothing checks [`Direction::new`]. Assign through here and then
+            /// [`normalize`](Self::normalize) if that expectation matters.
+            #[inline]
+            pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, $scalar> {
+                self.0.iter_mut()
             }
 
             /// The `x` component: rightward, in the crate's right-handed
@@ -615,10 +656,31 @@ macro_rules! define_point {
             }
         }
 
-        impl From<[$scalar; 3]> for $name {
+        /// Builds a point from three things that convert into its component.
+        ///
+        /// An array of the component type is the case where `T` is that type,
+        /// so this **replaces** the plain array conversion rather than sitting
+        /// beside it: the two overlap and rustc rejects the pair. Nothing is
+        /// lost, since the generic impl accepts strictly more.
+        impl<T: Into<$scalar>> From<[T; 3]> for $name {
             #[inline]
-            fn from(components: [$scalar; 3]) -> Self {
-                Self(components)
+            fn from(components: [T; 3]) -> Self {
+                let [x, y, z] = components;
+                Self([x.into(), y.into(), z.into()])
+            }
+        }
+
+        /// Builds a point from a triple, in `x`, `y`, `z` order.
+        ///
+        /// One type parameter per component rather than one shared by all three,
+        /// so a tuple of two integers and a computed scalar converts. There is
+        /// no coherence problem here, unlike the array impl above: a tuple is a
+        /// tuple whatever its components are, so it can never be this type
+        /// itself, and this cannot overlap the reflexive `From<T> for T`.
+        impl<A: Into<$scalar>, B: Into<$scalar>, C: Into<$scalar>> From<(A, B, C)> for $name {
+            #[inline]
+            fn from((x, y, z): (A, B, C)) -> Self {
+                Self([x.into(), y.into(), z.into()])
             }
         }
 
@@ -627,6 +689,62 @@ macro_rules! define_point {
             fn from(point: $name) -> Self {
                 point.0
             }
+        }
+
+        impl From<$name> for ($scalar, $scalar, $scalar) {
+            #[inline]
+            fn from(point: $name) -> Self {
+                (point.0[0], point.0[1], point.0[2])
+            }
+        }
+
+        /// Yields the three components by value, in `x`, `y`, `z` order.
+        impl IntoIterator for $name {
+            type Item = $scalar;
+            type IntoIter = core::array::IntoIter<$scalar, 3>;
+
+            #[inline]
+            fn into_iter(self) -> Self::IntoIter {
+                self.0.into_iter()
+            }
+        }
+
+        /// Yields references to the three components, in `x`, `y`, `z` order.
+        impl<'a> IntoIterator for &'a $name {
+            type Item = &'a $scalar;
+            type IntoIter = core::slice::Iter<'a, $scalar>;
+
+            #[inline]
+            fn into_iter(self) -> Self::IntoIter {
+                self.0.iter()
+            }
+        }
+
+        /// Yields mutable references to the three components, in `x`, `y`, `z`
+        /// order.
+        impl<'a> IntoIterator for &'a mut $name {
+            type Item = &'a mut $scalar;
+            type IntoIter = core::slice::IterMut<'a, $scalar>;
+
+            #[inline]
+            fn into_iter(self) -> Self::IntoIter {
+                self.0.iter_mut()
+            }
+        }
+
+        #[doc = concat!("Builds a [`", stringify!($name), "`] from three things that convert into [`", stringify!($scalar), "`].")]
+        ///
+        /// The short spelling, for the places a vector literal is what the code
+        /// is about — a test fixture, a table of geometry, a call site with
+        /// three numbers in it.
+        #[must_use]
+        #[inline]
+        pub fn $build(
+            x: impl Into<$scalar>,
+            y: impl Into<$scalar>,
+            z: impl Into<$scalar>,
+        ) -> $name {
+            $name([x.into(), y.into(), z.into()])
         }
     };
 }
@@ -648,6 +766,7 @@ define_point! {
         one: 65_536,
         neg: saturating_neg,
         bits: i48f16_bits,
+        build: globalfinepoint,
     }
 }
 
@@ -665,6 +784,7 @@ define_point! {
         one: 256,
         neg: saturating_neg,
         bits: i24f8_bits,
+        build: globalpoint,
     }
 }
 
@@ -685,6 +805,7 @@ define_point! {
         one: 65_536,
         neg: saturating_neg,
         bits: i16f16_bits,
+        build: finepoint,
     }
 }
 
@@ -707,7 +828,20 @@ define_point! {
         one: 2_147_483_647,
         neg: neg,
         bits: signed32_bits,
+        build: direction,
     }
+}
+
+impl Direction {
+    /// Right, in the workspace's right-handed +X right, +Y forward, +Z up
+    /// convention.
+    pub const X: Self = Self([Signed32::MAX, Signed32::ZERO, Signed32::ZERO]);
+
+    /// Forward.
+    pub const Y: Self = Self([Signed32::ZERO, Signed32::MAX, Signed32::ZERO]);
+
+    /// Up.
+    pub const Z: Self = Self([Signed32::ZERO, Signed32::ZERO, Signed32::MAX]);
 }
 
 /// Normalizes three raw bit patterns into a unit [`Direction`].
@@ -726,7 +860,7 @@ define_point! {
 /// nothing else. It is a literal at every call site, so the branch folds away
 /// and neither tier pays for the other's existence.
 #[inline]
-const fn normalize_bits(bits: [i128; 3], fast: bool) -> Option<Direction> {
+pub(crate) const fn normalize_bits(bits: [i128; 3], fast: bool) -> Option<Direction> {
     // 1. Rescale so the largest component sits just under 2^30. Shifting rather
     //    than dividing costs at most a last bit of the smallest component,
     //    which is below a unit vector's own resolution.
@@ -742,7 +876,7 @@ const fn normalize_bits(bits: [i128; 3], fast: bool) -> Option<Direction> {
         return None;
     }
 
-    let bit_length = 128 - largest.leading_zeros();
+    let bit_length = corvid_bits::bit_length_u128(largest);
     let scaled = if bit_length > 30 {
         let down = bit_length - 30;
         [

@@ -37,15 +37,7 @@ const fn shift_round(bits: i64, shift: u32) -> i64 {
     if bits >= 0 { rounded } else { -rounded }
 }
 
-/// Narrows an `i64` to an `i32`, or `None` if it does not fit.
-#[inline]
-const fn narrow(bits: i64) -> Option<i32> {
-    if bits > i32::MAX as i64 || bits < i32::MIN as i64 {
-        None
-    } else {
-        Some(bits as i32)
-    }
-}
+use corvid_bits::try_narrow_i64 as narrow;
 
 impl GlobalPoint {
     /// Widens to the full-range, full-resolution type. Exact.
@@ -258,7 +250,7 @@ impl From<FinePoint> for GlobalPoint {
 /// Carries no detail on purpose: the only way a narrowing fails is that the
 /// value lies outside the target's range, and the value itself is still in the
 /// caller's hand.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct OutOfRange;
 
 impl core::fmt::Display for OutOfRange {
@@ -266,6 +258,8 @@ impl core::fmt::Display for OutOfRange {
         f.write_str("value is outside the target type's range")
     }
 }
+
+impl core::error::Error for OutOfRange {}
 
 impl TryFrom<GlobalFinePoint> for FinePoint {
     type Error = OutOfRange;
