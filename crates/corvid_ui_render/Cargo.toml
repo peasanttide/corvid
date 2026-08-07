@@ -25,11 +25,9 @@ corvid_float = { workspace = true }
 # build it has. That is also what keeps `corvid_ui/std` reachable from inside
 # this workspace at all, since nothing else here turns it on.
 corvid_ui = { workspace = true, features = ["bytemuck", "std"] }
-# The device — **through this crate and not through `wgpu` directly**, because
-# `corvid_render` is the only crate in this workspace that names `wgpu` and it
-# re-exports it. A manifest entry for `wgpu` here would be a second version of
-# it in the graph the day the two pins drifted, and `tests/manifest.rs` is what
-# stops one being added back.
+# The renderer this one draws through. Not a route to `wgpu`: that is named
+# directly above, and `tests/manifest.rs` is what keeps the *version* out of
+# this file rather than the entry.
 corvid_render = { workspace = true }
 # An instance buffer is bytes to `wgpu`, and this is the workspace's one safe
 # way to turn a struct into them. Without it the casts would need `unsafe`,

@@ -27,11 +27,16 @@ assert_eq!(RectInstance::LAYOUT.array_stride, 64);
 
 ## Where `wgpu` comes from
 
-This crate's manifest does **not** name `wgpu`. It names `corvid_render`, which
-owns the renderer, and the version is pinned once in the root manifest. One pin,
-one version in the graph, one `raw-window-handle` that a surface and a window
-can agree on. `tests/manifest.rs` reads this crate's own manifest and fails if a
-`wgpu` line is ever added to it, which is the mechanical form of that rule.
+This crate's manifest names `wgpu` directly, as `wgpu = { workspace = true }`.
+It used to reach it through `corvid_render`'s re-export, and that re-export is
+gone with all the others — `corvid` is the workspace's one facade.
+
+**The pin is what keeps the version single, not the re-export.** One entry in
+the root manifest, one version in the graph, one `raw-window-handle` that a
+surface and a window can agree on. So the rule is not "do not name it" but "do
+not name a *version* of it", and `tests/manifest.rs` is the mechanical form of
+that one: it reads this crate's own manifest and fails on a `wgpu` line that
+carries a version rather than `workspace = true`.
 
 ## Why a rectangle is a distance field rather than nine slices
 

@@ -191,9 +191,9 @@ pollster = "0.4"
 # across two versions of an encoder is a golden that says nothing.
 png = "0.18"
 corvid_window = { version = "0.1", path = "crates/corvid_window" }
-# The device. The base of a game's client-local half and the one crate here that
-# names `wgpu`, which is why every other crate that draws reaches the graphics
-# library through this one's re-export rather than through an entry of its own.
+# The device. The base of a game's client-local half. It no longer re-exports
+# `wgpu` for the crates above it — they name it themselves and take the pin
+# above — so what this owns is the renderer, the target and the read-back seam.
 corvid_render = { version = "0.1", path = "crates/corvid_render" }
 # The sound card. Its own `device` feature is what pulls `cpal`, so a crate
 # naming this one still builds on a target with no audio backend.
@@ -263,9 +263,8 @@ corvid_xr = { version = "0.1", path = "crates/corvid_xr", default-features = fal
 # target with no operating system.
 corvid_mesh = { version = "0.1", path = "crates/corvid_mesh" }
 # The device half of a mesh: the vertex layout, the upload and the draw call.
-# It reaches `wgpu` through `corvid_render`'s re-export rather than through a
-# manifest entry of its own, because `corvid_render` is the only crate in this
-# workspace that names it.
+# It names `wgpu` itself, as every crate here that touches a device does; the
+# pin above is what keeps one of it in the graph.
 corvid_mesh_render = { version = "0.1", path = "crates/corvid_mesh_render" }
 # Spans and events. Pinned here rather than per crate for the reason `mint` and
 # `nalgebra` are: two versions of `tracing` in one graph are two independent

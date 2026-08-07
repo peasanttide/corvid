@@ -17,11 +17,9 @@ categories = ["game-development", "graphics"]
 wgpu = { workspace = true }
 # The geometry. This crate adds a device to it and nothing else.
 corvid_mesh = { workspace = true }
-# The device — **through this crate and not through `wgpu` directly**, because
-# `corvid_render` is the only crate in this workspace that names `wgpu` and it
-# re-exports it. A manifest entry for `wgpu` here would be a second version of
-# it in the graph the day the two pins drifted, and a surface that cannot be
-# created from a window that plainly exists.
+# The renderer this one draws through: a `Target`, and the device behind it.
+# Not a route to `wgpu` — that is named directly above, and the workspace pin is
+# what keeps one of it in the graph.
 corvid_render = { workspace = true }
 # Vertex and index buffers are bytes to `wgpu`, and this is the workspace's one
 # safe way to turn a struct into them. Without it the casts would need
