@@ -10,17 +10,17 @@ sub-tick interpolation factor, which is the one quantity here that looks like it
 wants to be a fraction.
 
 ```rust
-use corvid_time::{Clock, Duration, Fake, Step, Tick, TickSpan};
+use corvid_time::{Clock, Duration, Elapsed, Step, Tick, TickSpan};
 
 // Fifteen ticks a second, which is a period of 66 666 666 nanoseconds exactly.
-let rate = TickSpan::CRADLE;
-assert_eq!(rate.period(), Duration::from_nanos(66_666_666));
+let span = TickSpan::CRADLE;
+assert_eq!(span.period(), Duration::from_nanos(66_666_666));
 
 // A test drives the loop with a clock that passes one period per call, so a
 // thousand iterations are a thousand ticks and the machine's speed is not part
 // of the test.
-let mut clock = Fake::stepping(rate.period());
-let mut step = Step::new(rate);
+let mut clock = Clock::stepping(span.period());
+let mut step = Step::new(span);
 let mut tick = Tick::ZERO;
 
 for _ in 0..1000 {
@@ -97,8 +97,8 @@ refuses is *dropped* and counted in [`Step::dropped`], never carried forward.
 ```rust
 use corvid_time::{Duration, Step, TickSpan};
 
-let rate = TickSpan::CRADLE;
-let mut step = Step::new(rate).with_catchup(4);
+let span = TickSpan::CRADLE;
+let mut step = Step::new(span).with_catchup(4);
 
 // Ten seconds go missing — a load, a breakpoint, a laptop lid. A hundred and
 // fifty ticks are owed; four are delivered and a hundred and forty-six are gone.
@@ -108,7 +108,7 @@ assert_eq!(step.dropped(), 146);
 // The point of dropping them: the next second is an ordinary second.
 let mut ticks = 0;
 for _ in 0..15 {
-    ticks += step.advance(rate.period());
+    ticks += step.advance(span.period());
 }
 assert_eq!(ticks, 15);
 ```
@@ -194,8 +194,8 @@ whole purpose is that the loop can be handed a different one in a test:
 
 | | Reads | For |
 |---|---|---|
-| [`Fake::stepping(period)`](Fake::stepping) | exactly `period`, every call | Every headless test. One tick per iteration, forever |
-| [`Fake::new`] + [`advance`](Fake::advance) | whatever was queued | Handing the loop an irregular or absurd frame time on purpose |
+| [`Clock::stepping(period)`](Clock::stepping) | exactly `period`, every call | Every headless test. One tick per iteration, forever |
+| [`Clock::still`] + [`advance`](Clock::advance) | whatever was queued | Handing the loop an irregular or absurd frame time on purpose |
 | [`Wall`] (`std`) | the monotonic system clock | A game that is actually running |
 
 [`elapsed`](Clock::elapsed) returns an interval rather than a timestamp. An
@@ -227,7 +227,7 @@ All off by default. The crate is `no_std` and allocates nothing.
 | `serde` | `Serialize`/`Deserialize` for [`Tick`] and [`TickSpan`], transparently as the number. A rate of zero is refused by the deserializer rather than becoming a division by zero later |
 | `std` | [`Wall`]. The only feature that adds API |
 
-[`Step`] and [`Fake`] have neither a wire format nor a digest, on purpose. They
+[`Step`] and [`Clock`] have neither a wire format nor a digest, on purpose. They
 are the runtime's business: what they hold is how far behind this machine is,
 which is exactly the thing that must not enter a state two machines are
 comparing.
@@ -246,7 +246,7 @@ cargo test -p corvid_time --all-features
 |---|---|
 | `tests/tick.rs` | Saturation at both ends, `since` in both directions, ordering, the period of thirteen rates against `1_000_000_000 / hz`, the residual identity the table above is built on, the gigahertz clamp, the wire format, and ten thousand ticks digesting without a collision |
 | `tests/step.rs` | A thousand exact periods at seven rates delivering a thousand ticks with nothing dropped and nothing accumulated; a period split into a hundred pieces; ten thousand ragged frame times accounting for every nanosecond; the stall dropping rather than banking; the ordinary second after it; the sub-tick remainder surviving that stall and completing the tick it was part of; alpha against hand-computed bit patterns, climbing within a period and landing on exactly zero at the boundary; a frame time of 2^64 nanoseconds saturating rather than wrapping; and the crate's own source containing no floating point |
-| `tests/clock.rs` | `Fake` queueing and stepping, a thousand calls driving a thousand ticks, `Clock` as a trait object, neither clock being `Copy`, and `Wall` measuring a sleep and then measuring nothing at all on the next call |
+| `tests/clock.rs` | `Clock` queueing and stepping, a thousand calls driving a thousand ticks, `Elapsed` as a trait object, a clock not being `Copy`, and the wall mode measuring a sleep and then measuring nothing at all on the next call |
 | doctests | Every Rust block in this file and in the type documentation |
 
 That last row is not a formality: this README is the crate's front page, so

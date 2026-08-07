@@ -27,7 +27,7 @@ use corvid::{App, Outcome};
 
 use corvid::PlayerId;
 
-use corvid::{Fake, Tick};
+use corvid::{Clock, Tick};
 use corvid_net::{MockNet, PeerId, Schedule, Transport};
 use pong::{Hands, Move, RATE, Table, action, opening};
 
@@ -130,7 +130,7 @@ fn play(seat: u16, transport: Box<dyn Transport>) -> Result<Outcome<Table>, corv
         // A fake clock stepping one period per reading, which is what every
         // headless run in this workspace uses: the peer's own budget is what
         // keeps the two runs together, and it is the thing being tested.
-        .clock(Fake::stepping(RATE.period()))
+        .clock(Clock::stepping(RATE.period()))
         .transport(transport)
         .input(Input::new(action::SETS))
         .inputs(pressing(seat))
@@ -247,7 +247,7 @@ fn a_run_with_no_transport_is_unchanged() -> Fallible {
             .opening(opening())
             .rate(RATE)
             .seat(PlayerId(seat))
-            .clock(Fake::stepping(RATE.period()))
+            .clock(Clock::stepping(RATE.period()))
             .input(Input::new(action::SETS))
             .inputs(pressing(seat))
             .for_ticks(200)

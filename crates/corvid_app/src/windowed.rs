@@ -15,7 +15,7 @@ use corvid_render::{Extent, Renderer};
 use corvid_signal::Seen;
 use corvid_signal::Watch;
 use corvid_sound::Auralizer;
-use corvid_time::{Clock, Step, TickSpan};
+use corvid_time::{Elapsed, Step, TickSpan};
 use corvid_window::{Attached, Flow, Host, SurfaceState};
 
 /// Everything a run needs that cannot be built until a window exists.
@@ -41,7 +41,7 @@ pub(crate) struct Pending<S: State, C: Controller<S>, R: Render<S>, A: Auralizer
     /// How often a tick runs.
     pub(crate) rate: TickSpan,
     /// Where real time comes from.
-    pub(crate) clock: Box<dyn Clock>,
+    pub(crate) clock: Box<dyn Elapsed>,
 }
 
 /// The half of the program the event loop drives.
@@ -61,7 +61,7 @@ pub(crate) struct Windowed<S: State, C: Controller<S>, R: Render<S>, A: Auralize
     /// The fixed step, carried across frames.
     step: Step,
     /// Where real time comes from.
-    clock: Option<Box<dyn Clock>>,
+    clock: Option<Box<dyn Elapsed>>,
     /// The window's published state, and how much of it has been noticed.
     surface: Option<(Watch<SurfaceState>, Seen)>,
     /// What the run ended with, once it has.

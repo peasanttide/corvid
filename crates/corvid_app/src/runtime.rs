@@ -18,7 +18,7 @@ use corvid_replay::Session;
 use corvid_signal::Emitter;
 use corvid_sound::AudioFrame;
 use corvid_time::Duration;
-use corvid_time::{Clock, Step, Tick};
+use corvid_time::{Elapsed, Step, Tick};
 
 use crate::{
     Error, Outcome, Progress, Retention,
@@ -361,7 +361,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
     /// tick it holds a frame for.
     pub(crate) fn drive(
         mut self,
-        mut clock: Box<dyn Clock>,
+        mut clock: Box<dyn Elapsed>,
         mut step: Step,
     ) -> Result<Outcome<S>, Error> {
         self.publish(false);
@@ -409,7 +409,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         // Where the display sits between the last tick and the next, read once
         // per reading of the clock because that is how many instants there are
         // in one: the ticks below all belong to the same one. A
-        // `Fake::stepping` at exactly the period leaves this at zero forever,
+        // `Clock::stepping` at exactly the period leaves this at zero forever,
         // which is why a headless capture is a sequence of endpoint states
         // rather than of interpolations.
         let alpha = step.alpha();

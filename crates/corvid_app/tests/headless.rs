@@ -25,7 +25,7 @@ use corvid_app::{App, Progress};
 use corvid_behavior::{ExitCode, PlayerId};
 use corvid_hash::Digest;
 use corvid_signal::channel;
-use corvid_time::{Fake, Tick, TickSpan};
+use corvid_time::{Clock, Tick, TickSpan};
 use corvid_wire::golden::{DigestRow, check_digests};
 
 /// How far the runs below play.
@@ -341,7 +341,7 @@ fn the_clock_the_app_was_given_is_what_decides_how_often_a_tick_runs() {
     let run = App::<Tally, Hands, Painted, Ears>::new()
         .headless()
         .rate(rate)
-        .clock(Fake::stepping(rate.period() / 4))
+        .clock(Clock::stepping(rate.period() / 4))
         .opening(opening::<Tally>(Rules::quiet()))
         .progress(emit)
         .for_ticks(4)
@@ -447,7 +447,7 @@ fn the_clock_decides_how_many_ticks_a_reading_owes() {
     let run = App::<Attendance, Marker>::new()
         .headless()
         .rate(rate)
-        .clock(Fake::stepping(rate.period() * 3 / 2))
+        .clock(Clock::stepping(rate.period() * 3 / 2))
         .opening(attendance(vec![seat(1000)]))
         .for_ticks(4)
         .run()
@@ -462,7 +462,7 @@ fn the_clock_decides_how_many_ticks_a_reading_owes() {
 
 #[test]
 fn the_default_clock_is_the_rate_the_app_was_given() {
-    // The documented default is `Fake::stepping(rate.period())`, and the rate
+    // The documented default is `Clock::stepping(rate.period())`, and the rate
     // in question is the app's own. Substituting a constant — the cradle's
     // period, say, which is what `TickSpan::default` would hand over — is not
     // visible at the default rate and is visible here, because a run at twenty
@@ -481,7 +481,7 @@ fn the_default_clock_is_the_rate_the_app_was_given() {
         App::<Tally, Hands, Painted, Ears>::new()
             .headless()
             .rate(rate)
-            .clock(Fake::stepping(rate.period()))
+            .clock(Clock::stepping(rate.period()))
             .opening(opening::<Tally>(Rules::quiet())),
     );
     assert_eq!(defaulted, spelled_out);
@@ -493,7 +493,7 @@ fn the_default_clock_is_the_rate_the_app_was_given() {
         App::<Tally, Hands, Painted, Ears>::new()
             .headless()
             .rate(rate)
-            .clock(Fake::stepping(TickSpan::CRADLE.period()))
+            .clock(Clock::stepping(TickSpan::CRADLE.period()))
             .opening(opening::<Tally>(Rules::quiet())),
     );
     assert_ne!(defaulted, elsewhere);

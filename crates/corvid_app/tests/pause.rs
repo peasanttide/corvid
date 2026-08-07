@@ -42,7 +42,7 @@ use corvid_control::Controller;
 use corvid_hash::{Digest, digest};
 use corvid_input::{Digital, Input};
 use corvid_signal::channel;
-use corvid_time::{Clock, Tick, TickSpan};
+use corvid_time::{Elapsed, Tick, TickSpan};
 
 /// How far every run below plays.
 const TICKS: u64 = 12;
@@ -83,7 +83,7 @@ impl Stalling {
     }
 }
 
-impl Clock for Stalling {
+impl Elapsed for Stalling {
     fn elapsed(&mut self) -> Duration {
         self.reads += 1;
         if self.reads == self.on {

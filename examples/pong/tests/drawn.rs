@@ -34,7 +34,7 @@ use corvid::PlayerId;
 
 use corvid::Extent;
 
-use corvid::Fake;
+use corvid::Clock;
 use corvid_test::{Scratchpad, read_png};
 use pong::{Ears, Graphics, Hands, RATE, Table, action, opening};
 
@@ -71,7 +71,7 @@ fn draw_into(into: &Path) -> Result<bool, Box<dyn std::error::Error>> {
         .opening(opening())
         .rate(RATE)
         .seat(PlayerId(0))
-        .clock(Fake::stepping(RATE.period()))
+        .clock(Clock::stepping(RATE.period()))
         .input(Input::new(action::SETS))
         .inputs(|at: corvid::Tick| {
             // A paddle that moves, so a later frame is not an earlier one.

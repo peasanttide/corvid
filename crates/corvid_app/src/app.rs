@@ -10,7 +10,7 @@ use corvid_hash::Digest;
 use corvid_input::Input;
 use corvid_replay::{LevelRef, Opening, Refused, Session, Shape};
 use corvid_signal::Emitter;
-use corvid_time::{Clock, Fake, Step, Tick, TickSpan};
+use corvid_time::{Clock, Elapsed, Step, Tick, TickSpan};
 
 use crate::{
     Arguments, Requests, Retention,
@@ -185,7 +185,7 @@ where
     opening: Option<Opening<S>>,
     /// Where real time comes from, or [`None`] to build the default from
     /// whatever [`rate`](Self::rate) ends up being.
-    clock: Option<Box<dyn Clock>>,
+    clock: Option<Box<dyn Elapsed>>,
     /// How often a tick runs.
     rate: TickSpan,
     /// Which seat this client submits for.
@@ -466,18 +466,18 @@ where
 
     /// Where real time comes from.
     ///
-    /// The default is [`Fake::stepping`](corvid_time::Fake::stepping) at the
+    /// The default is [`Clock::stepping`](corvid_time::Clock::stepping) at the
     /// [`rate`](Self::rate)'s **own** period — a reading is one period, so a
     /// reading is one owed tick and the display sits on the endpoint state
     /// forever. It is built at [`run`](Self::run) so that setting the rate
     /// afterwards is not a trap, and `tests/headless.rs` pins it by running the
-    /// default against an explicit `Fake::stepping(rate.period())` at a rate
+    /// default against an explicit `Clock::stepping(rate.period())` at a rate
     /// that is not the default one, where any other period owes a different
     /// number of ticks per reading. A run in front of a player passes
-    /// [`Wall`](corvid_time::Wall) here, and that is the only way a wall clock
+    /// [`Wall`](corvid_time::Clock) here, and that is the only way a wall clock
     /// enters this crate.
     #[must_use]
-    pub fn clock(mut self, clock: impl Clock + 'static) -> Self {
+    pub fn clock(mut self, clock: impl Elapsed + 'static) -> Self {
         self.clock = Some(Box::new(clock));
         self
     }
@@ -946,7 +946,7 @@ where
                 clock: self
                     .clock
                     .take()
-                    .unwrap_or_else(|| Box::new(corvid_time::Wall::new())),
+                    .unwrap_or_else(|| Box::new(corvid_time::Clock::wall())),
             };
             let host = corvid_window::run(
                 config,
@@ -975,9 +975,9 @@ where
             // It converges either way; it converges having burned a core.
             #[cfg(feature = "net")]
             if networked {
-                return Box::new(corvid_time::Wall::new()) as Box<dyn Clock>;
+                return Box::new(corvid_time::Clock::wall()) as Box<dyn Elapsed>;
             }
-            Box::new(Fake::stepping(self.rate.period()))
+            Box::new(Clock::stepping(self.rate.period()))
         });
         #[cfg(feature = "render")]
         if let Some(size) = self.offscreen {
@@ -1043,7 +1043,7 @@ where
     /// [`RELEASED`](corvid_input::Digital::RELEASED) to every query
     /// for the whole run.
     ///
-    /// The default clock becomes [`Wall`](corvid_time::Wall), because a window
+    /// The default clock becomes [`Wall`](corvid_time::Clock), because a window
     /// in front of a player runs in real time and the
     /// [`Fake`](corvid_time::Fake) a headless run defaults to would run the
     /// simulation as fast as the display asked for frames.

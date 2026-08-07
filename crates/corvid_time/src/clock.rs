@@ -1,4 +1,4 @@
-//! Where real time gets in, and the two implementations of getting it.
+//! Where real time gets in, and the one clock that lets it.
 
 use core::mem;
 use core::time::Duration;
@@ -19,48 +19,88 @@ use core::time::Duration;
 /// obligation is written down.
 ///
 /// This trait exists one level out, for the loop that drives the simulation. It
-/// is what lets that loop be handed [`Fake`] in a test and [`Wall`] in
-/// production, and it is why a headless run of ten thousand ticks finishes as
-/// fast as the processor manages rather than in eleven minutes.
-///
-/// [`Wall`]: crate::Wall
+/// is what lets that loop be handed a [`Clock`] in either mode, and it is why a
+/// headless run of ten thousand ticks finishes as fast as the processor manages
+/// rather than in eleven minutes.
 ///
 /// # Implementing one
 ///
-/// [`elapsed`](Clock::elapsed) returns the time since the previous call, not a
-/// timestamp — the loop wants an interval, and an implementation that has to
+/// [`elapsed`](Elapsed::elapsed) returns the time since the previous call, not
+/// a timestamp — the loop wants an interval, and an implementation that has to
 /// subtract two absolute times is the one place a clock going backwards can
 /// turn into a negative interval. Returning an interval directly means the
 /// answer is unsigned all the way through.
-/// A clock is [`Debug`] because it is held behind a `Box<dyn Clock>` in a
-/// runtime that derives its own, and a trait object is only as printable as its
-/// trait says it is. Every clock here is a couple of durations and a counter,
-/// so there is nothing to weigh against saying so.
-pub trait Clock: core::fmt::Debug {
+///
+/// [`Clock`] is the implementation this crate ships and the only one a game
+/// needs. The trait stays because a test that wants a clock which stalls, or
+/// jumps, or answers from a script is writing a few lines rather than asking
+/// for a mode nobody else wants.
+///
+/// It is [`Debug`] because a runtime holds one behind a `Box<dyn Elapsed>` and
+/// derives its own, and a trait object prints only what its trait allows.
+pub trait Elapsed: core::fmt::Debug {
     /// The time that has passed since the last call.
     ///
     /// The first call measures from whenever the clock was created.
     fn elapsed(&mut self) -> Duration;
 }
 
-/// A clock that passes exactly as much time as it is told to.
+/// Which of the two things a [`Clock`] is doing.
 ///
-/// [`stepping`](Fake::stepping) is what a headless test wants: one period per
+/// Private, because the choice is made by a constructor and never changed
+/// afterwards: a clock that switched from the wall to a fixed step mid-run
+/// would hand the loop one interval measured against real time and the next
+/// against nothing, and no caller has ever wanted that.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum Mode {
+    /// Hands out a fixed step per call, plus whatever
+    /// [`advance`](Clock::advance) queued.
+    Stepped {
+        /// Handed out on every call.
+        step: Duration,
+        /// Handed out once, on the next call.
+        queued: Duration,
+    },
+    /// Reads the operating system's monotonic clock.
+    #[cfg(feature = "std")]
+    Wall {
+        /// When [`elapsed`](Elapsed::elapsed) last answered.
+        last: std::time::Instant,
+    },
+}
+
+/// The clock, in either of the two modes anything here needs.
+///
+/// # One type rather than two
+///
+/// This used to be a `Fake` and a `Wall`, and they were one type wearing two
+/// names: both answer one question, both are consumed by being read, and every
+/// caller that held one held it behind the same `Box<dyn Clock>` anyway. Two
+/// types meant two constructors to find, two `Debug` impls, two entries in
+/// every import line, and a test that wanted to swap real time for a fixed step
+/// changing a type rather than a call.
+///
+/// [`stepping`](Self::stepping) is what a headless test wants: one period per
 /// call, forever, so the loop it drives ticks exactly once per iteration and a
-/// test about the thousandth tick is a test about the thousandth tick rather
-/// than about how long the machine took to get there.
+/// test about the thousandth tick is about the thousandth tick rather than
+/// about how long the machine took to get there.
 ///
-/// [`new`](Fake::new) with [`advance`](Fake::advance) is for the other case —
+/// [`still`](Self::still) with [`advance`](Self::advance) is the other case —
 /// handing the loop an irregular sequence of frame times on purpose, to test
 /// what it does with a long one.
 ///
+/// [`wall`](Self::wall) is what a game's `main` builds, and the only mode that
+/// talks to the world. It is monotonic rather than calendar time, so nothing
+/// moves when the system clock is set backwards, and an interval that would
+/// somehow measure negative saturates to zero rather than panicking.
+///
 /// ```
 /// use core::time::Duration;
-/// use corvid_time::{Clock, Fake, Step, TickSpan};
+/// use corvid_time::{Clock, Elapsed, Step, TickSpan};
 ///
-/// let rate = TickSpan::CRADLE;
-/// let mut clock = Fake::stepping(rate.period());
-/// let mut step = Step::new(rate);
+/// let span = TickSpan::CRADLE;
+/// let mut clock = Clock::stepping(span.period());
+/// let mut step = Step::new(span);
 ///
 /// for _ in 0..1000 {
 ///     assert_eq!(step.advance(clock.elapsed()), 1);
@@ -68,126 +108,132 @@ pub trait Clock: core::fmt::Debug {
 /// assert_eq!(step.dropped(), 0);
 /// ```
 ///
-/// Deliberately not `Copy`, for the same reason [`Step`] is not: a clock is
-/// consumed by reading it, and a copy that gets read is time the original hands
-/// out a second time. Passing one by value to a helper and then reading the
-/// original would silently deliver the same queued interval twice, which is a
-/// doubled tick count in a test whose whole job is to be exact about tick
-/// counts. `Clone` stays, because snapshotting a clock to replay a frame is a
-/// real thing to want and `clone` says at the call site that a second copy of
-/// the time now exists.
+/// # Not `Copy`
+///
+/// For the same reason [`Step`] is not: a clock is consumed by reading it, and
+/// a copy that gets read is time the original hands out a second time. Passing
+/// one by value to a helper and then reading the original would silently
+/// deliver the same queued interval twice, which is a doubled tick count in a
+/// test whose whole job is to be exact about tick counts. In the wall mode the
+/// copy carries the old mark and measures from the original's past.
+///
+/// `Clone` stays, because snapshotting a clock to replay a frame is a real
+/// thing to want and `clone` says at the call site that a second copy of the
+/// time now exists.
 ///
 /// [`Step`]: crate::Step
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Fake {
-    /// Handed out on every call.
-    step: Duration,
-    /// Handed out once, on the next call.
-    queued: Duration,
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Clock {
+    /// Which of the two this is.
+    mode: Mode,
 }
 
-impl Fake {
-    /// A clock that is standing still until [`advance`](Fake::advance) is
+impl Clock {
+    /// A clock that is standing still until [`advance`](Self::advance) is
     /// called.
     #[must_use]
     #[inline]
-    pub const fn new() -> Self {
+    pub const fn still() -> Self {
         Self {
-            step: Duration::ZERO,
-            queued: Duration::ZERO,
+            mode: Mode::Stepped {
+                step: Duration::ZERO,
+                queued: Duration::ZERO,
+            },
         }
     }
 
     /// A clock that passes `period` on every call to
-    /// [`elapsed`](Clock::elapsed).
+    /// [`elapsed`](Elapsed::elapsed).
     #[must_use]
     #[inline]
     pub const fn stepping(period: Duration) -> Self {
         Self {
-            step: period,
-            queued: Duration::ZERO,
+            mode: Mode::Stepped {
+                step: period,
+                queued: Duration::ZERO,
+            },
         }
     }
 
-    /// Queues `by` to be added to the next [`elapsed`](Clock::elapsed).
+    /// A clock measuring the operating system's monotonic time from now.
+    #[must_use]
+    #[inline]
+    #[cfg(feature = "std")]
+    pub fn wall() -> Self {
+        Self {
+            mode: Mode::Wall {
+                last: std::time::Instant::now(),
+            },
+        }
+    }
+
+    /// Queues `by` to be added to the next [`elapsed`](Elapsed::elapsed).
     ///
     /// Calls accumulate, so two advances between two reads are one interval —
     /// which is what a real clock would have reported, and what keeps a test
     /// from having to read the clock to keep it honest.
+    ///
+    /// Does nothing to a [`wall`](Self::wall) clock, which measures rather than
+    /// being told. That is a no-op rather than a panic because the alternative
+    /// is every caller matching on a mode it chose itself two lines earlier.
     #[inline]
     pub const fn advance(&mut self, by: Duration) {
-        self.queued = self.queued.saturating_add(by);
+        match &mut self.mode {
+            Mode::Stepped { queued, .. } => *queued = queued.saturating_add(by),
+            #[cfg(feature = "std")]
+            Mode::Wall { .. } => {}
+        }
     }
 
-    /// The period this clock passes on every call, zero unless it was built by
-    /// [`stepping`](Fake::stepping).
+    /// The period this clock passes on every call.
+    ///
+    /// Zero unless it was built by [`stepping`](Self::stepping), and zero for a
+    /// [`wall`](Self::wall) clock, which has no fixed step to report.
     #[must_use]
     #[inline]
     pub const fn step(&self) -> Duration {
-        self.step
+        match &self.mode {
+            Mode::Stepped { step, .. } => *step,
+            #[cfg(feature = "std")]
+            Mode::Wall { .. } => Duration::ZERO,
+        }
     }
-}
 
-impl Clock for Fake {
-    #[inline]
-    fn elapsed(&mut self) -> Duration {
-        let queued = mem::replace(&mut self.queued, Duration::ZERO);
-        self.step.saturating_add(queued)
-    }
-}
-
-/// A clock that reads the operating system's monotonic time.
-///
-/// The one type in this crate that talks to the world, and the reason `std` is
-/// a feature at all. It is a monotonic clock rather than a calendar one, so
-/// nothing here moves when the system clock is set backwards, and an interval
-/// that would somehow measure negative saturates to zero rather than panicking.
-///
-/// A game's `main` builds one of these and nothing else in the workspace ever
-/// mentions it, which is the property that makes every test headless.
-///
-/// Not `Copy`, for the same reason [`Fake`] and [`Step`] are not. Reading this
-/// clock moves its mark forward; a copy carries the old mark, so reading the
-/// copy measures from the original's past and hands the loop an interval it has
-/// already spent. `Clone` stays because the hazard is at least written down at
-/// the call site there, and because a clone is the honest way to fork a second
-/// timeline off the same instant.
-///
-/// [`Step`]: crate::Step
-#[cfg(feature = "std")]
-#[derive(Clone, Debug)]
-pub struct Wall {
-    /// When [`elapsed`](Clock::elapsed) last answered.
-    last: std::time::Instant,
-}
-
-#[cfg(feature = "std")]
-impl Wall {
-    /// A clock measuring from now.
+    /// Whether this clock reads the world rather than being told about it.
     #[must_use]
     #[inline]
-    pub fn new() -> Self {
-        Self {
-            last: std::time::Instant::now(),
+    pub const fn is_wall(&self) -> bool {
+        match &self.mode {
+            Mode::Stepped { .. } => false,
+            #[cfg(feature = "std")]
+            Mode::Wall { .. } => true,
         }
     }
 }
 
-#[cfg(feature = "std")]
-impl Default for Wall {
+impl Default for Clock {
+    /// [`still`](Self::still): a clock holding no time at all.
     #[inline]
     fn default() -> Self {
-        Self::new()
+        Self::still()
     }
 }
 
-#[cfg(feature = "std")]
-impl Clock for Wall {
+impl Elapsed for Clock {
     #[inline]
     fn elapsed(&mut self) -> Duration {
-        let now = std::time::Instant::now();
-        let elapsed = now.saturating_duration_since(self.last);
-        self.last = now;
-        elapsed
+        match &mut self.mode {
+            Mode::Stepped { step, queued } => {
+                let queued = mem::replace(queued, Duration::ZERO);
+                step.saturating_add(queued)
+            }
+            #[cfg(feature = "std")]
+            Mode::Wall { last } => {
+                let now = std::time::Instant::now();
+                let elapsed = now.saturating_duration_since(*last);
+                *last = now;
+                elapsed
+            }
+        }
     }
 }

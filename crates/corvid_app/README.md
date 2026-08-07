@@ -188,7 +188,7 @@ written down, hashed and replayed with no runtime behind it.
 ## A headless run does not depend on wall time
 
 The only clock is the one the [`App`] was given, and the default is
-[`Fake::stepping`] at the tick rate's period: one period per reading, forever. A
+[`Clock::stepping`] at the tick rate's period: one period per reading, forever. A
 run driven by it owes exactly one tick per iteration, finishes as fast as the
 processor manages, and produces the same session every time.
 
@@ -533,7 +533,7 @@ a game that has a `draw` and does not call it.
 A windowed run differs in two more ways, both documented on the builders that
 cause them. Its input snapshot is refilled from the window's devices every
 frame, so the snapshot given to `input` supplies the *declaration* and not the
-values. And its default clock is [`Wall`] rather than [`Fake::stepping`],
+values. And its default clock is [`Wall`] rather than [`Clock::stepping`],
 because a window in front of a player runs in real time.
 
 The event loop owns `main` on a windowed run, because on iOS, Android and the
@@ -626,7 +626,7 @@ be compared against the wrong build eventually.
 [`Scope`]: corvid_behavior::Scope
 [`Render::draw`]: corvid_render::Render::draw
 [`App::offscreen`]: crate::App::offscreen
-[`Fake::stepping`]: corvid_time::Fake::stepping
+[`Clock::stepping`]: corvid_time::Clock::stepping
 [`HashTrace`]: corvid_replay::HashTrace
 [`Input`]: corvid_input::Input
 [`Controller`]: corvid_control::Controller

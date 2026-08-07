@@ -8,7 +8,7 @@
 use core::marker::PhantomData;
 use core::time::Duration;
 
-use corvid_time::{Clock, Fake, Step, Tick, TickSpan};
+use corvid_time::{Clock, Elapsed, Step, Tick, TickSpan};
 
 /// Asks whether `T` is `Copy` without requiring that it is.
 ///
@@ -40,16 +40,19 @@ fn a_clock_is_not_copy_because_reading_one_consumes_it() {
     // still holds — two ticks' worth of one tick. `Step` is not `Copy` for
     // exactly this reason and a clock is the same kind of object.
     //
-    // These are `const` blocks because the answer is known at compile time and
-    // a runtime assertion on a constant is a lint. It means a clock that grew a
-    // `Copy` back fails the build rather than the run, which is if anything the
-    // louder of the two.
-    const { assert!(!Probe::<Fake>::IS_COPY, "Fake is Copy; see Step's own note") }
-    #[cfg(feature = "std")]
+    // A `const` block because the answer is known at compile time and a runtime
+    // assertion on a constant is a lint. It means a clock that grew a `Copy`
+    // back fails the build rather than the run, which is if anything the louder
+    // of the two.
+    //
+    // One assertion rather than the two this had: `Fake` and `Wall` were two
+    // types and are one now, and the wall mode carries an `Instant` — a `Copy`
+    // field, which is exactly how a `Copy` could be derived back onto this by
+    // accident.
     const {
         assert!(
-            !Probe::<corvid_time::Wall>::IS_COPY,
-            "Wall is Copy; see Step's own note"
+            !Probe::<Clock>::IS_COPY,
+            "Clock is Copy; see Step's own note"
         );
     }
     // Not a `Copy` bound in disguise: the probe answers honestly for a type
@@ -62,7 +65,7 @@ fn cloning_a_clock_duplicates_the_time_it_is_holding() {
     // `Clone` is kept, so this is not a bug — it is the hazard `Copy` would
     // have made implicit, written out. Both halves hand back the same thirty
     // milliseconds, and the `clone` is where a reader can see why.
-    let mut clock = Fake::new();
+    let mut clock = Clock::still();
     clock.advance(Duration::from_millis(30));
     let mut forked = clock.clone();
     assert_eq!(clock.elapsed(), Duration::from_millis(30));
@@ -72,14 +75,14 @@ fn cloning_a_clock_duplicates_the_time_it_is_holding() {
 
 #[test]
 fn a_fresh_fake_has_no_time_in_it() {
-    let mut clock = Fake::new();
+    let mut clock = Clock::still();
     assert_eq!(clock.elapsed(), Duration::ZERO);
-    assert_eq!(Fake::default(), Fake::new());
+    assert_eq!(Clock::default(), Clock::still());
 }
 
 #[test]
 fn a_fake_hands_back_what_was_queued_once() {
-    let mut clock = Fake::new();
+    let mut clock = Clock::still();
     clock.advance(Duration::from_millis(30));
     clock.advance(Duration::from_millis(70));
     assert_eq!(clock.elapsed(), Duration::from_millis(100));
@@ -89,7 +92,7 @@ fn a_fake_hands_back_what_was_queued_once() {
 #[test]
 fn a_stepping_fake_returns_exactly_one_period_per_call() {
     let period = TickSpan::CRADLE.period();
-    let mut clock = Fake::stepping(period);
+    let mut clock = Clock::stepping(period);
     for _ in 0..1000 {
         assert_eq!(clock.elapsed(), period);
     }
@@ -101,7 +104,7 @@ fn a_stepping_fake_drives_exactly_one_tick_per_call() {
     // possible, so no tick is ever dropped, and the thousandth call is the
     // thousandth tick.
     let rate = TickSpan::CRADLE;
-    let mut clock = Fake::stepping(rate.period());
+    let mut clock = Clock::stepping(rate.period());
     let mut step = Step::new(rate);
     let mut tick = Tick::ZERO;
     for _ in 0..1000 {
@@ -114,7 +117,7 @@ fn a_stepping_fake_drives_exactly_one_tick_per_call() {
 
 #[test]
 fn a_stepping_fake_still_takes_a_nudge() {
-    let mut clock = Fake::stepping(Duration::from_millis(10));
+    let mut clock = Clock::stepping(Duration::from_millis(10));
     clock.advance(Duration::from_millis(5));
     assert_eq!(clock.elapsed(), Duration::from_millis(15));
     assert_eq!(clock.elapsed(), Duration::from_millis(10));
@@ -124,16 +127,16 @@ fn a_stepping_fake_still_takes_a_nudge() {
 fn a_clock_can_be_held_as_a_trait_object() {
     // The runtime stores whichever clock it was built with, so the trait has to
     // stay object safe.
-    let mut clock: Box<dyn Clock> = Box::new(Fake::stepping(Duration::from_millis(1)));
+    let mut clock: Box<dyn Elapsed> = Box::new(Clock::stepping(Duration::from_millis(1)));
     assert_eq!(clock.elapsed(), Duration::from_millis(1));
 }
 
 #[cfg(feature = "std")]
 #[test]
 fn a_wall_clock_measures_forward_only() {
-    use corvid_time::Wall;
+    use corvid_time::Clock;
 
-    let mut clock = Wall::new();
+    let mut clock = Clock::wall();
     let first = clock.elapsed();
     let mut total = Duration::ZERO;
     for _ in 0..100 {
@@ -148,9 +151,9 @@ fn a_wall_clock_measures_forward_only() {
 #[cfg(feature = "std")]
 #[test]
 fn a_wall_clock_measures_a_sleep() {
-    use corvid_time::Wall;
+    use corvid_time::Clock;
 
-    let mut clock = Wall::new();
+    let mut clock = Clock::wall();
     clock.elapsed();
     std::thread::sleep(Duration::from_millis(20));
     assert!(clock.elapsed() >= Duration::from_millis(15));
@@ -159,7 +162,7 @@ fn a_wall_clock_measures_a_sleep() {
 #[cfg(feature = "std")]
 #[test]
 fn a_wall_clock_reports_the_interval_since_the_last_call_not_since_it_was_built() {
-    use corvid_time::Wall;
+    use corvid_time::Clock;
 
     // This is the contract the whole trait is written around, and measuring a
     // single sleep does not test it: a clock that forgot to move its mark
@@ -171,7 +174,7 @@ fn a_wall_clock_reports_the_interval_since_the_last_call_not_since_it_was_built(
     // whatever it says straight into `Step::advance`. A timestamp there means
     // every frame after the first hands the step a growing interval, so the
     // catch-up ceiling refuses ticks forever and the simulation never recovers.
-    let mut clock = Wall::new();
+    let mut clock = Clock::wall();
     clock.elapsed();
     std::thread::sleep(Duration::from_millis(20));
     let slept = clock.elapsed();
@@ -204,7 +207,7 @@ fn a_wall_clock_reports_the_interval_since_the_last_call_not_since_it_was_built(
 fn a_wall_clock_never_hands_a_step_more_time_than_actually_passed() {
     use core::num::NonZeroU32;
 
-    use corvid_time::Wall;
+    use corvid_time::Clock;
 
     // The same contract stated the way the loop writes it: however long this
     // machine really took, the ticks the step delivers cannot exceed the
@@ -226,7 +229,7 @@ fn a_wall_clock_never_hands_a_step_more_time_than_actually_passed() {
     };
 
     let rate = KILOHERTZ;
-    let mut clock = Wall::new();
+    let mut clock = Clock::wall();
     // The ceiling must not be what bounds this test — the elapsed time must
     // be — so it is set where it can never bind, even if this thread loses the
     // processor for seconds between the sleep and the reads.

@@ -1,9 +1,10 @@
 #![doc = include_str!("../README.md")]
 #![no_std]
 
-// `Wall` is the only thing here that asks the operating system anything, and
-// `std` is the only feature that adds API. Nothing else reaches past `core` —
-// there is no allocation in this crate at all.
+// `Clock::wall` is the only thing here that asks the operating system
+// anything, and `std` is the only feature that adds API — the clock itself, in
+// its stepping mode, is `no_std` like everything else. Nothing here reaches
+// past `core` otherwise, and there is no allocation in this crate at all.
 #[cfg(feature = "std")]
 extern crate std;
 
@@ -12,9 +13,7 @@ mod span;
 mod step;
 mod tick;
 
-#[cfg(feature = "std")]
-pub use clock::Wall;
-pub use clock::{Clock, Fake};
+pub use clock::{Clock, Elapsed};
 pub use span::TickSpan;
 pub use step::Step;
 pub use tick::Tick;
