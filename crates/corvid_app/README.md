@@ -567,12 +567,18 @@ it, and `corvid_window` says so at length.
 | `render` | A device: [`App::offscreen`], the [`Render`] bound on [`main`], and the `corvid_render` and `corvid_mesh_render` dependencies |
 | `window` | A window, which implies `render`: [`App::window`], [`App::bindings`], and the `corvid_window` dependency |
 
-`render` and `window` are off by default because `wgpu` and `winit` together are
-most of what a graphics stack weighs, and a dedicated server, a determinism check
-and a game's own `cargo test` want none of it. A game that draws turns one of
-them on; a game that does not writes `type Graphics = ();` in its `Present`
-implementation, writes `type Graphics = ();` for the rest, and never compiles
-either.
+`render` and `window` are off by default, but be clear about what that buys.
+`winit` and an operating system's event loop are genuinely absent from a build
+without `window`. **`wgpu` is not**: `Render` is in the `App`'s own bounds, so
+`corvid_render` is an unconditional dependency of this crate and every build of
+it compiles a graphics stack. `tests/graphicless.rs` is where that is asserted
+rather than assumed, and it used to assert the opposite.
+
+What a build without `render` still does not pay for is the device.
+`Render::REAL` is false for `()`, so no adapter is requested, no surface is
+acquired and `draw` is never called — which is the property a dedicated server
+and a determinism check actually wanted, and the one that survives.
+`tests/windowless.rs` is where *that* is checked.
 
 There is no derive feature and nothing else to turn on: a game's state is marked
 with `#[derive(Hash)]`, which is `core`'s.

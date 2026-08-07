@@ -73,14 +73,23 @@ dev = ["corvid_app/dev"]
 # `App::transport` is the whole of what a caller sees of it — a game implements
 # nothing. Off by default, because a single-seat run should not compile one.
 net = ["corvid_app/net"]
-# A graphics stack. Off by default, and that is the point: `wgpu` is most of
-# what one weighs, and a dedicated server, a determinism check in CI and a game
-# that has not drawn anything yet all want a build with none of it. A game owes
-# `Present` either way; `Render` is what this adds.
+# The drawing crates, and the `render` module of this facade. A game owes
+# `Present` either way; `Render`, a mesh's device half and the UI's are what
+# this adds.
 #
-# `cargo tree -p corvid --no-default-features -i wgpu` finds nothing, and
-# `crates/corvid_app/tests/graphicless.rs` is where that is a test rather than a
-# claim.
+# **It does not keep `wgpu` out of the build, and nothing does.** `corvid_app`
+# names `corvid_render` unconditionally — `Render` is in the `App`'s own
+# bounds — so `cargo tree -p corvid --no-default-features -i wgpu` finds it
+# through `corvid_app`, whatever this feature says. This comment claimed the
+# opposite, and cited `crates/corvid_app/tests/graphicless.rs` as the proof;
+# that test asserts the reverse in as many words, under the name
+# `every_build_of_the_runtime_compiles_wgpu`, and has since the runtime grew a
+# renderer in its bounds.
+#
+# What a build without this still does not pay for is the **device**:
+# `Render::REAL` is false for `()`, so no adapter is requested and no surface
+# is acquired. That is a claim about a run rather than about a graph, and
+# `crates/corvid_app/tests/windowless.rs` is where it is made.
 render = [
     "corvid_app/render",
     "dep:corvid_render",
