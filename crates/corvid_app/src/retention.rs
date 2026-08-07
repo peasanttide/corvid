@@ -3,7 +3,7 @@
 /// How much of its own history a run holds on to.
 ///
 /// A run writes a row of actions and a digest every tick and, if it never seeks,
-/// reads neither again. An hour at [`TickRate::CRADLE`](corvid_time::TickRate)
+/// reads neither again. An hour at [`TickSpan::CRADLE`](corvid_time::TickSpan)
 /// is 54 000 of each — fifteen a second, sixty minutes — and a game left running
 /// over lunch was keeping every one of them for nobody.
 ///
@@ -47,7 +47,7 @@ pub enum Retention {
 impl Retention {
     /// The window a run gets when nobody says otherwise.
     ///
-    /// At [`TickRate::CRADLE`](corvid_time::TickRate) this is seventeen seconds
+    /// At [`TickSpan::CRADLE`](corvid_time::TickSpan) this is seventeen seconds
     /// of ticks and the sawtooth reaches thirty-four. That is chosen against
     /// what reaches backwards rather than against a memory figure: a rollback
     /// reaches back a network round trip, which is under a second; a desync

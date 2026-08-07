@@ -10,7 +10,7 @@ use corvid_hash::Digest;
 use corvid_input::Input;
 use corvid_replay::{LevelRef, Opening, Refused, Session, Shape};
 use corvid_signal::Emitter;
-use corvid_time::{Clock, Fake, Step, Tick, TickRate};
+use corvid_time::{Clock, Fake, Step, Tick, TickSpan};
 
 use crate::{
     Arguments, Requests, Retention,
@@ -144,7 +144,7 @@ impl<S: State> fmt::Debug for Outcome<S> {
 /// setting with a default. The defaults are the ones a headless run wants,
 /// because a headless run is the kind that needs no setting up: a
 /// [`Fake`](corvid_time::Fake) clock stepping one period per call, the
-/// [`CRADLE`](TickRate::CRADLE) rate, seat zero, an input snapshot with nothing
+/// [`CRADLE`](TickSpan::CRADLE) rate, seat zero, an input snapshot with nothing
 /// held, no capture, and [`Retention::RECENT`] — which is the one default that
 /// reads another setting, since a run being captured keeps everything instead.
 ///
@@ -187,7 +187,7 @@ where
     /// whatever [`rate`](Self::rate) ends up being.
     clock: Option<Box<dyn Clock>>,
     /// How often a tick runs.
-    rate: TickRate,
+    rate: TickSpan,
     /// Which seat this client submits for.
     seat: PlayerId,
     /// What carries this client's actions to the other machines, if there are
@@ -268,7 +268,7 @@ where
             audio: A::Config::default(),
             opening: None,
             clock: None,
-            rate: TickRate::CRADLE,
+            rate: TickSpan::CRADLE,
             seat: PlayerId(0),
             #[cfg(feature = "net")]
             transport: None,
@@ -484,7 +484,7 @@ where
 
     /// How often a tick runs.
     #[must_use]
-    pub const fn rate(mut self, rate: TickRate) -> Self {
+    pub const fn rate(mut self, rate: TickSpan) -> Self {
         self.rate = rate;
         self
     }

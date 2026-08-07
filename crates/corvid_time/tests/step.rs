@@ -11,20 +11,20 @@ use core::num::NonZeroU32;
 use core::time::Duration;
 
 use corvid_fixed::Factor16;
-use corvid_time::{Step, TickRate};
+use corvid_time::{Step, TickSpan};
 
 /// A rate in hertz, spelled without an `unwrap` so it works in a `const`. Zero
-/// is not a rate and falls back to [`TickRate::CRADLE`].
-const fn rate(hz: u32) -> TickRate {
+/// is not a rate and falls back to [`TickSpan::CRADLE`].
+const fn rate(hz: u32) -> TickSpan {
     match NonZeroU32::new(hz) {
-        Some(hz) => TickRate::from_hz(hz),
-        None => TickRate::CRADLE,
+        Some(hz) => TickSpan::from_hz(hz),
+        None => TickSpan::CRADLE,
     }
 }
 
 #[test]
 fn exact_multiples_do_not_drift() {
-    let mut step = Step::new(TickRate::CRADLE);
+    let mut step = Step::new(TickSpan::CRADLE);
     let mut total = 0;
     for _ in 0..1000 {
         total += step.advance(Duration::from_nanos(66_666_666));
@@ -72,7 +72,7 @@ fn ragged_advances_deliver_the_whole_elapsed_time() {
     // Frame times in the wild are never a multiple of the period. Over a run,
     // the ticks delivered must still account for every nanosecond handed in,
     // to within the part of a period left over at the end.
-    let rate = TickRate::CRADLE;
+    let rate = TickSpan::CRADLE;
     let mut step = Step::new(rate).with_catchup(64);
     let mut elapsed = 0u64;
     let mut total = 0u64;
@@ -81,13 +81,13 @@ fn ragged_advances_deliver_the_whole_elapsed_time() {
         elapsed += nanos;
         total += u64::from(step.advance(Duration::from_nanos(nanos)));
     }
-    assert_eq!(total, elapsed / rate.period_nanos());
+    assert_eq!(total, elapsed / rate.nanos());
     assert_eq!(step.dropped(), 0);
 }
 
 #[test]
 fn a_stalled_process_drops_ticks_rather_than_banking_them() {
-    let mut step = Step::new(TickRate::CRADLE).with_catchup(4);
+    let mut step = Step::new(TickSpan::CRADLE).with_catchup(4);
     assert_eq!(step.advance(Duration::from_secs(10)), 4);
     assert_eq!(step.advance(Duration::from_millis(1)), 0);
     assert!(
@@ -102,7 +102,7 @@ fn the_second_after_a_stall_is_an_ordinary_second() {
     // This is the whole reason for dropping. If the backlog were banked, the
     // fifteen seconds after a ten-second stall would each owe more than they
     // could deliver and the stall would never end.
-    let rate = TickRate::CRADLE;
+    let rate = TickSpan::CRADLE;
     let mut step = Step::new(rate).with_catchup(4);
     step.advance(Duration::from_secs(10));
 
@@ -152,14 +152,14 @@ fn the_remainder_below_a_period_survives_a_stall() {
 #[test]
 fn the_catchup_ceiling_is_what_bounds_one_advance() {
     for ceiling in [1u32, 2, 8, 64] {
-        let mut step = Step::new(TickRate::CRADLE).with_catchup(ceiling);
+        let mut step = Step::new(TickSpan::CRADLE).with_catchup(ceiling);
         assert_eq!(step.advance(Duration::from_mins(1)), ceiling);
     }
 }
 
 #[test]
 fn a_catchup_of_zero_would_stop_the_simulation_so_it_is_raised_to_one() {
-    let mut step = Step::new(TickRate::CRADLE).with_catchup(0);
+    let mut step = Step::new(TickSpan::CRADLE).with_catchup(0);
     assert_eq!(step.catchup(), 1);
     assert_eq!(step.advance(Duration::from_secs(1)), 1);
 }
@@ -175,7 +175,7 @@ fn dropped_counts_every_tick_the_ceiling_refused() {
 
 #[test]
 fn keeping_up_drops_nothing() {
-    let rate = TickRate::CRADLE;
+    let rate = TickSpan::CRADLE;
     let mut step = Step::new(rate);
     for _ in 0..1000 {
         step.advance(rate.period());
@@ -262,8 +262,8 @@ fn alpha_tracks_an_independent_accumulator_across_ragged_frames() {
     // convenient one. The expected answer is recomputed here from a `u64` this
     // file owns, which is what makes it a check on the step's bookkeeping and
     // not just on its arithmetic.
-    let rate = TickRate::CRADLE;
-    let period = rate.period_nanos();
+    let rate = TickSpan::CRADLE;
+    let period = rate.nanos();
     let scale = u64::from(Factor16::ONE.to_bits());
     let mut step = Step::new(rate).with_catchup(64);
     let mut expected = 0u64;
@@ -315,7 +315,7 @@ fn a_stalled_advance_cannot_overflow_the_accumulator() {
     // exactly 2^64 nanoseconds, which truncates to zero and no ticks.
     const TWO_POW_64_NANOS: Duration = Duration::new(18_446_744_073, 709_551_616);
 
-    let mut step = Step::new(TickRate::CRADLE).with_catchup(3);
+    let mut step = Step::new(TickSpan::CRADLE).with_catchup(3);
     assert_eq!(
         step.advance(TWO_POW_64_NANOS),
         3,
@@ -333,7 +333,7 @@ fn a_stalled_advance_cannot_overflow_the_accumulator() {
     // One nanosecond over a multiple of 2^64 wraps to one nanosecond, which is
     // below a period and so is also zero ticks — but it leaves a residue behind
     // that a later advance would then be short by.
-    let mut step = Step::new(TickRate::CRADLE).with_catchup(3);
+    let mut step = Step::new(TickSpan::CRADLE).with_catchup(3);
     assert_eq!(
         step.advance(TWO_POW_64_NANOS.saturating_add(Duration::from_nanos(1))),
         3
@@ -348,7 +348,7 @@ fn a_stalled_advance_cannot_overflow_the_accumulator() {
     // Not `alpha() <= ONE`: `ONE` is `u16::MAX`, so that bound holds for every
     // `u16` a step could possibly hand back — an alpha stuck at zero and an
     // alpha handing back the wrong end of the interval both satisfy it.
-    let rate = TickRate::CRADLE;
+    let rate = TickSpan::CRADLE;
     let mut step = Step::new(rate).with_catchup(3);
     assert_eq!(step.advance(Duration::MAX), 3);
     assert_eq!(step.advance(Duration::MAX), 3);
@@ -375,7 +375,7 @@ fn the_dropped_counter_saturates_rather_than_wrapping() {
     // `u64::MAX` ticks and a ceiling of one refuses all but one of them. Two
     // advances then more than cover the range.
     let mut step = Step::new(rate(u32::MAX)).with_catchup(1);
-    assert_eq!(step.rate().period_nanos(), 1, "the period did not clamp");
+    assert_eq!(step.span().nanos(), 1, "the period did not clamp");
 
     assert_eq!(step.advance(Duration::MAX), 1);
     assert_eq!(step.dropped(), u64::MAX - 1);
@@ -389,7 +389,7 @@ fn the_dropped_counter_saturates_rather_than_wrapping() {
 
 #[test]
 fn zero_elapsed_is_zero_ticks() {
-    let mut step = Step::new(TickRate::CRADLE);
+    let mut step = Step::new(TickSpan::CRADLE);
     assert_eq!(step.advance(Duration::ZERO), 0);
     assert_eq!(step.alpha(), Factor16::ZERO);
     assert_eq!(step.dropped(), 0);
@@ -398,8 +398,8 @@ fn zero_elapsed_is_zero_ticks() {
 #[test]
 fn a_step_remembers_the_rate_it_was_built_from() {
     let step = Step::new(rate(144));
-    assert_eq!(step.rate(), rate(144));
-    assert_eq!(step.rate().period_nanos(), 6_944_444);
+    assert_eq!(step.span(), rate(144));
+    assert_eq!(step.span().nanos(), 6_944_444);
 }
 
 /// Nothing in this crate may compute on a floating-point value, `alpha` least of
@@ -414,7 +414,7 @@ fn no_floating_point_anywhere_in_the_crate() {
     const SOURCES: [(&str, &str); 5] = [
         ("src/lib.rs", include_str!("../src/lib.rs")),
         ("src/tick.rs", include_str!("../src/tick.rs")),
-        ("src/rate.rs", include_str!("../src/rate.rs")),
+        ("src/span.rs", include_str!("../src/span.rs")),
         ("src/step.rs", include_str!("../src/step.rs")),
         ("src/clock.rs", include_str!("../src/clock.rs")),
     ];

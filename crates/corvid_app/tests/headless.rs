@@ -25,7 +25,7 @@ use corvid_app::{App, Progress};
 use corvid_behavior::{ExitCode, PlayerId};
 use corvid_hash::Digest;
 use corvid_signal::channel;
-use corvid_time::{Fake, Tick, TickRate};
+use corvid_time::{Fake, Tick, TickSpan};
 use corvid_wire::golden::{DigestRow, check_digests};
 
 /// How far the runs below play.
@@ -126,7 +126,7 @@ fn a_headless_run_is_not_paced_by_the_time_it_simulates() {
     // Three hundred ticks at fifteen hertz is twenty seconds of game. The
     // margin is two orders of magnitude, so this is about whether the loop
     // waits for anything at all rather than about how fast this machine is.
-    let rate = TickRate::CRADLE;
+    let rate = TickSpan::CRADLE;
     let simulated = rate.period() * 300;
 
     let started = Instant::now();
@@ -327,7 +327,7 @@ fn the_clock_the_app_was_given_is_what_decides_how_often_a_tick_runs() {
     // seventeenth reading is what delivers the fourth tick. That is the step's
     // arithmetic behaving exactly as `corvid_time` documents rather than
     // anything about this loop, so the rate here is chosen to leave it out.
-    let rate = TickRate::from_hz(NonZeroU32::new(20).unwrap());
+    let rate = TickSpan::from_hz(NonZeroU32::new(20).unwrap());
     let (emit, watch) = channel(
         "quarter",
         Progress {
@@ -443,7 +443,7 @@ fn the_clock_decides_how_many_ticks_a_reading_owes() {
     // What survives is the half that was never about alpha: a clock stepping
     // one and a half periods owes one tick on its first reading and two on its
     // second, so four ticks arrive over three readings.
-    let rate = TickRate::from_hz(NonZeroU32::new(20).unwrap());
+    let rate = TickSpan::from_hz(NonZeroU32::new(20).unwrap());
     let run = App::<Attendance, Marker>::new()
         .headless()
         .rate(rate)
@@ -464,12 +464,12 @@ fn the_clock_decides_how_many_ticks_a_reading_owes() {
 fn the_default_clock_is_the_rate_the_app_was_given() {
     // The documented default is `Fake::stepping(rate.period())`, and the rate
     // in question is the app's own. Substituting a constant — the cradle's
-    // period, say, which is what `TickRate::default` would hand over — is not
+    // period, say, which is what `TickSpan::default` would hand over — is not
     // visible at the default rate and is visible here, because a run at twenty
     // hertz driven by a fifteen-hertz clock owes two ticks on every third
     // reading rather than one on every reading.
-    let rate = TickRate::from_hz(NonZeroU32::new(20).unwrap());
-    assert_ne!(rate.period(), TickRate::CRADLE.period());
+    let rate = TickSpan::from_hz(NonZeroU32::new(20).unwrap());
+    assert_ne!(rate.period(), TickSpan::CRADLE.period());
 
     let defaulted = frames_of(
         App::<Tally, Hands, Painted, Ears>::new()
@@ -493,7 +493,7 @@ fn the_default_clock_is_the_rate_the_app_was_given() {
         App::<Tally, Hands, Painted, Ears>::new()
             .headless()
             .rate(rate)
-            .clock(Fake::stepping(TickRate::CRADLE.period()))
+            .clock(Fake::stepping(TickSpan::CRADLE.period()))
             .opening(opening::<Tally>(Rules::quiet())),
     );
     assert_ne!(defaulted, elsewhere);

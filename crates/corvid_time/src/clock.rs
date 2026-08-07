@@ -56,9 +56,9 @@ pub trait Clock: core::fmt::Debug {
 ///
 /// ```
 /// use core::time::Duration;
-/// use corvid_time::{Clock, Fake, Step, TickRate};
+/// use corvid_time::{Clock, Fake, Step, TickSpan};
 ///
-/// let rate = TickRate::CRADLE;
+/// let rate = TickSpan::CRADLE;
 /// let mut clock = Fake::stepping(rate.period());
 /// let mut step = Step::new(rate);
 ///

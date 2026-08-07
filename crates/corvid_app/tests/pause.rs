@@ -42,7 +42,7 @@ use corvid_control::Controller;
 use corvid_hash::{Digest, digest};
 use corvid_input::{Digital, Input};
 use corvid_signal::channel;
-use corvid_time::{Clock, Tick, TickRate};
+use corvid_time::{Clock, Tick, TickSpan};
 
 /// How far every run below plays.
 const TICKS: u64 = 12;
@@ -136,7 +136,7 @@ const fn never() -> Holding {
 /// tick the run reached and how many frames the backend was handed, which
 /// between them are exactly what a pause is supposed to move apart.
 fn play(holding: Holding, on: u64, stall: Duration) -> (Outcome<Tally>, Progress) {
-    let rate = TickRate::CRADLE;
+    let rate = TickSpan::CRADLE;
     let (emitter, watch) = channel(
         "pause",
         Progress {

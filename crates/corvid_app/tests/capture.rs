@@ -23,7 +23,7 @@ use corvid_app::App;
 use corvid_hash::digest;
 use corvid_replay::{HashTrace, Load, Schema, Session, Snapshots};
 use corvid_sound::AudioFrame;
-use corvid_time::{Fake, Tick, TickRate};
+use corvid_time::{Fake, Tick, TickSpan};
 
 /// How far the runs below play.
 const TICKS: u64 = 12;
@@ -250,7 +250,7 @@ fn a_clock_slower_than_the_tick_rate_displays_at_the_opening_tick() {
     // tick on its first three readings
     // and the loop displays on every one of them, because a display that waited
     // for a tick would stutter whenever the simulation is not due.
-    let rate = TickRate::from_hz(NonZeroU32::new(20).unwrap());
+    let rate = TickSpan::from_hz(NonZeroU32::new(20).unwrap());
     let scratchpad = Scratchpad::new("slow");
     let run = App::<Tally, Hands, Painted, Ears>::new()
         .headless()

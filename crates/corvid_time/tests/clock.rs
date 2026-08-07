@@ -8,7 +8,7 @@
 use core::marker::PhantomData;
 use core::time::Duration;
 
-use corvid_time::{Clock, Fake, Step, Tick, TickRate};
+use corvid_time::{Clock, Fake, Step, Tick, TickSpan};
 
 /// Asks whether `T` is `Copy` without requiring that it is.
 ///
@@ -88,7 +88,7 @@ fn a_fake_hands_back_what_was_queued_once() {
 
 #[test]
 fn a_stepping_fake_returns_exactly_one_period_per_call() {
-    let period = TickRate::CRADLE.period();
+    let period = TickSpan::CRADLE.period();
     let mut clock = Fake::stepping(period);
     for _ in 0..1000 {
         assert_eq!(clock.elapsed(), period);
@@ -100,7 +100,7 @@ fn a_stepping_fake_drives_exactly_one_tick_per_call() {
     // This is the shape of every headless test in the workspace: no stall is
     // possible, so no tick is ever dropped, and the thousandth call is the
     // thousandth tick.
-    let rate = TickRate::CRADLE;
+    let rate = TickSpan::CRADLE;
     let mut clock = Fake::stepping(rate.period());
     let mut step = Step::new(rate);
     let mut tick = Tick::ZERO;
@@ -220,9 +220,9 @@ fn a_wall_clock_never_hands_a_step_more_time_than_actually_passed() {
     // rate's sixty-six millisecond period against a twenty millisecond sleep
     // left room for a clock to multiply what it reported several times over
     // and still round down to the same tick count.
-    const KILOHERTZ: TickRate = match NonZeroU32::new(1_000) {
-        Some(hz) => TickRate::from_hz(hz),
-        None => TickRate::CRADLE,
+    const KILOHERTZ: TickSpan = match NonZeroU32::new(1_000) {
+        Some(hz) => TickSpan::from_hz(hz),
+        None => TickSpan::CRADLE,
     };
 
     let rate = KILOHERTZ;
@@ -246,8 +246,7 @@ fn a_wall_clock_never_hands_a_step_more_time_than_actually_passed() {
     // `truth`. So the step was told about at most `truth` nanoseconds and can
     // have delivered at most the whole periods that fit in them — no slack is
     // owed, and none is given.
-    let affordable =
-        u64::try_from(truth.as_nanos() / u128::from(rate.period_nanos())).unwrap_or(u64::MAX);
+    let affordable = u64::try_from(truth.as_nanos() / u128::from(rate.nanos())).unwrap_or(u64::MAX);
     assert!(
         ticks <= affordable,
         "the step delivered {ticks} ticks out of {truth:?}, which affords {affordable}"

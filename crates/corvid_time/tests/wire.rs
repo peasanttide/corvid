@@ -35,9 +35,9 @@
     reason = "a failed unwrap in a test is a failed test, which is what a test is for"
 )]
 
-use core::num::NonZeroU32;
+use core::num::{NonZeroU32, NonZeroU64};
 
-use corvid_time::{Tick, TickRate};
+use corvid_time::{Tick, TickSpan};
 use corvid_wire::golden::{DigestRow, Row, check, check_digests};
 
 /// The tick counter: eight bytes, least significant first.
@@ -54,17 +54,33 @@ const GOLDEN_TICKS: &[Row<'_>] = &[
     ("Tick(u64::MAX)", "fdffffffffffffffff"),
 ];
 
-/// The tick rate: four bytes, and no tag for the fact that it cannot be zero.
+/// The tick span: a varint of nanoseconds, and no tag for the fact that it
+/// cannot be zero.
 ///
-/// `TickRate` wraps a `NonZeroU32`, and the first row is what says that costs
-/// nothing on the wire — fifteen is `0f000000` and not a tag byte and then
-/// fifteen. It also says a rate is *not* stored as a period: a capture that held
-/// the sixty-six million nanoseconds `CRADLE` runs at would look nothing like
-/// this, and reading one as the other would produce a rate no player could
-/// survive.
+/// **This table moved in 0.2.** `TickSpan` wraps a `NonZeroU64` of nanoseconds
+/// where `TickRate` wrapped a `NonZeroU32` of hertz, so `CRADLE` is the five
+/// bytes of 66 666 666 and not the one byte of fifteen.
+///
+/// What that does *not* break is a recorded session. No `Opening` carries a
+/// span — it holds the level, the rules, the roster, the seed, the first tick
+/// and the origin — so nothing this workspace writes to disk embeds one, and
+/// every 0.1 capture still reads. The version moved for the API and for this
+/// type's own contract, which is what this table is.
+///
+/// The second row is the one that says why the span is what is stored: a
+/// gigahertz-and-change rate truncates to a three-nanosecond span, and the
+/// stored value is that span exactly rather than a rate the simulation would
+/// have had to re-derive it from. The third is a span no whole rate names.
 const GOLDEN_RATES: &[Row<'_>] = &[
-    ("TickRate::CRADLE, fifteen hertz", "0f"),
-    ("TickRate::from_hz(0x1234_5678)", "fc78563412"),
+    (
+        "TickSpan::CRADLE, sixty-six million nanoseconds",
+        "fcaa40f903",
+    ),
+    ("TickSpan::from_hz(0x1234_5678), three nanoseconds", "03"),
+    (
+        "TickSpan::from_nanos(13_888_888), a 72 Hz headset",
+        "fc78edd300",
+    ),
 ];
 
 #[test]
@@ -83,27 +99,32 @@ fn the_tick_encodes_as_it_was_recorded() {
 }
 
 #[test]
-fn the_tick_rate_encodes_as_it_was_recorded() {
+fn the_tick_span_encodes_as_it_was_recorded() {
     let fast = NonZeroU32::new(0x1234_5678).unwrap();
+    let headset = NonZeroU64::new(13_888_888).unwrap();
     check(
-        "TickRate",
+        "TickSpan",
         GOLDEN_RATES,
-        &[TickRate::CRADLE, TickRate::from_hz(fast)],
+        &[
+            TickSpan::CRADLE,
+            TickSpan::from_hz(fast),
+            TickSpan::from_nanos(headset),
+        ],
     )
     .unwrap();
 }
 
 #[test]
-fn a_tick_and_a_rate_are_their_numbers_and_nothing_else() {
+fn a_tick_and_a_span_are_their_numbers_and_nothing_else() {
     // Both are transparent: the bytes of a tick are the bytes of the number in
-    // it, with no wrapper and — for the rate — no non-zero tag.
+    // it, with no wrapper and — for the span — no non-zero tag.
     assert_eq!(
         corvid_wire::encode(&Tick(1)).unwrap(),
         corvid_wire::encode(&1_u64).unwrap(),
     );
     assert_eq!(
-        corvid_wire::encode(&TickRate::CRADLE).unwrap(),
-        corvid_wire::encode(&15_u32).unwrap(),
+        corvid_wire::encode(&TickSpan::CRADLE).unwrap(),
+        corvid_wire::encode(&66_666_666_u64).unwrap(),
     );
 
     // And a number this small is one byte at either width, which is the shape
@@ -111,10 +132,28 @@ fn a_tick_and_a_rate_are_their_numbers_and_nothing_else() {
     // write these same bytes and pass every round trip in the crate — what it
     // would move is the digest, and `GOLDEN_MARKS` below is that table.
     assert_eq!(corvid_wire::encode(&Tick(1)).unwrap(), [0x01]);
-    assert_eq!(corvid_wire::encode(&TickRate::CRADLE).unwrap(), [0x0f]);
-    assert_ne!(
+    // A one-nanosecond span is the same one byte — and, since 0.2, the same
+    // digest as `Tick(1)`.
+    //
+    // That is a real change and worth stating rather than asserting around.
+    // `corvid_hash` absorbs an integer at its *declared width*, so while a span
+    // was a `u32` of hertz and a tick a `u64` the two could not collide. Both
+    // are `u64` now, and a transparent newtype adds nothing to the bytes of
+    // what it wraps, so alone they are indistinguishable.
+    //
+    // Nothing depends on telling them apart. Neither is ever hashed alone in
+    // this workspace: both reach a digest inside an `Opening`, where the field
+    // order and every other field are absorbed with them, and the width rule
+    // still separates a narrowed field from a wide one *in that position*. What
+    // the collision would cost is a caller hashing one bare value against
+    // another bare value of a different type, which is not a comparison any
+    // format here makes.
+    let shortest = TickSpan::from_nanos(NonZeroU64::MIN);
+    assert_eq!(corvid_wire::encode(&shortest).unwrap(), [0x01]);
+    assert_eq!(
         corvid_hash::digest(&Tick(1)),
-        corvid_hash::digest(&TickRate::from_hz(NonZeroU32::new(1).unwrap())),
+        corvid_hash::digest(&shortest),
+        "a tick and a span are both transparent u64s, so alone they collide",
     );
 }
 
@@ -125,7 +164,7 @@ fn a_tick_beyond_a_narrower_counter_is_in_the_table() {
     assert!(u32::try_from(0x1234_5678_9abc_def0_u64).is_err());
 }
 
-/// What a `Tick` and a `TickRate` digest to under `corvid_hash`'s hasher.
+/// What a `Tick` and a `TickSpan` digest to under `corvid_hash`'s hasher.
 ///
 /// The third of the three views, and the only one that sees a **width**. The
 /// byte table above is a varint, so `Tick(1)` is one byte whether the counter is
@@ -141,8 +180,11 @@ const GOLDEN_MARKS: &[DigestRow<'_>] = &[
     ("Tick::ZERO", 0x7383_3581_a38e_f3cd),
     ("Tick(1)", 0x3178_2188_0dd5_d02b),
     ("Tick(0x1234_5678_9abc_def0)", 0x23a9_aafe_59d6_50f2),
-    ("TickRate::CRADLE", 0x1783_4fb1_c92c_3ba5),
-    ("TickRate::from_hz(1)", 0xd2ad_74d3_e9bb_9f8b),
+    ("TickSpan::CRADLE", 0x2e0d_400a_8586_8f54),
+    (
+        "TickSpan::from_hz(1), a one-second span",
+        0x503f_4582_2b4a_6528,
+    ),
 ];
 
 #[test]
@@ -151,8 +193,8 @@ fn a_tick_and_a_rate_digest_as_they_were_recorded() {
         corvid_hash::digest(&Tick::ZERO),
         corvid_hash::digest(&Tick(1)),
         corvid_hash::digest(&Tick(0x1234_5678_9abc_def0)),
-        corvid_hash::digest(&TickRate::CRADLE),
-        corvid_hash::digest(&TickRate::from_hz(NonZeroU32::new(1).unwrap())),
+        corvid_hash::digest(&TickSpan::CRADLE),
+        corvid_hash::digest(&TickSpan::from_hz(NonZeroU32::new(1).unwrap())),
     ]
     .map(corvid_hash::Digest::to_u64);
     check_digests("the clock's types", GOLDEN_MARKS, &marks).unwrap();

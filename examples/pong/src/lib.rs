@@ -25,7 +25,7 @@ pub use table::{
 /// also the more interesting rate for the netcode: at thirty hertz a domestic
 /// link's latency is two or three ticks rather than one, so prediction has
 /// something to do.
-pub const RATE: corvid::TickRate = rate(30);
+pub const RATE: corvid::TickSpan = rate(30);
 
 /// A rate from a literal, with no panic in sight.
 ///
@@ -33,10 +33,10 @@ pub const RATE: corvid::TickRate = rate(30);
 /// constant cannot be written down with any of them. One hertz is the slowest
 /// rate there is, so a constant somebody edited to zero becomes a very slow
 /// game rather than a build that stops.
-const fn rate(hz: u32) -> corvid::TickRate {
+const fn rate(hz: u32) -> corvid::TickSpan {
     match core::num::NonZeroU32::new(hz) {
-        Some(hz) => corvid::TickRate::from_hz(hz),
-        None => corvid::TickRate::from_hz(core::num::NonZeroU32::MIN),
+        Some(hz) => corvid::TickSpan::from_hz(hz),
+        None => corvid::TickSpan::from_hz(core::num::NonZeroU32::MIN),
     }
 }
 

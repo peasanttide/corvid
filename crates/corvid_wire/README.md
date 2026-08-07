@@ -70,7 +70,7 @@ numbers in the first few hours of a session, and every counter a game keeps are
 all in the one-byte range and stay there.
 
 At the scale this workspace is designed for — fifty thousand entities, the
-number `corvid_time`'s `TickRate::CRADLE` budgets a rollback for, each with an
+number `corvid_time`'s `TickSpan::CRADLE` budgets a rollback for, each with an
 identifier, a position, a packed rotation and two counters — a snapshot is
 1,230,240 bytes, and 570,275 through `deflate`.
 

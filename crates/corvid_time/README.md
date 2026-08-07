@@ -10,10 +10,10 @@ sub-tick interpolation factor, which is the one quantity here that looks like it
 wants to be a fraction.
 
 ```rust
-use corvid_time::{Clock, Duration, Fake, Step, Tick, TickRate};
+use corvid_time::{Clock, Duration, Fake, Step, Tick, TickSpan};
 
 // Fifteen ticks a second, which is a period of 66 666 666 nanoseconds exactly.
-let rate = TickRate::CRADLE;
+let rate = TickSpan::CRADLE;
 assert_eq!(rate.period(), Duration::from_nanos(66_666_666));
 
 // A test drives the loop with a clock that passes one period per call, so a
@@ -52,7 +52,7 @@ there only to keep the panic out.
 
 ## The period is an integer, and that is the definition
 
-[`TickRate::period_nanos`] truncates: it is `1_000_000_000 / hz`, and the step
+[`TickSpan::nanos`] truncates: it is `1_000_000_000 / hz`, and the step
 accumulates against that same integer. The two cannot disagree, so advancing by
 exactly one period a thousand times delivers exactly a thousand ticks with
 nothing left over and nothing owed. A period that carried a remainder the
@@ -66,7 +66,7 @@ exactly `1_000_000_000 % hz` nanoseconds per second:
 | Rate | `period()` | Fast by | One second of drift every |
 |---|---|---|---|
 | 10 Hz | 100 000 000 ns | — | never |
-| 15 Hz ([`CRADLE`](TickRate::CRADLE)) | 66 666 666 ns | 10 ns/s | 3.2 years |
+| 15 Hz ([`CRADLE`](TickSpan::CRADLE)) | 66 666 666 ns | 10 ns/s | 3.2 years |
 | 20 Hz | 50 000 000 ns | — | never |
 | 30 Hz | 33 333 333 ns | 10 ns/s | 3.2 years |
 | 60 Hz | 16 666 666 ns | 40 ns/s | 289 days |
@@ -95,9 +95,9 @@ passed, and refuses to return more than the catch-up ceiling. Whatever it
 refuses is *dropped* and counted in [`Step::dropped`], never carried forward.
 
 ```rust
-use corvid_time::{Duration, Step, TickRate};
+use corvid_time::{Duration, Step, TickSpan};
 
-let rate = TickRate::CRADLE;
+let rate = TickSpan::CRADLE;
 let mut step = Step::new(rate).with_catchup(4);
 
 // Ten seconds go missing — a load, a breakpoint, a laptop lid. A hundred and
@@ -146,13 +146,13 @@ or a decimal literal appears in it.
 ```rust
 use core::num::NonZeroU32;
 use corvid_fixed::Factor16;
-use corvid_time::{Duration, Step, TickRate};
+use corvid_time::{Duration, Step, TickSpan};
 
 // A rate cannot be zero, so building one from a plain number is a match rather
 // than an unwrap. This is the idiom the workspace's lints leave you with.
-const TEN_HZ: TickRate = match NonZeroU32::new(10) {
-    Some(hz) => TickRate::from_hz(hz),
-    None => TickRate::CRADLE,
+const TEN_HZ: TickSpan = match NonZeroU32::new(10) {
+    Some(hz) => TickSpan::from_hz(hz),
+    None => TickSpan::CRADLE,
 };
 
 let mut step = Step::new(TEN_HZ);
@@ -224,7 +224,7 @@ All off by default. The crate is `no_std` and allocates nothing.
 
 | Feature | Effect |
 |---|---|
-| `serde` | `Serialize`/`Deserialize` for [`Tick`] and [`TickRate`], transparently as the number. A rate of zero is refused by the deserializer rather than becoming a division by zero later |
+| `serde` | `Serialize`/`Deserialize` for [`Tick`] and [`TickSpan`], transparently as the number. A rate of zero is refused by the deserializer rather than becoming a division by zero later |
 | `std` | [`Wall`]. The only feature that adds API |
 
 [`Step`] and [`Fake`] have neither a wire format nor a digest, on purpose. They

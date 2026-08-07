@@ -358,7 +358,7 @@ pub const SEED: u64 = 0x0f_1e_2d_3c;
 #[cfg(feature = "window")]
 pub fn together(
     seat: PlayerId,
-    rate: corvid::TickRate,
+    rate: corvid::TickSpan,
     ticks: Option<u64>,
     windowed: bool,
 ) -> corvid::Result<corvid::Outcome<Table>> {

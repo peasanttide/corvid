@@ -8,14 +8,14 @@
 extern crate std;
 
 mod clock;
-mod rate;
+mod span;
 mod step;
 mod tick;
 
 #[cfg(feature = "std")]
 pub use clock::Wall;
 pub use clock::{Clock, Fake};
-pub use rate::TickRate;
+pub use span::TickSpan;
 pub use step::Step;
 pub use tick::Tick;
 

@@ -15,7 +15,7 @@ use corvid_render::{Extent, Renderer};
 use corvid_signal::Seen;
 use corvid_signal::Watch;
 use corvid_sound::Auralizer;
-use corvid_time::{Clock, Step, TickRate};
+use corvid_time::{Clock, Step, TickSpan};
 use corvid_window::{Attached, Flow, Host, SurfaceState};
 
 /// Everything a run needs that cannot be built until a window exists.
@@ -39,7 +39,7 @@ pub(crate) struct Pending<S: State, C: Controller<S>, R: Render<S>, A: Auralizer
     /// Where to write the run down, if anywhere.
     pub(crate) capture: Option<Capture>,
     /// How often a tick runs.
-    pub(crate) rate: TickRate,
+    pub(crate) rate: TickSpan,
     /// Where real time comes from.
     pub(crate) clock: Box<dyn Clock>,
 }

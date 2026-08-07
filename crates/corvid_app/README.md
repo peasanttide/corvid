@@ -265,7 +265,7 @@ no platform layer under this crate.
 ## What a run keeps, and what it lets go of
 
 A run writes a row of actions and a digest every tick. A run that never seeks
-reads neither again, and an hour at [`TickRate::CRADLE`] is 54 000 of each —
+reads neither again, and an hour at [`TickSpan::CRADLE`] is 54 000 of each —
 fifteen a second for sixty minutes. Keeping all of that against the possibility
 that somebody drags a slider is not a default a game should have to opt out of,
 so the default is bounded and keeping everything is something a run asks for.
@@ -617,7 +617,7 @@ be compared against the wrong build eventually.
 [`Retention::RECENT`]: crate::Retention::RECENT
 [`Session::save`]: corvid_replay::Session::save
 [`Snapshots`]: corvid_replay::Snapshots
-[`TickRate::CRADLE`]: corvid_time::TickRate::CRADLE
+[`TickSpan::CRADLE`]: corvid_time::TickSpan::CRADLE
 [`Unreachable::Before`]: corvid_replay::Unreachable::Before
 [`flavour`]: crate::flavour
 [`ActionLog`]: corvid_replay::ActionLog

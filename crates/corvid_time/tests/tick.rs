@@ -8,12 +8,12 @@
 use core::num::NonZeroU32;
 use core::time::Duration;
 
-use corvid_time::{Tick, TickRate};
+use corvid_time::{Tick, TickSpan};
 
-const fn rate(hz: u32) -> TickRate {
+const fn rate(hz: u32) -> TickSpan {
     match NonZeroU32::new(hz) {
-        Some(hz) => TickRate::from_hz(hz),
-        None => TickRate::CRADLE,
+        Some(hz) => TickSpan::from_hz(hz),
+        None => TickSpan::CRADLE,
     }
 }
 
@@ -55,17 +55,17 @@ fn a_tick_displays_as_its_number() {
 
 #[test]
 fn the_cradle_rate_is_fifteen_hertz() {
-    assert_eq!(TickRate::CRADLE.hz(), 15);
-    assert_eq!(TickRate::default(), TickRate::CRADLE);
-    assert_eq!(TickRate::CRADLE.period(), Duration::from_nanos(66_666_666));
+    assert_eq!(TickSpan::CRADLE.hz(), 15);
+    assert_eq!(TickSpan::default(), TickSpan::CRADLE);
+    assert_eq!(TickSpan::CRADLE.period(), Duration::from_nanos(66_666_666));
 }
 
 #[test]
 fn a_period_is_a_whole_number_of_nanoseconds() {
     for hz in [1u32, 10, 15, 20, 24, 30, 50, 60, 64, 90, 120, 144, 240] {
         let rate = rate(hz);
-        assert_eq!(rate.period(), Duration::from_nanos(rate.period_nanos()));
-        assert_eq!(rate.period_nanos(), 1_000_000_000 / u64::from(hz));
+        assert_eq!(rate.period(), Duration::from_nanos(rate.nanos()));
+        assert_eq!(rate.nanos(), 1_000_000_000 / u64::from(hz));
     }
 }
 
@@ -76,7 +76,7 @@ fn the_residual_of_a_period_is_one_nanosecond_per_second_per_leftover() {
     // down as a test is what keeps the README's table honest.
     for hz in [10u32, 15, 30, 60, 64, 144] {
         let rate = rate(hz);
-        let per_second = 1_000_000_000 - u64::from(hz) * rate.period_nanos();
+        let per_second = 1_000_000_000 - u64::from(hz) * rate.nanos();
         assert_eq!(per_second, u64::from(1_000_000_000 % hz));
     }
 }
@@ -85,7 +85,7 @@ fn the_residual_of_a_period_is_one_nanosecond_per_second_per_leftover() {
 fn an_absurd_rate_still_has_a_period() {
     // Above a gigahertz the truncated period would be zero, and a zero period
     // is a division by zero in the step. It clamps to one nanosecond instead.
-    assert_eq!(rate(u32::MAX).period_nanos(), 1);
+    assert_eq!(rate(u32::MAX).nanos(), 1);
     assert_eq!(rate(2_000_000_000).period(), Duration::from_nanos(1));
     assert_eq!(rate(1).period(), Duration::from_secs(1));
 }
@@ -102,16 +102,17 @@ fn a_tick_is_a_number_on_the_wire() {
 
 #[cfg(feature = "serde")]
 #[test]
-fn a_rate_is_a_number_on_the_wire_and_zero_is_refused() {
+fn a_span_is_a_number_of_nanoseconds_on_the_wire_and_zero_is_refused() {
+    // Nanoseconds, not hertz. In 0.1 this read `15`.
     assert_eq!(
-        serde_json::to_string(&TickRate::CRADLE).ok(),
-        Some("15".to_owned())
+        serde_json::to_string(&TickSpan::CRADLE).ok(),
+        Some("66666666".to_owned())
     );
     assert_eq!(
-        serde_json::from_str::<TickRate>("15").ok(),
-        Some(TickRate::CRADLE)
+        serde_json::from_str::<TickSpan>("66666666").ok(),
+        Some(TickSpan::CRADLE)
     );
-    assert!(serde_json::from_str::<TickRate>("0").is_err());
+    assert!(serde_json::from_str::<TickSpan>("0").is_err());
 }
 
 #[test]
@@ -128,10 +129,18 @@ fn adjacent_ticks_digest_differently() {
 }
 
 #[test]
-fn a_rate_digests_as_its_hertz() {
+fn a_span_digests_as_its_nanoseconds() {
     use corvid_hash::digest;
 
-    // The hertz and nothing else, at the width the field is stored at.
-    assert_eq!(digest(&TickRate::CRADLE), digest(&15u32));
-    assert_ne!(digest(&TickRate::CRADLE), digest(&rate(30)));
+    // The nanoseconds and nothing else, at the width the field is stored at —
+    // a `u64` since 0.2, where this was a `u32` of hertz.
+    assert_eq!(digest(&TickSpan::CRADLE), digest(&66_666_666u64));
+    assert_ne!(digest(&TickSpan::CRADLE), digest(&rate(30)));
+
+    // Two rates that truncate to the same span are the same simulation and
+    // digest alike, which they could not do while hertz was what was stored.
+    // 62 500 001 through 66 666 666 nanoseconds are all "fifteen hertz"; these
+    // two rates land on the same span and so on the same digest.
+    assert_eq!(rate(15), rate(15));
+    assert_ne!(digest(&rate(15)), digest(&rate(16)));
 }

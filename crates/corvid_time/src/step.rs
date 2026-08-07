@@ -4,7 +4,7 @@ use core::time::Duration;
 
 use corvid_fixed::Factor16;
 
-use crate::TickRate;
+use crate::TickSpan;
 
 /// How many ticks one [`advance`](Step::advance) delivers unless told otherwise.
 ///
@@ -26,9 +26,9 @@ const DEFAULT_CATCHUP: u32 = 8;
 ///
 /// ```
 /// use core::time::Duration;
-/// use corvid_time::{Step, TickRate};
+/// use corvid_time::{Step, TickSpan};
 ///
-/// let rate = TickRate::CRADLE;
+/// let rate = TickSpan::CRADLE;
 /// let mut step = Step::new(rate);
 /// let mut ticks = 0;
 /// for _ in 0..1000 {
@@ -43,8 +43,8 @@ const DEFAULT_CATCHUP: u32 = 8;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Step {
     /// The rate this step was built from, kept so the runtime can ask.
-    rate: TickRate,
-    /// `rate.period_nanos()`, cached because it is a divisor on every advance.
+    span: TickSpan,
+    /// `rate.nanos()`, cached because it is a divisor on every advance.
     /// Never zero, which is what makes the division total.
     period_nanos: u64,
     /// Real time seen but not yet spent on a tick. Always below `period_nanos`
@@ -60,10 +60,10 @@ impl Step {
     /// A step at `rate`, with the default catch-up ceiling of eight ticks.
     #[must_use]
     #[inline]
-    pub const fn new(rate: TickRate) -> Self {
+    pub const fn new(span: TickSpan) -> Self {
         Self {
-            rate,
-            period_nanos: rate.period_nanos(),
+            span,
+            period_nanos: span.nanos(),
             accumulated_nanos: 0,
             catchup: DEFAULT_CATCHUP,
             dropped: 0,
@@ -84,8 +84,8 @@ impl Step {
     /// The rate this step runs at.
     #[must_use]
     #[inline]
-    pub const fn rate(&self) -> TickRate {
-        self.rate
+    pub const fn span(&self) -> TickSpan {
+        self.span
     }
 
     /// The most ticks one [`advance`](Step::advance) will return.

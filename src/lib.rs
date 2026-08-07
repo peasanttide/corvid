@@ -123,7 +123,7 @@ pub use corvid_replay::{
     self as replay, Opening, Opens, Profile, Schema, Seed, Session, Snapshots,
 };
 pub use corvid_signal::{self as signal, Emitter, Watch, channel};
-pub use corvid_time::{self as time, Clock, Duration, Fake, Tick, TickRate, Wall};
+pub use corvid_time::{self as time, Clock, Duration, Fake, Tick, TickSpan, Wall};
 
 // The maths stack, from the bits up. A game writing a position, an angle or a
 // colour names one crate for all of it.
