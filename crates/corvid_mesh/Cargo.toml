@@ -1,0 +1,47 @@
+[package]
+name = "corvid_mesh"
+description = "Fixed-point geometry: a twelve-byte vertex, an indexed mesh, and the generators that build one, with no device anywhere in it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "mesh", "geometry", "fixed-point", "no-std"]
+categories = ["game-development", "no-std"]
+
+[dependencies]
+corvid_fixed = { workspace = true }
+corvid_bits = { workspace = true }
+# The `Aabb` a mesh's bound is. This is what makes that type earn its place
+# outside a raycast: a bound is what a broad phase culls by and what a picking
+# pass tests first, and neither of those needs a device.
+corvid_shape = { version = "0.1.0", path = "../corvid_shape", default-features = false }
+# `Mesh::scale`'s own type, and the angles and factors the generators turn
+# circles with.
+corvid_transform = { version = "0.1.0", path = "../corvid_transform", default-features = false }
+# `OctDirection`, which is a vertex normal, and the `Direction` a face normal is
+# computed as. Named directly as well as through `corvid_transform` because the
+# `bytemuck` feature below has to be forwarded to it.
+corvid_vector = { version = "0.1.0", path = "../corvid_vector", default-features = false }
+bytemuck = { workspace = true, optional = true }
+
+[features]
+# `bytemuck` is on by default here where it is optional everywhere else in this
+# workspace: a vertex whose whole purpose is to become the bytes of a vertex
+# buffer and cannot is not useful, and `bytemuck` is `no_std`, so nothing is
+# paid for it on a target with no operating system.
+default = ["bytemuck"]
+# `Pod` and `Zeroable` on `Vertex`, so a slice of them casts to bytes without
+# `unsafe`, which is forbidden here. Forwarded to `corvid_vector`, because the
+# normal inside a vertex has to be `Pod` for the vertex to be.
+bytemuck = ["dep:bytemuck", "corvid_vector/bytemuck"]
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+std = ["corvid_shape/std", "corvid_transform/std", "corvid_vector/std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
