@@ -60,11 +60,6 @@ net = [
     "dep:corvid_wire",
 ]
 
-[dev-dependencies]
-# A directory nothing else is using for the tests that write a capture, and the
-# PNG reader the one test that looks at a picture reads one with.
-corvid_test = { workspace = true }
-
 [lints]
 workspace = true
 

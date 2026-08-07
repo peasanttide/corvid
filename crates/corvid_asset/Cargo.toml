@@ -23,16 +23,6 @@ corvid_behavior = { version = "0.1", path = "../corvid_behavior", features = ["s
 # `corvid_behavior` could name `Source` in `Level::load`; `Files` stayed, and is
 # the only part of it that ever needed an operating system.
 corvid_files = { workspace = true }
-# And no `serde`, which is the same point from the other side: nothing this
-# crate defines is written down. An `Asset` decodes bytes the game chose the
-# format of, and a `Handle` that could be serialized would be one step from a
-# `Handle` in a `State`.
-
-[dev-dependencies]
-# A test game names a `State`, a `Level`, a `Rules` and an `Action`, and `Data`
-# demands every one of them be serializable. A game's own manifest carries the
-# same line.
-serde = { version = "1", default-features = false, features = ["derive", "std"] }
 
 [lints]
 workspace = true

@@ -30,16 +30,6 @@ serde = { workspace = true, features = ["alloc", "derive", "rc"] }
 # guess at one.
 corvid_wire = { workspace = true }
 
-[dev-dependencies]
-# The other half of the golden pair. A byte table cannot see a field renamed or
-# two same-typed fields exchanged, and this is what writes the names down.
-# Nothing in this crate encodes anything as JSON.
-serde_json = "1"
-# So that a test can write a capture down *by hand*, in the shape an
-# `ActionLog` decodes from, and hand the crate one that no code here would ever
-# produce. `tests/forget.rs` is the caller and says what it is checking for.
-corvid_wire = { workspace = true, features = ["std"] }
-
 [features]
 default = []
 # Adds no API. It exists so a downstream can forward `std` uniformly across the

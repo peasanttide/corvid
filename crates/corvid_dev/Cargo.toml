@@ -29,16 +29,6 @@ corvid_transform = { version = "0.1", path = "../corvid_transform", default-feat
 corvid_replay = { version = "0.1", path = "../corvid_replay", features = ["std"] }
 # The `AudioFrame` the audio dump summarises and digests.
 corvid_sound = { version = "0.1", path = "../corvid_sound", default-features = false }
-# And not `corvid_app`. The runtime is what reads an `Overlay`, a `Rows` and a
-# `Console` and puts them on a screen, so the edge runs from there to here: a
-# facade that reaches this crate through `corvid_app` needs that direction, and
-# a `From<corvid_app::Progress>` here would close the loop for one conversion
-# whose two halves are both public data.
-
-[dev-dependencies]
-# A test game names a `State`, a `Level`, a `Rules` and an `Action`, and `Data`
-# demands every one of them be serializable.
-serde = { version = "1", default-features = false, features = ["derive", "std"] }
 
 [features]
 default = []

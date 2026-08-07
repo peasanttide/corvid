@@ -402,7 +402,6 @@ dependencies = [
  "corvid_vector",
  "corvid_window",
  "corvid_wire",
- "serde",
 ]
 
 [[package]]
@@ -425,14 +424,11 @@ dependencies = [
  "corvid_signal",
  "corvid_sound",
  "corvid_time",
- "corvid_transform",
- "corvid_vector",
  "corvid_window",
  "corvid_wire",
  "serde",
  "serde_json",
  "tracing",
- "wgpu",
 ]
 
 [[package]]
@@ -441,7 +437,6 @@ version = "0.1.0"
 dependencies = [
  "corvid_behavior",
  "corvid_files",
- "serde",
 ]
 
 [[package]]
@@ -468,7 +463,6 @@ dependencies = [
  "corvid_transform",
  "corvid_wire",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -500,7 +494,6 @@ dependencies = [
  "corvid_fixed",
  "corvid_hash",
  "corvid_shape",
- "corvid_wire",
  "serde",
 ]
 
@@ -517,7 +510,6 @@ dependencies = [
  "corvid_shape",
  "corvid_transform",
  "corvid_vector",
- "serde",
 ]
 
 [[package]]
@@ -531,7 +523,6 @@ dependencies = [
  "corvid_sound",
  "corvid_time",
  "corvid_transform",
- "serde",
 ]
 
 [[package]]
@@ -546,12 +537,8 @@ dependencies = [
  "bytemuck",
  "corvid_bits",
  "corvid_float",
- "corvid_hash",
- "corvid_wire",
- "nalgebra",
  "num-traits",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -580,12 +567,9 @@ version = "0.1.0"
 dependencies = [
  "corvid_bits",
  "corvid_fixed",
- "corvid_hash",
  "corvid_transform",
  "corvid_vector",
- "corvid_wire",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -617,16 +601,8 @@ name = "corvid_mesh_render"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "corvid_camera",
- "corvid_fixed",
- "corvid_glm",
  "corvid_mesh",
  "corvid_render",
- "corvid_rotation",
- "corvid_shape",
- "corvid_transform",
- "corvid_vector",
- "png",
  "wgpu",
 ]
 
@@ -649,16 +625,11 @@ dependencies = [
  "corvid_color",
  "corvid_control",
  "corvid_fixed",
- "corvid_glm",
- "corvid_input",
- "corvid_rotation",
  "corvid_shape",
- "corvid_sound",
  "corvid_transform",
  "corvid_vector",
  "png",
  "pollster",
- "serde",
  "tracing",
  "wgpu",
 ]
@@ -672,7 +643,6 @@ dependencies = [
  "corvid_time",
  "corvid_wire",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -683,13 +653,10 @@ dependencies = [
  "bytemuck",
  "corvid_bits",
  "corvid_fixed",
- "corvid_hash",
  "corvid_vector",
- "corvid_wire",
  "mint",
  "nalgebra",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -702,7 +669,6 @@ dependencies = [
  "corvid_hash",
  "corvid_transform",
  "corvid_vector",
- "corvid_wire",
  "serde",
 ]
 
@@ -721,13 +687,10 @@ dependencies = [
  "corvid_camera",
  "corvid_fixed",
  "corvid_hash",
- "corvid_replay",
  "corvid_time",
  "corvid_transform",
  "corvid_vector",
- "corvid_wire",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -736,17 +699,14 @@ version = "0.1.0"
 dependencies = [
  "corvid_app",
  "corvid_behavior",
- "corvid_camera",
  "corvid_control",
  "corvid_hash",
  "corvid_input",
  "corvid_render",
  "corvid_replay",
- "corvid_sound",
  "corvid_time",
  "corvid_wire",
  "png",
- "serde",
 ]
 
 [[package]]
@@ -754,10 +714,7 @@ name = "corvid_time"
 version = "0.1.0"
 dependencies = [
  "corvid_fixed",
- "corvid_hash",
- "corvid_wire",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -768,12 +725,9 @@ dependencies = [
  "bytemuck",
  "corvid_bits",
  "corvid_fixed",
- "corvid_hash",
  "corvid_rotation",
  "corvid_vector",
- "corvid_wire",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -785,10 +739,8 @@ dependencies = [
  "corvid_color",
  "corvid_fixed",
  "corvid_hash",
- "corvid_input",
  "corvid_shape",
  "corvid_transform",
- "corvid_vector",
 ]
 
 [[package]]
@@ -796,7 +748,6 @@ name = "corvid_ui_render"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "corvid_color",
  "corvid_fixed",
  "corvid_float",
  "corvid_render",
@@ -812,12 +763,9 @@ dependencies = [
  "bytemuck",
  "corvid_bits",
  "corvid_fixed",
- "corvid_hash",
- "corvid_wire",
  "mint",
  "nalgebra",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -839,9 +787,7 @@ name = "corvid_wire"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "corvid_hash",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -853,7 +799,6 @@ dependencies = [
  "corvid_fixed",
  "corvid_float",
  "corvid_glm",
- "corvid_hash",
  "corvid_rotation",
  "corvid_transform",
  "corvid_vector",
@@ -2339,7 +2284,6 @@ dependencies = [
  "corvid_lockstep",
  "corvid_net",
  "corvid_replay",
- "corvid_test",
  "corvid_wire",
  "serde",
  "tracing",

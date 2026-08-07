@@ -40,12 +40,6 @@ wgpu-hal = { version = "30", default-features = false, features = ["vulkan"], op
 wgpu = { version = "30", default-features = false, features = ["vulkan"], optional = true }
 ash = { version = "0.38", default-features = false, optional = true }
 
-[dev-dependencies]
-# The digest a frozen track is compared by. Nothing in the source names it: a
-# track's `Hash` is derived, and what the tests pin is what that comes to under
-# this workspace's one hasher.
-corvid_hash = { version = "0.1", path = "../corvid_hash", default-features = false }
-
 [features]
 default = []
 # A real headset, through OpenXR, drawing into a Vulkan swapchain `wgpu` is

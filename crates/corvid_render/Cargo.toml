@@ -60,20 +60,6 @@ png = "0.18"
 # What a dropped frame, a lost surface and a chosen adapter are reported as.
 tracing = { workspace = true, features = ["std"] }
 
-[dev-dependencies]
-# The README's game derives `Serialize`/`Deserialize`, which `Data` demands of
-# every type a state is made of. A game's own manifest carries the same line.
-serde = { version = "1", default-features = false, features = ["derive", "std"] }
-# Named by the doctests: a game's `Present` implementation declares its input
-# sets and hears an audio frame, and the examples here show a whole game.
-corvid_sound = { workspace = true }
-# Named by the doctests: a game's `Present` implementation declares its input
-# sets and hears an audio frame, and the examples here show a whole game.
-corvid_input = { workspace = true }
-corvid_glm = { workspace = true }
-corvid_rotation = { workspace = true, features = ["std"] }
-tracing = { workspace = true, features = ["std"] }
-
 [lints]
 workspace = true
 
