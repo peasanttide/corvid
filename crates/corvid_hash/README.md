@@ -99,20 +99,29 @@ that and about the one other thing in the same position.
 `mix` is three rounds of xor-shift and multiply by an odd constant. Both halves
 are bijections modulo `2^64` — multiplication by an odd constant because it is
 invertible, xor-shift because it is its own family of inverses — so the whole
-function is one, and no input can be lost by cancelling against another. The
+function is one, and *the mixing step* discards nothing: distinct words in give
+distinct words out. That is a property of `mix` alone and does not extend to the
+chain around it. `state = mix(state ^ word)` takes 128 bits and answers 64, so
+absorbing is many-to-one by counting and no arrangement of a bijection can make
+it otherwise — which is what "Collisions" below says, and this paragraph is not
+a quieter promise to the contrary. What bijectivity buys is narrower and still
+worth having: no single round collapses the state on its own. The
 shift distances alternate between 32 and 29 so a bit folded down by one round is
 folded across an unrelated boundary by the next rather than back onto itself —
 which is a reason for the choice rather than a measured property of it, and
 "What is tested, rather than claimed" says how far the measurement actually
 reaches.
 
-The length is what stops a chain from being trimmed. Absorbing a zero word
-leaves the state changed but recoverable, so without the count `[7]` and
-`[7, 0]` would be a hair apart in construction and could be made to agree;
-injecting the count at the end makes them different lengths and therefore
-different digests. It is also what separates a three-byte write from an
-eight-byte write of the same zero-extended word, which is why `write` counts
-bytes and never eight-per-round.
+What the length buys is the pair the chain alone cannot separate: a three-byte
+`write` and an eight-byte one of the same zero-extended word absorb the
+identical word and leave the state identical, and the count is the only thing
+about them that differs. That is why `write` counts bytes and never
+eight-per-round.
+
+It is *not* what keeps a chain from being trimmed. `[7]` and `[7, 0]` already
+part company without it, because absorbing the zero word is another application
+of the mixer and `mix(s) != s`; the count is not doing that work and saying so
+would credit it with more than it does.
 
 `digest` takes `&self` rather than consuming the hasher, because a running
 simulation marks a digest every tick and does not want to rebuild the chain to
@@ -149,9 +158,15 @@ elements do not. A type whose shape can vary absorbs a discriminant first, so
 
 The sequence types and the string types are two encodings, and anything
 reimplementing this format has to keep them apart. A string packs its bytes and
-appends a terminator; a slice counts elements and hands each element to that
-element's own encoding. The same two bytes therefore digest differently
-depending on which container carried them:
+appends a terminator; a slice counts elements and then hands the elements over —
+each by its own encoding, *except* where the element is a primitive integer, in
+which case `core`'s specialised `Hash::hash_slice` reinterprets the whole run as
+bytes and passes it to `write` in one call, past every override this crate
+installs. That exception is the table's row above, not a detail of it, and
+`tests/width.rs` is where it is pinned; a reimplementation that followed this
+paragraph without it would answer different digests for a `Vec<u16>`. The same
+two bytes therefore digest differently depending on which container carried
+them:
 
 ```rust
 use core::hash::Hasher as _;
