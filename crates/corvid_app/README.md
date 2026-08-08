@@ -451,32 +451,27 @@ and the record is what a lockstep runtime would have to reconcile.
 
 ## The `dev` feature
 
-`corvid_behavior` requires that whatever a tick reads out of its `Scratch` be a
-pure function of the values its arguments denote — a memo, never an accumulator —
-and no type can say so. The cost of getting it wrong is delayed and it lands
-somewhere else: a game that accumulates in its scratch plays and replays
-identically from the opening, and comes apart during a rollback, in front of a
-player, on one machine, with nothing on the wire to blame. `tests/dev.rs`
-reproduces that in every build, feature or no feature, by seeking one session
-twice under two snapshot budgets and getting two different states.
+When a session diverges, a release build reports the tick and resynchronises
+from a full state transfer. Under `dev` it also runs
+[`corvid_lockstep::bisect`], which walks back to the last tick both peers agreed
+on and re-simulates it field by field, so the report says *which field moved
+first* rather than only which tick stopped matching. That is the difference
+between "your states diverged at tick 4127" and "your states diverged at tick
+4127, in `Ball::spin`".
 
-Under `dev` the runtime stops trusting the obligation. On a schedule that is a
-function of the session's [`Seed`] and the tick number and of nothing else, it
-throws the accumulated scratch away and calls `tick` with `Scratch::default()`
-instead. A game that reads scratch history then diverges during ordinary play, at
-a tick anyone can name, rather than during a rollback.
+It adds no API to this crate and changes nothing a build computes, so a `dev`
+peer and a release peer play the same session and agree. It is off by default
+because the bisection costs a walk over the retained window, which is work a
+build in front of a player should not be doing.
 
-**A `dev` peer and a release peer do not agree.** That is the price and it is not
-a bug: the two configurations compute different states for a game that leaks,
-which is what the check is for. What the schedule buys is that two `dev` peers
-*do* agree with each other, because it depends on nothing either machine knows —
-so a team can play a `dev` build together. It is off by default for that reason,
-and a mixed session is a desync.
-
-The schedule is [`dev::discards`], and it is public so that a test or a tool can
-say when it will next fire. It folds the seed and the tick through the digest
-rather than being `tick % 4`, so a game whose own behaviour has a period cannot
-line up with it.
+This feature used to mean something else. `State` carried a `Scratch` associated
+type, and `dev` replaced the accumulated one on a schedule that was a function of
+the session's [`Seed`] and the tick number — so that a game leaning on what its
+pools happened to still hold diverged during ordinary play rather than during a
+rollback. The associated type is gone from the contract, which left the schedule
+with no caller and this feature gating a module nothing consulted. What it points
+at now is what [`Error::Diverged`]'s own documentation had been promising all
+along.
 
 ## What this crate enforces, and what the caller owes
 
@@ -492,12 +487,10 @@ start when the seat it submits for is not in the roster, because a run recording
 its actions nowhere would replay as a run in which this client did nothing.
 
 What the **caller owes**: everything `corvid_behavior` and `corvid_present` say
-they owe, and this is the call site that makes all of it load-bearing. A
-`Scratch` that accumulates, a `Clone` that is not a copy, a `look` that writes a
-`State` through interior mutability, an `intend` whose action names a screen
-pixel — none of
-those is refused here, and each of them is a run that does not replay to what it
-ran. A `static` with interior mutability survives every check in this workspace;
+they owe, and this is the call site that makes all of it load-bearing. A `Clone`
+that is not a copy, a `look` that writes a `State` through interior mutability,
+an `intend` whose action names a screen pixel — none of those is refused here,
+and each of them is a run that does not replay to what it ran. A `static` with interior mutability survives every check in this workspace;
 what would find one is two peers that are genuinely two processes comparing
 digests, and nothing here runs two processes.
 
@@ -632,6 +625,8 @@ be compared against the wrong build eventually.
 [`Input`]: corvid_input::Input
 [`Controller`]: corvid_control::Controller
 [`Seed`]: corvid_replay::Seed
+[`corvid_lockstep::bisect`]: corvid_lockstep::bisect
+[`Error::Diverged`]: crate::Error::Diverged
 [`Session`]: corvid_replay::Session
 [`Session::load`]: corvid_replay::Session::load
 [`Session::seek`]: corvid_replay::Session::seek

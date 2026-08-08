@@ -100,13 +100,20 @@ corvid_vector = { workspace = true, features = ["std"] }
 
 [features]
 default = []
-# Discards the accumulated `Scratch` on a schedule that is part of the session,
-# so that a game reading scratch history diverges during ordinary play instead
-# of during a rollback in front of a player. It changes what a build computes:
-# two `dev` peers agree with each other and a `dev` peer and a release peer do
-# not. The crate documentation says so at length, and it is off by default for
-# that reason.
-dev = []
+# The extra diagnosis a development build does when a session diverges:
+# `corvid_lockstep::bisect` runs and `Desync::fields` says which field moved
+# first, rather than a desync reporting and resynchronising from a full state
+# transfer.
+#
+# It used to mean something else and something dead. `State` carried a `Scratch`
+# associated type and this feature discarded the accumulated one on a schedule;
+# the associated type is gone, so the schedule had no caller and the feature
+# gated a module nothing consulted. `Error::Diverged`'s documentation already
+# promised what it means now, which is what it is pointed at.
+#
+# `corvid_lockstep?/dev` rather than `corvid_lockstep/dev`: the netcode is
+# optional, and asking for diagnosis should not be what compiles a transport.
+dev = ["corvid_lockstep?/dev"]
 # Playing against other machines. The loop grows a `Peer` and a transport, and
 # `App::transport` is the whole of what a caller sees of it — a game implements
 # nothing, which is the claim `corvid_lockstep` exists to make good on.

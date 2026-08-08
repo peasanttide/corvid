@@ -83,7 +83,7 @@
 //! | Feature | Effect |
 //! |---|---|
 //! | `window` | Forwards `corvid_app/window`: a window, a keyboard, a pad and a sound card — everything that is only ever true of a run with a player in front of it. One name rather than three, because the three described the same machine |
-//! | `dev` | Forwards `corvid_app/dev`, which discards a tick's `Scratch` on a schedule that is part of the session. It changes what a build **computes**, and `corvid_app`'s documentation says at length what that costs |
+//! | `dev` | Forwards `corvid_app/dev`: when a session diverges, `corvid_lockstep::bisect` runs and the report says which field moved first rather than only which tick. Adds no API of its own and changes nothing a build computes |
 //!
 //! # One name, and it is this one
 //!

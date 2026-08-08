@@ -30,9 +30,6 @@ mod screen;
 #[cfg(feature = "window")]
 mod windowed;
 
-#[cfg(feature = "dev")]
-pub mod dev;
-
 pub use app::{App, Error, Outcome, Progress};
 pub use arguments::{Argument, Arguments};
 pub use commands::{Answer, Command, Request, Requests};
