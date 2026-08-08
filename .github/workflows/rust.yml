@@ -42,6 +42,15 @@ jobs:
           echo "== corvid_fixed --features $feature"
           cargo build -p corvid_fixed --no-default-features --features "$feature"
         done
+        # `corvid_bits` has one feature and it currently forwards nothing, so
+        # this arm passes trivially today. It is here for the day it stops
+        # being trivial: a `std` that starts gating an API is a change nothing
+        # else in this matrix would catch, because every other run either has
+        # the feature off or has everything on.
+        for feature in std; do
+          echo "== corvid_bits --features $feature"
+          cargo build -p corvid_bits --no-default-features --features "$feature"
+        done
         # `corvid_hash`'s one feature switches nothing on — the crate never
         # reaches past `core`, and `std` is there so a downstream can forward it
         # uniformly across the workspace instead of special-casing one leaf. A
