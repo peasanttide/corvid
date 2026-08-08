@@ -63,6 +63,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_macros"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "corvid_rotation"
 version = "0.1.0"
 dependencies = [
