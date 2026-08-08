@@ -15,12 +15,9 @@ use corvid_time::Tick;
 /// the call that writes it rather than inside a struct three other functions
 /// also take.
 ///
-/// It also has to stay away from
-/// [`set_time_factor`](crate::Command::set_time_factor), which says how fast
-/// game time passes — a dilation, not a weight. The two are one word apart and
-/// mean entirely different things, and one of them being a field named `factor`
-/// beside the other being an argument named `factor` is how a shader ends up
-/// lerping with the slow-motion multiplier.
+/// So nothing on this struct is a `factor`. A field of that name sitting beside
+/// `draw`'s argument of that name is how a shader ends up lerping with
+/// something that is not a weight at all.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Time {
     /// Which tick the newest state is.

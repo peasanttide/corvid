@@ -260,10 +260,6 @@ impl<R> corvid_behavior::Command for Asked<R> {
         self.0.push(Command::Quit(code));
     }
 
-    fn set_time_factor(&mut self, factor: corvid_fixed::Factor16) {
-        self.0.push(Command::SetTimeFactor(factor));
-    }
-
     fn save(&mut self, slot: SaveSlot) {
         self.0.push(Command::Save(slot));
     }
@@ -323,8 +319,6 @@ pub enum Command<R> {
     Unload(R),
     /// Stop, with this status.
     Quit(ExitCode),
-    /// How fast game time passes.
-    SetTimeFactor(corvid_fixed::Factor16),
     /// Write a save.
     Save(SaveSlot),
     /// Ask whether there is a save in a slot.
@@ -360,7 +354,6 @@ impl<R> Command<R> {
             Self::Load(_)
             | Self::Unload(_)
             | Self::Quit(_)
-            | Self::SetTimeFactor(_)
             | Self::Save(_)
             | Self::Read(_)
             | Self::JoinLobby(_)

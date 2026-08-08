@@ -181,21 +181,6 @@ pub trait Command {
     /// Stop, with this status. **Global.**
     fn quit(&mut self, _code: ExitCode) {}
 
-    /// How fast game time passes. **Global.**
-    ///
-    /// [`ONE`](corvid_fixed::Factor16::ONE) is real time,
-    /// [`ZERO`](corvid_fixed::Factor16::ZERO) is stopped, two is double speed.
-    ///
-    /// It scales the wall-clock-to-tick conversion, so **each tick's own step
-    /// is unchanged and no digest moves**: the same session played at one and
-    /// at two produces the same states, tick for tick, and only the wall clock
-    /// differs. What changes is how many ticks a real second buys.
-    ///
-    /// Not to be confused with the interpolation weight a renderer lerps with,
-    /// which is `draw`'s own `alpha`. The two are one word apart and mean
-    /// entirely different things.
-    fn set_time_factor(&mut self, _factor: corvid_fixed::Factor16) {}
-
     /// Write a save. **Global.**
     ///
     /// # No bytes

@@ -230,8 +230,7 @@ fn a_game_that_does_nothing_needs_no_function_at_all() {
 /// `Time` carries where the session is and nothing about interpolation.
 ///
 /// The weight the GPU lerps with is `Render::draw`'s own argument, because it
-/// goes straight into a uniform — and because `set_time_factor`, which says how
-/// fast game time passes, was one word away from having the same name.
+/// goes straight into a uniform and belongs beside the call that writes it.
 #[test]
 fn time_is_a_tick_and_a_wall_clock() {
     let time = Time {
