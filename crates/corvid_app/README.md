@@ -358,7 +358,21 @@ first; a `Quit` beats both, because a tick that asked to quit has already run.
 
 ## The front door
 
-A game's `main` is [`main`], and there is no second spelling:
+A game's whole binary is [`app!`]: the marker, the [`Game`] it implements, and
+the `main` that plays it.
+
+```rust,ignore
+corvid_app::app! {
+    struct Bounce;
+    const PERIOD: TickSpan = TickSpan::from_millis(16);
+    type State = Ball;
+    type Controller = Bat;
+}
+```
+
+What it writes for the `main` is [`main`], and a game that wants the rest of the
+declaration without it says [`game!`] and writes this — there is no third
+spelling:
 
 ```rust,ignore
 fn main() -> corvid_app::Result {
@@ -367,8 +381,10 @@ fn main() -> corvid_app::Result {
 ```
 
 `Bounce` there is a [`Game`]: the five types a game is — a state, a controller,
-a bot, a renderer and an ear — and how long its tick lasts. Naming one names all
-five, which is what lets the line above be the whole of a `main`.
+a bot, a renderer and an ear — and how long its tick lasts. Three of the five go
+unnamed above and default to `()`, which is a bot that never plays, a renderer
+that opens no adapter and an ear that opens no sound card. Naming one game names
+all five, which is what lets the line above be the whole of a `main`.
 
 A window, a headless run, a recording, a save slot, a bot and another machine
 are all the same program: `main` reads the process's arguments and decides. **A

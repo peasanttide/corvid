@@ -9,13 +9,16 @@ use corvid_sound::Auralizer;
 use std::{
     fmt, io,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use corvid_behavior::{ExitCode, Level, PlayerId, SaveSlot, State};
 use corvid_hash::Digest;
 use corvid_input::Input;
-use corvid_replay::{LevelRef, Opening, Refused, Session, Shape};
+use corvid_replay::{LevelRef, Opening, Opens, Refused, Session, Shape};
 use corvid_signal::Emitter;
 use corvid_time::{Clock, Elapsed, Step, Tick, TickSpan};
 
@@ -323,6 +326,51 @@ where
             #[cfg(feature = "window")]
             any_thread: false,
         }
+    }
+
+    /// A run that depends on nothing about the machine it is on.
+    ///
+    /// Headless, on the game's own [`opening`](Self::opening), at its own
+    /// [`PERIOD`](Game::PERIOD), with a state directory nothing else is using
+    /// and [`Settings::default`] rather than whatever is in the player's file.
+    /// It is the builder lines a test file would otherwise repeat, written
+    /// once — and [`game!`](crate::game) generates the `app()` that calls it.
+    ///
+    /// # The directory, and why it is not the process's
+    ///
+    /// Under the system's temporary directory, named for the game's
+    /// [`NAME`](State::NAME), the process, **and a counter this process
+    /// keeps** — so every call gets one of its own. The process alone would not
+    /// do it: several tests run concurrently in one binary, and two of them
+    /// sharing a root is two runs sharing a save slot.
+    ///
+    /// Nothing is created here, and a headless run that saves nothing never
+    /// creates it either — a run that does save leaves a directory behind,
+    /// which is the cost of a constructor that has nowhere to hang a `Drop`. A
+    /// test that wants the files cleaned up names its own directory with
+    /// [`state`](Self::state).
+    ///
+    /// This is what a test builds from. A run in front of a player is
+    /// [`new`](Self::new).
+    #[must_use]
+    pub fn sandbox() -> Self {
+        // Shared by every instantiation of this function rather than one per
+        // game, which is what a `static` in a generic function is and is all
+        // that is wanted: what has to be unique is the directory, and the name
+        // is in it already.
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let unique = NEXT.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "corvid-sandbox-{}-{}-{unique}",
+            <G::State as State>::NAME,
+            std::process::id()
+        ));
+        Self::new()
+            .opening(<G::State as Opens>::opening())
+            .rate(G::PERIOD)
+            .headless()
+            .state(root)
+            .settings(Settings::default())
     }
 
     /// Overrides what the player has set, for this run only.

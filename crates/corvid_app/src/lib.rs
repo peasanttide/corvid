@@ -19,6 +19,9 @@ mod commands;
 mod controls;
 mod game;
 mod headless;
+// `#[macro_export]` puts what is in here at this crate's root and not under
+// this path, so the module is private and the macros are still `corvid_app::game!`.
+mod macros;
 #[cfg(feature = "net")]
 mod net;
 mod record;

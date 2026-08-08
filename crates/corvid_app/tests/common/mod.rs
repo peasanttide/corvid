@@ -68,7 +68,7 @@ use corvid_input::{Digital, Input};
 use corvid_replay::{Opening, Opens, Profile, Schema, Seed};
 use corvid_sound::Auralizer;
 use corvid_sound::{Cue, Hearing, Listener, SoundId, Source, SourceId};
-use corvid_time::{Duration, Tick};
+use corvid_time::{Duration, Tick, TickSpan};
 use corvid_vector::FinePoint;
 use serde::{Deserialize, Serialize};
 
@@ -821,69 +821,52 @@ impl Opens for Attendance {
     }
 }
 
-/// The game the tests in this crate play.
-///
-/// Written out rather than generated, and it is five lines because a game is
-/// five types: the tally simulates, [`Hands`] plays it, nothing bots for it,
-/// [`Painted`] draws it and [`Ears`] hears it.
-///
-/// [`CRADLE`](corvid_time::TickSpan::CRADLE) is the period because it is the
-/// rate every timed assertion in these tests was written against — a marker
-/// that chose another one would change how many ticks a run of a fixed duration
-/// simulates, which is a different run and a different digest.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Counting;
-
-impl corvid_app::Game for Counting {
-    const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
-
+corvid_app::game! {
+    /// The game the tests in this crate play: the tally simulates, [`Hands`]
+    /// plays it, nothing bots for it, [`Painted`] draws it and [`Ears`] hears
+    /// it.
+    ///
+    /// [`CRADLE`](corvid_time::TickSpan::CRADLE) is the period because it is
+    /// the rate every timed assertion in these tests was written against — a
+    /// marker that chose another one would change how many ticks a run of a
+    /// fixed duration simulates, which is a different run and a different
+    /// digest.
+    pub(crate) struct Counting;
+    const PERIOD: TickSpan = TickSpan::CRADLE;
     type State = Tally;
     type Controller = Hands;
-    type Bot = ();
     type Render = Painted;
     type Auralizer = Ears;
 }
 
-/// The tally with nobody playing it: a dedicated server, as a game.
-///
-/// Four `()`s, which is what a game that reads no device, runs no bot, opens no
-/// adapter and opens no sound card writes. It is here for the settings tests,
-/// whose subject is the *document* rather than what is in it — four configs of
-/// `()` are four fields that still have to be named, written down and read
-/// back.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Bare;
-
-impl corvid_app::Game for Bare {
-    const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
-
+corvid_app::game! {
+    /// The tally with nobody playing it: a dedicated server, as a game.
+    ///
+    /// Four types unnamed, which is what a game that reads no device, runs no
+    /// bot, opens no adapter and opens no sound card writes. It is here for the
+    /// settings tests, whose subject is the *document* rather than what is in
+    /// it — four configs of `()` are four fields that still have to be named,
+    /// written down and read back.
+    pub(crate) struct Bare;
+    const PERIOD: TickSpan = TickSpan::CRADLE;
     type State = Tally;
-    type Controller = ();
-    type Bot = ();
-    type Render = ();
-    type Auralizer = ();
 }
 
-/// The tally with a bot in it, which is the game the bot tests play.
-///
-/// Its controller is `()` and its [`Bot`](corvid_app::Game::Bot) is [`Nudge`],
-/// which is what makes a run of it readable as a column at a time: every
-/// non-idle action in the log came from a bot, because the only other thing
-/// writing one answers [`Action::Idle`] and a row nobody wrote holds the same.
-///
-/// Nothing is drawn and nothing is heard, because what these tests are about is
-/// which seats got filled.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Botted;
-
-impl corvid_app::Game for Botted {
-    const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
-
+corvid_app::game! {
+    /// The tally with a bot in it, which is the game the bot tests play.
+    ///
+    /// Its controller is `()` and its [`Bot`](corvid_app::Game::Bot) is
+    /// [`Nudge`], which is what makes a run of it readable as a column at a
+    /// time: every non-idle action in the log came from a bot, because the only
+    /// other thing writing one answers [`Action::Idle`] and a row nobody wrote
+    /// holds the same.
+    ///
+    /// Nothing is drawn and nothing is heard, because what these tests are
+    /// about is which seats got filled.
+    pub(crate) struct Botted;
+    const PERIOD: TickSpan = TickSpan::CRADLE;
     type State = Tally;
-    type Controller = ();
     type Bot = Nudge;
-    type Render = ();
-    type Auralizer = ();
 }
 
 /// The bot for [`Tally`]: a bump, every tick, for whatever seat it is asked
@@ -927,26 +910,20 @@ impl Controller<Tally> for Nudge {
     }
 }
 
-/// The game the roster tests play: [`Attendance`], with nothing drawn and
-/// nothing heard.
-///
-/// A marker of its own beside [`Counting`] rather than a parameter on it. What
-/// these tests are about is the *arguments* a tick was handed — which seats
-/// were in the roster, and which column this client's action landed in — and a
-/// run of them opens no device and makes no sound, so the two types that would
-/// have to be `()` for one game and real for the other are written as `()`
-/// here.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Attending;
-
-impl corvid_app::Game for Attending {
-    const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
-
+corvid_app::game! {
+    /// The game the roster tests play: [`Attendance`], with nothing drawn and
+    /// nothing heard.
+    ///
+    /// A marker of its own beside [`Counting`] rather than a parameter on it.
+    /// What these tests are about is the *arguments* a tick was handed — which
+    /// seats were in the roster, and which column this client's action landed
+    /// in — and a run of them opens no device and makes no sound, so the two
+    /// types that would have to be `()` for one game and real for the other are
+    /// left unnamed here.
+    pub(crate) struct Attending;
+    const PERIOD: TickSpan = TickSpan::CRADLE;
     type State = Attendance;
     type Controller = Marker;
-    type Bot = ();
-    type Render = ();
-    type Auralizer = ();
 }
 
 /// The controller for [`Attendance`]: it marks every action as its own.

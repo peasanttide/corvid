@@ -21,9 +21,10 @@ use common::{
     backstop::{joined, once},
     opening, resting, seat,
 };
-use corvid_app::{App, Progress};
+use corvid_app::{App, Game, Progress, Settings};
 use corvid_behavior::{ExitCode, PlayerId};
 use corvid_hash::Digest;
+use corvid_replay::Opens;
 use corvid_signal::channel;
 use corvid_time::{Clock, Tick, TickSpan};
 use corvid_wire::golden::{DigestRow, check_digests};
@@ -43,6 +44,32 @@ fn play(rules: Rules) -> corvid_app::Outcome<Counting> {
         .for_ticks(TICKS)
         .run()
         .unwrap()
+}
+
+#[test]
+fn the_sandbox_is_the_builder_lines_it_stands_for() {
+    // `Counting::app()` is what `corvid_app::game!` generates over
+    // `App::sandbox`, and what it is worth is that the run it builds is the one
+    // written out beside it: the game's own opening, its own period, no device,
+    // a directory of its own, and the defaults rather than whatever settings
+    // file the machine this runs on happens to have. A sandbox that dropped any
+    // of the five would be a run whose trace is not this one.
+    let elsewhere = Scratchpad::new("sandbox");
+    let sandboxed = Counting::app().for_ticks(TICKS).run().unwrap();
+    let written_out = App::<Counting>::new()
+        .opening(<Tally as Opens>::opening())
+        .rate(<Counting as Game>::PERIOD)
+        .headless()
+        .state(elsewhere.path())
+        .settings(Settings::default())
+        .for_ticks(TICKS)
+        .run()
+        .unwrap();
+
+    assert_eq!(sandboxed.session.marks, written_out.session.marks);
+    assert_eq!(sandboxed.session.log, written_out.session.log);
+    assert_eq!(sandboxed.state, written_out.state);
+    assert_eq!(sandboxed.session.last(), Tick(TICKS));
 }
 
 #[test]

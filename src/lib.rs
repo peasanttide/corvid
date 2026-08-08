@@ -14,8 +14,8 @@
 //! use std::sync::Arc;
 //!
 //! use corvid::{
-//!     App, Game, Level, Malformed, Opening, Opens, Profile, ProfileId, Schema, Seed, Source,
-//!     State, Tick, TickSpan,
+//!     App, Level, Malformed, Opening, Opens, Profile, ProfileId, Schema, Seed, Source, State,
+//!     Tick, TickSpan,
 //! };
 //! use serde::{Deserialize, Serialize};
 //!
@@ -59,29 +59,67 @@
 //!     }
 //! }
 //!
-//! /// The game, which is where its five types are declared and the only thing
-//! /// a run is given.
-//! ///
-//! /// Four of the five are `()`: no controller, no bot, no renderer and no ear,
-//! /// which opens no window, no adapter and no sound card. So this is a whole
-//! /// dedicated server, and the shortest way of drawing nothing is to say so.
-//! #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-//! struct Nothing;
-//!
-//! impl Game for Nothing {
+//! corvid::game! {
+//!     /// The game, which is where its five types are declared and the only
+//!     /// thing a run is given.
+//!     ///
+//!     /// Four of the five go unnamed and default to `()`: no controller, no
+//!     /// bot, no renderer and no ear, which opens no window, no adapter and no
+//!     /// sound card. So this is a whole dedicated server, and the shortest way
+//!     /// of drawing nothing is to say nothing.
+//!     struct Nothing;
 //!     const PERIOD: TickSpan = TickSpan::CRADLE;
-//!
 //!     type State = Still;
-//!     type Controller = ();
-//!     type Bot = ();
-//!     type Render = ();
-//!     type Auralizer = ();
 //! }
 //!
 //! let app = App::<Nothing>::new()
 //!     .opening(Still::opening())
 //!     .headless()
 //!     .for_ticks(10);
+//! ```
+//!
+//! # One macro, and it is the whole binary
+//!
+//! [`app!`] is [`game!`] and the `main` that plays it, which is every line of a
+//! Corvid game that is not the game. Both reach this facade through the same
+//! glob the types above do, so a game that names `corvid` names nothing else:
+//!
+//! ```no_run
+//! # use std::sync::Arc;
+//! # use corvid::{Level, Malformed, Opening, Profile, ProfileId, Schema, Seed, Source, State,
+//! #     Tick, TickSpan};
+//! # use serde::{Deserialize, Serialize};
+//! # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+//! # struct Nowhere;
+//! # impl Level for Nowhere {
+//! #     type Reference = String;
+//! #     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> { Ok(Self) }
+//! # }
+//! # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+//! # struct Still;
+//! # impl State for Still {
+//! #     const NAME: &'static str = "nothing";
+//! #     type Level = Nowhere; type Rules = (); type Action = ();
+//! # }
+//! # impl corvid::Opens for Still {
+//! #     fn opening() -> Opening<Self> {
+//! #         Opening {
+//! #             level: "nowhere".to_owned(),
+//! #             content: Arc::new(Nowhere),
+//! #             rules: Arc::new(()),
+//! #             roster: vec![Profile { account: ProfileId(1), joined: Tick::ZERO, left: None }],
+//! #             seed: Seed(0),
+//! #             first: Tick::ZERO,
+//! #             origin: None,
+//! #             schema: Schema::new("nothing").digest(),
+//! #         }
+//! #     }
+//! # }
+//! corvid::app! {
+//!     struct Nothing;
+//!     const PERIOD: TickSpan = TickSpan::CRADLE;
+//!     type State = Still;
+//! }
 //! ```
 //!
 //! # The five types, and which one a game starts with
