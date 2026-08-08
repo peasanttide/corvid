@@ -350,9 +350,10 @@ every peer exchanges every tick. `tests/common/mod.rs`'s third fixture has no
 such counter, and the tests that use it are runs of a fixed length.
 
 `for_ticks` is the same condition written once. It is a count rather than a
-predicate, which is what lets `for_ticks(Ticks::NONE)` be a run of no ticks: the count is
-checked on both sides of a tick, so zero stops before the first one and `n`
-stops on the iteration whose tick reached `n` rather than one iteration later.
+predicate, which is what lets `for_ticks(Ticks::NONE)` be a run of no ticks: the
+count is checked on both sides of a tick, so zero stops before the first one and
+`n` stops on the iteration whose tick reached `n` rather than one iteration
+later.
 Naming both a count and a predicate is allowed and stops at whichever comes
 first; a `Quit` beats both, because a tick that asked to quit has already run.
 
@@ -430,9 +431,9 @@ is what a tick is handed.
 value and is given none is refused rather than defaulted, because "zero ticks"
 and "as long as you like" are both things somebody might have meant. The three
 ways of opening are one field and naming two of them is refused, as is `--bots`
-alongside `--connect`: a seat filled locally is a seat every other machine in
-the session would have to fill identically, and a controller is no part of what
-a session records.
+alongside `--connect`: the bot is asked only on the path a run with nobody else
+in it takes, so a linked run that accepted the flag would have taken the number
+and played none of those seats.
 
 `main` is one function with one bound, `G: Game`, and there is no configuration
 in which it is weaker: a game that reaches it has a renderer and an ear whether

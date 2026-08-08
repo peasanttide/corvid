@@ -794,9 +794,9 @@ const REFUSED: i32 = 2;
 /// What a process whose run could not finish exits with.
 ///
 /// One, which is what any `Err` handed back from a `main` collapses to — so a
-/// script written against a runtime that did hand its errors back reads the same
-/// number for the same event, and the only thing that changed is that the
-/// operator can now read why.
+/// script that reads a status rather than a stream sees the number it expects
+/// for a program that failed, and the sentence saying why is on stderr for a
+/// reader who wants it.
 const FAILED: i32 = 1;
 
 /// Reads the process's arguments, and answers whatever they asked for that is
