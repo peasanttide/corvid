@@ -42,6 +42,16 @@ jobs:
           echo "== corvid_fixed --features $feature"
           cargo build -p corvid_fixed --no-default-features --features "$feature"
         done
+        # `corvid_hash`'s one feature switches nothing on — the crate never
+        # reaches past `core`, and `std` is there so a downstream can forward it
+        # uniformly across the workspace instead of special-casing one leaf. A
+        # feature that does nothing is exactly the kind that rots without anyone
+        # noticing, because no other arm of this workflow ever names it on its
+        # own, so it is built here to keep the name honest.
+        for feature in std; do
+          echo "== corvid_hash --features $feature"
+          cargo build -p corvid_hash --no-default-features --features "$feature"
+        done
     # Overflow checks are on in dev and off in release, so the two profiles
     # disagree about what a wrapped intermediate does — the one divergence a
     # bit-exactness crate cannot ship. Both arms have to run.
