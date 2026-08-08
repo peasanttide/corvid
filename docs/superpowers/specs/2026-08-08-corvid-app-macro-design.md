@@ -9,7 +9,7 @@
 ```rust
 corvid::app! {
     struct Pong;
-    const PERIOD_MS: u8 = 33;
+    const PERIOD: TickSpan = TickSpan::from_millis(33);
     type State = Table;
     type Controller = Hands;
     type Bot = Opponent;
@@ -34,11 +34,8 @@ The five types a game is, and how long its tick lasts, as one trait.
 
 ```rust
 pub trait Game {
-    /// How long one tick lasts, in whole milliseconds. Every peer must agree.
-    const PERIOD_MS: u8;
-
-    /// The span that follows, which is what the runtime steps against.
-    const PERIOD: TickSpan = TickSpan::from_millis(Self::PERIOD_MS);
+    /// How long one tick lasts. Every peer must agree.
+    const PERIOD: TickSpan;
 
     type State: State + Opens;
     type Controller: Controller<Self::State>;
@@ -60,14 +57,16 @@ The period lives here rather than on `State` because it is a property of the
 whole game rather than of its simulation, and because the macro has somewhere to
 put it.
 
-**A period in whole milliseconds, not a rate in hertz.** `Step` accumulates
-against the span, so the span is the number a simulation is defined by, and a
-game that names hertz is naming a number that has to be divided into a second
-and truncated. A `u8` of milliseconds spans 1 ms to 255 ms — a thousand ticks a
-second down to four — and every value in it is exact.
-`TickSpan::from_millis(u8)` is a new total constructor: no `NonZeroU32`, no
-`match`, no fallback, because zero is not in the range and 255 ms fits a `u64` of
-nanoseconds with room to spare.
+**A span, not a rate.** `Step` accumulates against the span, so the span is the
+number a simulation is defined by; a game that names hertz names a number that
+has to be divided into a second and truncated on the way to the one that
+matters.
+
+`TickSpan::from_millis(u8)` is a new **total** constructor, and it is what a
+game will actually write: no `NonZeroU32`, no `match`, no fallback, because zero
+is not in a `u8` of milliseconds that starts at one and 255 ms fits a `u64` of
+nanoseconds with room to spare. A game wanting a span no whole millisecond names
+— a 72 Hz headset's 13 888 888 ns — still has `from_nanos`.
 
 pong's 30 Hz becomes 33 ms, which is 30.3 ticks a second. `TickSpan` is not in
 the `Opening`, is not hashed and is not on the wire, so this cannot move a
@@ -297,16 +296,16 @@ Defines the struct and its `Game` implementation, and nothing else.
 ```rust
 corvid::game! {
     struct Rally;
-    const PERIOD_MS: u8 = 33;
+    const PERIOD: TickSpan = TickSpan::from_millis(33);
     type State = Table;
     type Bot = Opponent;
 }
 ```
 
 Every `type` line is optional and defaults to `()`; lines may appear in any
-order; `struct` names the type. `PERIOD_MS` is required — a game that did not
-say how long a tick lasts would inherit one, and two games sharing a default is
-how two peers end up at different spans without either having said so.
+order; `struct` names the type. `PERIOD` is required — a game that did not say
+how long a tick lasts would inherit one, and two games sharing a default is how
+two peers end up at different spans without either having said so.
 
 It also generates a sandbox constructor:
 
@@ -327,7 +326,7 @@ rather than the seven builder lines every test file repeats.
 ```rust
 corvid::app! {
     struct Pong;
-    const PERIOD_MS: u8 = 33;
+    const PERIOD: TickSpan = TickSpan::from_millis(33);
     type State = Table;
     type Controller = Hands;
     type Bot = Opponent;
