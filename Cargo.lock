@@ -57,6 +57,10 @@ name = "corvid"
 version = "0.1.0"
 
 [[package]]
+name = "corvid_bits"
+version = "0.1.0"
+
+[[package]]
 name = "corvid_fixed"
 version = "0.1.0"
 dependencies = [

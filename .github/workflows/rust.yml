@@ -42,6 +42,15 @@ jobs:
           echo "== corvid_fixed --features $feature"
           cargo build -p corvid_fixed --no-default-features --features "$feature"
         done
+        # `corvid_bits` has one feature and it currently forwards nothing, so
+        # this arm passes trivially today. It is here for the day it stops
+        # being trivial: a `std` that starts gating an API is a change nothing
+        # else in this matrix would catch, because every other run either has
+        # the feature off or has everything on.
+        for feature in std; do
+          echo "== corvid_bits --features $feature"
+          cargo build -p corvid_bits --no-default-features --features "$feature"
+        done
         # `corvid_float` has the one feature, and it is the odd one: it forwards
         # nothing and adds no API, existing only so a downstream can turn `std`
         # on everywhere without special-casing this crate. Built alone anyway,
