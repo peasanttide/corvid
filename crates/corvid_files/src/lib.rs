@@ -12,4 +12,4 @@ mod memory;
 mod source;
 
 pub use memory::Memory;
-pub use source::{Malformed, Missing, Source};
+pub use source::{Malformed, Missing, ReadOnly, Source};

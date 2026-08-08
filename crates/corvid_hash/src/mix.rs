@@ -28,6 +28,7 @@ const ODD: u64 = 0xbea2_25f9_eb34_556d;
 /// changing this first one turns twenty-six of them red, the exception being the
 /// input that equals the seed, which drives the state to `mix(0) = 0` and leaves
 /// the digest as `mix(8)` — and `8 >> s` is zero for every `s` above three.
+#[inline]
 pub(crate) const fn mix(mut x: u64) -> u64 {
     x ^= x >> 32;
     x = x.wrapping_mul(ODD);

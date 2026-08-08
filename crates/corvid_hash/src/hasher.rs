@@ -36,12 +36,14 @@ impl Digest {
 
     /// Wraps raw bits.
     #[must_use]
+    #[inline]
     pub const fn from_u64(bits: u64) -> Self {
         Self(bits)
     }
 
     /// Unwraps the raw bits.
     #[must_use]
+    #[inline]
     pub const fn to_u64(self) -> u64 {
         self.0
     }
@@ -130,6 +132,25 @@ impl fmt::Debug for Digest {
 /// were — so the crate does not build for a big-endian target. `lib.rs` carries
 /// that refusal and says why.
 ///
+/// Byte order is not the whole of what leaks through. The same specialisation
+/// covers `usize` and `isize`, and the bytes it hands over are the ones
+/// `size_of_val` counts — four per element in a browser and eight on a native
+/// server. So a `Vec<usize>` or an `[isize; 4]` in hashed state desyncs a
+/// `wasm32` peer from a native one in exactly the way the overridden
+/// [`write_usize`](core::hash::Hasher::write_usize) below exists to prevent, and
+/// the override cannot reach past `hash_slice` to stop it. Refusing to build is
+/// not an answer to this half the way it is to endianness, because a 32-bit
+/// target is the one this crate exists to keep in agreement. The answer is that
+/// hashed state names a fixed-width integer type: a count that crosses the wire
+/// is a `u32` or a `u64`, never a `usize`. A container's *length* prefix is
+/// already safe, because that one does go through `write_usize`; it is a
+/// pointer-sized integer stored as an *element* that is not.
+/// `tests/width.rs` pins the behaviour so the hazard is written down rather
+/// than found in a desync.
+///
+/// The scalar override does hold, which is the one part of this that is cheap
+/// to check:
+///
 /// ```
 /// use core::hash::Hasher as _;
 ///
@@ -148,6 +169,7 @@ pub struct Hasher {
 impl Hasher {
     /// Starts a chain from the shared seed.
     #[must_use]
+    #[inline]
     pub const fn new() -> Self {
         Self::with_seed(SEED)
     }
@@ -162,6 +184,7 @@ impl Hasher {
     /// );
     /// ```
     #[must_use]
+    #[inline]
     pub const fn with_seed(seed: u64) -> Self {
         Self {
             state: seed,
@@ -178,6 +201,7 @@ impl Hasher {
     /// assert_ne!(MARK, Hasher::new().absorb(2).absorb(1).digest());
     /// ```
     #[must_use]
+    #[inline]
     pub const fn absorb(self, word: u64) -> Self {
         Self {
             state: mix(self.state ^ word),
@@ -185,18 +209,29 @@ impl Hasher {
         }
     }
 
-    /// Injects the count of absorbed bytes, so a run of zero words cannot be
-    /// trimmed without changing the answer, then mixes once more.
+    /// Injects the count of absorbed bytes, then mixes once more.
+    ///
+    /// What the count buys is the pair the chain alone cannot separate: a
+    /// three-byte [`write`](core::hash::Hasher::write) and an eight-byte one of
+    /// the same zero-extended word absorb the identical word and leave the state
+    /// identical, and the length is the only thing about them that differs.
+    /// Trailing zero *words* are already not free without it — each one is
+    /// another application of the mixer — so the count is not what separates
+    /// those, and claiming it were would be claiming more than it does. The
+    /// final mix is so the last word absorbed is diffused as thoroughly as the
+    /// first, rather than sitting one round shallower than everything before it.
     ///
     /// Takes `&self`, so a running hash can be marked every tick without being
     /// rebuilt.
     #[must_use]
+    #[inline]
     pub const fn digest(&self) -> Digest {
         Digest(mix(self.state ^ self.len))
     }
 }
 
 impl Default for Hasher {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
@@ -212,13 +247,27 @@ impl core::hash::Hasher for Hasher {
 
     /// Absorbs bytes little-endian, eight at a time.
     ///
-    /// A tail shorter than eight bytes is zero-extended, which alone would make
-    /// `[1]` and `[1, 0]` collide. The true byte count separates them, because
-    /// it is what [`digest`](Hasher::digest) injects.
+    /// A tail shorter than eight bytes is zero-extended, so a one-byte write of
+    /// `1` and a two-byte write of `1, 0` absorb the same word and leave the
+    /// chain in the same state. The true byte count is what separates them,
+    /// because it is what [`digest`](Hasher::digest) injects.
+    ///
+    /// The example is written against `write` rather than against two slices,
+    /// deliberately. Handing `&[1_u8]` and `&[1_u8, 0]` to [`digest`] would
+    /// separate them too, but for a different reason — `Hash for [T]` absorbs a
+    /// length prefix first, so those two differ on their *first* word and would
+    /// still differ with the byte count taken out. That would witness the length
+    /// prefix, not this.
+    ///
+    /// [`digest`]: crate::digest
     ///
     /// ```
-    /// # use corvid_hash::digest;
-    /// assert_ne!(digest(&[1_u8][..]), digest(&[1_u8, 0][..]));
+    /// # use core::hash::Hasher as _;
+    /// let mut short = corvid_hash::Hasher::new();
+    /// short.write(&[1]);
+    /// let mut padded = corvid_hash::Hasher::new();
+    /// padded.write(&[1, 0]);
+    /// assert_ne!(short.digest(), padded.digest());
     /// ```
     fn write(&mut self, bytes: &[u8]) {
         for chunk in bytes.chunks(8) {

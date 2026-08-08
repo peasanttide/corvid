@@ -1,8 +1,12 @@
 //! What a publication costs, and what a consumer adds to it.
 //!
 //! ```sh
-//! cargo run --release --example signal_bench
+//! cargo run --release -p corvid_signal --example signal_bench
 //! ```
+//!
+//! The `-p` is not decoration. This workspace has a package at its root, so
+//! `--example` with no package named looks in that one alone and reports the
+//! target as missing while telling you which crate it is in.
 //!
 //! The number this exists to produce is the last one: the difference between
 //! publishing with nobody watching and publishing while one consumer reads and

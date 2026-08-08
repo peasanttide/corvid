@@ -2,10 +2,22 @@
 //!
 //! Every function is `const`. The ones that are arithmetic go through
 //! [`SoftF32`], because an intrinsic cannot be called in a const context; the
-//! ones that are a comparison or a sign are written out here, because a
-//! comparison is const already and a software one would only be slower.
+//! two clamps are written out here, because a comparison is const already and
+//! routing one through the soft float would only be slower. The sign
+//! operations go through [`SoftF32`] as well even though a sign is a bit and
+//! not an intrinsic — upstream's is the same masking this crate would write,
+//! and one implementation of it is easier to keep right than two.
 
 use const_soft_float::soft_f32::SoftF32;
+
+// The intrinsics this module stands in for are named below as reference links
+// with a literal URL rather than as intra-doc links. That is not a stylistic
+// preference: `f32::sqrt` and `f32::hypot` are inherent methods `std` adds to
+// the primitive, not `core` ones, and this crate is `#![no_std]` — so rustdoc
+// has no `std` in the graph to resolve them against and `cargo doc -D warnings`
+// rejects the build. `f32::clamp` a few functions down *is* a `core` method and
+// links the ordinary way, which is the whole distinction. Anything that reads
+// like a link here has to be checked against `core`, not against memory.
 
 /// The square root. Negative inputs give `NaN`, as [`f32::sqrt`] does.
 ///
@@ -13,6 +25,8 @@ use const_soft_float::soft_f32::SoftF32;
 /// const ROOT: f32 = corvid_float::sqrt(9.0);
 /// assert_eq!(ROOT, 3.0);
 /// ```
+///
+/// [`f32::sqrt`]: https://doc.rust-lang.org/std/primitive.f32.html#method.sqrt
 #[must_use]
 #[inline]
 pub const fn sqrt(x: f32) -> f32 {
@@ -44,10 +58,17 @@ pub const fn cos(x: f32) -> f32 {
 
 /// The tangent, in radians.
 ///
-/// Composed rather than supplied: `sin` over `cos`. Where the cosine is zero
-/// this is an infinity rather than a panic, which is what a caller building a
-/// frustum wants to test for — a field of view of half a turn has an infinite
-/// tangent and is a frustum nobody wants, not a crash.
+/// Composed rather than supplied: `sin` over `cos`. It is a division, so a
+/// cosine of zero would give an infinity rather than a panic.
+///
+/// The cosine does not reach zero, though, and that is the trap worth knowing
+/// about. No `f32` is π/2, so at the nearest one the cosine is merely small and
+/// the tangent is a large *finite* number of whichever sign the rounding landed
+/// on: `tan(consts::FRAC_PI_2)` is about `-2.3e7`, negative because the nearest
+/// `f32` sits just past π/2. A caller building a frustum from a field of view
+/// of half a turn gets a finite, sign-flipped focal length, not the infinity a
+/// finiteness test would catch — so bound the angle before taking its tangent
+/// rather than screening the result. [`clamp`] is here for that.
 ///
 /// ```
 /// const FLAT: f32 = corvid_float::tan(0.0);
@@ -70,9 +91,20 @@ pub const fn recip(x: f32) -> f32 {
 /// The length of the hypotenuse: `sqrt(x² + y²)`.
 ///
 /// Composed rather than supplied, and composed naively — the squares are formed
-/// before the root, so a pair whose squares overflow gives an infinity where
-/// [`f32::hypot`] would not. Every caller here is working in metres near a
-/// camera, four orders of magnitude below where that begins to matter.
+/// before the root, where [`f32::hypot`] scales its arguments first so that they
+/// never have to be. Skipping that costs both ends of the range, not just the
+/// top. Above about `1.8e19` a square overflows and this returns an infinity
+/// where the intrinsic returns the answer; below about `1.1e-19` a square is
+/// subnormal and starts shedding bits, and by `f32::MIN_POSITIVE` it has
+/// collapsed entirely — `hypot(f32::MIN_POSITIVE, f32::MIN_POSITIVE)` is `0.0`
+/// here and `1.66e-38` there, which is the quieter of the two failures and so
+/// the one worth writing down.
+///
+/// Between those bounds the only error is the extra roundings the composition
+/// adds, which the tests hold to a millionth of the answer — and a camera
+/// working in metres never leaves them.
+///
+/// [`f32::hypot`]: https://doc.rust-lang.org/std/primitive.f32.html#method.hypot
 #[must_use]
 #[inline]
 pub const fn hypot(x: f32, y: f32) -> f32 {
@@ -173,9 +205,17 @@ pub const fn clamp(x: f32, low: f32, high: f32) -> f32 {
 
 /// `x` held between `low` and `high`, with anything non-finite going to `low`.
 ///
-/// [`clamp`]'s sibling, and the difference is what happens to an infinity:
-/// there it is above `high` and comes back as `high`, here it comes back as
-/// `low` along with `NaN`.
+/// [`clamp`]'s sibling, and the first difference is what happens to an
+/// infinity: there it is above `high` and comes back as `high`, here it comes
+/// back as `low` along with `NaN`.
+///
+/// The second difference only shows when the bounds cross, and it is the order
+/// they are tested in. [`clamp`] tests `high` first, so crossed bounds give
+/// `high` to anything above it and `low` to everything else; this one tests
+/// `low` first, so crossed bounds give `low` to anything below it and `high` to
+/// everything else. Neither order is the correct answer to a question that is
+/// already wrong, but the two are not the same wrong answer and a caller moving
+/// between them should know that.
 ///
 /// That is the right reading wherever a large value is the dangerous one. A
 /// frequency, a decay and a gain that arrived as infinities are a caller or a
@@ -204,6 +244,12 @@ pub const fn clamp_finite(x: f32, low: f32, high: f32) -> f32 {
 /// The one narrowing in this crate, and it is named for what it does rather
 /// than spelled `as` at each site — a texture coordinate, a matrix entry and a
 /// gain are all computed a word wider than they are bound.
+///
+/// A magnitude past `f32`'s range narrows to an infinity rather than to
+/// [`f32::MAX`]. That is Rust's cast and not a decision made here, but it is
+/// the reason [`clamp_finite`] exists: a gain that overflowed on the way down
+/// from `f64` arrives as an infinity, and something has to turn it back into a
+/// number before a device sees it.
 ///
 /// ```
 /// const THIRD: f32 = corvid_float::demote(1.0 / 3.0);

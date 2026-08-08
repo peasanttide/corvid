@@ -93,6 +93,20 @@ fn seen_now_starts_from_the_value_in_the_cell() {
     assert_eq!(watch.changed_since(&mut seen).as_deref(), Some(&1920));
 }
 
+/// A `Seen` is eight bytes and holds no channel identity, which the README and
+/// `Seen`'s own page both say twice.
+///
+/// The number is here because the thing it rules out is a plausible improvement
+/// rather than a mistake: the documented footgun is polling a `Seen` against
+/// the wrong `Watch`, and the obvious cure is to carry something that says
+/// which signal it came from. Doing that is a decision about the array of
+/// `Seen`s a consumer keeps beside its array of watches, not a detail, so it
+/// should fail here rather than quietly widen the type.
+#[test]
+fn a_seen_is_a_sequence_number_and_nothing_else() {
+    assert_eq!(size_of::<Seen>(), 8);
+}
+
 #[test]
 fn a_watcher_sees_only_the_latest_of_three_publications() {
     let (emit, watch) = channel("peers", 0_u32);
@@ -510,6 +524,53 @@ fn modify_copies_the_value_only_while_a_consumer_is_holding_it() {
     drop(snapshot);
     emit.modify(|_| {});
     assert_eq!(clones.load(Ordering::SeqCst), 1, "nor after they let go");
+
+    // And one copy per publication *however many* consumers there are, which is
+    // the half of the claim a single reader cannot show. Three snapshots of the
+    // same value are three references, and the edit still copies once and
+    // leaves all three reading what they were handed.
+    let held = [watch.get(), watch.get(), watch.get()];
+    emit.modify(|_| {});
+    assert_eq!(clones.load(Ordering::SeqCst), 2, "with three holding it");
+    drop(held);
+}
+
+/// Both handles hand back the label, and print it without reading the value.
+///
+/// The `Debug` half is not decoration. Both implementations name the signal and
+/// deliberately stop there, because reading the value means taking the lock and
+/// the likeliest place a handle gets formatted is a `modify` closure that is
+/// already holding it — so a `Debug` that reached for the value would turn a
+/// log line into a deadlock. Formatting both handles from inside one is the
+/// only way to assert that rather than describe it, and the backstop is what
+/// turns the deadlock it is looking for into a message instead of a hang.
+#[test]
+fn both_handles_name_the_signal_and_print_nothing_of_the_value() {
+    let (emit, watch) = channel("audio devices", vec!["built-in"]);
+    assert_eq!(emit.label(), "audio devices");
+    assert_eq!(watch.label(), "audio devices");
+
+    let printed = within(
+        "formatting both handles inside a `modify` closure",
+        move || {
+            let mut printed = Vec::new();
+            emit.modify(|_| {
+                printed.push(format!("{emit:?}"));
+                printed.push(format!("{watch:?}"));
+            });
+            printed
+        },
+    );
+
+    assert!(printed[0].starts_with("Emitter"), "{printed:?}");
+    assert!(printed[1].starts_with("Watch"), "{printed:?}");
+    for line in &printed {
+        assert!(
+            line.contains("audio devices"),
+            "{line} does not name the signal"
+        );
+        assert!(!line.contains("built-in"), "{line} printed the value");
+    }
 }
 
 #[test]

@@ -6,10 +6,10 @@ Bit manipulation for a [Corvid](https://github.com/peasanttide/corvid) game.
 Two questions, both of which the rest of the workspace was asking at each site
 in its own words.
 
-**How wide is this magnitude?** Integer square roots, quaternion
-normalization and octahedral packing all begin by working out how many bits a
-value occupies so they can shift it into the range their fixed-point kernel is
-fitted to. That is `bit_length`.
+**How wide is this magnitude?** Reciprocal square roots, quaternion
+normalization and world-scale distances all begin by working out how many bits
+a value occupies so they can shift it into the range their fixed-point kernel
+is fitted to. That is `bit_length`.
 
 ```rust
 use corvid_bits::bit_length_u64;
@@ -36,8 +36,8 @@ assert_eq!(try_narrow_i64(-5), Some(-5));
 ## Why a crate
 
 Both were written out at the point of use, and the arithmetic they belong to is
-not always the arithmetic they were written in. `bit_length` appeared seven
-times across five crates and the narrowing six times with four different
+not always the arithmetic they were written in. `bit_length` appeared eight
+times across four crates and the narrowing six times with four different
 signatures, which is six chances to get a boundary wrong and six sets of tests
 that each cover it a little differently.
 

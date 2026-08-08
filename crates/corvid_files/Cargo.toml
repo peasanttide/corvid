@@ -20,6 +20,3 @@ categories = ["game-development", "filesystem", "no-std"]
 
 [lints]
 workspace = true
-
-[package.metadata.docs.rs]
-all-features = true

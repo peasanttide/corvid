@@ -189,6 +189,39 @@ jobs:
           cargo build -p "$crate" --no-default-features --target ${{ matrix.target }}
         done
 
+  # `corvid_hash` overrides `write_usize` and `write_isize` so a `Vec`'s length
+  # prefix is eight bytes on every target rather than the pointer width, which
+  # is the one thing standing between a `wasm32` browser peer and a native
+  # server agreeing on a digest. Every other arm runs on a 64-bit host, where
+  # the override and the native-width default write the identical eight
+  # little-endian bytes — so deleting the override outright leaves all of them
+  # green, `tests/width.rs` included. The regression this crate exists to
+  # prevent is invisible to a workflow that never leaves a 64-bit `usize`.
+  #
+  # `i686-unknown-linux-gnu` is the cheapest target that actually *runs* the
+  # tests with a four-byte `usize`: it needs a multilib gcc and no emulator,
+  # where `wasm32` would need a runtime and would only ever be a build. Measured
+  # rather than assumed — replacing both overrides with the native-width write
+  # `core` defaults to leaves the whole suite green on `x86_64` and fails
+  # exactly one test here.
+  narrow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: mozilla-actions/sccache-action@v0.0.9
+    - uses: Swatinem/rust-cache@v2
+      with:
+        cache-targets: false
+    - name: A four-byte usize, and the digest that must not move with it
+      run: |
+        set -eu
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib
+        rustup target add i686-unknown-linux-gnu
+        cargo test -p corvid_hash --all-features --target i686-unknown-linux-gnu
+
   # The other half, and the one about output rather than about compiling:
   # `examples/pong`'s `tests/baseline.rs` holds the simulation to two digests
   # recorded before the contracts were rewritten. It would notice the arithmetic

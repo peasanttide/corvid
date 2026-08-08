@@ -98,6 +98,55 @@ fn the_length_prefix_is_what_separates_a_split_from_a_join() {
     );
 }
 
+/// The one place a pointer-sized value is *not* pinned to sixty-four bits.
+///
+/// `core`'s `hash_slice` specialisation covers `usize` and `isize` alongside the
+/// fixed-width integers, and what it hands to `write` is `size_of_val`'s bytes —
+/// four per element on `wasm32` and eight here. So the very desync
+/// [`core::hash::Hasher::write_usize`] is overridden to prevent comes straight
+/// back through the *elements* of a `Vec<usize>`, and no `Hasher` can intercept
+/// it. Every other test in this file says the agreement holds; this one says
+/// where it stops, which is the more useful half to have written down.
+///
+/// The assertions are against `size_of::<usize>()` rather than against eight, so
+/// they state the dependence instead of hiding behind a 64-bit host: this test
+/// passes on either target and means something different on each. There is no
+/// fix in this crate — the answer is that hashed state names a fixed-width
+/// integer type — so what the test defends is that the hazard stays documented.
+#[test]
+fn a_slice_of_pointer_sized_integers_is_not_pinned_to_sixty_four_bits() {
+    let elements = [1usize, 2];
+
+    let mut packed = Vec::new();
+    for element in elements {
+        packed.extend_from_slice(&element.to_le_bytes());
+    }
+    assert_eq!(packed.len(), 2 * size_of::<usize>());
+
+    let mut raw = Hasher::new();
+    raw.write_usize(elements.len());
+    raw.write(&packed);
+    assert_eq!(
+        digest(&elements[..]),
+        raw.digest(),
+        "the elements go through `write` as raw pointer-width bytes"
+    );
+
+    // And that is the sixty-four-bit encoding only where the pointer happens to
+    // be sixty-four bits wide. On a 32-bit target the two part company, which is
+    // the whole content of the warning.
+    let mut pinned = Hasher::new();
+    pinned.write_usize(elements.len());
+    for element in elements {
+        pinned.write_u64(element as u64);
+    }
+    assert_eq!(
+        digest(&elements[..]) == pinned.digest(),
+        size_of::<usize>() == 8,
+        "a slice of `usize` matches the sixty-four-bit encoding only on a 64-bit target"
+    );
+}
+
 /// A slice of a narrower integer absorbs raw bytes, not one write per element.
 ///
 /// `core` implements `Hash::hash_slice` for every primitive integer by

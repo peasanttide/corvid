@@ -8,7 +8,7 @@ repository.workspace = true
 publish.workspace = true
 license.workspace = true
 keywords = ["nalgebra", "matrix", "vector", "no-std", "gamedev"]
-categories = ["game-development", "mathematics", "no-std"]
+categories = ["game-development", "mathematics", "no-std::no-alloc"]
 
 [dependencies]
 # The one linear algebra library in this workspace, and this is the one crate
@@ -17,9 +17,12 @@ categories = ["game-development", "mathematics", "no-std"]
 # float backends.
 nalgebra = { workspace = true, features = ["libm"] }
 # `Pod` and `Zeroable` on the matrices, which is what lets a camera be written
-# into a uniform buffer without an `unsafe` block. Named through nalgebra's own
-# forwarding feature rather than as a dependency here, so there is one bytemuck
-# in the graph and nalgebra's impls are the ones in it.
+# into a uniform buffer without an `unsafe` block. The impls are nalgebra's own,
+# switched on by its `convert-bytemuck` feature below; this crate writes none of
+# its own and could not, because `unsafe_code` is forbidden workspace-wide. The
+# dependency is still named here rather than left to nalgebra so that the
+# workspace pin is what nalgebra's optional copy unifies against — one bytemuck
+# in the graph — and so `std` has somewhere to forward `extern_crate_std`.
 bytemuck = { workspace = true, optional = true }
 # Interoperation, for the same reason `corvid_vector` offers it: a game with a
 # glTF loader or a physics engine of its own speaks one of these.
@@ -29,6 +32,12 @@ mint = { workspace = true, optional = true }
 default = []
 bytemuck = ["dep:bytemuck", "nalgebra/convert-bytemuck"]
 mint = ["dep:mint", "nalgebra/mint"]
+# The crate itself stays `no_std` under every feature — it is type aliases and
+# one `const`, and none of that needs an allocator, so there is no `cfg` on the
+# inner attribute to make conditional. `std` is purely a forwarding switch for
+# the graph underneath: a downstream that is already linking std uses it to say
+# so to nalgebra and bytemuck, rather than leaving them in the no_std
+# configuration the default build picks.
 std = ["nalgebra/std", "bytemuck?/extern_crate_std"]
 
 [lints]
