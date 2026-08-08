@@ -39,5 +39,11 @@ std = []
 [lints]
 workspace = true
 
+# Inert here, unlike in the four crates that carry the same two lines: the one
+# feature adds no API, so the rendered page is identical with it and without.
+# Kept anyway, because the alternative is a crate that is the only one in the
+# workspace without this stanza and a reader who has to work out whether that
+# was a decision — and because the day `std` does start gating something, the
+# page should show it without anyone remembering to come back here.
 [package.metadata.docs.rs]
 all-features = true

@@ -39,8 +39,8 @@ pub const fn cos(x: f64) -> f64 {
     SoftF64(x).cos().to_f64()
 }
 
-/// The tangent, in radians. An infinity where the cosine is zero, for
-/// [`corvid_float::tan`](crate::tan)'s reason.
+/// The tangent, in radians. Large and finite at the pole rather than infinite,
+/// for the reason [`corvid_float::tan`](crate::tan) sets out.
 #[must_use]
 #[inline]
 pub const fn tan(x: f64) -> f64 {
@@ -56,6 +56,11 @@ pub const fn recip(x: f64) -> f64 {
 }
 
 /// The length of the hypotenuse: `sqrt(x² + y²)`, composed naively.
+///
+/// Naively in [`corvid_float::hypot`](crate::hypot)'s sense, and with the same
+/// two failures at the ends of the range — but a word wider those ends are at
+/// about `1.3e154` and `1.5e-154` rather than at `1.8e19` and `1.1e-19`, which
+/// is far enough out that no caller of this module will find them.
 #[must_use]
 #[inline]
 pub const fn hypot(x: f64, y: f64) -> f64 {
@@ -86,8 +91,15 @@ pub const fn ceil(x: f64) -> f64 {
 
 /// `x` rounded to the nearest integer, halves away from zero.
 ///
-/// This is what `corvid_fixed`'s `from_f64` conversions round with, and it
-/// is the reason those conversions can be `const`.
+/// A true round, which is worth saying because the obvious `const` spelling is
+/// not one. `corvid_fixed`'s `from_f64` conversions want the same rule and
+/// reach it without this crate — they add a half and let the cast to an integer
+/// truncate, which is `const` because a cast is. The two agree everywhere
+/// except just below a half, where adding the half rounds up into one and the
+/// truncation then keeps it: `0.499_999_999_999_999_94` is zero here and one
+/// there. Nothing on this branch makes `corvid_fixed` depend on `corvid_float`,
+/// so that difference is currently a fact about two implementations rather than
+/// a bug in either.
 ///
 /// ```
 /// use corvid_float::wide;
