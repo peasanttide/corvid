@@ -3,10 +3,6 @@
 The `f32` vectors and matrices a [Corvid](https://github.com/peasanttide/corvid)
 game hands its device. `no_std`.
 
-There is no linear algebra in this crate. It is
-[nalgebra](https://crates.io/crates/nalgebra), pinned once for the whole
-workspace, with the names a game spells its types by:
-
 ```rust
 use corvid_glm::{Mat4, Vec3};
 
@@ -21,11 +17,6 @@ assert_eq!(identity * axis.to_homogeneous(), axis.to_homogeneous());
 WGSL's `mat4x4` is column-major and so is nalgebra's `Matrix4`, so a matrix
 here is already in the order a uniform buffer wants. There is no transpose on
 the way to the device.
-
-That is worth stating because the workspace used to do the opposite: two
-crates each declared their own `pub type Mat4 = [[f32; 4]; 4]`, documented as
-row-major, and each carried a `columns()` that transposed on the way out. One
-convention and one type replaces both.
 
 `Matrix4::new` takes its arguments row by row and stores them column by column,
 so a matrix can still be *written* in reading order:
