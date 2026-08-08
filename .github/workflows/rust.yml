@@ -42,6 +42,10 @@ jobs:
           echo "== corvid_fixed --features $feature"
           cargo build -p corvid_fixed --no-default-features --features "$feature"
         done
+        for feature in bytemuck mint std; do
+          echo "== corvid_glm --features $feature"
+          cargo build -p corvid_glm --no-default-features --features "$feature"
+        done
     # Overflow checks are on in dev and off in release, so the two profiles
     # disagree about what a wrapped intermediate does — the one divergence a
     # bit-exactness crate cannot ship. Both arms have to run.
