@@ -3,14 +3,18 @@
 use alloc::vec::Vec;
 
 use crate::Vertex;
-use corvid_fixed::{I16F16, I24F8};
+use corvid_fixed::{I16F16, I24F8, Signed16};
 use corvid_shape::Aabb;
 use corvid_vector::globalpoint;
 
 /// What a position component of [`Vertex::FULL`] is divided by on the way to
 /// [`I24F8`] metres: the full deflection, times that type's own 256 steps to
 /// the metre.
-const PER_METRE: i64 = Vertex::FULL as i64 * 256;
+///
+/// Both halves come from the types rather than from a literal — `Signed16::MAX`
+/// is what a full deflection is and 256 is `I24F8`'s own step count — so a
+/// change to either is a compile-time change here rather than a silent one.
+const PER_METRE: i64 = Signed16::MAX.to_bits() as i64 * 256;
 
 /// Indexed triangles, in the mesh's own space, with one scale for the lot.
 ///
@@ -69,7 +73,10 @@ impl Mesh {
     #[must_use]
     pub fn bounds(&self) -> Aabb {
         Aabb::from_points(self.vertices.iter().map(|vertex| {
-            let [x, y, z] = vertex.position();
+            // As what they are: a position component is a signed share of the
+            // mesh's scale, which is `Signed16`'s whole definition — `[-1, 1]`
+            // with `MIN == -MAX`, the SNORM asymmetry `Vertex::FULL` documents.
+            let [x, y, z] = vertex.position().map(Signed16::from_bits);
             globalpoint(
                 metres(x, self.scale),
                 metres(y, self.scale),
@@ -99,12 +106,18 @@ impl Mesh {
 
 /// One position component, in metres.
 ///
+/// The component is a [`Signed16`] — a share of one — and the scale is metres
+/// per full deflection, so this is the share taken of the scale. It widens to
+/// `i64` because neither type's own multiplication is the one wanted here:
+/// `Signed16 * Signed16` is closed over `[-1, 1]` and would clamp the answer to
+/// a metre.
+///
 /// Rounded half away from zero, in `i64`, so the answer is the nearest
 /// representable [`I24F8`] rather than whatever a truncation left. The widest
 /// product is a full deflection against a full scale, which is 7.2e13 and fits
 /// with fourteen bits to spare.
-fn metres(component: i16, scale: I16F16) -> I24F8 {
-    let numerator = i64::from(component) * i64::from(scale.to_bits());
+fn metres(component: Signed16, scale: I16F16) -> I24F8 {
+    let numerator = i64::from(component.to_bits()) * i64::from(scale.to_bits());
     let half = PER_METRE / 2;
     let rounded = if numerator < 0 {
         (numerator - half) / PER_METRE
