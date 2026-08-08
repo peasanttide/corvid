@@ -14,8 +14,8 @@ use corvid_time::{Clock, Elapsed, Step, Tick, TickSpan};
 
 use crate::{
     Arguments, Requests, Retention,
-    arguments::Argument,
     capture::Capture,
+    cli::Argument,
     headless::Headless,
     runtime::{Plan, Runtime},
     saves::{NotASave, Saves, StateAt},

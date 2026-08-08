@@ -10,14 +10,13 @@
 // that touches an operating system was pushed up here.
 
 mod app;
-mod arguments;
 mod backend;
 mod capture;
+mod cli;
 mod commands;
 // The player's own binding table, which only a windowed run has one of.
 #[cfg(feature = "window")]
 mod controls;
-mod entry;
 mod headless;
 #[cfg(feature = "net")]
 mod net;
@@ -31,11 +30,10 @@ mod screen;
 mod windowed;
 
 pub use app::{App, Error, Outcome, Progress};
-pub use arguments::{Argument, Arguments};
+pub use cli::{Argument, Arguments, main};
 pub use commands::{Answer, Command, Request, Requests};
 #[cfg(feature = "window")]
 pub use controls::Misbound;
-pub use entry::main;
 #[cfg(feature = "net")]
 pub use net::{Departures, TickTraffic, Traffic, seat_of};
 pub use retention::Retention;
