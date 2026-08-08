@@ -183,12 +183,14 @@ fn the_digest_is_the_integer_and_no_type_tag() {
     assert_eq!(digest(&AccountId(3)), digest(&3_u64));
     assert_eq!(digest(&Offset(-1)), digest(&-1_i8));
 
-    // `SeatId(3)` and `AccountId(3)` do come apart under a hasher, because
-    // `Hash` for an integer feeds its own width and a `u16` is not a `u64`.
-    // There is no assertion for that here on purpose: the three above already
-    // fix each identifier's digest to its repr's, which is what the claim is,
-    // and a `!=` between two digests would be a test asserting the absence of
-    // a collision — true today and not guaranteed by anything.
+    // `SeatId(3)` and `AccountId(3)` feed the hasher different bytes, because
+    // `Hash` for an integer writes its own width and a `u16` is not a `u64`.
+    // Nothing is asserted about what comes back out, on purpose: the three
+    // above already fix each identifier's digest to its repr's, which is the
+    // whole of the claim, and a `!=` between two digests would be a test
+    // asserting the absence of a collision — which no `Hasher` promises, so
+    // it would be pinning this hasher's luck rather than this crate's
+    // behaviour.
 }
 
 #[test]

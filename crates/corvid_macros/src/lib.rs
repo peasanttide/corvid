@@ -23,9 +23,13 @@
 /// value. An identifier therefore digests exactly as the bare integer inside it
 /// does, and two identifiers *of the same width* holding the same number digest
 /// alike; that is fine, because nothing ever hashes one out of context. Two of
-/// different widths do not, but that is [`Hash`] for an integer feeding its own
-/// width to the hasher rather than a tag reappearing, so it is not a distinction
-/// to lean on: widen one of the two reprs and the digests meet again.
+/// different widths feed the hasher *different bytes*, because [`Hash`] for an
+/// integer writes its own width — but that is a statement about what goes in
+/// rather than a promise about what comes out, and no [`Hasher`] undertakes to
+/// keep two inputs apart. It is not a distinction to lean on in either case:
+/// widen one of the two reprs and even the input is the same again.
+///
+/// [`Hasher`]: core::hash::Hasher
 #[macro_export]
 macro_rules! id_type {
     (

@@ -77,8 +77,11 @@ identifier therefore digests exactly as the bare integer inside it does, and two
 identifiers of the same width holding the same number digest alike; that is
 fine, because nothing ever hashes one out of context.
 
-Two of *different* widths do not, and the pair in the example above is exactly
-that case: `SeatId(3)` and `AccountId(3)` come apart under a hasher. Read that
-as an accident of `Hash for u16` feeding two bytes where `Hash for u64` feeds
-eight, not as the type tag returning — widen the `u16` and the digests meet
-again. Nothing should be built on it either way.
+Two of *different* widths feed the hasher different bytes, and the pair in the
+example above is exactly that case: `Hash for u16` writes two where `Hash for
+u64` writes eight. That is a claim about the input and not about the digest —
+a `Hasher` is free to collide on any two inputs and none of them promises
+otherwise, so "these two cannot come out alike" is not something this crate or
+`Hash` will tell you. Read the difference in what is written as an accident of
+the reprs rather than as the type tag returning: widen the `u16` and even the
+input is the same again. Nothing should be built on it either way.
