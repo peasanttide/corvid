@@ -64,6 +64,11 @@ pub struct Updating<'a, S: State> {
     /// Real time since the last displayed frame.
     pub dt: Duration,
     /// Which seat this controller is looking through.
+    ///
+    /// A controller playing one seat reads it or ignores it; a bot updating
+    /// several is called once per seat and this is how it tells them apart.
+    /// It is here rather than on [`Time`] because a seat is not something a
+    /// frame may read.
     pub seat: PlayerId,
 }
 

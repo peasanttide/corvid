@@ -193,27 +193,59 @@ fn a_real_controller_is_real_by_default() {
     assert!(real::<Walk, Hands>());
 }
 
+/// A controller whose action names the seat it was asked to answer for.
+///
+/// `Hands` above ignores `Acting` entirely, so it cannot witness that a
+/// *value* arrived rather than merely that the field exists. This one reads
+/// nothing but `acting.seat`, so its answer is a direct readout of what was
+/// passed in.
+#[derive(Clone, Copy, Debug, Default)]
+struct Seated;
+
+impl Controller<Walk> for Seated {
+    type Config = ();
+    const SETS: &'static [SetDescriptor] = &[];
+
+    fn new((): ()) -> Self {
+        Self
+    }
+
+    fn configure(&mut self, (): ()) {}
+
+    fn update(&mut self, _updating: Updating<'_, Walk>) {}
+
+    fn look(&self) -> Camera {
+        Camera::default()
+    }
+
+    fn action(&self, acting: Acting<'_, Walk>) -> Step {
+        Step(acting.seat == PlayerId(0))
+    }
+}
+
 #[test]
 fn a_controller_is_told_which_seat_it_answers_for() {
-    let hands = Hands::new(Speed(0));
+    let seated = Seated;
     let state = Walk;
     let input = Input::new(&[]);
     let time = Time::default();
 
-    let first = hands.action(Acting {
+    let first = seated.action(Acting {
         state: &state,
         input: &input,
         time,
         seat: PlayerId(0),
     });
-    let second = hands.action(Acting {
+    let second = seated.action(Acting {
         state: &state,
         input: &input,
         time,
         seat: PlayerId(1),
     });
 
-    // `Hands` here ignores the seat, so both answers are the idle one — what
-    // this pins is that the seat reaches the call at all.
-    assert_eq!(first, second);
+    // Each seat gets the answer that names it, and the two differ — so this
+    // is the seat's *value* reaching `action`, not just the field's presence.
+    assert_eq!(first, Step(true), "seat 0's own answer");
+    assert_eq!(second, Step(false), "seat 1's own answer");
+    assert_ne!(first, second);
 }
