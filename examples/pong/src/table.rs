@@ -13,13 +13,6 @@ use std::{fmt, str::FromStr};
 use corvid::{Command, FinePoint, I16F16, Player, PlayerId, State, Tick};
 use serde::{Deserialize, Serialize};
 
-/// The marker both halves of the game are implemented for.
-///
-/// The orphan rule wants one and it costs nothing: neither contract has a
-/// method taking `self`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Pong;
-
 /// How this game names a level. There is one court.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Level {

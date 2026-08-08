@@ -8,61 +8,74 @@ when a real action disagrees with the guess. Every tick, each sends the other
 its newest actions and a digest of its state; a digest that disagrees stops the
 run and says which tick it started at. That is the whole of the netcode, and
 none of it is in this crate — it is `corvid_lockstep` under
-`corvid::App::transport`, and this game implements `Simulate` and `Present`
-exactly as a single-seat game does.
+`corvid::App::transport`, and this game implements `State` and its four
+client-local halves exactly as a single-seat game does.
 
 ```sh
 cargo run -p pong                                    # one seat, a window
-cargo run -p pong -- --together                      # both seats, one process, one window
-cargo run -p pong -- --demo                          # two peers over a lying link, one table
+cargo run -p pong -- --bots 1                        # a window, and an opponent
+cargo run -p pong -- --headless --spectator --bots 2 --ticks 900
 cargo run -p pong -- --listen 9000 --connect 127.0.0.1:9001 --seat 0
 cargo run -p pong -- --listen 9001 --connect 127.0.0.1:9000 --seat 1
 ```
 
 The last two are two operating-system processes exchanging UDP. `W`/`S` or the
-arrows move your paddle; seat 0 defends the left and seat 1 the right.
+arrows move your paddle; seat 0 defends the left and seat 1 the right. There is
+no flag list of this game's own: every one of those is
+[`corvid::Arguments`](../../crates/corvid_app/src/cli.rs), and the whole of
+`src/main.rs` is the six types this game is.
 
-The same two with `--headless --ticks 600 --bot` is the claim without a person
-in it: two processes, scripted paddles, and one digest printed by each.
+Bots and a peer are refused together, on purpose. A controller is no part of
+what a session records, so a machine that filled a seat locally while another
+machine was in the same session would be writing a column the other one writes
+differently.
+
+The two-process pair with `--headless` is the claim without a person in it: two
+processes, one session, and one digest printed by each.
 
 ```text
-$ pong --headless --ticks 300 --seat 0 --bot --listen 9600 --connect 127.0.0.1:9601
-tick 300 — 3 : 0 — digest 0xd7a090c3eebd92b6 at tick 280
-292 heard, 293 sent, 54 rollbacks over 324 replayed ticks (deepest 6), 24 stalls
+$ pong --headless --ticks 300 --seat 0 --listen 9600 --connect 127.0.0.1:9601
+0x4f7dfdb0b8c29eb7
+… corvid_app::cli: the run ended tick=302 settled=282 digest=0x4f7dfdb0b8c29eb7
+… corvid_app::cli: what the link cost heard=299 sent=300 rollbacks=0 …
 
-$ pong --headless --ticks 300 --seat 1 --bot --listen 9601 --connect 127.0.0.1:9600
-tick 300 — 3 : 0 — digest 0xd7a090c3eebd92b6 at tick 280
-293 heard, 292 sent, 0 rollbacks over 0 replayed ticks (deepest 0), 0 stalls
+$ pong --headless --ticks 300 --seat 1 --listen 9601 --connect 127.0.0.1:9600
+0x4f7dfdb0b8c29eb7
+… corvid_app::cli: the run ended tick=302 settled=282 digest=0x4f7dfdb0b8c29eb7
+… corvid_app::cli: what the link cost heard=300 sent=299 rollbacks=0 …
 ```
 
-Two things in that are worth reading twice. **The digest is at tick 280 rather
-than 300**: a run stops when it stops, and the newest few ticks of each peer's
-state were simulated partly from a guess about what the other player did, so the
-number two machines can be held to is one from below the confirmed line. And
-**the two peers did different amounts of work** — one rolled back fifty-four
-times and the other never — because the one started a second earlier spent the
-session ahead of what it had been told, which is exactly when prediction is
-needed and exactly what it costs.
+Three things in that are worth reading twice. **One number on stdout**, so
+`pong --headless | …` reads a line and compares it; everything else is a
+`tracing` event on stderr, which is where the whole framework reports and which
+`RUST_LOG` turns up. **The digest is at tick 282 rather than 302**: a run stops
+when it stops, and the newest few ticks of each peer's state were simulated
+partly from a guess about what the other player did, so the number two machines
+can be held to is one from below the confirmed line. And **the two peers did
+different amounts of work** — here neither rolled back, because loopback delays
+nothing; over a link that does, the peer that started first spends the session
+ahead of what it has been told, which is exactly when prediction is needed and
+exactly what it costs.
 
-## What `--demo` prints
+## What the netcode lab measures
 
-The same [`Match`](src/rally.rs) `tests/session.rs` asserts on, over the three
-named curves `corvid_net` ships, with the numbers it measured rather than
-numbers this file claims:
+[`Match`](src/rally.rs) is two peers, a `MockNet` and a `for` loop, with no
+clock, no window and no thread in it — so a session over a link that loses a
+third of its packets is decided entirely by the seed. `tests/session.rs` is that
+with assertions on. Over the three named curves `corvid_net` ships, 900 ticks
+each, seed `0xf1e2d3c`:
 
 ```text
-pong — two peers, 900 ticks at 30 Hz, seed 0xf1e2d3c
-
 link        ticks  confirmed  heard  rollbacks  deepest  replayed  stalls  agree
-perfect       900        900    899          0        0         0       0  yes
-domestic      900        899    883          1        1         1       0  yes
-mobile        900        896    842        137        5       415       0  yes
+perfect      900        900    899          0        0         0       0  yes
+domestic     900        899    883          0        0         0       0  yes
+mobile       900        896    842         60        5       181       0  yes
 ```
 
 Read it as the argument for prediction. A perfect link confirms every tick
 before it is simulated, so nothing is ever predicted wrongly and nothing rolls
-back. A domestic link loses a few and delays a few, and the rollbacks are
-shallow. A mobile link mispredicts constantly — and the last column is still
+back. A domestic link loses a few and delays a few, and stays inside the input
+delay. A mobile link mispredicts constantly — and the last column is still
 `yes`: the two peers' digests agree, tick for tick, over every tick both have
 every action for. That column is the entire claim this example exists to make.
 
@@ -138,6 +151,9 @@ assert_eq!(next.paddles[1].at, origin().paddles[1].at);
 - `tests/baseline.rs` — the digests this game had before the contracts changed.
   A failure there is the simulation having moved, whatever else it was meant to
   be.
+- `tests/bot.rs` — that `Opponent`, the paddle `--bots N` fills a seat with, is
+  actually trying: two of them rally for a minute and concede a handful of
+  points, and they beat a paddle that follows the ball's current height.
 - `tests/session.rs` — two peers over `MockNet` at all three curves: identical
   digest traces over every confirmed tick, rollbacks that measurably happen, a
   total outage that stalls both peers without desyncing them, and a doctored
@@ -147,9 +163,9 @@ assert_eq!(next.paddles[1].at, origin().paddles[1].at);
 - `tests/socket.rs` — two `UdpNet`s on loopback, which is two real sockets
   carrying a real session, and a peer with nobody at the far end that stalls
   rather than failing.
-- `tests/together.rs` — that `--together` really is two peers, which is
-  checkable because the mode hands its run back and a session with somebody in
-  it heard datagrams.
+- `tests/together.rs` — that `rally::together`, which plays both seats in one
+  process with a real peer on a thread, really is two peers: the mode hands its
+  run back, and a session with somebody in it heard datagrams.
 - `tests/drawn.rs` — an adapter actually rasterising this game's pipeline, and
   a picture read back and looked at.
 
@@ -170,15 +186,17 @@ paddle. Every peer computes the same state and they check that they did.
 It is not matchmaking. Both peers start from the same `Opening` because they are
 the same binary started twice, and each is told where the other is.
 
-**Closing one window does not freeze the other player.** Kill one of the two
+**Closing one window does not freeze the other player.** Stop one of the two
 processes above mid-game and the survivor waits out the socket's patience, agrees
 with itself that the seat has gone — a departure is a tick written into the
 roster, so it is part of the session rather than one machine's opinion — and
-plays on to the end:
+plays on to the end. Started with `--ticks 200` against a survivor on
+`--ticks 700`, that is what the survivor says:
 
 ```text
-tick 400 — 5 : 0 — digest 0xd24f803675f993e7 at tick 380, seat 0 won
-152 heard, 452 sent, 0 rollbacks over 0 replayed ticks (deepest 0), 292 stalls
+… corvid_app::net: a peer went away; its seat submits nothing from here on
+… corvid_app::net: every machine still here agreed this seat left seat=0 at=210 rewound=0
+… corvid_app::cli: the run ended tick=702 settled=682 digest=0x06a6c78cd9fee1ed
 ```
 
 It does not seat a player who comes back. A machine that reconnects is handed a

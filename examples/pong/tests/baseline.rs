@@ -25,7 +25,7 @@
 use corvid::{
     Acting, App, Camera, Controller, Game, Input, PlayerId, SetDescriptor, Tick, TickSpan, Updating,
 };
-use pong::{Move, RATE, Table};
+use pong::{Move, Table};
 
 /// How far back the compared digest is taken from.
 ///
@@ -80,18 +80,18 @@ impl Controller<Table> for Scripted {
     }
 }
 
-/// The game this file pins: the table, the scripted paddle, and no device.
-///
-/// A marker of its own rather than the binary's, for the same reason
-/// [`Scripted`] is written out here rather than shared: what this file asserts
-/// is a fixed point, and a fixed point that moves when the library changes its
-/// mind about which controller a game ships with is not one.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Baseline;
-
-impl Game for Baseline {
-    const PERIOD: TickSpan = RATE;
-
+corvid::game! {
+    /// The game this file pins: the table, the scripted paddle, and no device.
+    ///
+    /// A marker of its own rather than the binary's, for the same reason
+    /// [`Scripted`] is written out here rather than shared: what this file
+    /// asserts is a fixed point, and a fixed point that moves when the library
+    /// changes its mind about which controller a game ships with is not one.
+    /// The period is written out here for that reason too — and it is no part
+    /// of what a digest is taken over, which is why the two numbers below did
+    /// not move when it was spelled a different way.
+    struct Baseline;
+    const PERIOD: TickSpan = TickSpan::from_millis(33);
     type State = Table;
     type Controller = Scripted;
     type Bot = ();
@@ -104,7 +104,7 @@ impl Game for Baseline {
 fn play(ticks: u64) -> (u64, [u16; 2]) {
     let outcome = App::<Baseline>::new()
         .opening(pong::opening())
-        .rate(RATE)
+        .rate(Baseline::PERIOD)
         .seat(PlayerId(0))
         .input(Input::new(pong::action::SETS))
         .settings(corvid::Settings {

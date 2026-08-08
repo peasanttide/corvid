@@ -1,17 +1,15 @@
-//! Two peers, a link between them, and a tick loop — the thing the demo runs
-//! and the thing the tests assert on.
+//! Two peers, a link between them, and a tick loop — the netcode lab this
+//! example's claims are measured in.
 //!
 //! This is deliberately *below* [`corvid`](corvid::App): a [`Match`]
 //! owns two [`Peer`]s and hands their datagrams to a
 //! [`MockNet`], with no clock, no window and no thread, so
 //! that a session over a link that loses a third of its packets is a `for` loop
 //! whose every step is decided by the seed. `tests/session.rs` is this file with
-//! assertions and `src/main.rs --demo` is this file with a table printed at the
-//! end; there is no third implementation of "two peers playing", which is what
-//! makes the demo evidence rather than a picture.
+//! assertions on.
 //!
 //! What plays *through* the runtime — a window, a clock, `App::transport` — is
-//! `tests/linked.rs`, and it plays the same game.
+//! [`together`] and `tests/linked.rs`, and both play the same game.
 
 use corvid::Digest;
 
@@ -28,7 +26,7 @@ use corvid::Controller;
 use serde::{Deserialize, Serialize};
 
 use crate::{Ears, Graphics, Hands};
-use crate::{Move, Table, court, opening, rules, table::SEATS};
+use crate::{Move, Table, opening, table::SEATS};
 
 /// How many seats a match has, as the width a [`PeerId`] is counted in.
 ///
@@ -53,18 +51,6 @@ pub fn index(seat: usize) -> u16 {
 /// ball, so the peers disagree about the future often enough for prediction to
 /// be worth testing, and one that does nothing, so a seat can be present and
 /// idle.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Policy {
-    /// Works out where the ball is going, goes there, and decides which part of
-    /// the paddle to meet it with. [`crate::bot`] is the whole of it and carries
-    /// the argument.
-    #[default]
-    Chase,
-    /// Stands still forever, which is the shape of a seat nobody is sitting in.
-    Idle,
-}
-
-/// One seat, played by a [`Policy`].
 ///
 /// A [`Controller`] rather than a function pointer, because that is what it
 /// stands in for: the lab drives a [`Peer`] directly where a run drives it
@@ -73,30 +59,30 @@ pub enum Policy {
 /// can be handed to an `App` unchanged, which is what makes the lab and a run
 /// the same setup rather than two shapes that have to be kept in step.
 ///
-/// It is a *pure function of the state this peer believes in* — which is the
-/// honest thing for a test as well as for a player: it acts on what its own
-/// machine is showing it, mispredictions and all.
+/// **Neither arm is written here.** [`Chase`](Self::Chase) is
+/// [`Opponent`](crate::Opponent) and [`Idle`](Self::Idle) is `()`, so what the
+/// lab measures is the paddle a player is actually played against and the
+/// silence a seat nobody is in actually submits. Which paddle is which seat's is
+/// [`Acting::seat`](corvid::Acting), so a policy carries no seat of its own.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Racket {
-    /// Which seat it plays, which is the paddle it moves.
-    pub seat: u16,
-    /// How it plays.
-    pub policy: Policy,
+pub enum Policy {
+    /// Works out where the ball is going, goes there, and decides which part of
+    /// the paddle to meet it with. [`Opponent`](crate::Opponent) is the whole of
+    /// it and carries the argument.
+    #[default]
+    Chase,
+    /// Stands still forever, which is the shape of a seat nobody is sitting in.
+    Idle,
 }
 
-impl Racket {
-    /// A racket playing `seat` by `policy`.
-    #[must_use]
-    pub const fn new(seat: u16, policy: Policy) -> Self {
-        Self { seat, policy }
-    }
-}
-
-impl Controller<Table> for Racket {
-    /// Itself: a seat and a policy are the whole of what one is.
+impl Controller<Table> for Policy {
+    /// Itself: which of the two it is, is the whole of what one is.
     type Config = Self;
 
-    const SETS: &'static [corvid::SetDescriptor] = crate::action::SETS;
+    /// No device on either arm, so nothing to declare. The lab hands every
+    /// policy the same empty snapshot and neither of them reads it.
+    const REAL: bool = false;
+    const SETS: &'static [corvid::SetDescriptor] = &[];
 
     fn new(config: Self) -> Self {
         config
@@ -109,19 +95,9 @@ impl Controller<Table> for Racket {
     /// The input is ignored, which is the point: a scripted seat answers from
     /// the state rather than from a device.
     fn action(&self, acting: corvid::Acting<'_, Table>) -> Move {
-        let seat = self.seat as usize;
-        match self.policy {
-            Policy::Idle => Move::Still,
-            Policy::Chase => {
-                let Some(paddle) = acting.state.paddles.get(seat) else {
-                    return Move::Still;
-                };
-                crate::bot::toward(
-                    paddle.at,
-                    crate::bot::target(seat, acting.state, &court(), &rules()),
-                    &court(),
-                )
-            }
+        match self {
+            Self::Idle => ().action(acting),
+            Self::Chase => crate::Opponent.action(acting),
         }
     }
 
@@ -199,8 +175,8 @@ pub struct Match {
     net: MockNet,
     /// The two peers, seat-indexed.
     peers: Vec<Peer<Table>>,
-    /// What each seat's player does.
-    policies: Vec<Racket>,
+    /// What each seat's player does, seat-indexed.
+    policies: Vec<Policy>,
     /// What each peer has done so far.
     traces: Vec<Trace>,
     /// How long a tick is, for the link's clock. The link measures latency in
@@ -243,16 +219,12 @@ impl Match {
         Ok(Self {
             net,
             peers,
-            // Paired with their seats here, because a seat is what a
-            // policy needs to know which paddle is its own and the caller
-            // already said which is which by position.
-            policies: policies
-                .iter()
-                .enumerate()
-                .map(|(seat, policy)| Racket::new(index(seat), *policy))
-                .collect(),
+            // By position, which is the seat: what tells a policy which paddle
+            // is its own is the seat on the `Acting` it is handed, and the seat
+            // a peer is asking for is its own.
+            policies: policies.to_vec(),
             traces,
-            period: crate::RATE.period(),
+            period: <Rallying as corvid::Game>::PERIOD.period(),
         })
     }
 
@@ -400,24 +372,21 @@ impl Match {
     }
 }
 
-/// The seed the demo's link lies with, and the one `--together` plays over.
+/// The seed a lab link lies with, and the one [`together`] plays over.
 pub const SEED: u64 = 0x0f_1e_2d_3c;
 
-/// The game [`together`] plays: the whole client half, against a peer on a
-/// thread.
-///
-/// The same five types the binary's own game names, declared again here because
-/// this mode is a *library* function a test drives and a run needs a game to be
-/// told about. `()` is the bot, because the other seat is a real
-/// [`Peer`] rather than something the runtime fills in.
-#[cfg(feature = "window")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Rallying;
-
-#[cfg(feature = "window")]
-impl corvid::Game for Rallying {
-    const PERIOD: corvid::TickSpan = crate::RATE;
-
+corvid::game! {
+    /// The game [`together`] plays: the whole client half, against a peer on a
+    /// thread.
+    ///
+    /// The same five types the binary's own game names, declared again here
+    /// because this mode is a *library* function a test drives and a run needs
+    /// a game to be told about. `()` is the bot, because the other seat is a
+    /// real [`Peer`] rather than something the runtime fills in — and the
+    /// period is named here so that the loop in [`Match`] and the run in
+    /// [`together`] cannot disagree about how long a tick is.
+    pub struct Rallying;
+    const PERIOD: corvid::TickSpan = corvid::TickSpan::from_millis(33);
     type State = Table;
     type Controller = Hands;
     type Bot = ();
@@ -449,11 +418,10 @@ impl corvid::Game for Rallying {
 #[cfg(feature = "window")]
 pub fn together(
     seat: PlayerId,
-    rate: corvid::TickSpan,
     ticks: Option<u64>,
     windowed: bool,
 ) -> corvid::Result<corvid::Outcome<Rallying>> {
-    use corvid::{App, Error, Input};
+    use corvid::{App, Error, Game, Input};
     let net = MockNet::new(seats(), SEED);
     net.all(Schedule::DOMESTIC);
 
@@ -461,7 +429,7 @@ pub fn together(
     let opponent = net.endpoint(PeerId(other.0));
     let session = Session::new(opening()).map_err(Error::Shape)?;
     let clock = net.clone();
-    let period = rate.period();
+    let period = Rallying::PERIOD.period();
     // Detached on purpose: the window owns the process, and when it closes the
     // process ends and this goes with it. A join handle would be a promise to
     // wait for a loop with no way out of it.
@@ -471,7 +439,6 @@ pub fn together(
 
     let app = App::<Rallying>::new()
         .opening(opening())
-        .rate(rate)
         .seat(seat)
         .transport(Box::new(net.endpoint(PeerId(seat.0))))
         .input(Input::new(crate::action::SETS))
@@ -492,7 +459,7 @@ pub fn together(
 /// It sleeps to the tick rather than spinning, and it advances the mock link's
 /// clock by one period per tick — so the latency a `MockNet` schedule describes
 /// passes at the same rate the game does, and the player in the window is
-/// playing over a link that behaves like the one the demo table measured.
+/// playing over a link that behaves like the one [`Match`] measures.
 #[cfg(feature = "window")]
 fn opponent_loop(
     session: Session<Table>,
@@ -511,8 +478,7 @@ fn opponent_loop(
         }
         due += period;
 
-        let racket = Racket::new(seat.0, Policy::Chase);
-        let action = racket.action(corvid::Acting {
+        let action = Policy::Chase.action(corvid::Acting {
             state: peer.state(),
             input: &corvid::Input::new(crate::action::SETS),
             time: corvid::Time {

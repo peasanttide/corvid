@@ -29,7 +29,7 @@ use corvid::PlayerId;
 
 use corvid::{Clock, Tick};
 use corvid_net::{MockNet, PeerId, Schedule, Transport};
-use pong::{Move, RATE, Table, action, opening};
+use pong::{Move, Table, action, opening};
 
 /// Whatever the test needs to say went wrong.
 type Fallible = Result<(), Box<dyn std::error::Error>>;
@@ -101,12 +101,14 @@ impl Drop for Ticking {
     }
 }
 
-/// A paddle that moves on a fixed period, so a later frame is not an earlier
+/// A paddle that moves on a fixed period, so a later tick is not an earlier
 /// one.
 ///
-/// Its own controller rather than `pong::Hands`'s scripted mode, because the
-/// period here is this test's and not the game's: `Hands` scripts from the seat,
-/// which is what `--bot` wants and not what a test asserting on pictures wants.
+/// Its own controller rather than `pong::Hands` or `pong::Opponent`: `Hands`
+/// reads a keyboard, which is a device neither peer here has, and the opponent
+/// chases the ball — where what this test wants at the controls is a paddle
+/// whose actions are decided before either run starts, so that the session's
+/// outcome is the netcode's rather than the scheduler's.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct Metronome {
     /// How many ticks a full up-and-down cycle takes.
@@ -141,18 +143,15 @@ impl Controller<Table> for Metronome {
     }
 }
 
-/// The game both peers play: the table, a paddle on a metronome, and no device
-/// at either end.
-///
-/// The claim here is that a link does not move a digest, so neither run opens
-/// an adapter or a sound card: a picture and a sound are things a peer does not
-/// send.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Linked;
-
-impl Game for Linked {
-    const PERIOD: TickSpan = RATE;
-
+corvid::game! {
+    /// The game both peers play: the table, a paddle on a metronome, and no
+    /// device at either end.
+    ///
+    /// The claim here is that a link does not move a digest, so neither run
+    /// opens an adapter or a sound card: a picture and a sound are things a
+    /// peer does not send.
+    struct Linked;
+    const PERIOD: TickSpan = TickSpan::from_millis(33);
     type State = Table;
     type Controller = Metronome;
     type Bot = ();
@@ -164,12 +163,11 @@ impl Game for Linked {
 fn play(seat: u16, transport: Box<dyn Transport>) -> Result<Outcome<Linked>, corvid::Error> {
     App::<Linked>::new()
         .opening(opening())
-        .rate(RATE)
         .seat(PlayerId(seat))
         // A fake clock stepping one period per reading, which is what every
         // headless run in this workspace uses: the peer's own budget is what
         // keeps the two runs together, and it is the thing being tested.
-        .clock(Clock::stepping(RATE.period()))
+        .clock(Clock::stepping(Linked::PERIOD.period()))
         .transport(transport)
         .input(Input::new(action::SETS))
         .settings(corvid::Settings {
@@ -192,7 +190,7 @@ fn play(seat: u16, transport: Box<dyn Transport>) -> Result<Outcome<Linked>, cor
 fn two_runtimes_over_one_link_agree() -> Fallible {
     let net = MockNet::new(2, 0x51_a7_e5);
     net.all(Schedule::DOMESTIC);
-    let period = RATE.period();
+    let period = Linked::PERIOD.period();
 
     // Both spawned before either is joined. `.map(spawn).map(join)` reads the
     // same and is not: iterators are lazy, so it starts one peer, waits for it
@@ -287,9 +285,8 @@ fn a_run_with_no_transport_is_unchanged() -> Fallible {
     let alone = |seat: u16| {
         App::<Linked>::new()
             .opening(opening())
-            .rate(RATE)
             .seat(PlayerId(seat))
-            .clock(Clock::stepping(RATE.period()))
+            .clock(Clock::stepping(Linked::PERIOD.period()))
             .input(Input::new(action::SETS))
             .settings(corvid::Settings {
                 controls: if seat == 0 { 11 } else { 7 },
@@ -328,7 +325,7 @@ fn a_run_with_no_transport_is_unchanged() -> Fallible {
 fn a_networked_session_replays_to_the_same_state() -> Fallible {
     let net = MockNet::new(2, 0x9e_ed_1e);
     net.all(Schedule::MOBILE);
-    let period = RATE.period();
+    let period = Linked::PERIOD.period();
 
     // Both spawned before either is joined. `.map(spawn).map(join)` reads the
     // same and is not: iterators are lazy, so it starts one peer, waits for it

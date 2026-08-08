@@ -1,10 +1,10 @@
 //! Two peers, three links, and the claims that make this a multiplayer example
 //! rather than a picture of one.
 //!
-//! Everything here drives [`pong::rally::Match`], which is the same code
-//! `cargo run -p pong -- --demo` prints a table from — so the demo cannot
-//! quietly diverge from what is asserted, because there is one implementation
-//! of "two peers playing" and this is it with assertions on.
+//! Everything here drives [`pong::rally::Match`], the netcode lab: two peers,
+//! one link that loses and delays what a seed tells it to, and no clock. There
+//! is one implementation of "two peers playing below the runtime" and this is it
+//! with assertions on.
 
 #![allow(
     clippy::unwrap_used,

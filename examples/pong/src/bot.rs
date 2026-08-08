@@ -7,13 +7,17 @@
 //! decide which part of the paddle to meet it with.
 //!
 //! Everything here is a pure function of the state and the court, which is
-//! worth saying because it is what lets the same code drive a peer in a test, a
-//! peer in `--together`, and the opponent in the demo. It is client-local all
-//! the same: what reaches the wire is the [`Move`] it returns, and nothing here
-//! is hashed.
+//! worth saying because it is what lets the same code drive a peer in the
+//! netcode lab, the opponent [`together`](crate::rally::together) plays against,
+//! and every seat `--bots N` fills. It is client-local all the same: what
+//! reaches the wire is the [`Move`] it returns, and nothing here is hashed.
+//!
+//! [`Opponent`] is that paddle as a [`Controller`], which is the form the
+//! runtime takes; [`target`] and [`toward`] are the arithmetic under it, called
+//! directly by `tests/bot.rs`.
 
 use crate::table::{Court, Move, Play, Table};
-use corvid::I16F16;
+use corvid::{Acting, Camera, Controller, I16F16, Updating};
 
 /// How far from its target a paddle stops correcting, as a share of its own
 /// half-height.
@@ -33,6 +37,74 @@ const SETTLED: f64 = 0.34;
 /// aims at its own corner misses whenever its prediction is a centimetre out.
 /// Two thirds is most of the angle for a fraction of the risk.
 const AIM: f64 = 0.66;
+
+/// An opponent that is actually trying.
+///
+/// A pure function of the state and the court, so a peer in the netcode lab, the
+/// opponent [`together`](crate::rally::together) plays against and a seat filled
+/// by `--bots` all play the same paddle. What reaches the wire is the [`Move`]
+/// it returns; nothing here is hashed.
+///
+/// # Where it reads the court from
+///
+/// [`court`](crate::court) and [`rules`](crate::rules), because an
+/// [`Acting`] carries the state and not the level and [`Table`] does not carry
+/// its own court. That is exact rather than approximate for this game: the two
+/// constants are what [`opening`](crate::opening) puts in the session, and they
+/// are also what [`Level::load`](corvid::Level::load) answers for the only
+/// level this game has — so a run that opened on `--level` plays them too, and
+/// there is no court a session could be on that this would mispredict.
+///
+/// A game with several courts would have to be handed the level instead, and
+/// the honest place for that is the state.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Opponent;
+
+impl Controller<Table> for Opponent {
+    /// Nothing to set. Which seat it plays is the runtime's to say, once per
+    /// call, and how it plays is the two constants above.
+    type Config = ();
+
+    /// No device, which is what makes a seat filled by `--bots` cost a run
+    /// nothing but the arithmetic.
+    const REAL: bool = false;
+
+    /// And no actions, because a controller that reads no device has nothing to
+    /// declare. The declaration a run is sized from is the *player's*
+    /// controller's, which is [`Hands`](crate::Hands).
+    const SETS: &'static [corvid::SetDescriptor] = &[];
+
+    fn new((): ()) -> Self {
+        Self
+    }
+
+    fn configure(&mut self, (): ()) {}
+
+    /// Where the ball is going to be, and which part of the paddle to meet it
+    /// with.
+    ///
+    /// [`Acting::seat`] is which paddle, so one instance answers for however
+    /// many seats a run gave it.
+    fn action(&self, acting: Acting<'_, Table>) -> Move {
+        let seat = usize::from(acting.seat.0);
+        let court = crate::court();
+        let rules = crate::rules();
+        let target = target(seat, acting.state, &court, &rules);
+        let at = acting
+            .state
+            .paddles
+            .get(seat)
+            .map_or(I16F16::ZERO, |paddle| paddle.at);
+        toward(at, target, &court)
+    }
+
+    /// Nothing accumulates: there is no camera to smooth and no cursor to cast.
+    fn update(&mut self, _updating: Updating<'_, Table>) {}
+
+    fn look(&self) -> Camera {
+        Camera::default()
+    }
+}
 
 /// Where this seat's paddle should be, in court metres.
 ///

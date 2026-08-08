@@ -36,7 +36,7 @@ use corvid::Extent;
 
 use corvid::Clock;
 use corvid_test::{Scratchpad, read_png};
-use pong::{Ears, Graphics, Move, RATE, Table, action, opening};
+use pong::{Ears, Graphics, Move, Table, action, opening};
 
 /// Whatever the test needs to say went wrong.
 type Fallible = Result<(), Box<dyn std::error::Error>>;
@@ -64,15 +64,14 @@ const fn no_adapter(why: &corvid::Error) -> bool {
     )
 }
 
-/// Plays offscreen into `into`, or answers `false` if this machine has no
-/// adapter.
-///
 /// A paddle that moves on a fixed period, so a later frame is not an earlier
 /// one.
 ///
-/// Its own controller rather than `pong::Hands`'s scripted mode, because the
-/// period here is this test's and not the game's: `Hands` scripts from the seat,
-/// which is what `--bot` wants and not what a test asserting on pictures wants.
+/// Its own controller rather than `pong::Hands` or `pong::Opponent`: `Hands`
+/// reads a keyboard, which would make the picture a function of who is
+/// watching, and the opponent chases the ball — where what a test asserting on
+/// pictures wants is a paddle that moves the same way on every machine and
+/// covers both directions inside the run's ninety ticks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct Metronome {
     /// How many ticks a full up-and-down cycle takes.
@@ -107,18 +106,14 @@ impl Controller<Table> for Metronome {
     }
 }
 
-/// The game this file draws: the table, a paddle on a metronome, and the whole
-/// device half.
-///
-/// A marker of its own beside the binary's, because what this test wants at the
-/// controls is a paddle that moves the same way on every machine — a keyboard
-/// would make the picture a function of who is watching.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Drawn;
-
-impl Game for Drawn {
-    const PERIOD: TickSpan = RATE;
-
+corvid::game! {
+    /// The game this file draws: the table, a paddle on a metronome, and the
+    /// whole device half.
+    ///
+    /// A marker of its own beside the binary's, because what this test wants at
+    /// the controls is a paddle that moves the same way on every machine.
+    struct Drawn;
+    const PERIOD: TickSpan = TickSpan::from_millis(33);
     type State = Table;
     type Controller = Metronome;
     type Bot = ();
@@ -126,12 +121,13 @@ impl Game for Drawn {
     type Auralizer = Ears;
 }
 
+/// Plays offscreen into `into`, or answers `false` if this machine has no
+/// adapter.
 fn draw_into(into: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     let played = App::<Drawn>::new()
         .opening(opening())
-        .rate(RATE)
         .seat(PlayerId(0))
-        .clock(Clock::stepping(RATE.period()))
+        .clock(Clock::stepping(Drawn::PERIOD.period()))
         .input(Input::new(action::SETS))
         .settings(corvid::Settings {
             controls: 20,

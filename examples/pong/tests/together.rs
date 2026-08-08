@@ -1,10 +1,11 @@
-//! The one command that plays multiplayer, tested.
+//! Multiplayer without a second machine, tested.
 //!
-//! `cargo run -p pong -- --together` is the shortest path from a clone of this
-//! repository to two peers playing each other, so it is worth being sure it is
-//! two peers rather than a single-seat run with a picture of an opponent in it.
-//! What makes that checkable is that the mode hands its run back: a session with
-//! another machine in it heard datagrams, and one without heard none.
+//! [`pong::rally::together`] plays both seats in this process — one through the
+//! runtime, one as a whole [`Peer`](corvid_lockstep::Peer) on a thread, over a
+//! link with latency and loss in it — so it is worth being sure it is two peers
+//! rather than a single-seat run with a picture of an opponent in it. What makes
+//! that checkable is that the mode hands its run back: a session with another
+//! machine in it heard datagrams, and one without heard none.
 //!
 //! The window is the one part of it this cannot open — a test harness runs on a
 //! worker thread and an event loop may only be built off the main one on X11
@@ -25,7 +26,7 @@
 )]
 
 use corvid::PlayerId;
-use pong::{RATE, rally::together};
+use pong::rally::together;
 
 /// Whatever the test needs to say went wrong.
 type Fallible = Result<(), Box<dyn std::error::Error>>;
@@ -52,13 +53,12 @@ fn windows_wanted() -> bool {
 
 /// Both seats really play, and the run is really a session between them.
 ///
-/// The counters are the evidence. A `--together` that had quietly become a
-/// single-seat run would still finish, still draw and still print a score — and
-/// would have heard nothing from anybody, which is what this asserts it did
-/// not.
+/// The counters are the evidence. A run that had quietly become a single-seat
+/// one would still finish, still draw and still print a score — and would have
+/// heard nothing from anybody, which is what this asserts it did not.
 #[test]
 fn both_seats_play_and_the_session_is_shared() -> Fallible {
-    let outcome = together(PlayerId(0), RATE, Some(TICKS), false)?;
+    let outcome = together(PlayerId(0), Some(TICKS), false)?;
 
     assert!(
         outcome.state.now.0 >= TICKS - 20,
@@ -102,7 +102,7 @@ fn the_windowed_arm_plays_the_same_session() {
         eprintln!("skipped: this test opens a window; set {ASKED}=1 to run it");
         return;
     }
-    match together(PlayerId(0), RATE, Some(TICKS), true) {
+    match together(PlayerId(0), Some(TICKS), true) {
         Ok(outcome) => {
             assert!(outcome.traffic.heard > TICKS / 2);
             assert!(outcome.state.now.0 >= TICKS - 20);

@@ -50,8 +50,9 @@ default = ["window", "net"]
 # This game's own pipeline: one shader, one buffer, no camera.
 render = ["dep:bytemuck"]
 window = ["render", "corvid/window"]
-# The other machine. It is what `--demo`, `--together` and `--listen` need, and
-# without it this crate is a single-seat pong that still builds and still plays.
+# The other machine. It is what `--listen`/`--connect`, `rally::Match` and
+# `rally::together` need, and without it this crate is a single-seat pong that
+# still builds and still plays.
 net = [
     "render",
     "corvid/net",
