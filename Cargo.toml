@@ -35,6 +35,12 @@ arbitrary = { version = "1", features = ["derive"] }
 # while every crate resolves the same `mint::Vector3` and `nalgebra::Vector3`.
 mint = "0.5"
 nalgebra = { version = "0.34", default-features = false }
+# Spans and events. Pinned here rather than per crate for the reason `mint` and
+# `nalgebra` are: two versions of `tracing` in one graph are two independent
+# subscriber registries, so half of a trace goes to each and the half that
+# matters is whichever one nobody installed a subscriber on. `corvid_signal` is
+# the only crate that needs it today; the runtime will.
+tracing = { version = "0.1", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
