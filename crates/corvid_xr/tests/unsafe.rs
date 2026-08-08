@@ -129,14 +129,23 @@ fn no_other_crate_in_the_workspace_relaxes_the_lint() {
             continue;
         }
         let text = fs::read_to_string(&manifest).unwrap_or_else(|error| panic!("{error}"));
-        // Naming the lint is fine — six crates spell the whole table out rather
-        // than inheriting it. Naming it and saying anything but `forbid` is
-        // not, and that is the clause: this crate is the one exception, and
-        // nothing else in the workspace may follow it.
-        if text.contains(LINT) {
+        // Declaring the lint is fine — six crates spell the whole table out
+        // rather than inheriting it. Declaring it and saying anything but
+        // `forbid` is not, and that is the clause: this crate is the one
+        // exception, and nothing else in the workspace may follow it.
+        //
+        // A *declaration* is the name followed by `=`, and the distinction is
+        // load-bearing rather than pedantic: `corvid_glm`'s manifest explains
+        // in a comment that it takes `bytemuck` rather than casting on its own
+        // "because `unsafe_code` is forbidden workspace-wide", which is a
+        // sentence agreeing with this rule. Matching the bare name reads that
+        // agreement as a violation.
+        let declared = format!("{LINT} = ");
+        if text.contains(&declared) {
             assert!(
                 text.contains(&format!("{LINT} = \"forbid\"")),
-                "{} names {LINT} without forbidding it; corvid_xr is the workspace's one exception",
+                "{} declares {LINT} without forbidding it; corvid_xr is the workspace's one \
+                 exception",
                 manifest.display()
             );
         }
