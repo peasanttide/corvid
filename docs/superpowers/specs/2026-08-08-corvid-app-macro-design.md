@@ -9,7 +9,7 @@
 ```rust
 corvid::app! {
     struct Pong;
-    const RATE: u32 = 30;
+    const PERIOD_MS: u8 = 33;
     type State = Table;
     type Controller = Hands;
     type Bot = Opponent;
@@ -30,12 +30,15 @@ Seven changes. The macro is the smallest of them and the last to write.
 
 ### 1. `Game`
 
-The five types a game is, and the rate it ticks at, as one trait.
+The five types a game is, and how long its tick lasts, as one trait.
 
 ```rust
 pub trait Game {
-    /// How often a tick runs. Every peer must agree.
-    const RATE: TickSpan;
+    /// How long one tick lasts, in whole milliseconds. Every peer must agree.
+    const PERIOD_MS: u8;
+
+    /// The span that follows, which is what the runtime steps against.
+    const PERIOD: TickSpan = TickSpan::from_millis(Self::PERIOD_MS);
 
     type State: State + Opens;
     type Controller: Controller<Self::State>;
@@ -53,9 +56,22 @@ parameter reaches every corner of `corvid_app` instead of four.
 declares no actions, wants no devices and submits the idle action forever, so a
 game with no bots names `()` and writes nothing.
 
-The rate lives here rather than on `State` because it is a property of the whole
-game rather than of its simulation, and because the macro has somewhere to put
-it.
+The period lives here rather than on `State` because it is a property of the
+whole game rather than of its simulation, and because the macro has somewhere to
+put it.
+
+**A period in whole milliseconds, not a rate in hertz.** `Step` accumulates
+against the span, so the span is the number a simulation is defined by, and a
+game that names hertz is naming a number that has to be divided into a second
+and truncated. A `u8` of milliseconds spans 1 ms to 255 ms — a thousand ticks a
+second down to four — and every value in it is exact.
+`TickSpan::from_millis(u8)` is a new total constructor: no `NonZeroU32`, no
+`match`, no fallback, because zero is not in the range and 255 ms fits a `u64` of
+nanoseconds with room to spare.
+
+pong's 30 Hz becomes 33 ms, which is 30.3 ticks a second. `TickSpan` is not in
+the `Opening`, is not hashed and is not on the wire, so this cannot move a
+digest — `baseline.rs` is unaffected by the change of period.
 
 ---
 
@@ -143,31 +159,57 @@ controllers that are not hashed and need not agree.
 
 ---
 
-### 3. A seat is optional
+### 3. Playing a seat and watching one are different things
 
-`--spectator` claims no seat. `App::seat(PlayerId)` gains a sibling
-`App::spectating()` which clears it, and the field behind both is
-`Option<PlayerId>`.
+A client always watches a seat. Whether it also submits for one is what
+`--spectator` decides.
 
-- `prepare` skips the `Error::Seat` roster check.
-- The loop writes no action into the log for this client. The column is filled by
-  a peer or a bot, or stays `Action::default()`.
-- With a transport, the peer joins as a listener: it folds in what arrives,
-  compares digests, and sends no actions of its own.
+```rust
+pub enum Seating {
+    /// Submits for this seat, and watches it.
+    Playing(PlayerId),
+    /// Submits for nobody, and watches this seat.
+    Watching(PlayerId),
+}
 
-This is the deepest change here and the one most likely to surface an assumption
-in `runtime.rs` or `corvid_lockstep`.
+impl Seating {
+    /// The seat this client's camera, renderer and ears belong to. Always one.
+    pub const fn watched(self) -> PlayerId;
+    /// The seat this client writes an action for, if it writes one.
+    pub const fn playing(self) -> Option<PlayerId>;
+}
+```
+
+`App::seat(PlayerId)` gives `Playing`; `App::spectating()` gives `Watching` of
+the roster's first seat. `--spectator` is a bool, and which seat it watches is
+not yet a flag.
+
+What changes in the runtime is one thing: the log write. `Controller::update`,
+`look`, `cursor` and `simulating` all still run, against `watched()`, so the
+camera moves, the renderer draws and the ears hear exactly as they do for a
+player. `Controller::action` is not called and nothing is written into the
+frontier's row. With a transport, the peer joins as a listener: it folds in what
+arrives and compares digests, and sends no actions of its own.
+
+**A roster with no seats is `Error::NoSeats`.** There is nothing to watch, so
+there is no run.
+
+Because `watched()` is always a seat, `prepare`'s roster check stays as it is
+and the camera path never sees an `Option`. Only the write is conditional.
 
 ---
 
 ### 4. Bots fill the empty seats
 
 The runtime holds one `G::Bot`, built from its config, and calls it once per bot
-seat with that seat's number. Bots take unclaimed roster seats in order, skipping
-this client's, up to `num_bots`.
+seat with that seat's number. Bots take roster seats in order, skipping the seat
+this client is `Playing`, up to `num_bots`. A `Watching` client skips nothing: a
+spectator watches a seat it does not play, and a bot may play the seat it
+watches.
 
 `pong --seat 0 --bots 1` gives the bot seat 1. `pong --spectator --bots 2` gives
-it both. Bot actions go into the log the same way this client's do, so they are
+it seats 0 and 1, and the window shows seat 0's court while a bot moves its
+paddle. Bot actions go into the log the same way this client's do, so they are
 part of the session, written by `--record` and replayed by `--demo`.
 
 ---
@@ -255,16 +297,16 @@ Defines the struct and its `Game` implementation, and nothing else.
 ```rust
 corvid::game! {
     struct Rally;
-    const RATE: u32 = 30;
+    const PERIOD_MS: u8 = 33;
     type State = Table;
     type Bot = Opponent;
 }
 ```
 
-`RATE` is hertz. Every `type` line is optional and defaults to `()`; lines may
-appear in any order; `struct` names the type. The macro turns the hertz into a
-`TickSpan` through a `const` match on `NonZeroU32`, so a game never writes that
-itself and no `unwrap` appears anywhere near a rate.
+Every `type` line is optional and defaults to `()`; lines may appear in any
+order; `struct` names the type. `PERIOD_MS` is required — a game that did not
+say how long a tick lasts would inherit one, and two games sharing a default is
+how two peers end up at different spans without either having said so.
 
 It also generates a sandbox constructor:
 
@@ -285,7 +327,7 @@ rather than the seven builder lines every test file repeats.
 ```rust
 corvid::app! {
     struct Pong;
-    const RATE: u32 = 30;
+    const PERIOD_MS: u8 = 33;
     type State = Table;
     type Controller = Hands;
     type Bot = Opponent;
@@ -306,9 +348,9 @@ fn main() -> corvid::Result {
 
 1. `watch()`.
 2. Parse. `--help` writes the usage to stdout and answers `Ok(())`.
-3. Build the `App`: `G::State::opening()`, `G::RATE`,
-   `Input::new(G::Controller::SETS)`, the seat or the absence of one, the number
-   of bots, and `G::Controller::bindings()` for a windowed run.
+3. Build the `App`: `G::State::opening()`, `G::PERIOD`,
+   `Input::new(G::Controller::SETS)`, the `Seating`, the number of bots, and
+   `G::Controller::bindings()` for a windowed run.
 4. Open the transport, when `--listen` and `--connect` are both given.
 5. Pick the backend from what the run is doing rather than from a `cfg`: a window
    when one was not refused and the build has the feature; an adapter drawing
@@ -342,8 +384,17 @@ flag somebody has to run.
 `Hands` loses `scripted` and its `Config` becomes `()`. `Opponent` is a type in
 `bot.rs` implementing `Controller<Table>` with `REAL = false` and `SETS = &[]`,
 wrapping `target` and `toward` and reading `acting.seat`. `rally::Racket`
-collapses onto it. `pong::RATE` and the `rate()` helper go: the rate is in the
-macro.
+collapses onto it. `pong::RATE` and the `rate()` helper go: the period is in the
+macro, and 30 Hz becomes 33 ms.
+
+`pong --headless --bot` becomes
+
+```
+pong --headless --spectator --bots 2
+```
+
+which is a whole session rather than one scripted paddle: both seats played,
+nobody submitting, one digest on stdout.
 
 pong's bespoke scoreline goes with `report`. A game with something to say about
 its own state emits a `tracing` event from its client-local code, which sees
@@ -355,10 +406,16 @@ every state through `Extract`.
   `--bots` with `--connect`, a malformed `--level`.
 - `--record FILE` writes a session that `--demo FILE` opens and carries on, and
   the digest trace joins up across the two runs.
-- `--spectator` runs a session, writes no action for this client, and reaches the
-  same digest as a run whose seat submitted `Action::default()`.
+- `--spectator` writes no action for this client and reaches the same digest as a
+  run whose seat submitted `Action::default()`.
+- A `--spectator` run still calls `update`, `look` and `draw` against the watched
+  seat: the camera is not the default one, and an offscreen `--spectator` run
+  writes the same pictures as a played one at the same state.
+- `--spectator` on a roster with no seats is `Error::NoSeats`.
 - `--bots N` fills the expected seats, and the bot's actions are in the recorded
   session.
+- `TickSpan::from_millis` is exact across the whole `u8` range, and a session at
+  33 ms produces the digests a session at `from_hz(30)` did.
 - A run with `--bots 1` and a run whose second seat is driven by the same
   `Opponent` through a hand-built `App` produce identical traces.
 - The `corvid_app` test files that build their own `App` move to `game!` plus
@@ -370,14 +427,18 @@ every state through `Extract`.
 
 ## Risks
 
-**The absent seat.** `runtime.rs` and `corvid_lockstep` assume a seat to write
-into. If the listener path needs changes inside `Peer`, that is larger than this
-spec accounts for, and it is the first thing to find out.
+**The listening peer.** `corvid_lockstep` assumes a peer submits. `Seating`
+keeps the camera path free of `Option`s and confines the change to the log
+write, but a `Peer` that sends nothing may still need something inside
+`corvid_lockstep` — that is the first thing to find out, and the one place this
+spec could be wrong about scope.
 
 **`baseline.rs`.** Its digests are the evidence that none of this changed the
-simulation. They must survive every change here untouched, and the run that
-produced them used `--bot`, which no longer exists — so the equivalent run under
-the new flags has to be established before anything else moves.
+simulation, and they must survive untouched. It holds its own copy of the
+scripted paddle and drives a hand-built `App`, so it does not depend on `Hands`
+or on the flags; what it does depend on is the seat parameter arriving in
+`action` and the argument structs replacing the loose ones. Convert it first and
+run it before anything else moves.
 
 **Signature churn, once.** Every `Controller`, `Render`, `Auralizer` and
 `Extract` implementation in the workspace and in `examples/` changes shape. It is
