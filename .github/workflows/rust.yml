@@ -42,6 +42,15 @@ jobs:
           echo "== corvid_fixed --features $feature"
           cargo build -p corvid_fixed --no-default-features --features "$feature"
         done
+        # `corvid_bits` has one feature and it currently forwards nothing, so
+        # this arm passes trivially today. It is here for the day it stops
+        # being trivial: a `std` that starts gating an API is a change nothing
+        # else in this matrix would catch, because every other run either has
+        # the feature off or has everything on.
+        for feature in std; do
+          echo "== corvid_bits --features $feature"
+          cargo build -p corvid_bits --no-default-features --features "$feature"
+        done
     # Overflow checks are on in dev and off in release, so the two profiles
     # disagree about what a wrapped intermediate does — the one divergence a
     # bit-exactness crate cannot ship. Both arms have to run.
