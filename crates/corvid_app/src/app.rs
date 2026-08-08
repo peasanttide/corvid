@@ -209,6 +209,9 @@ pub struct App<G: Game> {
     rate: TickSpan,
     /// Which seat this client watches, and whether it plays it.
     seating: Seating,
+    /// How many of the roster's other seats the game's bot plays. See
+    /// [`bots`](Self::bots).
+    bots: u16,
     /// What carries this client's actions to the other machines, if there are
     /// any. See [`transport`](Self::transport).
     #[cfg(feature = "net")]
@@ -288,6 +291,7 @@ where
             clock: None,
             rate: G::PERIOD,
             seating: Seating::default(),
+            bots: 0,
             #[cfg(feature = "net")]
             transport: None,
             #[cfg(feature = "net")]
@@ -522,15 +526,47 @@ where
 
     /// Which seat this client submits an action for, and looks through.
     ///
-    /// The default is seat zero. Without a [`transport`](Self::transport) this
-    /// is the only seat any action is recorded against and every other seat in
-    /// the roster submits [`Action::default`](Default::default) forever,
-    /// because nothing fills the other columns; with one, the other columns are
-    /// filled by the machines sitting in them. A seat the roster does not have
-    /// is [`Error::Seat`] either way.
+    /// The default is seat zero. Without a [`transport`](Self::transport) or
+    /// any [`bots`](Self::bots) this is the only seat any action is recorded
+    /// against and every other seat in the roster submits
+    /// [`Action::default`](Default::default) forever, because nothing fills the
+    /// other columns; a transport fills them from the machines sitting in them,
+    /// and bots fill them from this process. A seat the roster does not have is
+    /// [`Error::Seat`] whichever of the three it is.
     #[must_use]
     pub const fn seat(mut self, seat: PlayerId) -> Self {
         self.seating = Seating::Playing(seat);
+        self
+    }
+
+    /// How many unclaimed seats the game's [`Bot`](crate::Game::Bot) plays.
+    ///
+    /// Bots take roster seats in order, skipping the seat this client is
+    /// [`Playing`](crate::Seating::Playing). A spectator skips nothing: it
+    /// watches a seat it does not play, so `--spectator --bots 2` fills both
+    /// seats of a two-seat game and the run is one this client only watches.
+    ///
+    /// Asking for more bots than there are seats fills the seats there are,
+    /// because the number a caller wants and the number a roster has are two
+    /// separate facts and the roster is the one that is true.
+    ///
+    /// # One bot, many seats
+    ///
+    /// There is a single [`Bot`](crate::Game::Bot) for the whole run, built
+    /// from [`Settings::bot`](crate::Settings::bot), and it is asked once per
+    /// seat per tick with [`Acting::seat`](corvid_control::Acting) naming which.
+    /// A game whose bots differ from one another says so in that config, which
+    /// is the game's own type; a runtime that built one instance per seat would
+    /// be deciding for it that they are independent.
+    ///
+    /// # Not with a transport
+    ///
+    /// [`Error::BotsAndPeers`]. A seat filled locally is a seat every other
+    /// machine in the session would have to fill identically, and a controller
+    /// is not part of what a session records.
+    #[must_use]
+    pub const fn bots(mut self, count: u16) -> Self {
+        self.bots = count;
         self
     }
 
@@ -849,7 +885,9 @@ where
     /// [`Error::Unopened`] if no opening was given, [`Error::Shape`] if the
     /// opening cannot be made into a session, [`Error::NoSeats`] if that
     /// session's roster is empty, [`Error::Seat`] if the seat is not
-    /// in the roster of the session the run ends up playing, [`Error::Log`] if
+    /// in the roster of the session the run ends up playing,
+    /// [`Error::BotsAndPeers`] if it asked for bots and a transport at once,
+    /// [`Error::Log`] if
     /// the action log refuses a write, and [`Error::Wrote`] or
     /// [`Error::Encoded`] if a capture cannot be written. A run with a device
     /// adds [`Error::Drew`], and a windowed one adds [`Error::NoWindow`].
@@ -866,6 +904,13 @@ where
         // which clock this run defaults to and the plan owns the transport from
         // there on.
         let networked = self.networked();
+        // Refused rather than reconciled, and before anything is opened or read
+        // — a run that is not going to happen should not have created a capture
+        // directory on the way to saying so.
+        #[cfg(feature = "net")]
+        if networked && self.bots > 0 {
+            return Err(Error::BotsAndPeers { bots: self.bots });
+        }
         // Either what a caller overrode or what the player has set. Read here
         // rather than in the builder, because reading a file is something a run
         // does and not something a `new` does.
@@ -942,6 +987,18 @@ where
             });
         }
 
+        // Roster order, skipping the seat this client submits for. A spectator
+        // submits for nobody and so skips nothing, which is what lets bots fill
+        // every seat of a run this client only watches. The same roster the
+        // check above used, for the same reason: a `--load` plays the seats the
+        // save has and not the ones the fresh opening described.
+        let played = self.seating.playing();
+        let bots: Vec<PlayerId> = (0..seats)
+            .filter_map(|seat| u16::try_from(seat).ok().map(PlayerId))
+            .filter(|seat| Some(*seat) != played)
+            .take(usize::from(self.bots))
+            .collect();
+
         let capture = self.capture.take().map(Capture::open).transpose()?;
 
         // Counted from where the run opened, which is the opening's first tick
@@ -966,6 +1023,7 @@ where
         let plan = Plan {
             session,
             seating: self.seating,
+            bots,
             #[cfg(feature = "net")]
             transport: self.transport.take(),
             #[cfg(feature = "net")]
@@ -1054,6 +1112,7 @@ where
             .any_thread(self.any_thread);
         let pending = crate::windowed::Pending::<G> {
             controls: settings.controls.clone(),
+            bot: settings.bot.clone(),
             graphics: settings.graphics.clone(),
             audio: settings.audio.clone(),
             settings,
@@ -1109,6 +1168,7 @@ where
             plan,
             crate::screen::Screen::<G>::new(renderer, capture, false),
             G::Controller::new(settings.controls.clone()),
+            G::Bot::new(settings.bot.clone()),
             Some(graphics),
             G::Auralizer::new(settings.audio.clone()),
             settings,
@@ -1136,6 +1196,7 @@ where
             plan,
             Headless::<G>::new(capture),
             G::Controller::new(settings.controls.clone()),
+            G::Bot::new(settings.bot.clone()),
             Option::<G::Render>::None,
             G::Auralizer::new(settings.audio.clone()),
             settings,
@@ -1256,6 +1317,29 @@ pub enum Error {
         seat: PlayerId,
         /// How many the roster has.
         seats: usize,
+    },
+    /// A run asked for both [`bots`](App::bots) and a
+    /// [`transport`](App::transport).
+    ///
+    /// A bot is a controller, and a controller is no part of what a session
+    /// records: every peer would have to run the same one over the same
+    /// settings to reach the same actions for the seats it filled, and nothing
+    /// on the wire says which peer that is. So the combination is refused here
+    /// rather than reconciled.
+    ///
+    /// **A seat nobody is in still stalls a linked session**, which is what
+    /// makes this worth stating rather than obvious: a column no peer writes
+    /// pins the agreed frontier and every machine waits after
+    /// [`Budget::ahead`](corvid_lockstep::Budget) ticks. Bots are not the
+    /// answer to that. What is, is a peer sitting in the seat.
+    #[cfg(feature = "net")]
+    #[error(
+        "this run has {bots} bots and a transport, and every peer running its own bots would \
+         write the same seats' columns from controllers that are not hashed"
+    )]
+    BotsAndPeers {
+        /// How many were asked for.
+        bots: u16,
     },
     /// The roster has no seats, so there is nobody to watch and no run.
     ///

@@ -240,13 +240,13 @@ what the runtime produced, which is the single thing a frozen capture is for.
 
 ## What is not here
 
-**`Policy`, and the agent players built on it.** A trait whose `act` sees exactly
-what a player sees — a `View` and a `Frame` — is what makes a bot filling an
-empty seat in a real match and a test asserting on a scenario the same code path.
-Seating one needs a runtime that can drive a seat from
-something other than `Present::intend`, and `corvid_app` has one seat, one input
-snapshot, and every other seat submitting `Action::default()` forever. A trait
-here would be a trait nothing could drive.
+**`Policy`, and the agent players built on it.** What fills an empty seat is a
+game's `Bot`, and a `Bot` is a `corvid_control::Controller` — the same trait a
+person's controls implement, handed the state and told which seat it is
+answering for. `corvid_app::App::bots` is what drives it, which is what makes a
+bot playing a real match and a bot playing a scenario the same code path. A
+trait here would be a second vocabulary for that job with nothing to call it
+through.
 
 **WAV comparison.** [`images_agree`] is the perceptual half, and it has a
 renderer to be pointed at. The one mixer in the workspace is `corvid_audio`'s,

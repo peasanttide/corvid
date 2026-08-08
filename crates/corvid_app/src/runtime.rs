@@ -43,6 +43,12 @@ pub(crate) struct Plan<S: State> {
     pub(crate) session: Session<S>,
     /// Which seat this client looks through, and whether it plays it.
     pub(crate) seating: Seating,
+    /// The seats the game's bot plays, in roster order.
+    ///
+    /// Empty for every run that did not ask for any, which is what keeps a run
+    /// with no bots the run it was before there were any: nothing is asked of
+    /// the bot and nothing is written.
+    pub(crate) bots: Vec<PlayerId>,
     /// The transport the other machines are behind, for a run that has any.
     ///
     /// [`None`] is one seat and no network, which is what every example did
@@ -200,6 +206,15 @@ pub(crate) struct Runtime<G: Game, B> {
     /// The client-local half's state, moved only by `look`.
     /// Who is playing, and where they are looking.
     controller: G::Controller,
+    /// What plays the seats nobody is in.
+    ///
+    /// One instance for the whole run whatever [`bots`](Self::bots) holds,
+    /// because [`Acting::seat`] is how a bot tells the seats apart: a runtime
+    /// that built one per seat would have decided for the game that they are
+    /// independent, and a game whose bots differ says so in its own config.
+    bot: G::Bot,
+    /// The seats [`bot`](Self::bot) answers for, in roster order.
+    bots: Vec<PlayerId>,
     /// What is drawn with, or [`None`] on a run that opened no device.
     ///
     /// An `Option` rather than a bare renderer because a renderer is built
@@ -300,6 +315,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         mut plan: Plan<G::State>,
         backend: B,
         controller: G::Controller,
+        bot: G::Bot,
         graphics: Option<G::Render>,
         ear: G::Auralizer,
         settings: Settings<G>,
@@ -351,6 +367,8 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
 
         Ok(Self {
             controller,
+            bot,
+            bots: plan.bots,
             graphics,
             ear,
             play: playing,
@@ -645,6 +663,9 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// row nobody wrote reads [`Action::default`](Default::default), which is
     /// what a seat nobody is submitting for holds, and it is the same row a
     /// seat driven by a bot or by a peer would have had filled in.
+    ///
+    /// The bots' seats are written into the same row, after this client's, and
+    /// [`play_bots`](Self::play_bots) says why the order does not matter.
     fn advance_alone(
         &mut self,
         asked: Tick,
@@ -662,6 +683,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 .set(asked, seat, action)
                 .map_err(Error::Log)?;
         }
+        self.play_bots(asked)?;
 
         let (next, commands) = self.simulate();
         self.play.session_mut().marks.push(digest(&next));
@@ -677,6 +699,41 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         ));
         self.at = asked.next();
         Ok(commands)
+    }
+
+    /// Asks the bot for an action for each seat it plays, and records them.
+    ///
+    /// Nothing at all for a run that asked for no bots, which is the whole of
+    /// what such a run pays: the list is empty, the loop does not run, and the
+    /// session is the one it would have been.
+    ///
+    /// The bot is asked with the state at [`at`](Self::at) and the same input
+    /// snapshot this client's controller was handed, which is what makes each
+    /// answer a function of the tick rather than of the order the seats are
+    /// written in. It is one bot rather than one per seat, and
+    /// [`Acting::seat`] is what tells it which it is answering for.
+    ///
+    /// The seats are indexed rather than iterated because deciding an action
+    /// reads the whole runtime and recording it needs the session mutably: a
+    /// `for` over the field would hold a shared borrow of `self` across the
+    /// write.
+    fn play_bots(&mut self, asked: Tick) -> Result<(), Error> {
+        let mut index = 0;
+        while let Some(seat) = self.bots.get(index).copied() {
+            index += 1;
+            let action = self.bot.action(Acting {
+                state: &self.current,
+                input: self.acting(),
+                time: self.now(),
+                seat,
+            });
+            self.play
+                .session_mut()
+                .log
+                .set(asked, seat, action)
+                .map_err(Error::Log)?;
+        }
+        Ok(())
     }
 
     /// One tick with other machines in the session: submit, receive, advance,

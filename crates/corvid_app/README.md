@@ -530,6 +530,21 @@ action at all, which is worth stating because it is more than skipping the
 write: a game's decision code does not run on a client that has decided
 nothing.
 
+[`App::bots`] is what fills the rest. The game's [`Game::Bot`] — a second
+`Controller`, one instance for the whole run — is asked for an action once per
+seat per tick, with `Acting::seat` naming which, and the answers go into the
+same row of the log as this client's. Seats are taken in roster order and the
+one this client is *playing* is skipped; a spectator plays nobody, so it skips
+nothing and `--spectator` with two bots fills both seats of a two-seat game.
+Asking for more bots than the roster has fills the seats there are.
+
+Bots and a transport together are [`Error::BotsAndPeers`]. A controller is no
+part of what a session records, so two peers each filling the same seat locally
+would be two answers to one column with nothing on the wire to choose between
+them. That is a refusal rather than a fix for the paragraph below: a seat no peer
+writes still stalls a linked session, and what answers *that* is a peer sitting
+in it.
+
 Over a transport the same distinction is one call rather than a mode.
 [`Peer::submit`](corvid_lockstep::Peer::submit) is separate from
 [`Peer::advance`](corvid_lockstep::Peer::advance), so a client that plays
@@ -588,8 +603,9 @@ There is no device layer on a headless run, so the [`Input`] handed to `intend`
 and `look` is the one the app was given and nothing refills it.
 There is no audio backend, so a windowed run is silent: `hear` still fills an
 [`AudioFrame`] and a capture still records it, and nothing turns it into
-samples. There is one peer, so this client's seat is the only column of the log
-anything writes and every other seat holds `Action::default()` forever. A run
+samples. There is one peer, so the columns anything writes are this client's
+seat and whatever [`App::bots`] filled, and every other seat holds
+`Action::default()` forever. A run
 with no `until` whose game never asks to quit does not return — nothing here can
 decide that for a caller, and on a windowed run that is the ordinary case, since
 closing the window is what stops it. And the binding a windowed run plays with

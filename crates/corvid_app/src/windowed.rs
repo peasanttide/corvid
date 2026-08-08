@@ -3,7 +3,7 @@
 use crate::{
     Error, Outcome,
     capture::Capture,
-    game::{AuralizerConfig, ControllerConfig, Game, RenderConfig},
+    game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig},
     runtime::{Plan, Runtime},
     screen::Screen,
 };
@@ -33,6 +33,8 @@ pub(crate) struct Pending<G: Game> {
     /// the device exist. Configs rather than instances, because only the event
     /// loop knows when that is.
     pub(crate) controls: ControllerConfig<G>,
+    /// What the one bot is built from, however many seats it ends up playing.
+    pub(crate) bot: BotConfig<G>,
     /// What the renderer is built from.
     pub(crate) graphics: RenderConfig<G>,
     /// What the ear is built from.
@@ -166,6 +168,7 @@ impl<G: Game> Host for Windowed<G> {
             // `true`: a window is the one backend with a player in front of it.
             Screen::<G>::new(renderer, pending.capture, true),
             G::Controller::new(pending.controls),
+            G::Bot::new(pending.bot),
             Some(graphics),
             G::Auralizer::new(pending.audio),
             pending.settings,

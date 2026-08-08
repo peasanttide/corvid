@@ -24,6 +24,11 @@
 //! games: it is how a test that watches a run from a second thread fails rather
 //! than hangs.
 //!
+//! [`Nudge`] is the bot, and it is one line of opinion: it answers
+//! [`Action::Bump`] for every seat it is given, every tick. A run of [`Botted`]
+//! therefore reads a column at a time — a seat holding a bump is a seat the
+//! runtime filled, and a seat holding the idle action is one nothing did.
+//!
 //! [`Attendance`] is the third, and it exists because the two above cannot see the
 //! loop's *arguments*. Its tick writes down the roster it was handed — every
 //! seat, in order, with its presence and with whether its action was this
@@ -837,6 +842,69 @@ impl corvid_app::Game for Bare {
     type Bot = ();
     type Render = ();
     type Auralizer = ();
+}
+
+/// The tally with a bot in it, which is the game the bot tests play.
+///
+/// Its controller is `()` and its [`Bot`](corvid_app::Game::Bot) is [`Nudge`],
+/// which is what makes a run of it readable as a column at a time: every
+/// non-idle action in the log came from a bot, because the only other thing
+/// writing one answers [`Action::Idle`] and a row nobody wrote holds the same.
+///
+/// Nothing is drawn and nothing is heard, because what these tests are about is
+/// which seats got filled.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Botted;
+
+impl corvid_app::Game for Botted {
+    const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
+
+    type State = Tally;
+    type Controller = ();
+    type Bot = Nudge;
+    type Render = ();
+    type Auralizer = ();
+}
+
+/// The bot for [`Tally`]: a bump, every tick, for whatever seat it is asked
+/// about.
+///
+/// Being *distinguishable* is the whole requirement. [`Action::Idle`] is what a
+/// row nobody wrote holds and what the `()` controller answers, so an
+/// unconditional [`Action::Bump`] is the one answer that separates "a bot
+/// played this seat" from "nothing did".
+///
+/// It ignores [`Acting::seat`], which is the honest thing for a bot with one
+/// opinion to do: what the seat is for is telling several apart, and this one
+/// plays them all the same.
+///
+/// `REAL` is false, which is what a controller with nobody behind it says. It
+/// is about the platform rather than about whether the controller runs, and
+/// this one is asked for an action every tick of every seat it plays.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Nudge;
+
+impl Controller<Tally> for Nudge {
+    type Config = ();
+
+    const REAL: bool = false;
+    const SETS: &'static [corvid_input::SetDescriptor] = &[];
+
+    fn new((): ()) -> Self {
+        Self
+    }
+
+    fn configure(&mut self, (): ()) {}
+
+    fn action(&self, _acting: Acting<'_, Tally>) -> Action {
+        Action::Bump
+    }
+
+    fn update(&mut self, _updating: Updating<'_, Tally>) {}
+
+    fn look(&self) -> corvid_camera::Camera {
+        corvid_camera::Camera::default()
+    }
 }
 
 /// The game the roster tests play: [`Attendance`], with nothing drawn and
