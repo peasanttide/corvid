@@ -20,8 +20,11 @@ use std::sync::Arc;
 
 use corvid::FinePoint;
 use corvid::I16F16;
+use corvid::{Acting, Controller, Input, Time};
 use corvid::{Player, PlayerId, Presence, State};
-use pong::{Ball, Contact, Court, Move, Play, SEATS, Table, bot, court, origin, rules};
+use pong::{
+    Ball, Contact, Court, Move, Opponent, Paddle, Play, SEATS, Table, bot, court, origin, rules,
+};
 
 /// One tick, with both paddles played by whichever policy is given.
 fn step(table: &Table, level: &Arc<Court>, rules: &Play, actions: [Move; SEATS]) -> Table {
@@ -122,6 +125,65 @@ fn predicting_where_the_ball_will_be_beats_following_where_it_is() {
         hits > misses,
         "predicting returned the ball {hits} times and following {misses}",
     );
+}
+
+/// The controller a `--bots N` seat is filled with plays the seat it is asked
+/// for.
+///
+/// The tests above are about whether the arithmetic is any good; this one is
+/// about the wiring, and it is the half a rally cannot see. [`Opponent`] holds
+/// no seat of its own — one instance answers for every seat a run gave it — so
+/// the only thing deciding which paddle it moves is
+/// [`Acting::seat`](corvid::Acting), and a bot that read the wrong one would
+/// play a perfectly good paddle at the wrong end of the court while the ball
+/// went past the one it was supposed to be defending.
+#[test]
+fn the_opponent_moves_the_paddle_of_the_seat_it_is_asked_for() {
+    let level = court();
+    let rules = rules();
+    let reach = level.reach();
+
+    // The ball in the middle, on its way to seat zero's end. Seat zero's paddle
+    // is at the top of the court and has to come down to meet it; seat one's is
+    // already in the middle, which is where a paddle the ball is travelling away
+    // from drifts back to.
+    let table = Table {
+        ball: Ball {
+            at: FinePoint::new(I16F16::ZERO, I16F16::ZERO, I16F16::ZERO),
+            velocity: FinePoint::new(-rules.serve_speed, I16F16::ZERO, I16F16::ZERO),
+        },
+        paddles: [Paddle { at: reach }, Paddle { at: I16F16::ZERO }],
+        serve: 0,
+        ..origin()
+    };
+    let asked = |seat: usize| {
+        Opponent.action(Acting {
+            state: &table,
+            input: &Input::new(pong::action::SETS),
+            time: Time::default(),
+            seat: PlayerId(u16::try_from(seat).unwrap()),
+        })
+    };
+
+    // Each answer is the arithmetic applied to *that* seat's own paddle, which
+    // is the whole claim.
+    for seat in 0..SEATS {
+        assert_eq!(
+            asked(seat),
+            bot::toward(
+                table.paddles[seat].at,
+                bot::target(seat, &table, &level, &rules),
+                &level,
+            ),
+            "the opponent did not play seat {seat}'s own paddle",
+        );
+    }
+
+    // And the two seats really are being told apart: one of them has somewhere
+    // to be and the other is already there, so a bot that ignored the seat it
+    // was handed would answer one of these wrongly whichever seat it assumed.
+    assert_eq!(asked(0), Move::Down);
+    assert_eq!(asked(1), Move::Still);
 }
 
 /// A bot reaches a shot aimed at the corner.

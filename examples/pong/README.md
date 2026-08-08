@@ -23,15 +23,15 @@ The last two are two operating-system processes exchanging UDP. `W`/`S` or the
 arrows move your paddle; seat 0 defends the left and seat 1 the right. There is
 no flag list of this game's own: every one of those is
 [`corvid::Arguments`](../../crates/corvid_app/src/cli.rs), and the whole of
-`src/main.rs` is the six types this game is.
+`src/main.rs` is the five types this game is and how long its tick lasts.
 
 Bots and a peer are refused together, on purpose. A controller is no part of
 what a session records, so a machine that filled a seat locally while another
 machine was in the same session would be writing a column the other one writes
 differently.
 
-The two-process pair with `--headless` is the claim without a person in it: two
-processes, one session, and one digest printed by each.
+The two-process pair with `--headless` is the same session with nobody watching
+it: two processes, two sockets, and the same digest printed by each.
 
 ```text
 $ pong --headless --ticks 300 --seat 0 --listen 9600 --connect 127.0.0.1:9601
@@ -51,11 +51,20 @@ Three things in that are worth reading twice. **One number on stdout**, so
 `RUST_LOG` turns up. **The digest is at tick 282 rather than 302**: a run stops
 when it stops, and the newest few ticks of each peer's state were simulated
 partly from a guess about what the other player did, so the number two machines
-can be held to is one from below the confirmed line. And **the two peers did
-different amounts of work** — here neither rolled back, because loopback delays
-nothing; over a link that does, the peer that started first spends the session
-ahead of what it has been told, which is exactly when prediction is needed and
-exactly what it costs.
+can be held to is one from below the confirmed line. And **the two peers printed
+the same number**, which is the whole of what this pair of commands is here to
+show: a datagram this workspace built survived a round trip through the operating
+system, both machines wrote the same rows into the same session, and both hashed
+the same state at the same tick.
+
+What it is **not** is a demonstration of prediction. `rollbacks=0` on both sides,
+and it could not be anything else: a headless run has nobody at a keyboard, so
+both seats submit `Move::Still` every tick, and repeating a seat's last action
+guesses that right every time. A paddle that changes direction is what makes a
+prediction wrong, and there is no way to put one on a networked seat from a
+command line — bots are refused alongside a peer, for the reason above. Rollback
+and its cost are the next section, where the paddles chase the ball and the link
+is allowed to lie.
 
 ## What the netcode lab measures
 
@@ -153,7 +162,10 @@ assert_eq!(next.paddles[1].at, origin().paddles[1].at);
   be.
 - `tests/bot.rs` — that `Opponent`, the paddle `--bots N` fills a seat with, is
   actually trying: two of them rally for a minute and concede a handful of
-  points, and they beat a paddle that follows the ball's current height.
+  points, and they beat a paddle that follows the ball's current height. And
+  that it moves the paddle of the seat it is *asked* for, since it holds no seat
+  of its own and reading the wrong one would play a good paddle at the wrong end
+  of the court.
 - `tests/session.rs` — two peers over `MockNet` at all three curves: identical
   digest traces over every confirmed tick, rollbacks that measurably happen, a
   total outage that stalls both peers without desyncing them, and a doctored

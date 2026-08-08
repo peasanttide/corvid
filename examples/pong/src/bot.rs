@@ -87,15 +87,21 @@ impl Controller<Table> for Opponent {
     /// many seats a run gave it.
     fn action(&self, acting: Acting<'_, Table>) -> Move {
         let seat = usize::from(acting.seat.0);
+        // A seat this game has no paddle for, which a two-seat roster cannot
+        // produce and which is answered anyway: standing still is the one reply
+        // that cannot move something that is not there. Aiming from a paddle
+        // assumed to be at the middle would answer `Up` or `Down` for a seat
+        // whose position is not a fact.
+        let Some(paddle) = acting.state.paddles.get(seat) else {
+            return Move::Still;
+        };
         let court = crate::court();
         let rules = crate::rules();
-        let target = target(seat, acting.state, &court, &rules);
-        let at = acting
-            .state
-            .paddles
-            .get(seat)
-            .map_or(I16F16::ZERO, |paddle| paddle.at);
-        toward(at, target, &court)
+        toward(
+            paddle.at,
+            target(seat, acting.state, &court, &rules),
+            &court,
+        )
     }
 
     /// Nothing accumulates: there is no camera to smooth and no cursor to cast.

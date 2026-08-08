@@ -6,10 +6,10 @@
 
 //! The digests this game produced before the contracts were rewritten.
 //!
-//! Not a golden anybody chose. These are what `pong --headless --bot` printed on
-//! 2026-08-06, on the commit before `State`, `Controller`, `Render` and
-//! `Auralizer` replaced the marker-type chain, and the whole claim of that
-//! rewrite is that **they do not move**.
+//! Not a golden anybody chose. These are what a scripted single-seat run of
+//! this game printed on 2026-08-06, on the commit before `State`, `Controller`,
+//! `Render` and `Auralizer` replaced the marker-type chain, and the whole claim
+//! of that rewrite is that **they do not move**.
 //!
 //! So a failure here is never a test that needs updating. It is the simulation
 //! having changed — some arithmetic reordered, some field's width altered, some
@@ -29,14 +29,20 @@ use pong::{Move, Table};
 
 /// How far back the compared digest is taken from.
 ///
-/// The same twenty ticks `main.rs` reports at, and for the same reason: the
-/// newest few ticks of a peer's state were simulated partly from predictions of
-/// what another machine did, so they are not a number two runs can be held to.
-/// A single-seat run predicts nothing, but the constant is shared so that the
-/// number this file asserts on is the number the binary prints.
+/// Twenty ticks, which is what a Corvid run reports its settled digest at and is
+/// for the reason that offset exists: the newest few ticks of a peer's state
+/// were simulated partly from predictions of what another machine did, so they
+/// are not a number two runs can be held to.
+///
+/// Written out here rather than read from the runtime, deliberately. This file
+/// is a fixed point, and a fixed point that moved when the runtime changed its
+/// mind about how far back "settled" is would not be one — the two literals
+/// below are the digests of tick 580 and tick 280, and that is what they have to
+/// keep being. A single-seat run predicts nothing anyway, so every tick of one
+/// is settled and this only decides *which* state is compared.
 const SETTLED: u64 = 20;
 
-/// The paddle `--bot` drives, as a function of the tick alone.
+/// The paddle these digests were taken over, as a function of the tick alone.
 ///
 /// Written out here rather than shared with `pong::Hands`, deliberately: this
 /// test's whole job is to be a fixed point, and a fixed point that moves when
