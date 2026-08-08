@@ -456,6 +456,7 @@ dependencies = [
  "corvid_files",
  "corvid_fixed",
  "corvid_hash",
+ "corvid_macros",
  "corvid_time",
  "corvid_transform",
  "corvid_wire",
@@ -593,6 +594,13 @@ dependencies = [
  "corvid_replay",
  "corvid_time",
  "corvid_wire",
+ "serde",
+]
+
+[[package]]
+name = "corvid_macros"
+version = "0.2.0"
+dependencies = [
  "serde",
 ]
 

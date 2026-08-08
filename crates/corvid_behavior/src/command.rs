@@ -1,6 +1,8 @@
 //! The vocabulary a tick uses to talk to the platform.
 
-use crate::{PlayerId, id::id_type, name::bounded_name};
+use corvid_macros::id_type;
+
+use crate::{PlayerId, name::bounded_name};
 
 id_type! {
     /// What a process exits with.

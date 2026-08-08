@@ -20,6 +20,9 @@ corvid_files = { workspace = true }
 thiserror = { workspace = true }
 corvid_fixed = { workspace = true }
 corvid_hash = { workspace = true }
+# `id_type!`, which declares the numbered identifiers. The expansion names
+# `::serde`, which this crate depends on below.
+corvid_macros = { workspace = true }
 # `serde` is turned on rather than forwarded, because `Data` demands
 # `Serialize + DeserializeOwned` unconditionally: a game whose transforms could
 # not be serialized could not implement the trait this crate exists to define.

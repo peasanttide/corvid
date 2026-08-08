@@ -94,7 +94,7 @@ jobs:
       run: |
         set -eu
         rustup target add thumbv7em-none-eabi
-        for crate in corvid_bits corvid_hash corvid_wire corvid_files; do
+        for crate in corvid_bits corvid_hash corvid_wire corvid_files corvid_macros; do
           echo "== $crate"
           cargo build -p "$crate" --no-default-features --target thumbv7em-none-eabi
         done

@@ -17,7 +17,6 @@ extern crate alloc;
 mod command;
 mod extract;
 mod faithful;
-mod id;
 mod level;
 mod name;
 mod player;

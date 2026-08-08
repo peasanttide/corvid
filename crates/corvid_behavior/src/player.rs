@@ -3,7 +3,7 @@
 use corvid_time::Tick;
 use serde::{Deserialize, Serialize};
 
-use crate::id::id_type;
+use corvid_macros::id_type;
 
 id_type! {
     /// Which seat at the table, for the length of one session.

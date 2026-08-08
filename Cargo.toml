@@ -150,6 +150,10 @@ corvid_transform = { version = "0.2", path = "crates/corvid_transform", default-
 corvid_vector = { version = "0.2", path = "crates/corvid_vector", default-features = false }
 corvid_behavior = { version = "0.2", path = "crates/corvid_behavior", default-features = false }
 corvid_hash = { version = "0.2", path = "crates/corvid_hash", default-features = false }
+# The declarative macros the crates share. No dependencies of its own: a macro
+# emits tokens and the crate expanding them is what has to name what they
+# mention, so every path in an expansion is absolute.
+corvid_macros = { version = "0.2", path = "crates/corvid_macros", default-features = false }
 corvid_time = { version = "0.2", path = "crates/corvid_time", default-features = false }
 corvid_sound = { version = "0.2", path = "crates/corvid_sound", default-features = false }
 corvid_input = { version = "0.2", path = "crates/corvid_input", default-features = false }

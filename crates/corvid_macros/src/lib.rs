@@ -1,13 +1,17 @@
-//! The numbered identifiers, which are all the same type with different names.
-//!
-//! Each is a newtype over an integer with the field public, because an
-//! identifier is a number and hiding it behind an accessor would cost every
-//! caller a line and buy nothing. What the newtype buys is that a
-//! [`PlayerId`](crate::PlayerId) cannot be passed where a
-//! [`ProfileId`](crate::ProfileId) was meant, which is a mistake that would
-//! otherwise compile and then send the wrong person an invitation.
+#![doc = include_str!("../README.md")]
+#![no_std]
 
-/// Declares one of them, with its serde encoding.
+/// Declares a numbered identifier: a newtype over an integer, with its serde
+/// encoding and its [`Display`](core::fmt::Display).
+///
+/// The field is public, because an identifier is a number and hiding it behind
+/// an accessor would cost every caller a line and buy nothing. What the newtype
+/// buys is that one kind of identifier cannot be passed where another was
+/// meant — a mistake that would otherwise compile and then send the wrong
+/// person an invitation.
+///
+/// The expansion names `::serde`, so a crate calling this depends on `serde`
+/// with `derive`. This crate does not.
 ///
 /// The derived [`Hash`] absorbs the integer and no type tag, which is the
 /// convention the rest of the workspace hashes under: what establishes that two
@@ -15,6 +19,7 @@
 /// value. Two identifiers of different kinds holding the same number therefore
 /// digest alike, and that is fine, because nothing ever hashes one out of
 /// context.
+#[macro_export]
 macro_rules! id_type {
     (
         $(#[$meta:meta])*
@@ -36,5 +41,3 @@ macro_rules! id_type {
         }
     };
 }
-
-pub(crate) use id_type;
