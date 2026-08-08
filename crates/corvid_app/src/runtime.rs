@@ -95,7 +95,7 @@ pub(crate) struct Plan<S: State> {
     pub(crate) deadline: Option<Tick>,
     /// Where to publish progress, if anywhere.
     pub(crate) progress: Option<Emitter<Progress>>,
-    /// How much of the session to keep as it is played.
+    /// How much of the session to keep as it is totals.
     pub(crate) retention: Retention,
     /// Where a [`Save`](Command::Save) writes and a [`Read`](Command::Read)
     /// looks.
@@ -109,7 +109,7 @@ pub(crate) struct Plan<S: State> {
     /// [`None`] is a fresh session, which opens at
     /// [`Session::first`](corvid_replay::Session::first) on the opening's own
     /// origin state. A `--load` or a `--replay` fills this in, because the
-    /// session it hands over has already been played and the state at its last
+    /// session it hands over has already been totals and the state at its last
     /// tick is what the run carries on from.
     pub(crate) resumed: Option<StateAt<S>>,
 }
@@ -157,7 +157,7 @@ enum Play<S: State> {
 }
 
 impl<S: State> Play<S> {
-    /// The session being played.
+    /// The session being totals.
     fn session(&self) -> &Session<S> {
         match self {
             Self::Local(session) => session,
@@ -202,7 +202,7 @@ enum Flow {
 /// atomic increments and no copy of a state, which is what makes it affordable
 /// to build one per call rather than once per displayed frame.
 pub(crate) struct Runtime<S: State, C, R, A, B> {
-    /// The session being played, which is the run's whole output, and whoever
+    /// The session being totals, which is the run's whole output, and whoever
     /// is playing it.
     play: Play<S>,
     /// Which seat this client's action is recorded against.
@@ -957,8 +957,8 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
     fn finish(self, exit: ExitCode) -> Result<Outcome<S>, Error> {
         #[cfg(feature = "net")]
         let traffic = match &self.play {
-            Play::Local(_) => crate::Played::default(),
-            Play::Linked(link) => link.played(),
+            Play::Local(_) => crate::Traffic::default(),
+            Play::Linked(link) => link.totals(),
         };
         let session = self.play.into_session();
         if let Some(capture) = self.backend.capture() {

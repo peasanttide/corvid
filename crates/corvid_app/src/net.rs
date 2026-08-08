@@ -18,12 +18,12 @@ use corvid_replay::Refused;
 use corvid_replay::Session;
 use corvid_time::Tick;
 
-/// What one tick over a transport did, for whatever draws an overlay of it.
+/// What **one tick** over a transport did, for whatever draws an overlay of it.
 ///
 /// Copy and small, because a runtime keeps the newest one and a lab keeps a
 /// window of them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Traffic {
+pub struct TickTraffic {
     /// What [`Peer::advance`](corvid_lockstep::Peer::advance) did.
     pub advanced: Advanced,
     /// The deepest rollback this tick's arrivals caused, and a zeroed
@@ -43,14 +43,14 @@ pub struct Traffic {
     pub rescued: bool,
 }
 
-/// What a whole run over a transport did, which is what
+/// What a **whole run** over a transport did, which is what
 /// [`Outcome::traffic`](crate::Outcome) carries.
 ///
 /// Counted rather than sampled: a run that rolled back four hundred times and a
-/// run that rolled back once look identical in the newest tick's [`Traffic`],
+/// run that rolled back once look identical in the newest [`TickTraffic`],
 /// and which of the two happened is the thing anybody asking wants to know.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct Played {
+pub struct Traffic {
     /// How many datagrams were folded in.
     pub heard: u64,
     /// How many were sent.
@@ -76,9 +76,9 @@ pub struct Played {
     pub stalls: u64,
 }
 
-impl Played {
+impl Traffic {
     /// Folds one tick's traffic into the totals.
-    fn fold(&mut self, tick: Traffic) {
+    fn fold(&mut self, tick: TickTraffic) {
         self.heard = self.heard.saturating_add(u64::from(tick.heard));
         self.sent = self.sent.saturating_add(u64::from(tick.sent));
         self.undecodable = self.undecodable.saturating_add(u64::from(tick.undecodable));
@@ -162,7 +162,7 @@ struct Transfer<S: State> {
 /// digest of its state every tick, they would report each other as *desynced*
 /// while they were merely uninformed. Keeping the earliest proposal fixes the
 /// end state and not the middle: the machine that guessed later would have
-/// played, sent and been judged on ticks nobody else agreed with.
+/// totals, sent and been judged on ticks nobody else agreed with.
 ///
 /// So nothing is applied until everybody still here has said what they think.
 /// Each machine proposes a tick, hears the others', and applies the **minimum
@@ -297,9 +297,9 @@ pub(crate) struct Link<S: State> {
     /// The last datagram this peer built, encoded. Also once per run.
     outbound: Vec<u8>,
     /// What the last tick did.
-    traffic: Traffic,
+    traffic: TickTraffic,
     /// And what all of them did.
-    played: Played,
+    totals: Traffic,
     /// Who has said what about which seat leaving.
     ///
     /// Held beside the peer rather than in it because it is about the
@@ -348,15 +348,15 @@ impl<S: State> Link<S> {
             transport,
             inbox: Vec::new(),
             outbound: Vec::new(),
-            traffic: Traffic::default(),
-            played: Played::default(),
+            traffic: TickTraffic::default(),
+            totals: Traffic::default(),
             departures: Departures::new(seats),
             mine: BTreeMap::new(),
             heard_head: Tick::ZERO,
         }
     }
 
-    /// The session being played, which the peer owns.
+    /// The session being totals, which the peer owns.
     pub(crate) const fn session(&self) -> &Session<S> {
         &self.peer.session
     }
@@ -384,13 +384,13 @@ impl<S: State> Link<S> {
     }
 
     /// What the last tick did.
-    pub(crate) const fn traffic(&self) -> Traffic {
+    pub(crate) const fn traffic(&self) -> TickTraffic {
         self.traffic
     }
 
     /// What the whole run has done.
-    pub(crate) const fn played(&self) -> Played {
-        self.played
+    pub(crate) const fn totals(&self) -> Traffic {
+        self.totals
     }
 
     /// Opens on a state that came from somewhere other than the opening: a save
@@ -426,7 +426,7 @@ impl<S: State> Link<S> {
         action: S::Action,
         command: &mut impl corvid_behavior::Command<Reference = LevelRef<S>>,
     ) -> Result<(), crate::Error> {
-        let mut traffic = Traffic::default();
+        let mut traffic = TickTraffic::default();
 
         // This machine's own intent, for `now + Budget::delay`. It goes in
         // before the sending below, so the datagram this tick puts on the wire
@@ -465,12 +465,12 @@ impl<S: State> Link<S> {
         }
 
         self.traffic = traffic;
-        self.played.fold(traffic);
+        self.totals.fold(traffic);
         Ok(())
     }
 
     /// Polls the transport and folds every datagram in, deepest rollback kept.
-    fn collect(&mut self, traffic: &mut Traffic) -> Result<(), crate::Error> {
+    fn collect(&mut self, traffic: &mut TickTraffic) -> Result<(), crate::Error> {
         // Taken out of the transport's borrow first. `poll` hands each arrival
         // to a closure that borrows the bytes for the length of the call, and
         // what happens to a datagram here is a rollback that borrows the peer —
@@ -622,7 +622,7 @@ impl<S: State> Link<S> {
         gone: &[PeerId],
         heard: &[(PeerId, Control)],
         arrived: &[PeerId],
-        traffic: &mut Traffic,
+        traffic: &mut TickTraffic,
     ) -> Result<(), crate::Error> {
         let lead = u64::from(self.peer.budget.delay) + u64::from(self.peer.budget.ahead) + 1;
         let me = self.peer.seat();
@@ -697,7 +697,7 @@ impl<S: State> Link<S> {
         seat: PlayerId,
         from: PlayerId,
         at: Tick,
-        traffic: &mut Traffic,
+        traffic: &mut TickTraffic,
     ) -> Result<(), crate::Error> {
         let Some(agreed) = self.departures.propose(seat, from, at) else {
             return Ok(());
@@ -894,7 +894,11 @@ impl<S: State> Link<S> {
     ///
     /// [`Error::Halted`](crate::Error::Halted) for a state at a tick this
     /// session cannot reach, which is one before its opening.
-    fn rescue(&mut self, transfer: Transfer<S>, traffic: &mut Traffic) -> Result<(), crate::Error> {
+    fn rescue(
+        &mut self,
+        transfer: Transfer<S>,
+        traffic: &mut TickTraffic,
+    ) -> Result<(), crate::Error> {
         // The roster first. A machine that adopted the state and went on
         // simulating a seat everybody else had agreed was gone would diverge on
         // its very first tick — so the departures are applied before the state
@@ -973,7 +977,7 @@ impl<S: State> Link<S> {
     /// or a path that will not carry the frame, and a lockstep session's answer
     /// to both is the same one it has for a lost packet: predict, and correct
     /// when something arrives.
-    fn broadcast(&mut self, traffic: &mut Traffic) {
+    fn broadcast(&mut self, traffic: &mut TickTraffic) {
         let datagram = self.peer.outgoing();
         self.outbound.clear();
         match corvid_wire::encode(&datagram) {

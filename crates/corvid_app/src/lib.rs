@@ -37,7 +37,7 @@ pub use commands::{Answer, Command, Request, Requests};
 pub use controls::Misbound;
 pub use entry::main;
 #[cfg(feature = "net")]
-pub use net::{Departures, Played, Traffic, seat_of};
+pub use net::{Departures, TickTraffic, Traffic, seat_of};
 pub use retention::Retention;
 pub use saves::NotASave;
 

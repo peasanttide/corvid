@@ -88,7 +88,7 @@ pub struct Progress {
 /// exist: an unhandled request would otherwise be a `tracing` warning and
 /// nothing a test could assert on.
 pub struct Outcome<S: State> {
-    /// The session the run played, which is everything needed to replay **what
+    /// The session the run totals, which is everything needed to replay **what
     /// it still holds**.
     ///
     /// A run keeps a window of its own history by default and lets go of what
@@ -121,7 +121,7 @@ pub struct Outcome<S: State> {
     /// answer rather than an [`Option`]: a single-seat run heard nothing, sent
     /// nothing and rolled back never.
     #[cfg(feature = "net")]
-    pub traffic: crate::Played,
+    pub traffic: crate::Traffic,
 }
 
 impl<S: State> fmt::Debug for Outcome<S> {
@@ -590,7 +590,7 @@ where
     ///
     /// This is the seam a **scripted** run needs, and there was no other one. A
     /// windowed run is refilled from the window once per displayed frame; a run
-    /// without a window played the whole way through on the single snapshot
+    /// without a window totals the whole way through on the single snapshot
     /// [`input`](Self::input) was given, which is a player holding the same keys
     /// from the first tick to the last. So the things a person does — point at a
     /// button, press it, let go, press escape — could be written down against
@@ -1107,7 +1107,7 @@ pub enum Error {
     /// No [`opening`](App::opening) was given.
     #[error("this app has no opening, and nothing can invent a game's opening state for it")]
     Unopened,
-    /// The [`seat`](App::seat) is not one the roster of the session being played
+    /// The [`seat`](App::seat) is not one the roster of the session being totals
     /// has.
     ///
     /// A run with nobody in the seat it submits for would record its actions
@@ -1245,7 +1245,7 @@ pub enum Error {
     /// loop was told to exit before it started.
     #[cfg(feature = "window")]
     #[error(
-        "the event loop ended before the platform ever gave us a window, so this run played \
+        "the event loop ended before the platform ever gave us a window, so this run totals \
          no ticks"
     )]
     NeverOpened,
