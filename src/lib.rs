@@ -98,9 +98,14 @@ pub use corvid_app::*;
 
 // The deterministic contract, and the digest a mark is.
 pub use corvid_behavior::{
-    self as behavior, Command, Data, Discard, ExitCode, Extract, Level, Loading, Malformed,
-    Missing, Player, PlayerId, Presence, ProfileId, Scope, Source, State, Time,
+    self as behavior, Command, Data, Discard, ExitCode, Extract, Level, Loading, Player, PlayerId,
+    Presence, ProfileId, Scope, State, Time,
 };
+// The filesystem a level is read through, named here rather than forwarded by
+// `corvid_behavior`. `Source` is in `Level::load`'s signature and `Malformed`
+// is its error, so a game implementing the trait needs both — and this is the
+// one crate in the workspace whose job is to save it naming two.
+pub use corvid_files::{self as files, Malformed, Missing, Source};
 pub use corvid_hash::{self as hash, Digest, Hasher, digest};
 
 // The client-local half: what a player reads, hears and sees.

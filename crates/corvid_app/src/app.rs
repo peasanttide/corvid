@@ -762,8 +762,8 @@ where
     /// # struct Nowhere;
     /// # impl corvid_behavior::Level for Nowhere {
     /// #     type Reference = String;
-    /// #     fn load(_: &String, _: &dyn corvid_behavior::Source)
-    /// #         -> Result<Self, corvid_behavior::Malformed> { Ok(Self) }
+    /// #     fn load(_: &String, _: &dyn corvid_files::Source)
+    /// #         -> Result<Self, corvid_files::Malformed> { Ok(Self) }
     /// # }
     /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     /// # struct Bounce;

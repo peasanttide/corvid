@@ -8,7 +8,8 @@ gets a real `wgpu::Device` and writes real `wgpu`. Every abstraction over a GPU
 is a bet about which games exist, and this one is not in that business.
 
 ```rust
-use corvid_behavior::{Extract, Level, Malformed, Source, State, Time};
+use corvid_behavior::{Extract, Level, State, Time};
+use corvid_files::{Malformed, Source};
 use corvid_camera::Camera;
 use corvid_fixed::Factor16;
 use corvid_render::{Render, Target};

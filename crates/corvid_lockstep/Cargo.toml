@@ -41,3 +41,9 @@ workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
+
+[dev-dependencies]
+# `Source` and `Malformed`, which `Level::load` names. `corvid_behavior` used
+# to forward them and no longer does — a re-export of another `corvid_` crate's
+# types belongs in the facade and nowhere else.
+corvid_files = { workspace = true }

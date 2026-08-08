@@ -89,13 +89,14 @@ impl corvid_behavior::Level for Level {
 
     fn load(
         reference: &Ref,
-        files: &dyn corvid_behavior::Source,
-    ) -> Result<Self, corvid_behavior::Malformed> {
+        files: &dyn corvid_files::Source,
+    ) -> Result<Self, corvid_files::Malformed> {
         let bytes = files.read(reference)?;
-        let start =
-            i64::from(*bytes.first().ok_or_else(|| {
-                corvid_behavior::Malformed::at(reference, "a level needs a start")
-            })?);
+        let start = i64::from(
+            *bytes
+                .first()
+                .ok_or_else(|| corvid_files::Malformed::at(reference, "a level needs a start"))?,
+        );
         Ok(Self {
             name: reference.clone(),
             start,

@@ -8,9 +8,10 @@
 
 use core::time::Duration;
 
-use corvid_behavior::{Level, Loading, Malformed, Source, State, Time};
+use corvid_behavior::{Level, Loading, State, Time};
 use corvid_camera::Camera;
 use corvid_control::Controller;
+use corvid_files::{Malformed, Source};
 use corvid_input::{Input, SetDescriptor};
 use corvid_rotation::FineRotation;
 use corvid_shape::Frustum;

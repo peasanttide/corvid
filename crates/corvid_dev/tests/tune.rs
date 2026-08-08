@@ -11,7 +11,8 @@ use std::sync::Arc;
 
 use corvid_dev::{Inspect, Invalid, Proposal, Rows, Slider, Tunable, Tuning};
 
-use corvid_behavior::{Command, Level, Malformed, Player, ProfileId, Source, State};
+use corvid_behavior::{Command, Level, Player, ProfileId, State};
+use corvid_files::{Malformed, Source};
 use corvid_fixed::I16F16;
 use corvid_hash::digest;
 use corvid_replay::{Opening, Profile, Schema, Seed, Session, Snapshots, Unreachable};

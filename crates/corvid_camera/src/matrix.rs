@@ -41,7 +41,6 @@
 )]
 
 /// The identity.
-pub use corvid_glm::IDENTITY;
 use corvid_glm::Mat4;
 use corvid_rotation::Basis;
 use corvid_shape::Frustum;

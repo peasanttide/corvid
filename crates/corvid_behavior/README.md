@@ -8,7 +8,8 @@ knows what a window, a device or a frame rate is — a dedicated server, a
 determinism check in CI and a game's own `cargo test` link this crate and stop.
 
 ```rust
-use corvid_behavior::{Command, Level, Malformed, Player, Source, State};
+use corvid_behavior::{Command, Level, Player, State};
+use corvid_files::{Malformed, Source};
 use serde::{Deserialize, Serialize};
 
 /// Authored, immutable within a session, read off a `Source`.

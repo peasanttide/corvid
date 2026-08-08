@@ -381,6 +381,7 @@ dependencies = [
  "corvid_color",
  "corvid_control",
  "corvid_dev",
+ "corvid_files",
  "corvid_fixed",
  "corvid_float",
  "corvid_glm",
@@ -412,6 +413,7 @@ dependencies = [
  "corvid_behavior",
  "corvid_camera",
  "corvid_control",
+ "corvid_files",
  "corvid_fixed",
  "corvid_hash",
  "corvid_input",
@@ -501,6 +503,7 @@ dependencies = [
  "corvid_behavior",
  "corvid_camera",
  "corvid_color",
+ "corvid_files",
  "corvid_fixed",
  "corvid_input",
  "corvid_rotation",
@@ -515,6 +518,7 @@ name = "corvid_dev"
 version = "0.2.0"
 dependencies = [
  "corvid_behavior",
+ "corvid_files",
  "corvid_fixed",
  "corvid_hash",
  "corvid_replay",
@@ -583,6 +587,7 @@ name = "corvid_lockstep"
 version = "0.2.0"
 dependencies = [
  "corvid_behavior",
+ "corvid_files",
  "corvid_hash",
  "corvid_replay",
  "corvid_time",
@@ -638,6 +643,7 @@ dependencies = [
  "corvid_camera",
  "corvid_color",
  "corvid_control",
+ "corvid_files",
  "corvid_fixed",
  "corvid_shape",
  "corvid_transform",
@@ -654,6 +660,7 @@ name = "corvid_replay"
 version = "0.2.0"
 dependencies = [
  "corvid_behavior",
+ "corvid_files",
  "corvid_hash",
  "corvid_time",
  "corvid_wire",
@@ -723,6 +730,7 @@ dependencies = [
  "corvid_behavior",
  "corvid_camera",
  "corvid_control",
+ "corvid_files",
  "corvid_hash",
  "corvid_input",
  "corvid_render",

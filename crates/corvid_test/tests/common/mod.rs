@@ -46,7 +46,8 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
-use corvid_behavior::{Command, Level, Malformed, Player, ProfileId, Source, StatId, State};
+use corvid_behavior::{Command, Level, Player, ProfileId, StatId, State};
+use corvid_files::{Malformed, Source};
 use corvid_hash::Digest;
 use corvid_input::Input;
 use corvid_replay::{Opening, Profile, Schema, Seed};

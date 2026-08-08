@@ -229,8 +229,8 @@ mod tests {
         type Reference = String;
         fn load(
             _reference: &String,
-            _files: &dyn corvid_behavior::Source,
-        ) -> Result<Self, corvid_behavior::Malformed> {
+            _files: &dyn corvid_files::Source,
+        ) -> Result<Self, corvid_files::Malformed> {
             Ok(Self)
         }
     }

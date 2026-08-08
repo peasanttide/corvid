@@ -19,7 +19,8 @@ use corvid_control::Controller;
 use corvid_behavior::{ProfileId, State};
 use corvid_replay::{Opening, Profile, Schema, Seed, Snapshots};
 use corvid_time::Tick;
-# use corvid_behavior::{Command, Level, Malformed, Player, Source};
+# use corvid_behavior::{Command, Level, Player};
+# use corvid_files::{Malformed, Source};
 # use serde::{Deserialize, Serialize};
 #
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

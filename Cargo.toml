@@ -30,6 +30,10 @@ corvid_bits = { workspace = true }
 corvid_camera = { workspace = true, features = ["std", "bytemuck"] }
 corvid_color = { workspace = true, features = ["std"] }
 corvid_dev = { workspace = true }
+# The filesystem a level is read through. Named here because this facade is
+# where a game reaches `Source` and `Malformed` now that `corvid_behavior` no
+# longer forwards them.
+corvid_files = { workspace = true }
 corvid_fixed = { workspace = true, features = ["std"] }
 corvid_float = { workspace = true }
 corvid_glm = { workspace = true, features = ["std"] }

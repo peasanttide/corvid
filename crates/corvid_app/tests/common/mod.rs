@@ -273,8 +273,8 @@ impl corvid_behavior::Level for Level {
 
     fn load(
         _reference: &Ref,
-        _files: &dyn corvid_behavior::Source,
-    ) -> Result<Self, corvid_behavior::Malformed> {
+        _files: &dyn corvid_files::Source,
+    ) -> Result<Self, corvid_files::Malformed> {
         Ok(Self {
             name: FIELD.to_owned(),
         })

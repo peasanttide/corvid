@@ -100,8 +100,8 @@ impl LevelContract for Level {
 
     fn load(
         reference: &String,
-        files: &dyn corvid_behavior::Source,
-    ) -> Result<Self, corvid_behavior::Malformed> {
+        files: &dyn corvid_files::Source,
+    ) -> Result<Self, corvid_files::Malformed> {
         let bytes = files.read(reference)?;
         let ceiling = i64::from(*bytes.first().unwrap_or(&0));
         Ok(Self {

@@ -11,14 +11,6 @@ mod controller;
 
 pub use controller::Controller;
 
-// The client ring, grouped so that a game implementing this trait names one
-// crate rather than six. This crate uses most of them only in a signature; it
-// is where they are gathered rather than what needs them.
-pub use corvid_camera::{Camera, Eye, FirstPerson, Orbit};
-pub use corvid_input::{
-    Analog, Cursor, Digital, Input, SetDescriptor, action_sets, platform::Bindings,
-};
-
 // `update`'s last argument, and the only wall-clock quantity in the whole
 // contract. Named through `core` rather than `std` because they are the same
 // type and the shorter path says where it comes from: a duration is arithmetic

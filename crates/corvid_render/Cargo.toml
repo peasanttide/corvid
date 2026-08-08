@@ -61,6 +61,10 @@ png = { workspace = true }
 tracing = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
+# `Source` and `Malformed`, which the README's `Level` implementation names.
+# `corvid_behavior` used to forward them and no longer does — a re-export of
+# another `corvid_` crate's types belongs in the facade and nowhere else.
+corvid_files = { workspace = true }
 # The README's game derives `Serialize`/`Deserialize`, which `Data` demands of
 # every type a state is made of. A game's own manifest carries the same line, and
 # this is the whole of what the doctests here name that the crate itself does

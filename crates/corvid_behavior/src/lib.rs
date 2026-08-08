@@ -35,9 +35,3 @@ pub use name::InvalidName;
 pub use player::{Player, PlayerId, Presence, ProfileId};
 pub use state::{Data, State};
 pub use time::{Loading, Time};
-
-// The filesystem a level is read through, re-exported so that a game
-// implementing `Level` names one crate rather than two. `Source` is in
-// `Level::load`'s signature and `Malformed` is its error, so neither is
-// optional for anybody implementing the trait.
-pub use corvid_files::{Malformed, Missing, Source};

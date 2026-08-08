@@ -157,7 +157,7 @@ impl EyeView {
     pub fn eye(self, anchor: Anchor, near: I16F16, far: I16F16) -> Eye {
         let world = anchor.to_world(self.pose);
         let mut coarse = [0i32; 3];
-        let mut remainder = matrix::IDENTITY;
+        let mut remainder = corvid_glm::IDENTITY;
         for (axis, component) in world.position().to_array().iter().enumerate() {
             let bits = component.to_bits();
             // An arithmetic shift is a floor, so the remainder is in `[0, 1)`

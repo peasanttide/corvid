@@ -12,7 +12,8 @@ is four calls, and `examples/headless` makes all four.
 # use std::sync::Arc;
 #
 # use corvid_app::{App, Error};
-# use corvid_behavior::{Command, Level, Malformed, Player, ProfileId, Source, State, Time};
+# use corvid_behavior::{Command, Level, Player, ProfileId, State, Time};
+# use corvid_files::{Malformed, Source};
 # use corvid_control::Controller;
 # use corvid_input::Input;
 # use corvid_replay::{Opening, Profile, Schema, Seed};

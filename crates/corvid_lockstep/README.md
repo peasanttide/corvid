@@ -23,7 +23,8 @@ use corvid_replay::Session;
 use corvid_time::Tick;
 use corvid_behavior::ProfileId;
 use corvid_replay::{Opening, Profile, Schema, Seed};
-# use corvid_behavior::{Command, Level as LevelContract, Malformed, Player, Source, State};
+# use corvid_behavior::{Command, Level as LevelContract, Player, State};
+# use corvid_files::{Malformed, Source};
 # use serde::{Deserialize, Serialize};
 #
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
