@@ -42,6 +42,15 @@ jobs:
           echo "== corvid_fixed --features $feature"
           cargo build -p corvid_fixed --no-default-features --features "$feature"
         done
+        # `corvid_float` has the one feature, and it is the odd one: it forwards
+        # nothing and adds no API, existing only so a downstream can turn `std`
+        # on everywhere without special-casing this crate. Built alone anyway,
+        # because "this feature does nothing" is a claim like any other and the
+        # day it starts gating something is the day nobody remembers it was.
+        for feature in std; do
+          echo "== corvid_float --features $feature"
+          cargo build -p corvid_float --no-default-features --features "$feature"
+        done
     # Overflow checks are on in dev and off in release, so the two profiles
     # disagree about what a wrapped intermediate does — the one divergence a
     # bit-exactness crate cannot ship. Both arms have to run.
