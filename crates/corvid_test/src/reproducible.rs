@@ -26,7 +26,10 @@ use crate::{Diverged, Failed, What};
 /// neither is on the path from an action log to a state.
 ///
 /// A private marker rather than a parameter on [`is_reproducible`], so that a
-/// caller with a state and a controller still writes exactly those two.
+/// caller with a state and a controller still writes exactly those two. What it
+/// cannot hide is [`Opens`], which a `Game`'s state owes and which therefore
+/// reaches the caller's `where` clause even though nothing here calls it —
+/// [`is_reproducible`] says so out loud.
 struct Twice<S, C>(PhantomData<fn() -> (S, C)>);
 
 impl<S: State + Opens, C: corvid_control::Controller<S>> Game for Twice<S, C> {
@@ -47,8 +50,8 @@ impl<S: State + Opens, C: corvid_control::Controller<S>> Game for Twice<S, C> {
 ///
 /// This is the headline claim, as one call: the same inputs produce the same
 /// state, bit for bit. Both runs go through [`App`], so what is compared is the
-/// game as the runtime actually drives it — `intend` every tick, `look`, `draw`
-/// and `hear` every frame — rather than a loop this crate wrote for the
+/// game as the runtime actually drives it — `action` every tick, `update` and
+/// `look` every displayed frame — rather than a loop this crate wrote for the
 /// occasion.
 ///
 /// Five comparisons, in this order. Each is the first thing that would still be
@@ -68,13 +71,30 @@ impl<S: State + Opens, C: corvid_control::Controller<S>> Game for Twice<S, C> {
 /// are two different runs, and their request lists are not two lists of the same
 /// thing.
 ///
-/// # One bound
+/// # The bounds
 ///
-/// A game's client-local half is [`Controller`](corvid_control::Controller),
-/// [`Render`](corvid_render::Render) and `Auralizer`:
-/// between them a `setup` and a `draw` as well as an `action`, a `look` and a
-/// `hear`. The runtime drives every one of them, and saying so used to take a
-/// second bound written beside the first.
+/// Three, and the signature carries every one of them:
+///
+/// | | Why |
+/// |---|---|
+/// | `S: State` | what is being checked: a tick is a pure function of the values its arguments denote, and this plays two of them |
+/// | `S: Opens` | propagated, and never called — see below |
+/// | `C: Controller<S>` | who plays. The action a controller returns is the other half of what a run computes from, so a check that fixed the controller would be checking half a game |
+/// | `C::Config: Clone + Default` | `Clone` because both runs are built from the same `controls`, and `Default` because the three types this check decides for itself still need configs to be built from |
+///
+/// [`Opens`] is the odd one, and it is worth being plain about it: **this
+/// function never calls it.** The opening is a parameter, and it is what both
+/// runs are given. The bound is there because [`App`] plays a
+/// [`Game`](corvid_app::Game) and a `Game` names a `State` that can open a
+/// session on its own. So a caller owes an `opening()` that nothing on this
+/// path invokes — which is the cost of running the check through the same
+/// runtime a player would, rather than through a loop this crate wrote for the
+/// occasion.
+///
+/// A bot, a renderer and an ear are **not** bounds. This check decides all
+/// three, as `()`: a determinism check that opened an adapter or a sound card
+/// would be a determinism check with a side effect, and neither a picture nor a
+/// sound is on the path from an action log to a state.
 ///
 /// # What the type system enforces, and what the caller owes
 ///

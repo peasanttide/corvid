@@ -17,11 +17,20 @@
 
 mod common;
 
-use common::Bare;
+use common::{Bare, Counting, Holding};
 use corvid_app::Settings;
+use corvid_time::Tick;
 
 /// The settings for the harness's game, with nothing set.
 type Plain = Settings<Bare>;
+
+/// The settings for the game the rest of this crate's tests play.
+///
+/// Its controller has a config with fields in it, which [`Plain`]'s four do not
+/// — every one of those is `()`, and a `()` that was read is indistinguishable
+/// from a `()` that was defaulted. A test about *which* keys survived needs a
+/// value that can tell the difference.
+type Furnished = Settings<Counting>;
 
 #[test]
 fn the_file_is_named_for_the_game_and_ends_in_setting_json() {
@@ -59,4 +68,34 @@ fn the_four_configs_are_named_rather_than_positional() {
     for key in ["controls", "bot", "graphics", "audio"] {
         assert!(text.contains(&format!("\"{key}\"")), "{text}");
     }
+}
+
+#[test]
+fn a_document_missing_a_key_keeps_the_keys_it_has() {
+    // The failure this guards against: this document grows, and a build that
+    // adds a setting would otherwise turn every existing player's file into
+    // `Error::Setting` — a refusal to start a run over a key nobody could have
+    // written. So a file with one of the four in it reads back with that one as
+    // written and the other three at their defaults.
+    let written = Furnished {
+        controls: Holding {
+            pause_at: Some(Tick(4)),
+            pause_for: 9,
+        },
+        ..Furnished::default()
+    };
+
+    // Built by dropping keys from a real document rather than by writing JSON
+    // out by hand, so that this test says "three keys are absent" and not "the
+    // configs are spelled the way I guessed".
+    let mut document = serde_json::to_value(&written).unwrap();
+    let object = document
+        .as_object_mut()
+        .expect("the settings are a JSON object");
+    for key in ["bot", "graphics", "audio"] {
+        assert!(object.remove(key).is_some(), "{document}");
+    }
+
+    let read: Furnished = serde_json::from_value(document).expect("a file with one key in it");
+    assert_eq!(read, written);
 }

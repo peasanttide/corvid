@@ -70,21 +70,48 @@ fn config_home() -> Option<PathBuf> {
 ///
 /// [`Default`] is the one that could not be derived at all, for the reason
 /// below: what has to be `Default` is the configs and not the game.
+///
+/// # A missing key is the default rather than a refusal
+///
+/// Every field is `#[serde(default)]`, so a file with three of the four keys in
+/// it reads back with the fourth at its default and the other three as the
+/// player left them. That matters because this document *grows*: a game that
+/// adds a setting, or a version of this crate that adds a config, would
+/// otherwise turn every existing player's file into
+/// [`Error::Setting`](crate::Error::Setting) — which refuses to start a run
+/// over a key nobody could have written.
+///
+/// The cost is in the deserialize bound: filling a field in needs its
+/// [`Default`], so [`Deserialize`] asks for all four. That is the same clause
+/// [`App::new`](crate::App::new) and [`load`](Self::load) already carry, so
+/// there is no game that can start a run and cannot read its own settings.
+///
+/// What is still refused is a key whose *value* is the wrong shape. A colour
+/// where a number belongs is a file somebody edited wrongly, and a run that
+/// quietly reset it would be a run that discarded what they meant to say.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(bound = "")]
+#[serde(bound(
+    serialize = "",
+    deserialize = "ControllerConfig<G>: Default, BotConfig<G>: Default, \
+                   RenderConfig<G>: Default, AuralizerConfig<G>: Default"
+))]
 pub struct Settings<G: Game> {
     /// What the controller is built from.
+    #[serde(default)]
     pub controls: ControllerConfig<G>,
     /// What the bot is built from.
     ///
     /// One config for however many seats a run fills with bots, because a bot
     /// is a setting of the run rather than of a seat: a game whose bots differ
     /// from one another says so in the config, which is the game's own type.
+    #[serde(default)]
     pub bot: BotConfig<G>,
     /// What the renderer is built from, once there is a device to build it
     /// against.
+    #[serde(default)]
     pub graphics: RenderConfig<G>,
     /// What the sound card is built from.
+    #[serde(default)]
     pub audio: AuralizerConfig<G>,
 }
 
@@ -129,6 +156,12 @@ impl<G: Game> Settings<G> {
     /// starting with the defaults would silently discard whatever the player had
     /// set, and the failure they would see is every control unbound with nothing
     /// saying why.
+    ///
+    /// A **missing key** is not that. Every field defaults, so a file written by
+    /// a build with fewer settings in it reads back with the new one at its
+    /// default and the rest as the player left them; what is refused is a key
+    /// whose value is the wrong shape. The type's own documentation argues the
+    /// split.
     ///
     /// # Errors
     ///

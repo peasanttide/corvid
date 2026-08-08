@@ -176,6 +176,12 @@ impl<G: Game> fmt::Debug for Outcome<G> {
 /// are behind newtypes that name themselves. So this is a derive rather than a
 /// hand-written impl that had to be kept in step with the fields above it.
 ///
+/// What the derive asks for in exchange is `G: Debug`, which is what a derive
+/// does with a type parameter: it bounds the parameter rather than the fields,
+/// and none of the fields above is a `G`. A game is a marker with nothing in
+/// it, so the bound is a `#[derive(Debug)]` on a unit struct — the same trade
+/// [`Settings`] and `Screen` make, argued in the same terms.
+///
 /// The cost is that an opening prints a whole level and a whole state, which is
 /// a long line for a game with a big one. That is the right way round: a
 /// builder printing what it was actually given is what a `{:#?}` in a bug
@@ -183,11 +189,11 @@ impl<G: Game> fmt::Debug for Outcome<G> {
 /// they care about.
 #[derive(Debug)]
 pub struct App<G: Game> {
-    /// What the player has set, which the runtime builds all three of the
+    /// What the player has set, which the runtime builds all four of the
     /// client-local halves from.
     ///
-    /// Configs rather than a controller, a renderer and an ear, because only
-    /// the runtime knows when the devices exist.
+    /// Configs rather than a controller, a bot, a renderer and an ear, because
+    /// only the runtime knows when the devices exist.
     ///
     /// [`None`] is "read the file", which is what [`run`](Self::run) does; a
     /// caller that set [`settings`](Self::settings) has overridden the file for

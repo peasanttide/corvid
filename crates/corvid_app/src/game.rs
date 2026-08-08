@@ -74,10 +74,18 @@ pub trait Game {
 /// The controller's config, spelled once.
 ///
 /// This and the three below are the only place in the workspace the
-/// `<… as …>::Config` form is written. It is four lines of noise at every site
-/// that names one — a `where` clause, a struct field, a builder argument — and
+/// `<… as …>::Config` form is written. It is a line of noise at every site that
+/// names one — a `where` clause, a struct field, a builder argument — and
 /// naming it here means a reader meets the projection once and reads
 /// [`Settings`](crate::Settings)' fields as the four settings they are.
+///
+/// All four are public because they are **in the public surface**: they are the
+/// `where` clause on [`App::new`](crate::App::new),
+/// [`Settings::load`](crate::Settings::load) and [`main`](crate::main), and a
+/// harness generic over `G: Game` has to be able to write the same clause. An
+/// alias is expanded during type checking, so a private one would have compiled
+/// — it would just have left every caller spelling the projection out again,
+/// which is the thing these exist to stop.
 pub type ControllerConfig<G> = <<G as Game>::Controller as Controller<<G as Game>::State>>::Config;
 
 /// The bot's config, spelled once.
