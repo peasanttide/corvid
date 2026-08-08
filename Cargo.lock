@@ -433,6 +433,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.19",
  "tracing",
+ "tracing-subscriber",
  "wgpu",
 ]
 
@@ -2344,7 +2345,6 @@ dependencies = [
  "corvid_wire",
  "serde",
  "tracing",
- "tracing-subscriber",
  "wgpu",
 ]
 

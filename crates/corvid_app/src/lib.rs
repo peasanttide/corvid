@@ -30,7 +30,7 @@ mod screen;
 mod windowed;
 
 pub use app::{App, Error, Outcome, Progress};
-pub use cli::{Argument, Arguments, main};
+pub use cli::{Argument, Arguments, main, watch};
 pub use commands::{Answer, Command, Request, Requests};
 #[cfg(feature = "window")]
 pub use controls::Misbound;

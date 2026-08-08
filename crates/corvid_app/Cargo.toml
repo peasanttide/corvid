@@ -44,6 +44,11 @@ corvid_signal = { workspace = true }
 # workspace says so — pinned at the workspace level so there is one subscriber
 # registry rather than two.
 tracing = { workspace = true, features = ["std"] }
+# The subscriber `watch` installs. Named here, in the one crate that is a
+# program rather than a library: `watch` is a function a `main` *calls*, so the
+# decision is still the binary's — what moved is the twelve lines every game was
+# writing to make this framework audible.
+tracing-subscriber = { workspace = true }
 # `Display` and `std::error::Error` on `Error`, derived. `std` because this is
 # the crate that opens files: `Error` carries `io::Error`, whose `Error` impl
 # is `std`'s, and a `core`-only derive could not name it as a source.

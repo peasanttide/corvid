@@ -283,9 +283,11 @@ tracing = { version = "0.1", default-features = false }
 # The subscriber a *binary* installs. Pinned here beside `tracing` for the same
 # reason and one more: a library that emits events and a binary that shows them
 # have to agree on which registry they mean, and a second `tracing` in the graph
-# is a second registry that nobody installed a subscriber on. No crate in
-# `crates/*` names this — installing one is a binary's decision, and a library
-# that made it would be a library nobody can silence.
+# is a second registry that nobody installed a subscriber on. One crate in
+# `crates/*` names it: `corvid_app`, for `watch`, which is a function a `main`
+# calls rather than something a library does on its own — so installing a
+# subscriber is still the binary's decision and a library that made it would
+# still be a library nobody can silence.
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "std"] }
 
 [workspace.lints.rust]

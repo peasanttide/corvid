@@ -21,38 +21,6 @@ use corvid::{App, Arguments, Error, Input};
 use corvid::PlayerId;
 use pong::{Ears, Graphics, Hands, RATE, Table};
 
-/// Shows what the framework is saying, on the way past.
-///
-/// Corvid's crates emit `tracing` events — which adapter was chosen and why a
-/// software one was refused, which frames the surface dropped, what the netcode
-/// did with a late datagram — and **not one of them appears without a
-/// subscriber installed**. A library that installed its own would be a library
-/// nobody can silence, so it is a binary's decision, and this is the binary.
-///
-/// `RUST_LOG` picks the level, as it does everywhere else; the default is
-/// `info`, which is the level the framework reports a chosen adapter and a
-/// dropped frame at. `RUST_LOG=corvid_net=debug pong --demo` is how a link's
-/// individual datagrams become visible.
-///
-/// Events go to **stderr**, which is what leaves this program's own answer —
-/// the report below, and the demo's table — alone on stdout for a pipe.
-fn watch() {
-    use tracing_subscriber::{EnvFilter, fmt};
-
-    // `try_init` rather than `init`: a subscriber already installed is not this
-    // function's business and certainly not a reason to fail before the game
-    // has started. Nothing else here installs one, so in practice it succeeds.
-    drop(
-        fmt()
-            .with_env_filter(
-                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-            )
-            .with_writer(std::io::stderr)
-            .with_target(true)
-            .try_init(),
-    );
-}
-
 /// What this binary was asked to do, beyond what `corvid` understands.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Ours {
@@ -92,7 +60,7 @@ pong: [--seat N] [--demo] [--together] [--listen PORT] [--connect HOST:PORT]
 and everything corvid takes as well; run with --help for that list.";
 
 fn main() -> corvid::Result {
-    watch();
+    corvid::watch();
 
     let ours = ours(std::env::args().skip(1))?;
 

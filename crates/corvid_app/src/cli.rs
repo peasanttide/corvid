@@ -320,6 +320,43 @@ impl std::error::Error for Argument {}
 #[cfg(feature = "render")]
 const OFFSCREEN: corvid_render::Extent = corvid_render::Extent::new(1280, 720);
 
+/// Installs the subscriber that makes this framework's own events visible.
+///
+/// Every crate here reports through `tracing` — which adapter was chosen, which
+/// frames were dropped, what the netcode did with a late datagram — and **not
+/// one of them appears without a subscriber installed**.
+///
+/// It is still a binary's decision, which is why this is a function a `main`
+/// calls rather than something a library does on its own: a library that
+/// installed a subscriber would be a library nobody can silence. What it stops
+/// is every game writing the same twelve lines to make the framework audible.
+/// [`main`] calls it; a game building its own [`App`] calls this or does not.
+///
+/// `RUST_LOG` picks the level, as it does everywhere else; the default is
+/// `info`, which is the level a chosen adapter and a dropped frame are reported
+/// at. `RUST_LOG=corvid_net=debug` is how a link's individual datagrams become
+/// visible.
+///
+/// Events go to **stderr**, which leaves a program's own answer alone on stdout
+/// for a pipe.
+///
+/// Calling it twice is not an error and not this function's business: a
+/// subscriber already installed stays, and a game that installed its own before
+/// reaching a Corvid `main` keeps it.
+pub fn watch() {
+    use tracing_subscriber::{EnvFilter, fmt};
+
+    drop(
+        fmt()
+            .with_env_filter(
+                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+            )
+            .with_writer(std::io::stderr)
+            .with_target(true)
+            .try_init(),
+    );
+}
+
 /// Plays the game the process was started to play.
 ///
 /// **This is the whole of a Corvid `main`, and there is no second spelling.**
@@ -414,6 +451,9 @@ const OFFSCREEN: corvid_render::Extent = corvid_render::Extent::new(1280, 720);
 /// [`Error::Argument`] for a command line that could not be acted on, and then
 /// whatever [`App::run`] reports.
 pub fn main<S: corvid_behavior::State + Opens>() -> crate::Result {
+    // Before anything, so that a refusal to parse the command line is itself
+    // reportable.
+    watch();
     let Some(arguments) = command_line()? else {
         return Ok(());
     };

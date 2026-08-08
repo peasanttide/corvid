@@ -22,8 +22,9 @@ corvid = { path = "../..", default-features = false }
 # Spans and events. A demo is the one place the framework's own instrumentation
 # is worth seeing — which adapter was chosen, which frames were dropped, what
 # the netcode did — and none of it appears without a subscriber installed.
+# `corvid::watch()` is what installs one; this crate names `tracing` for the
+# events it emits itself and no longer needs the subscriber crate.
 tracing = { workspace = true, features = ["std"] }
-tracing-subscriber = { workspace = true }
 # `Serialize` and `Deserialize` on this game's own data types, which
 # `corvid_behavior::Data` demands of every one of them.
 serde = { workspace = true, features = ["derive", "std"] }
