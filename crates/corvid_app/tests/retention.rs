@@ -22,7 +22,7 @@ use corvid_hash::Digest;
 use corvid_replay::Unreachable;
 use corvid_replay::{Session, Snapshots};
 use corvid_signal::channel;
-use corvid_time::Tick;
+use corvid_time::{Tick, Ticks};
 /// The window the bounded runs here keep, in ticks.
 ///
 /// Small enough that a test of a few hundred ticks forgets several times over,
@@ -39,7 +39,7 @@ fn play(retention: Retention) -> Outcome<Counting> {
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .retain(retention)
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .expect("a headless run of a quiet game cannot fail")
 }
@@ -126,7 +126,7 @@ fn no_run_length_holds_more_than_twice_the_window() {
             .headless()
             .opening(opening::<Tally>(Rules::quiet()))
             .retain(Retention::Recent { ticks: WINDOW })
-            .for_ticks(ticks)
+            .for_ticks(Ticks(ticks))
             .run()
             .expect("a headless run of a quiet game cannot fail");
 
@@ -167,7 +167,7 @@ fn a_run_shorter_than_its_window_forgets_nothing() {
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .retain(Retention::Recent { ticks: WINDOW })
-        .for_ticks(WINDOW)
+        .for_ticks(Ticks(WINDOW))
         .run()
         .expect("a headless run of a quiet game cannot fail");
 
@@ -183,7 +183,7 @@ fn the_default_keeps_a_window_and_a_capture_keeps_everything() {
     let long = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(ticks)
+        .for_ticks(Ticks(ticks))
         .run()
         .expect("a headless run of a quiet game cannot fail");
 
@@ -203,7 +203,7 @@ fn the_default_keeps_a_window_and_a_capture_keeps_everything() {
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .capture(pad.path())
-        .for_ticks(ticks)
+        .for_ticks(Ticks(ticks))
         .run()
         .expect("a headless run of a quiet game cannot fail");
 
@@ -223,7 +223,7 @@ fn the_default_keeps_a_window_and_a_capture_keeps_everything() {
         .opening(opening::<Tally>(Rules::quiet()))
         .capture(pad.path())
         .retain(Retention::Recent { ticks: WINDOW })
-        .for_ticks(ticks)
+        .for_ticks(Ticks(ticks))
         .run()
         .expect("a headless run of a quiet game cannot fail");
     assert!(bounded.session.log.ticks() <= WINDOW * 2);
@@ -282,7 +282,7 @@ fn a_bounded_run_can_still_be_rolled_back_inside_its_window() {
         .headless()
         .opening(open)
         .retain(Retention::Recent { ticks: WINDOW })
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .expect("a headless run of a quiet game cannot fail");
 
@@ -333,7 +333,7 @@ fn a_bounded_run_still_publishes_the_mark_for_the_tick_it_is_on() {
         .opening(opening::<Tally>(Rules::quiet()))
         .retain(Retention::Recent { ticks: WINDOW })
         .progress(emitter)
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .expect("a headless run of a quiet game cannot fail");
 
@@ -358,7 +358,7 @@ fn a_window_of_nothing_keeps_the_row_it_is_writing() {
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .retain(Retention::Recent { ticks: 0 })
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .expect("a headless run of a quiet game cannot fail");
 

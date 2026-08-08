@@ -25,7 +25,7 @@ use corvid_app::{Answer, App, Error, NotASave};
 use corvid_behavior::SaveSlot;
 use corvid_hash::digest;
 use corvid_replay::{Session, Snapshots};
-use corvid_time::Tick;
+use corvid_time::{Tick, Ticks};
 use serde::{Deserialize, Serialize};
 
 /// How far the runs below play when nothing stops them earlier.
@@ -78,7 +78,7 @@ fn play(state: &Path, rules: Rules, ticks: u64) -> corvid_app::Outcome<Counting>
         .headless()
         .opening(opening::<Tally>(rules))
         .state(state)
-        .for_ticks(ticks)
+        .for_ticks(Ticks(ticks))
         .run()
         .unwrap()
 }
@@ -113,7 +113,7 @@ fn a_run_that_loads_what_another_run_saved_reaches_the_same_state() {
         .opening(opening::<Tally>(Rules::quiet()))
         .state(state)
         .load(SLOT)
-        .for_ticks(TICKS - opened_at.0)
+        .for_ticks(Ticks(TICKS - opened_at.0))
         .run()
         .unwrap();
 
@@ -150,7 +150,7 @@ fn a_run_can_open_on_the_session_a_capture_recorded() {
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .capture(&capture)
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .unwrap();
 
@@ -158,7 +158,7 @@ fn a_run_can_open_on_the_session_a_capture_recorded() {
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .replay(capture.join("session"))
-        .for_ticks(0)
+        .for_ticks(Ticks(0))
         .run()
         .unwrap();
 
@@ -178,7 +178,7 @@ fn a_recorded_session_is_one_a_demo_opens() {
     let first = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(20)
+        .for_ticks(Ticks(20))
         .record(&file)
         .run()
         .expect("a recorded run");
@@ -187,7 +187,7 @@ fn a_recorded_session_is_one_a_demo_opens() {
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .replay(&file)
-        .for_ticks(10)
+        .for_ticks(Ticks(10))
         .run()
         .expect("a run carrying it on");
 
@@ -285,7 +285,7 @@ fn a_save_that_cannot_be_written_leaves_the_one_it_was_replacing_readable() {
         .opening(opening::<Tally>(Rules::quiet()))
         .state(state)
         .load(SLOT)
-        .for_ticks(TICKS - opened_at.0)
+        .for_ticks(Ticks(TICKS - opened_at.0))
         .run()
         .unwrap();
     assert_eq!(resumed.session.last(), Tick(TICKS));
@@ -314,7 +314,7 @@ fn a_run_whose_save_fails_keeps_its_capture_and_says_the_save_failed() {
         }))
         .state(&state)
         .capture(&capture)
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .unwrap();
 
@@ -379,7 +379,7 @@ fn a_save_whose_recorded_state_is_not_what_its_own_log_replays_to_is_refused() {
         .opening(opening::<Tally>(Rules::quiet()))
         .state(state)
         .load(SLOT)
-        .for_ticks(0)
+        .for_ticks(Ticks(0))
         .run()
         .unwrap_err();
     let Error::Saved {
@@ -402,7 +402,7 @@ fn opening_a_slot_nothing_has_written_is_refused_rather_than_started_over() {
         .opening(opening::<Tally>(Rules::quiet()))
         .state(scratchpad.path())
         .load(SaveSlot(9))
-        .for_ticks(1)
+        .for_ticks(Ticks(1))
         .run()
         .unwrap_err();
     assert!(

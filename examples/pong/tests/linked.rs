@@ -27,7 +27,7 @@ use corvid::{Acting, App, Camera, Controller, Game, Outcome, SetDescriptor, Tick
 
 use corvid::PlayerId;
 
-use corvid::{Clock, Tick};
+use corvid::{Clock, Tick, Ticks};
 use corvid_net::{MockNet, PeerId, Schedule, Transport};
 use pong::{Move, Table, action, opening};
 
@@ -174,7 +174,7 @@ fn play(seat: u16, transport: Box<dyn Transport>) -> Result<Outcome<Linked>, cor
             controls: if seat == 0 { 11 } else { 7 },
             ..corvid::Settings::default()
         })
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .retain(corvid::Retention::Everything)
         .run()
 }
@@ -292,7 +292,7 @@ fn a_run_with_no_transport_is_unchanged() -> Fallible {
                 controls: if seat == 0 { 11 } else { 7 },
                 ..corvid::Settings::default()
             })
-            .for_ticks(200)
+            .for_ticks(Ticks(200))
             .retain(corvid::Retention::Everything)
             .run()
     };

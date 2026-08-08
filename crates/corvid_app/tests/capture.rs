@@ -23,7 +23,7 @@ use corvid_app::App;
 use corvid_hash::digest;
 use corvid_replay::{HashTrace, Load, Schema, Session, Snapshots};
 use corvid_sound::{AudioFrame, Hearing};
-use corvid_time::{Clock, Tick, TickSpan};
+use corvid_time::{Clock, Tick, TickSpan, Ticks};
 
 /// How far the runs below play.
 const TICKS: u64 = 12;
@@ -38,7 +38,7 @@ fn capture_into(where_to: &Scratchpad) -> corvid_app::Outcome<Counting> {
         .headless()
         .capture(where_to.path())
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .unwrap()
 }
@@ -266,7 +266,7 @@ fn a_clock_slower_than_the_tick_rate_displays_at_the_opening_tick() {
         .clock(Clock::stepping(rate.period() / 4))
         .capture(scratchpad.path())
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(2)
+        .for_ticks(Ticks(2))
         .run()
         .unwrap();
 
@@ -286,7 +286,7 @@ fn a_clock_slower_than_the_tick_rate_displays_at_the_opening_tick() {
             .rate(rate)
             .capture(quick.path())
             .opening(opening::<Tally>(Rules::quiet()))
-            .for_ticks(2)
+            .for_ticks(Ticks(2))
             .run()
             .unwrap(),
     );
@@ -306,7 +306,7 @@ fn capturing_does_not_change_what_a_run_computes() {
     let unwatched = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .unwrap();
 
@@ -324,7 +324,7 @@ fn a_capture_directory_is_created_where_it_was_asked_for() {
         .headless()
         .capture(&nested)
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(2)
+        .for_ticks(Ticks(2))
         .run()
         .unwrap();
 

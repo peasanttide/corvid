@@ -23,7 +23,8 @@
 //! debug build, a release build and a machine with one core.
 
 use corvid::{
-    Acting, App, Camera, Controller, Game, Input, PlayerId, SetDescriptor, Tick, TickSpan, Updating,
+    Acting, App, Camera, Controller, Game, Input, PlayerId, SetDescriptor, Tick, TickSpan, Ticks,
+    Updating,
 };
 use pong::{Move, Table};
 
@@ -118,7 +119,7 @@ fn play(ticks: u64) -> (u64, [u16; 2]) {
             ..corvid::Settings::default()
         })
         .headless()
-        .for_ticks(ticks)
+        .for_ticks(Ticks(ticks))
         .run()
         .expect("this run opens no window, binds no socket and touches no disk");
 

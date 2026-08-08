@@ -28,7 +28,7 @@ use corvid_app::Command;
 use corvid_app::{Answer, App};
 use corvid_behavior::{ExitCode, Presence, ProfileId, Scope};
 use corvid_replay::Profile;
-use corvid_time::Tick;
+use corvid_time::{Tick, Ticks};
 use tracing::{
     Event, Metadata, Subscriber,
     field::{Field, Visit},
@@ -51,7 +51,7 @@ fn play(rules: Rules) -> corvid_app::Outcome<Counting> {
         .headless()
         .opening(opening::<Tally>(rules))
         .state(scratchpad.path())
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .unwrap()
 }
@@ -281,7 +281,7 @@ fn a_screenshot_is_recorded_and_no_picture_is_written() {
             snap_at: Some(Tick(2)),
             ..Rules::quiet()
         }))
-        .for_ticks(4)
+        .for_ticks(Ticks(4))
         .run()
         .unwrap();
 
@@ -388,7 +388,7 @@ fn the_roster_the_loop_ticks_with_is_the_one_the_session_records() {
                 left: Some(Tick(3)),
             },
         ]))
-        .for_ticks(5)
+        .for_ticks(Ticks(5))
         .run()
         .unwrap();
 

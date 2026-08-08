@@ -19,7 +19,7 @@ use common::{Action, Botted, Rules, Tally, opening, seat};
 use corvid_app::App;
 use corvid_behavior::PlayerId;
 use corvid_replay::Opening;
-use corvid_time::Tick;
+use corvid_time::{Tick, Ticks};
 
 /// How far the runs below play.
 const TICKS: u64 = 10;
@@ -53,7 +53,7 @@ fn a_bot_takes_the_seat_this_client_is_not_playing() {
         .opening(two_seats())
         .seat(PlayerId(0))
         .bots(1)
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .expect("a run with one bot");
 
@@ -61,6 +61,30 @@ fn a_bot_takes_the_seat_this_client_is_not_playing() {
     // one the bot was given, in roster order, because seat zero was taken.
     assert_eq!(first(&outcome, PlayerId(0)), Action::Idle);
     assert_eq!(first(&outcome, PlayerId(1)), Action::Bump);
+}
+
+/// The seat a bot skips is the one this client plays *by value*, not the first
+/// one.
+///
+/// The mirror image of the test above, and the reason it is worth writing: every
+/// other case in this file plays seat zero or plays nobody, so a runtime that
+/// filled seats by dropping the first of them rather than by leaving out the one
+/// it was told would satisfy all of them. Here seat one is this client's, so
+/// dropping the first would put the bot back in the seat a person is sitting in
+/// and leave seat zero to nobody — which is the opposite of both assertions.
+#[test]
+fn a_bot_skips_the_seat_this_client_plays_rather_than_the_first_one() {
+    let outcome = App::<Botted>::new()
+        .headless()
+        .opening(two_seats())
+        .seat(PlayerId(1))
+        .bots(1)
+        .for_ticks(Ticks(TICKS))
+        .run()
+        .expect("a run with one bot, played from the second seat");
+
+    assert_eq!(first(&outcome, PlayerId(0)), Action::Bump);
+    assert_eq!(first(&outcome, PlayerId(1)), Action::Idle);
 }
 
 /// The other half of the claim above, which that test cannot make on its own: a
@@ -72,7 +96,7 @@ fn a_run_with_no_bots_leaves_the_other_seat_idle() {
         .headless()
         .opening(two_seats())
         .seat(PlayerId(0))
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .expect("a run with no bots");
 
@@ -89,7 +113,7 @@ fn a_bot_answers_for_every_tick_it_played() {
         .opening(two_seats())
         .seat(PlayerId(0))
         .bots(1)
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .expect("a run with one bot");
 
@@ -116,7 +140,7 @@ fn a_spectator_lets_bots_take_every_seat() {
         .opening(two_seats())
         .spectating()
         .bots(2)
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .expect("a run with two bots");
 
@@ -133,7 +157,7 @@ fn more_bots_than_seats_fills_the_seats_there_are() {
         .opening(two_seats())
         .spectating()
         .bots(u16::MAX)
-        .for_ticks(1)
+        .for_ticks(Ticks(1))
         .run()
         .expect("a run asked for more bots than seats");
 
@@ -142,12 +166,12 @@ fn more_bots_than_seats_fills_the_seats_there_are() {
     assert_eq!(first(&outcome, PlayerId(1)), Action::Bump);
 }
 
-/// Bots on the linked path are refused rather than reconciled: a controller is
-/// no part of what a session records, so two peers each filling the same seat
-/// locally would be two answers with nothing to choose between them.
+/// Bots on the linked path are refused rather than ignored: the bot is asked
+/// only where a run plays alone, so a linked run that accepted the flag would
+/// have taken a number of bots and played none of those seats.
 #[cfg(feature = "net")]
 mod linked {
-    use super::{TICKS, two_seats};
+    use super::{TICKS, Ticks, two_seats};
     use corvid_app::App;
     use corvid_net::{Channel, Delivery, PeerId, PeerSet, SendError, Transport};
     use corvid_signal::{Watch, channel as watch};
@@ -197,7 +221,7 @@ mod linked {
             .opening(two_seats())
             .transport(Box::new(Unused::new()))
             .bots(1)
-            .for_ticks(TICKS)
+            .for_ticks(Ticks(TICKS))
             .run()
             .expect_err("bots and a transport");
 
@@ -215,7 +239,7 @@ mod linked {
             .headless()
             .opening(two_seats())
             .transport(Box::new(Unused::new()))
-            .for_ticks(0)
+            .for_ticks(Ticks(0))
             .run()
             .expect("a linked run of no ticks");
 

@@ -214,7 +214,7 @@ macro_rules! app {
             $($rest)*
         }
 
-        fn main() -> $crate::Result {
+        fn main() {
             $crate::main::<$name>()
         }
     };

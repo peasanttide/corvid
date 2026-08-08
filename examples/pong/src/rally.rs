@@ -16,7 +16,7 @@ use corvid::Digest;
 use corvid::PlayerId;
 
 use corvid::digest;
-use corvid::{Duration, Tick};
+use corvid::{Duration, Tick, Ticks};
 use corvid_lockstep::{Budget, Datagram, Halt, Peer};
 use corvid_net::{Delivery, MockNet, PeerId, Schedule, Transport};
 use corvid_replay::Session;
@@ -448,7 +448,7 @@ pub fn together(
     // something a build machine can run.
     let app = if windowed { app.window() } else { app };
     let app = match ticks {
-        Some(ticks) => app.for_ticks(ticks),
+        Some(ticks) => app.for_ticks(Ticks(ticks)),
         None => app,
     };
     app.run()

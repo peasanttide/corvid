@@ -425,9 +425,12 @@ impl<S: State> Link<S> {
     /// over live seats of what each has confirmed, counting a seat that has
     /// confirmed nothing as [`Tick::ZERO`], and
     /// [`Peer::advance`](corvid_lockstep::Peer::advance) declines to simulate
-    /// past `agreed() + Budget::ahead` — so a column nobody ever writes pins
-    /// the frontier at the opening and every peer in the session stalls after
-    /// `ahead` ticks, **this one included**. What answers that is somebody
+    /// past `agreed() + Budget::ahead` — so a column nobody ever writes pins the
+    /// frontier at [`Tick::ZERO`] and every peer in the session stalls after
+    /// `ahead` ticks, **this one included**. Zero rather than the session's
+    /// first tick, which is worse than it sounds for a resumed session: a run
+    /// that opened at tick nine hundred stalls `ahead` ticks past *zero*, so it
+    /// stalls on the tick it opened on. What answers that is somebody
     /// filling the seat: a machine, a bot, or a
     /// [`Peer::depart`](corvid_lockstep::Peer::depart) retiring it.
     ///

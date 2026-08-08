@@ -118,16 +118,51 @@ fn two_ways_of_opening_is_a_refusal_naming_both() {
     );
 }
 
+/// The whole link is written, because half of one is refused first and would
+/// have made this a test of a different message.
 #[test]
 fn bots_and_a_peer_is_a_refusal() {
-    let why =
-        Arguments::parse(["--bots", "1", "--connect", "host:9001"]).expect_err("bots and a peer");
+    let why = Arguments::parse(["--listen", "9000", "--bots", "1", "--connect", "host:9001"])
+        .expect_err("bots and a peer");
     assert_eq!(
         why,
         Argument::Conflicting {
             flags: ["--bots", "--connect"]
         }
     );
+}
+
+/// Two flags name one link, and either alone names half of one — which is a
+/// command line that asked for another machine and would have got a run playing
+/// alone.
+///
+/// It is also what makes the refusal above well founded rather than accidentally
+/// right: `--bots` is checked against `--connect`, and without this a
+/// `--bots 1 --connect host:9001` with no socket to send from would have been
+/// refused for the pair while the run it described was purely local.
+#[test]
+fn half_a_link_is_a_refusal_naming_the_flag_it_needs() {
+    assert_eq!(
+        Arguments::parse(["--connect", "host:9001"]).expect_err("nowhere to send from"),
+        Argument::Incomplete {
+            flag: "--connect",
+            needs: "--listen",
+        }
+    );
+    assert_eq!(
+        Arguments::parse(["--listen", "9000"]).expect_err("nobody to reach"),
+        Argument::Incomplete {
+            flag: "--listen",
+            needs: "--connect",
+        }
+    );
+
+    // And the pair is not refused, so the two checks above are about one of them
+    // being missing rather than about either flag.
+    let linked = Arguments::parse(["--listen", "9000", "--connect", "host:9001"])
+        .expect("the whole of a link");
+    assert_eq!(linked.listen, Some(9000));
+    assert_eq!(linked.connect.as_deref(), Some("host:9001"));
 }
 
 #[test]
@@ -174,7 +209,8 @@ fn a_refusal_names_the_two_flags_in_the_order_they_were_given() {
         }
     );
     assert_eq!(
-        Arguments::parse(["--connect", "host:9001", "--bots", "1"]).expect_err("a peer and bots"),
+        Arguments::parse(["--listen", "9000", "--connect", "host:9001", "--bots", "1"])
+            .expect_err("a peer and bots"),
         Argument::Conflicting {
             flags: ["--connect", "--bots"]
         }
@@ -208,7 +244,7 @@ fn every_refusal_says_what_the_runtime_does_accept() {
 /// be refused for asking for nothing.
 #[test]
 fn no_bots_and_a_peer_is_not_a_conflict() {
-    let parsed = Arguments::parse(["--bots", "0", "--connect", "host:9001"])
+    let parsed = Arguments::parse(["--listen", "9000", "--bots", "0", "--connect", "host:9001"])
         .expect("no bots is not bots and a peer");
     assert_eq!(parsed.num_bots, 0);
 }
@@ -218,7 +254,7 @@ fn an_argument_beats_the_builder_and_silence_does_not() {
     let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(50)
+        .for_ticks(Ticks(50))
         .arguments(Arguments::parse(["--ticks=7"]).expect("a count is an argument"))
         .run()
         .expect("a headless run of a quiet game cannot fail");
@@ -232,7 +268,7 @@ fn an_argument_beats_the_builder_and_silence_does_not() {
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .arguments(Arguments::parse(["--ticks=7"]).expect("a count is an argument"))
-        .for_ticks(50)
+        .for_ticks(Ticks(50))
         .run()
         .expect("a headless run of a quiet game cannot fail");
     assert_eq!(
@@ -255,7 +291,7 @@ fn an_argument_beats_the_builder_and_silence_does_not() {
     let untouched = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(50)
+        .for_ticks(Ticks(50))
         .arguments(Arguments::parse(empty).expect("no arguments is a legal command line"))
         .run()
         .expect("a headless run of a quiet game cannot fail");

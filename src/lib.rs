@@ -15,7 +15,7 @@
 //!
 //! use corvid::{
 //!     App, Level, Malformed, Opening, Opens, Profile, ProfileId, Schema, Seed, Source, State,
-//!     Tick, TickSpan,
+//!     Tick, TickSpan, Ticks,
 //! };
 //! use serde::{Deserialize, Serialize};
 //!
@@ -75,7 +75,7 @@
 //! let app = App::<Nothing>::new()
 //!     .opening(Still::opening())
 //!     .headless()
-//!     .for_ticks(10);
+//!     .for_ticks(Ticks(10));
 //! ```
 //!
 //! # One macro, and it is the whole binary

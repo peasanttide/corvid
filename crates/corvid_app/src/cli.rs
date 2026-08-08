@@ -3,11 +3,11 @@
 //!
 //! Parsing, the usage text and every byte this crate writes to the process's
 //! streams live here together, so that "what the command line does" is one file
-//! rather than a parser in one and a printer in another. The three writes below
-//! — the usage and the digest on stdout, a refused command line on stderr — are
-//! the only ones in the crate, they are `println!` and `eprintln!` under named
-//! exceptions rather than handles that dodge the lint, and they are all in
-//! sight of each other.
+//! rather than a parser in one and a printer in another. The four writes below
+//! — the usage and the digest on stdout, a refused command line and a run that
+//! could not finish on stderr — are the only ones in the crate, they are
+//! `println!` and `eprintln!` under named exceptions rather than handles that
+//! dodge the lint, and they are all in sight of each other.
 
 use std::{fmt, path::PathBuf};
 
@@ -72,7 +72,7 @@ pub enum Load {
 /// | `--record FILE` | write the session to `FILE` as the run plays |
 /// | `--state DIR` | put this game's saves, settings and bindings under `DIR` |
 /// | `--seat N` | which seat this machine plays |
-/// | `--listen PORT` \| `--connect HOST:PORT` | the socket the other machine is behind |
+/// | `--listen PORT --connect HOST:PORT` | the socket the other machine is behind, and either without the other is [`Argument::Incomplete`] |
 /// | `--help`, `-h` | write the usage to stdout and stop, successfully |
 ///
 /// Every one of them is a thing the *operator* decides rather than the game:
@@ -137,8 +137,15 @@ pub struct Arguments {
     /// Which seat this machine plays.
     pub seat: PlayerId,
     /// The UDP port to bind.
+    ///
+    /// One half of a link, and [`parse`](Self::parse) refuses it without the
+    /// other: a port bound with nobody to reach is a run that waits for a
+    /// datagram nothing will send.
     pub listen: Option<u16>,
     /// Where the other machine is, as `HOST:PORT`.
+    ///
+    /// The other half, refused alone for the matching reason: an address with no
+    /// socket behind it has nowhere for the answer to arrive.
     pub connect: Option<String>,
 }
 
@@ -156,7 +163,7 @@ pub struct Arguments {
 const USAGE: &str = "\
 corvid: [--headless] [--spectator] [--bots N] [--ticks N]
         [--level JSON | --load N | --demo FILE] [--record FILE] [--state DIR]
-        [--seat N] [--listen PORT] [--connect HOST:PORT]
+        [--seat N] [--listen PORT --connect HOST:PORT]
 
   --headless        play with no window, no adapter and no audio device
   --spectator       claim no seat: submit nothing, and watch the seat this
@@ -172,7 +179,8 @@ corvid: [--headless] [--spectator] [--bots N] [--ticks N]
   --state DIR       put this game's saves, settings and bindings under DIR
                     rather than the user data dir
   --seat N          which seat this machine plays
-  --listen PORT     bind this UDP port
+  --listen PORT     bind this UDP port; goes with --connect, and either
+                    without the other is refused
   --connect ADDR    the other machine, as HOST:PORT
   --help, -h        this";
 
@@ -205,8 +213,9 @@ impl Arguments {
     /// [`Argument::Unknown`] for a flag this does not have,
     /// [`Argument::Missing`] for one whose value is absent,
     /// [`Argument::Unexpected`] for a value on a flag that takes none,
-    /// [`Argument::NotANumber`] for a count that is not one, and
-    /// [`Argument::Conflicting`] for two flags that cannot both be acted on.
+    /// [`Argument::NotANumber`] for a count that is not one,
+    /// [`Argument::Conflicting`] for two flags that cannot both be acted on, and
+    /// [`Argument::Incomplete`] for one that means nothing without another.
     pub fn parse<I, S>(arguments: I) -> Result<Self, Argument>
     where
         I: IntoIterator<Item = S>,
@@ -321,28 +330,69 @@ impl Arguments {
             }
         }
 
-        // A bot is a controller, and a controller is no part of what a session
-        // records — so a run that filled a seat locally and had a peer in the
-        // same session would be writing a column every other machine writes
-        // differently. `App::run` refuses the pair as well, for the run a
-        // harness builds by hand; this is the half an operator is told about
-        // before anything opens.
-        //
-        // `--bots 0` is not the half of anything: it asks for no bots, which is
-        // what a run without the flag has.
-        if parsed.num_bots > 0
-            && let (Some(bots), Some(connect)) = (botted, peered)
-        {
-            return Err(Argument::Conflicting {
-                flags: if bots < connect {
-                    ["--bots", "--connect"]
-                } else {
-                    ["--connect", "--bots"]
-                },
-            });
-        }
-
+        parsed.coherent(botted, peered)?;
         Ok(parsed)
+    }
+
+    /// The refusals that are about a whole command line rather than about one
+    /// flag, checked once everything has been read.
+    ///
+    /// They are here rather than in the loop above because a flag that is
+    /// refused for what another flag says cannot be judged until that other flag
+    /// has had its chance to appear, in either order. `botted` and `peered` are
+    /// where `--bots` and `--connect` were written, so a message about the pair
+    /// names them in the order the operator typed them.
+    ///
+    /// Neither is gated on the `net` feature. What they judge is the command
+    /// line, which says the same thing whether or not this build has a socket to
+    /// act on it with — and a build that quietly accepted a link it cannot open
+    /// would be the surprise this is here to avoid.
+    fn coherent(&self, botted: Option<usize>, peered: Option<usize>) -> Result<(), Argument> {
+        // Two flags name one link, and either of them alone names half of one.
+        // Both directions are refused, because both are a command line that
+        // asked for another machine and would have got a run playing alone:
+        // `--listen` with nobody to reach binds a port and waits for a datagram
+        // that is never sent, and `--connect` with no socket to send from has
+        // nowhere for the answer to arrive. Neither is a run somebody typed
+        // three words to ask for, and a runtime that quietly played it alone
+        // would be answering a different question.
+        //
+        // Before the bots check below, so that an operator is told about the
+        // link that is not a link before being told what cannot go beside it.
+        match (self.listen, self.connect.as_deref()) {
+            (Some(_), None) => Err(Argument::Incomplete {
+                flag: "--listen",
+                needs: "--connect",
+            }),
+            (None, Some(_)) => Err(Argument::Incomplete {
+                flag: "--connect",
+                needs: "--listen",
+            }),
+            // A bot is a controller, and the bot is asked only on the path a run
+            // with nobody else in it takes — a linked run never asks it at all.
+            // So a run given both would have accepted a number of bots and
+            // played none of those seats, which is a flag that did nothing.
+            // `App::run` refuses the pair as well, for the run a harness builds
+            // by hand; this is the half an operator is told about before
+            // anything opens.
+            //
+            // Well founded because of the arms above: `--connect` is never
+            // written without `--listen`, so naming it names the whole link
+            // rather than the half of it that happened to be looked at.
+            //
+            // `--bots 0` is not the half of anything: it asks for no bots, which
+            // is what a run without the flag has.
+            (Some(_), Some(_)) => match (self.num_bots, botted, peered) {
+                (1.., Some(bots), Some(connect)) if bots < connect => Err(Argument::Conflicting {
+                    flags: ["--bots", "--connect"],
+                }),
+                (1.., Some(_), Some(_)) => Err(Argument::Conflicting {
+                    flags: ["--connect", "--bots"],
+                }),
+                _ => Ok(()),
+            },
+            (None, None) => Ok(()),
+        }
     }
 }
 
@@ -385,6 +435,17 @@ pub enum Argument {
         /// Which two, in the order they were written.
         flags: [&'static str; 2],
     },
+    /// A flag that means nothing without another one, written without it.
+    ///
+    /// [`Conflicting`](Self::Conflicting) is the other half of the same idea and
+    /// says the opposite thing, which is why it is not this: two flags that
+    /// cannot both be given, against two that have to be given together.
+    Incomplete {
+        /// What was written.
+        flag: &'static str,
+        /// What it needs beside it.
+        needs: &'static str,
+    },
     /// A `--level` that is not JSON this game's level reference deserializes
     /// from.
     ///
@@ -408,9 +469,12 @@ pub enum Argument {
     /// a lobby, which is told who sits where.
     ///
     /// Noticed when the socket is opened rather than by
-    /// [`parse`](Arguments::parse), because a build without the `net` feature
-    /// has no socket to open and the same three flags are then three settings
-    /// that do nothing rather than a contradiction.
+    /// [`parse`](Arguments::parse), and gated on the `net` feature for the same
+    /// reason: a build without it has no socket to open, so the three flags are
+    /// three settings that do nothing rather than a contradiction, and a variant
+    /// nothing in such a build can construct would be a variant a caller has to
+    /// match on and never see.
+    #[cfg(feature = "net")]
     Pairing {
         /// The seat that was asked for.
         seat: PlayerId,
@@ -454,6 +518,9 @@ impl fmt::Display for Argument {
                 let [first, second] = flags;
                 write!(f, "{first} and {second} cannot both be given\n\n{USAGE}")
             }
+            Self::Incomplete { flag, needs } => {
+                write!(f, "{flag} means nothing without {needs}\n\n{USAGE}")
+            }
             Self::NotALevel { value, why } => {
                 write!(
                     f,
@@ -461,6 +528,7 @@ impl fmt::Display for Argument {
                      {USAGE}"
                 )
             }
+            #[cfg(feature = "net")]
             Self::Pairing { seat } => {
                 write!(
                     f,
@@ -563,7 +631,7 @@ pub fn watch() {
 ///     type Auralizer = ();
 /// }
 ///
-/// fn main() -> corvid_app::Result {
+/// fn main() {
 ///     corvid_app::main::<Dedicated>()
 /// }
 /// ```
@@ -609,38 +677,47 @@ pub fn watch() {
 /// # What it does with a command line
 ///
 /// An operator who asked for the usage got what they asked for: `--help` writes
-/// it to **stdout** and answers `Ok(())`, so the process exits zero and a shell
-/// script does not have to special-case it. [`Arguments::parse`] still reports
-/// it as [`Argument::Help`], because that function may not print.
+/// it to **stdout** and the process exits zero, so a shell script does not have
+/// to special-case it. [`Arguments::parse`] still reports it as
+/// [`Argument::Help`], because that function may not print.
 ///
 /// A command line that could not be acted on writes the reason and the usage to
-/// **stderr** and stops the process with status 2 — rather than handing back an
-/// `Err`, which the runtime would print with [`Debug`] and collapse to status 1.
-/// So neither kind of answer arrives here as an error, and this function's `Err`
-/// is a run that started and could not finish.
+/// **stderr** and stops the process with status 2. A run that started and could
+/// not finish writes its reason to the same stream and stops with status 1. So
+/// **this function hands nothing back**: every answer it has is one an operator
+/// reads, and each is the error's own [`Display`](fmt::Display) rather than the
+/// [`Debug`] that a `main` returning `Result` would have printed — the
+/// difference between `Wrote { path: "...", why: Os { code: 13, .. } }` and the
+/// sentence [`Error`](crate::Error) wrote for that case.
 ///
 /// This module is the only one in the crate that writes to the process's
 /// streams at all, and it does so through `println!` and `eprintln!` under
 /// stated exceptions rather than through handles that would reach the same
 /// streams while passing the lint. A harness that wants none of that drives
-/// [`App::launch`], which reads the same command line and hands
-/// [`Error::Argument`](crate::Error::Argument) back without writing anything.
+/// [`App::launch`], which reads the same command line and hands every one of
+/// these back without writing anything.
 ///
 /// # What it does with the exit code
 ///
-/// A [`quit`](corvid_behavior::Command::quit) names a status, and a status that
-/// is not [`SUCCESS`](corvid_behavior::ExitCode::SUCCESS) leaves the process
-/// with that number rather than with the `1` that any `Err` from a `main`
-/// collapses to. Everything a run writes down has been written by then: a
-/// recording is closed and a save is on disk before the run hands its outcome
-/// back.
+/// Three numbers, and they are three different questions answered:
 ///
-/// # Errors
+/// | | |
+/// |---|---|
+/// | 0 | the run finished, or `--help` was asked for |
+/// | 1 | the run started and could not finish |
+/// | 2 | the command line could not be acted on |
 ///
-/// Whatever [`App::run`] reports. A command line that could not be acted on is
-/// not among them: it is written to stderr and the process stops with status 2
-/// before a run is built.
-pub fn main<G: Game>() -> crate::Result
+/// Two is the conventional status for a usage error, and one is what any `Err`
+/// out of a `main` collapses to anyway — so keeping it for the run means a
+/// script that already told "the run broke" from "I typed it wrong" keeps
+/// telling them apart, and neither is confusable with the other.
+///
+/// Above those, a [`quit`](corvid_behavior::Command::quit) names a status of its
+/// own, and a status that is not
+/// [`SUCCESS`](corvid_behavior::ExitCode::SUCCESS) leaves the process with that
+/// number. Everything a run writes down has been written by then: a recording is
+/// closed and a save is on disk before the run hands its outcome back.
+pub fn main<G: Game>()
 where
     ControllerConfig<G>: Default,
     BotConfig<G>: Default,
@@ -651,7 +728,7 @@ where
     // reportable.
     watch();
     let Some(arguments) = command_line() else {
-        return Ok(());
+        return;
     };
     // Whether the operator asked for a run with no devices, which is the one
     // thing that decides whether the digest goes to stdout. Read here because
@@ -674,11 +751,13 @@ where
             // A seat these two flags cannot arrange, which is a command line
             // rather than a run: same stream, same status as any other.
             Err(crate::Error::Argument(why)) => refuse(&why),
-            Err(why) => return Err(why),
+            Err(why) => failed(&why),
         },
-        // A `--listen` with nobody to reach, or a `--connect` with no socket to
-        // reach it from, is half a link: the run plays alone, which is what it
-        // would have done with neither.
+        // Neither flag, which is a run that plays alone. Half of a link does not
+        // reach here: `Arguments::parse` refuses `--listen` without `--connect`
+        // and the reverse, so the only way to arrive with one of them is an
+        // `Arguments` a harness filled in by hand, and a harness that did that
+        // asked for a run alone.
         _ => app,
     };
 
@@ -700,19 +779,25 @@ where
         // on the same stream and with the same status, instead of arriving as a
         // failed run.
         Err(crate::Error::Argument(why)) => refuse(&why),
-        Err(why) => return Err(why),
+        Err(why) => failed(&why),
     };
     finish::<G>(&outcome, headless);
-    Ok(())
 }
 
 /// What a process that could not read its command line exits with.
 ///
 /// Two, which is the conventional status for a usage error and is deliberately
-/// not one: every `Err` a `main` hands back collapses to one, so a run that
-/// failed for a reason that is not the command line stays distinguishable from
-/// a command line nobody could act on.
+/// not [`FAILED`], so that a run that failed for a reason that is not the
+/// command line stays distinguishable from a command line nobody could act on.
 const REFUSED: i32 = 2;
+
+/// What a process whose run could not finish exits with.
+///
+/// One, which is what any `Err` handed back from a `main` collapses to — so a
+/// script written against a runtime that did hand its errors back reads the same
+/// number for the same event, and the only thing that changed is that the
+/// operator can now read why.
+const FAILED: i32 = 1;
 
 /// Reads the process's arguments, and answers whatever they asked for that is
 /// not a game.
@@ -727,7 +812,7 @@ const REFUSED: i32 = 2;
 /// it — where an `Err` out of a `main` is printed by the runtime with
 /// [`Debug`], which would show an operator `Argument(Conflicting { flags:
 /// [...] })` and no list of what the runtime accepts. And the status is 2
-/// rather than the 1 an `Err` collapses to.
+/// rather than the [`FAILED`] a run that broke leaves.
 ///
 /// It is the same shape the `--help` arm has, one stream over: this crate's
 /// `main` is a program, and a program answers a command line it was given.
@@ -762,12 +847,37 @@ fn command_line() -> Option<Arguments> {
 fn refuse(why: &Argument) -> ! {
     #[allow(
         clippy::print_stderr,
-        reason = "the third and last write to the process's streams in this crate, and it is here for the reason the other two are: a program that was handed a command line it cannot act on says so where an operator reads it. stderr rather than stdout, because a program's own answer belongs alone on stdout for a pipe"
+        reason = "one of the two writes this crate makes to stderr, and it is here for the reason every write in this file is: a program that was handed a command line it cannot act on says so where an operator reads it. stderr rather than stdout, because a program's own answer belongs alone on stdout for a pipe"
     )]
     {
         eprintln!("{why}");
     }
     std::process::exit(REFUSED);
+}
+
+/// Says why a run could not finish, and stops the process.
+///
+/// [`Error`](crate::Error) writes a sentence for every one of its variants —
+/// which file could not be written and why, which port would not bind, which
+/// tick two peers disagreed at — and **not one of those sentences reaches an
+/// operator through a `main` that hands the error back**, because the runtime
+/// prints a returned `Err` with [`Debug`]. So this prints the
+/// [`Display`](fmt::Display), for the same reason and on the same stream
+/// [`refuse`] does, one status down.
+///
+/// Nothing this process opened is still open when this is reached, so exiting
+/// closes nothing that unwinding would have: [`App::run`] takes its app by
+/// value, and a window, an adapter, a recording and a capture directory are all
+/// dropped inside it before the `Err` comes back.
+fn failed(why: &crate::Error) -> ! {
+    #[allow(
+        clippy::print_stderr,
+        reason = "the other write to stderr, and the same exception: a program whose run could not finish says why where an operator reads it, rather than handing back an `Err` the runtime renders with `Debug`"
+    )]
+    {
+        eprintln!("{why}");
+    }
+    std::process::exit(FAILED);
 }
 
 /// How far back a reported digest is taken from.

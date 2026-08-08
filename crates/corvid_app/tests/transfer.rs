@@ -33,7 +33,7 @@ use corvid_hash::digest;
 use corvid_net::{Channel, Delivery, PeerId, PeerSet, SendError, Transport};
 use corvid_signal::Watch;
 use corvid_signal::channel as watch;
-use corvid_time::{Clock, Tick, TickSpan};
+use corvid_time::{Clock, Tick, TickSpan, Ticks};
 /// Whatever the test needs to say went wrong.
 type Fallible = Result<(), Box<dyn std::error::Error>>;
 
@@ -159,7 +159,7 @@ fn play(
         .clock(Clock::stepping(TickSpan::CRADLE.period()))
         .transport(Box::new(transport))
         .input(resting())
-        .for_ticks(ticks)
+        .for_ticks(Ticks(ticks))
         .retain(Retention::Everything)
         .run()?;
     let frames = std::mem::take(

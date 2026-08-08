@@ -42,7 +42,7 @@ use corvid_control::Controller;
 use corvid_hash::{Digest, digest};
 use corvid_input::{Digital, Input};
 use corvid_signal::channel;
-use corvid_time::{Elapsed, Tick, TickSpan};
+use corvid_time::{Elapsed, Tick, TickSpan, Ticks};
 
 /// How far every run below plays.
 const TICKS: u64 = 12;
@@ -157,7 +157,7 @@ fn play(holding: Holding, on: u64, stall: Duration) -> (Outcome<Counting>, Progr
         .clock(Stalling::new(rate.period(), on, stall))
         .rate(rate)
         .progress(emitter)
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .unwrap();
     let progress = *watch.get();

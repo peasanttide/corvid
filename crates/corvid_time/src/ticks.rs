@@ -11,7 +11,10 @@
     derive(::serde::Serialize, ::serde::Deserialize),
     serde(transparent)
 )]
-pub struct Ticks(pub u64);
+pub struct Ticks(
+    /// How many.
+    pub u64,
+);
 
 impl Ticks {
     /// No ticks at all.

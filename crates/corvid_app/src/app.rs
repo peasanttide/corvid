@@ -20,7 +20,7 @@ use corvid_hash::Digest;
 use corvid_input::Input;
 use corvid_replay::{LevelRef, Opening, Opens, Refused, Session, Shape};
 use corvid_signal::Emitter;
-use corvid_time::{Clock, Elapsed, Step, Tick, TickSpan};
+use corvid_time::{Clock, Elapsed, Step, Tick, TickSpan, Ticks};
 
 use crate::{
     Arguments, Requests, Retention,
@@ -254,7 +254,7 @@ pub struct App<G: Game> {
     /// How many ticks to run, if the caller said a number rather than a
     /// predicate. Turned into the tick to stop at in [`run`](Self::run), where
     /// the opening's first tick is known.
-    ticks: Option<u64>,
+    ticks: Option<Ticks>,
     /// Where to publish progress, if anywhere.
     progress: Option<Emitter<Progress>>,
     /// Whether a window was asked for. What it says is
@@ -654,9 +654,10 @@ where
     ///
     /// # Not with a transport
     ///
-    /// [`Error::BotsAndPeers`]. A seat filled locally is a seat every other
-    /// machine in the session would have to fill identically, and a controller
-    /// is not part of what a session records.
+    /// [`Error::BotsAndPeers`]. The bot is asked only where a run plays alone —
+    /// a linked run submits this client's action and never calls it — so a run
+    /// that took both would have accepted a number of bots and played none of
+    /// those seats.
     #[must_use]
     pub const fn bots(mut self, count: u16) -> Self {
         self.bots = count;
@@ -805,12 +806,17 @@ where
     /// tick five and is asked for ten ticks stops at fifteen, and the state the
     /// run leaves is the state at that tick.
     ///
-    /// `for_ticks(0)` stops before the first tick, which is a run of no ticks
-    /// rather than a run without end — the predicate is checked after each
-    /// tick, so the zero case is answered by the loop's own bound rather than
-    /// by the predicate, and [`Outcome::state`] is the opening state.
+    /// A [`Ticks`] rather than a `u64`, because a count and a point in time are
+    /// different things and this one is a count: the deadline it becomes is
+    /// [`Ticks::after`] the tick the run opened on, which is the arithmetic the
+    /// two types exist to keep apart.
+    ///
+    /// `for_ticks(Ticks::NONE)` stops before the first tick, which is a run of
+    /// no ticks rather than a run without end — the predicate is checked after
+    /// each tick, so the zero case is answered by the loop's own bound rather
+    /// than by the predicate, and [`Outcome::state`] is the opening state.
     #[must_use]
-    pub const fn for_ticks(mut self, ticks: u64) -> Self {
+    pub const fn for_ticks(mut self, ticks: Ticks) -> Self {
         self.ticks = Some(ticks);
         self
     }
@@ -872,14 +878,18 @@ where
     /// # Errors
     ///
     /// [`Error::Argument`] carrying [`Argument::NotALevel`] for a `--level`
-    /// whose JSON is not this game's level reference, and [`Error::Unopened`]
-    /// for a `--level` on an app that has no opening to name a level in.
+    /// whose JSON is not this game's level reference or
+    /// [`Argument::UnreadableLevel`] for one that is, and names a level this
+    /// game cannot load without its files; and [`Error::Unopened`] for a
+    /// `--level` on an app that has no opening to name a level in. All three
+    /// come from [`open_on`](Self::open_on), which is the only call here that
+    /// can fail.
     fn apply(mut self, arguments: Arguments) -> Result<Self, Error> {
         if arguments.headless {
             self = self.headless();
         }
         if let Some(ticks) = arguments.ticks {
-            self = self.for_ticks(ticks.0);
+            self = self.for_ticks(ticks);
         }
         if let Some(path) = arguments.record {
             self = self.record(path);
@@ -1188,7 +1198,7 @@ where
         let opened = resumed
             .as_ref()
             .map_or_else(|| session.first(), |(at, _)| *at);
-        let deadline = self.ticks.map(|ticks| Tick(opened.0.saturating_add(ticks)));
+        let deadline = self.ticks.map(|ticks| ticks.after(opened));
 
         // The one default that reads another setting. A run nobody is recording
         // keeps a window, and a run being written down keeps the lot — because
@@ -1461,6 +1471,12 @@ where
 /// Nothing here is a game's tick going wrong. A tick cannot fail — it returns a
 /// state — so every case below is about the session the loop was asked to play
 /// or about the filesystem it was asked to write to.
+///
+/// Every variant writes a sentence rather than leaving a reader to `Debug` it,
+/// and [`main`](crate::main) is what puts that sentence in front of an operator:
+/// it hands **none** of these back, printing each to stderr and stopping the
+/// process instead. A harness driving a run through [`launch`](App::launch) or
+/// [`run`](App::run) gets them by value and does as it likes.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
@@ -1471,9 +1487,9 @@ pub enum Error {
     /// a failure: `--help` is a request for the usage, and it arrives as an
     /// error because the parser that noticed it may not print.
     ///
-    /// [`main`](crate::main) hands **none** of these back. It writes the usage
-    /// to stdout for a `Help` and answers `Ok(())`, and writes any other
-    /// refusal to stderr and stops the process with status 2 — so every one of
+    /// [`main`](crate::main) answers this one apart from the rest: the usage to
+    /// stdout and a zero status for a `Help`, and any other refusal to stderr
+    /// with status 2 rather than the 1 a run that broke leaves — so every one of
     /// these is one a harness driving a run through [`launch`](App::launch) or
     /// [`arguments`](App::arguments) asked for, and can match on.
     #[error(transparent)]
@@ -1508,21 +1524,30 @@ pub enum Error {
     /// A run asked for both [`bots`](App::bots) and a
     /// [`transport`](App::transport).
     ///
-    /// A bot is a controller, and a controller is no part of what a session
-    /// records: every peer would have to run the same one over the same
-    /// settings to reach the same actions for the seats it filled, and nothing
-    /// on the wire says which peer that is. So the combination is refused here
-    /// rather than reconciled.
+    /// **The bot is only asked on the path a run with nobody else in it takes.**
+    /// A linked run submits this client's one action through
+    /// [`Peer::submit`](corvid_lockstep::Peer::submit) and never calls the bot
+    /// at all, so a run that accepted both would have taken a number of bots and
+    /// played none of those seats. What is refused here is that silence: a flag
+    /// that did nothing, on a run that looks from the outside like a run with
+    /// bots in it.
+    ///
+    /// Making it mean something is real work rather than a missing branch. A
+    /// bot's actions would have to reach the other machines, which means
+    /// submitting for a seat that is not this client's and agreeing across the
+    /// session on which peer is answering for it — neither of which the wire
+    /// says today.
     ///
     /// **A seat nobody is in still stalls a linked session**, which is what
     /// makes this worth stating rather than obvious: a column no peer writes
     /// pins the agreed frontier and every machine waits after
     /// [`Budget::ahead`](corvid_lockstep::Budget) ticks. Bots are not the
-    /// answer to that. What is, is a peer sitting in the seat.
+    /// answer to that, and would not be even if they were asked. What is, is a
+    /// peer sitting in the seat.
     #[cfg(feature = "net")]
     #[error(
-        "this run has {bots} bots and a transport, and every peer running its own bots would \
-         write the same seats' columns from controllers that are not hashed"
+        "this run has {bots} bots and a transport, and a linked run never asks the bot — so the \
+         seats asked for would have been played by nobody"
     )]
     BotsAndPeers {
         /// How many were asked for.

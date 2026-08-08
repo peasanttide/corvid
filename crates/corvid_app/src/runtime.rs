@@ -263,7 +263,8 @@ pub(crate) struct Runtime<G: Game, B> {
     stop: Option<Stop<G::State>>,
     /// The tick to stop *before*, if the caller asked for a fixed number of
     /// them. A count rather than a predicate, because the predicate is checked
-    /// after a tick has run and `for_ticks(0)` has to mean no ticks at all.
+    /// after a tick has run and `for_ticks(Ticks::NONE)` has to mean no ticks at
+    /// all.
     deadline: Option<Tick>,
     /// Where to publish progress, if the caller said.
     progress: Option<Emitter<Progress>>,
@@ -596,7 +597,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     fn advance(&mut self) -> Result<Flow, Error> {
         let asked = self.at;
         // The count is checked on both sides of the tick, and each side is
-        // there for a case the other misses. Before: `for_ticks(0)` is a run of
+        // there for a case the other misses. Before: no ticks at all is a run of
         // no ticks, and a check that only ran afterwards would have simulated
         // the one it was asked not to. After: the run has to stop on the
         // iteration whose tick reached the count, because stopping on the next
@@ -769,9 +770,11 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// **It is not a spectator mode for a session with an empty seat in it, and
     /// it is not safe at [`Budget::delay`](corvid_lockstep::Budget) zero.** A
     /// column nobody writes pins
-    /// [`Frontier::agreed`](corvid_lockstep::Frontier::agreed) at the opening
-    /// tick and stalls every peer in the session after
-    /// [`Budget::ahead`](corvid_lockstep::Budget) ticks, this one included; and
+    /// [`Frontier::agreed`](corvid_lockstep::Frontier::agreed) at
+    /// [`Tick::ZERO`] — a seat that has confirmed nothing counts as zero rather
+    /// than as the session's first tick — and stalls every peer in the session
+    /// after [`Budget::ahead`](corvid_lockstep::Budget) ticks, this one
+    /// included, which for a resumed session is the tick it opened on; and
     /// at `delay == 0` the idle row a spectator's datagram carries for the
     /// watched seat collides with the real action the machine in that seat
     /// wrote for the same tick, which is
@@ -1003,7 +1006,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     ///
     /// `dt` is the same interval the [`Step`] was advanced by, which is the
     /// only wall-clock quantity either half of a game ever sees and is the one
-    /// [`look`](corvid_present::Present::look) is specified to take.
+    /// [`look`](corvid_control::Controller::look) is specified to take.
     fn display(&mut self, alpha: Factor16, dt: Duration) -> Result<(), Error> {
         // Three views of one instant, so one frame is built and cloned twice
         // rather than three being built from the same fields. A clone is four

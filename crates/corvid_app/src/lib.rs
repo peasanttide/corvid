@@ -50,8 +50,10 @@ pub use settings::Settings;
 
 /// What a run answers with: nothing, or why it could not play.
 ///
-/// The default parameter is what a game's `main` writes — `fn main() ->
-/// corvid_app::Result` — and the parameter is there for the calls that hand
-/// something back, so that a harness naming this type once does not also have
-/// to name [`Error`].
+/// The default parameter is what a harness driving a run by hand writes — `fn
+/// main() -> corvid_app::Result` around an [`App::launch`] — and the parameter
+/// is there for the calls that hand something back, so that a harness naming
+/// this type once does not also have to name [`Error`]. A game whose `main` is
+/// [`main`] names neither: that one prints its own reasons and stops the
+/// process, so there is nothing left for a return type to carry.
 pub type Result<T = ()> = core::result::Result<T, Error>;

@@ -10,7 +10,7 @@ use corvid_hash::digest;
 use corvid_input::Input;
 use corvid_replay::LevelRef;
 use corvid_replay::{Opening, Opens};
-use corvid_time::{Tick, TickSpan};
+use corvid_time::{Tick, TickSpan, Ticks};
 
 use crate::{Diverged, Failed, What};
 
@@ -73,7 +73,7 @@ impl<S: State + Opens, C: corvid_control::Controller<S>> Game for Twice<S, C> {
 ///
 /// # The bounds
 ///
-/// Three, and the signature carries every one of them:
+/// Four, and the signature carries every one of them:
 ///
 /// | | Why |
 /// |---|---|
@@ -196,7 +196,7 @@ where
         })
         .input(input)
         .retain(Retention::Everything)
-        .for_ticks(ticks.max(1))
+        .for_ticks(Ticks(ticks.max(1)))
         .run()
         .map_err(Failed::Refused)
 }

@@ -25,10 +25,11 @@ no flag list of this game's own: every one of those is
 [`corvid::Arguments`](../../crates/corvid_app/src/cli.rs), and the whole of
 `src/main.rs` is the five types this game is and how long its tick lasts.
 
-Bots and a peer are refused together, on purpose. A controller is no part of
-what a session records, so a machine that filled a seat locally while another
-machine was in the same session would be writing a column the other one writes
-differently.
+Bots and a peer are refused together, on purpose. The bot is asked only on the
+path a run with nobody else in it takes — a linked run submits this machine's
+own action and never calls it — so a run that accepted both would have taken the
+number and played none of those seats. The refusal is what stops that being a
+silent no-op.
 
 The two-process pair with `--headless` is the same session with nobody watching
 it: two processes, two sockets, and the same digest printed by each.

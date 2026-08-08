@@ -2,7 +2,7 @@
 //! it is not there.
 //!
 //! A game states the table it ships in
-//! [`Present::bindings`](corvid_present::Present::bindings). That is the
+//! [`Controller::bindings`](corvid_control::Controller::bindings). That is the
 //! author's answer, and it is the right one until somebody wants `Q` where the
 //! game put `E`. This module is the player's answer, and it wins.
 //!

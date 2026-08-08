@@ -28,6 +28,7 @@ use std::path::Path;
 
 use corvid::Input;
 use corvid::Retention;
+use corvid::Ticks;
 use corvid::{Acting, App, Camera, Controller, Game, SetDescriptor, TickSpan, Updating};
 
 use corvid::PlayerId;
@@ -136,7 +137,7 @@ fn draw_into(into: &Path) -> Result<bool, Box<dyn std::error::Error>> {
         .offscreen(SIZE)
         .capture(into.to_path_buf())
         .retain(Retention::Everything)
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run();
 
     match played {

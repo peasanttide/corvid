@@ -26,7 +26,7 @@ use corvid_behavior::{ExitCode, PlayerId};
 use corvid_hash::Digest;
 use corvid_replay::Opens;
 use corvid_signal::channel;
-use corvid_time::{Clock, Tick, TickSpan};
+use corvid_time::{Clock, Tick, TickSpan, Ticks};
 use corvid_wire::golden::{DigestRow, check_digests};
 
 /// How far the runs below play.
@@ -41,7 +41,7 @@ fn play(rules: Rules) -> corvid_app::Outcome<Counting> {
     App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(rules))
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .unwrap()
 }
@@ -55,14 +55,14 @@ fn the_sandbox_is_the_builder_lines_it_stands_for() {
     // file the machine this runs on happens to have. A sandbox that dropped any
     // of the five would be a run whose trace is not this one.
     let elsewhere = Scratchpad::new("sandbox");
-    let sandboxed = Counting::app().for_ticks(TICKS).run().unwrap();
+    let sandboxed = Counting::app().for_ticks(Ticks(TICKS)).run().unwrap();
     let written_out = App::<Counting>::new()
         .opening(<Tally as Opens>::opening())
         .rate(<Counting as Game>::PERIOD)
         .headless()
         .state(elsewhere.path())
         .settings(Settings::default())
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .unwrap();
 
@@ -183,7 +183,7 @@ fn a_headless_run_is_not_paced_by_the_time_it_simulates() {
         .headless()
         .rate(rate)
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(300)
+        .for_ticks(Ticks(300))
         .run()
         .unwrap();
     let spent = started.elapsed();
@@ -205,7 +205,7 @@ fn the_input_the_app_was_given_reaches_intend() {
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .input(resting())
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .unwrap();
 
@@ -231,7 +231,7 @@ fn asking_for_the_headless_backend_changes_nothing() {
     let with = play(Rules::quiet());
     let without = App::<Counting>::new()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(TICKS)
+        .for_ticks(Ticks(TICKS))
         .run()
         .unwrap();
 
@@ -276,7 +276,7 @@ fn for_ticks_of_zero_is_a_run_of_no_ticks() {
     let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(0)
+        .for_ticks(Ticks(0))
         .run()
         .unwrap();
 
@@ -345,7 +345,7 @@ fn for_ticks_counts_from_the_openings_first_tick_and_not_from_zero() {
     let run = App::<Counting>::new()
         .headless()
         .opening(opening)
-        .for_ticks(PLAYS)
+        .for_ticks(Ticks(PLAYS))
         .run()
         .unwrap();
 
@@ -393,7 +393,7 @@ fn the_clock_the_app_was_given_is_what_decides_how_often_a_tick_runs() {
         .clock(Clock::stepping(rate.period() / 4))
         .opening(opening::<Tally>(Rules::quiet()))
         .progress(emit)
-        .for_ticks(4)
+        .for_ticks(Ticks(4))
         .run()
         .unwrap();
 
@@ -417,7 +417,7 @@ fn the_clock_the_app_was_given_is_what_decides_how_often_a_tick_runs() {
         .rate(rate)
         .opening(opening::<Tally>(Rules::quiet()))
         .progress(emit)
-        .for_ticks(4)
+        .for_ticks(Ticks(4))
         .run()
         .unwrap();
 
@@ -443,7 +443,7 @@ fn this_client_submits_for_the_seat_it_was_given_and_for_no_other() {
         .headless()
         .opening(attendance(vec![seat(1000), seat(1001), seat(1002)]))
         .seat(MINE)
-        .for_ticks(3)
+        .for_ticks(Ticks(3))
         .run()
         .unwrap();
 
@@ -498,7 +498,7 @@ fn the_clock_decides_how_many_ticks_a_reading_owes() {
         .rate(rate)
         .clock(Clock::stepping(rate.period() * 3 / 2))
         .opening(attendance(vec![seat(1000)]))
-        .for_ticks(4)
+        .for_ticks(Ticks(4))
         .run()
         .unwrap();
 
@@ -560,7 +560,7 @@ fn frames_of(app: App<Counting>) -> u64 {
             finished: false,
         },
     );
-    let run = app.progress(emit).for_ticks(8).run().unwrap();
+    let run = app.progress(emit).for_ticks(Ticks(8)).run().unwrap();
     assert_eq!(run.session.last(), Tick(8));
     watch.get().frames
 }
@@ -574,7 +574,7 @@ fn a_seat_the_roster_does_not_have_is_refused() {
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .seat(PlayerId(1))
-        .for_ticks(1)
+        .for_ticks(Ticks(1))
         .run();
 
     match refused {
@@ -598,7 +598,7 @@ fn a_resumed_run_checks_its_seat_against_the_roster_it_is_resuming() {
         .headless()
         .opening(attendance(vec![seat(1000), seat(1001)]))
         .capture(&capture)
-        .for_ticks(4)
+        .for_ticks(Ticks(4))
         .run()
         .unwrap();
 
@@ -615,7 +615,7 @@ fn a_resumed_run_checks_its_seat_against_the_roster_it_is_resuming() {
         ]))
         .replay(capture.join("session"))
         .seat(PlayerId(3))
-        .for_ticks(1)
+        .for_ticks(Ticks(1))
         .run();
 
     match refused {
@@ -663,7 +663,7 @@ fn a_run_reports_where_it_has_got_to_while_it_is_still_running() {
             .headless()
             .opening(opening::<Tally>(Rules::quiet()))
             .progress(emit)
-            .for_ticks(TICKS)
+            .for_ticks(Ticks(TICKS))
             .run()
             .unwrap()
             .session

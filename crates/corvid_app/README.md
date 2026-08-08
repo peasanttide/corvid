@@ -18,7 +18,7 @@ use corvid_app::{App, Game};
 use corvid_control::Controller;
 use corvid_behavior::{ProfileId, State};
 use corvid_replay::{Opening, Opens, Profile, Schema, Seed, Snapshots};
-use corvid_time::{Tick, TickSpan};
+use corvid_time::{Tick, TickSpan, Ticks};
 # use corvid_behavior::{Command, Level, Player};
 # use corvid_files::{Malformed, Source};
 # use serde::{Deserialize, Serialize};
@@ -128,7 +128,7 @@ assert_eq!(run.session.last(), Tick(100));
 let counted = App::<Climbing>::new()
     .headless()
     .opening(opening())
-    .for_ticks(100)
+    .for_ticks(Ticks(100))
     .run()?;
 assert_eq!(counted.session.last(), Tick(100));
 assert_eq!(counted.state, run.state);
@@ -211,7 +211,7 @@ runs agreeing with each other only says the loop is a function of *something*,
 so a frozen table of digests says which function; and because a wall clock
 reaching `look` would move the actions this client submits — the fixture game
 folds the simulated seconds it has been handed into its own `intend`, which
-`corvid_present` warns is a display-rate quantity reaching an action — a run that
+`corvid_control` warns is a display-rate quantity reaching an action — a run that
 read a real clock records a different action at two named ticks. The timing claim
 is checked as a bound rather than as a number: three hundred ticks of a
 twenty-second game finish in under a tenth of the time they simulate, with two
@@ -340,7 +340,7 @@ Three things stop a run, and a run that names none of them does not return.
 |---|---|
 | `Quit` | a tick asked to, and the [`Outcome`]'s status is the one it named |
 | `until` | the predicate said so, given the state a tick produced **and that state's tick** |
-| `for_ticks(n)` | `n` ticks have run, counted from the opening's first tick |
+| `for_ticks(Ticks(n))` | `n` ticks have run, counted from the opening's first tick |
 
 The tick in `until` is there because of what its absence cost. A predicate that
 was handed only the state could not say "a hundred ticks" without the game
@@ -350,7 +350,7 @@ every peer exchanges every tick. `tests/common/mod.rs`'s third fixture has no
 such counter, and the tests that use it are runs of a fixed length.
 
 `for_ticks` is the same condition written once. It is a count rather than a
-predicate, which is what lets `for_ticks(0)` be a run of no ticks: the count is
+predicate, which is what lets `for_ticks(Ticks::NONE)` be a run of no ticks: the count is
 checked on both sides of a tick, so zero stops before the first one and `n`
 stops on the iteration whose tick reached `n` rather than one iteration later.
 Naming both a count and a predicate is allowed and stops at whichever comes
@@ -375,7 +375,7 @@ declaration without it says [`game!`] and writes this — there is no third
 spelling:
 
 ```rust,ignore
-fn main() -> corvid_app::Result {
+fn main() {
     corvid_app::main::<Bounce>()
 }
 ```
@@ -404,7 +404,7 @@ and only one of them would be tested.
 | `--record FILE` | write the session to `FILE` as the run plays |
 | `--state DIR` | put this game's saves, settings and bindings under `DIR` |
 | `--seat N` | which seat this machine plays |
-| `--listen PORT`, `--connect HOST:PORT` | the socket the other machine is behind |
+| `--listen PORT --connect HOST:PORT` | the socket the other machine is behind, and either without the other is refused |
 | `--help`, `-h` | the usage |
 
 Every one of those is a thing the *operator* decides: whether this machine has a
@@ -492,10 +492,10 @@ over a harness's `.seat(1)`, where the run they get is the harness's).
 
 **`--help` is not a failure, and [`main`] answers it.** An operator who asked for
 the usage got what they asked for: [`main`] writes [`Arguments::USAGE`] to
-**stdout** and answers `Ok(())`, so the process exits zero and a shell script
-does not have to special-case it. It travels that far as an error only because
-the parser that noticed it may not print — this crate denies the printing macros,
-a library that reaches for somebody's stdout being one they cannot silence — so
+**stdout** and the process exits zero, so a shell script does not have to
+special-case it. It travels that far as an error only because the parser that
+noticed it may not print — this crate denies the printing macros, a library that
+reaches for somebody's stdout being one they cannot silence — so
 [`Arguments::parse`] reports [`Argument::Help`], whose `Display` *is* the usage,
 and [`main`] is the one place in the crate that writes it.
 
@@ -504,13 +504,21 @@ arrangement, one stream over: [`main`] writes the reason and the usage to
 **stderr** and stops the process with status 2. Handing it back as an `Err`
 instead would leave the runtime to print it — with `Debug`, so an operator would
 read `Argument(Conflicting { flags: [...] })` and no list of what the runtime
-accepts — and would collapse it to status 1, which is what any other failed run
-exits with.
+accepts.
+
+**A run that broke gets the same treatment, at status 1.** [`Error`] writes a
+sentence for each of its variants — which file could not be written and why,
+which port would not bind, which tick two peers disagreed at — and a `main` that
+returned the error would show none of them, because the runtime prints a
+returned `Err` with `Debug`. So [`main`] returns nothing at all: 0 for a run that
+finished or a `--help`, 1 for a run that could not finish, 2 for a command line
+nobody could act on, and each of the last two carrying the sentence that says
+why.
 
 A harness driving a run through [`App::launch`] rather than through [`main`]
-gets the `Argument` back, printed nowhere, and does as it likes with it. Nothing
-here takes a command-line parsing dependency: eleven flags, no subcommands, and
-no completion is less code than the manifest entry would be.
+gets every one of those back, printed nowhere, and does as it likes with them.
+Nothing here takes a command-line parsing dependency: eleven flags, no
+subcommands, and no completion is less code than the manifest entry would be.
 
 ## The command sink
 
@@ -579,7 +587,7 @@ seats at all, because a run recording its actions nowhere would replay as a run
 in which this client did nothing and a run with nobody to look through has
 nothing to draw.
 
-What the **caller owes**: everything `corvid_behavior` and `corvid_present` say
+What the **caller owes**: everything `corvid_behavior` and `corvid_control` say
 they owe, and this is the call site that makes all of it load-bearing. A `Clone`
 that is not a copy, a `look` that writes a `State` through interior mutability,
 an `intend` whose action names a screen pixel — none of those is refused here,
@@ -615,12 +623,15 @@ nothing and [`App::spectating`] with `bots(2)` fills both seats of a two-seat
 game.
 Asking for more bots than the roster has fills the seats there are.
 
-Bots and a transport together are [`Error::BotsAndPeers`]. A controller is no
-part of what a session records, so two peers each filling the same seat locally
-would be two answers to one column with nothing on the wire to choose between
-them. That is a refusal rather than a fix for the paragraph below: a seat no peer
-writes still stalls a linked session, and what answers *that* is a peer sitting
-in it.
+Bots and a transport together are [`Error::BotsAndPeers`]. The bot is asked only
+on the path a run with nobody else in it takes: a linked run submits this
+client's one action through [`Peer::submit`](corvid_lockstep::Peer::submit) and
+never calls the bot, so a run that took both would have accepted the number and
+played none of those seats. The refusal is what stops that being a silent no-op,
+and making it mean something instead would mean submitting for seats that are not
+this client's and agreeing across the session on which peer answers for them.
+Either way it is not a fix for the paragraph below: a seat no peer writes still
+stalls a linked session, and what answers *that* is a peer sitting in it.
 
 Over a transport the same distinction is one call rather than a mode.
 [`Peer::submit`](corvid_lockstep::Peer::submit) is separate from
