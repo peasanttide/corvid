@@ -27,6 +27,7 @@ use crate::{
     commands::{Answer, Sink},
     game::Game,
     saves::{Saves, StateAt},
+    seating::Seating,
 };
 use corvid_behavior::State;
 
@@ -40,8 +41,8 @@ use corvid_behavior::State;
 pub(crate) struct Plan<S: State> {
     /// The session, already at its opening.
     pub(crate) session: Session<S>,
-    /// Which seat this client's action is recorded against.
-    pub(crate) seat: PlayerId,
+    /// Which seat this client looks through, and whether it plays it.
+    pub(crate) seating: Seating,
     /// The transport the other machines are behind, for a run that has any.
     ///
     /// [`None`] is one seat and no network, which is what every example did
@@ -181,8 +182,14 @@ pub(crate) struct Runtime<G: Game, B> {
     /// The session being played, which is the run's whole output, and whoever
     /// is playing it.
     play: Play<G::State>,
-    /// Which seat this client's action is recorded against.
-    seat: PlayerId,
+    /// Which seat this client looks through, and whether it plays it.
+    ///
+    /// Everything that is about *watching* — the controller's `update`, its
+    /// camera, and so the renderer and the ear — reads
+    /// [`watched`](Seating::watched), which is always a seat. The one thing
+    /// that reads [`playing`](Seating::playing) is the write into the log, and
+    /// the call that decides what to write.
+    seating: Seating,
     /// The game's caches, carried from tick to tick.
     /// The state at [`at`](Self::at) minus one.
     previous: Arc<G::State>,
@@ -319,9 +326,13 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         #[cfg(feature = "net")]
         let playing = match plan.transport.take() {
             Some(transport) => {
+                // The watched seat, whether or not it is played: a peer is a
+                // seat's place in the session, and a spectator watching a seat
+                // somebody else fills is one that submits nothing and folds in
+                // what arrives for it.
                 let mut link = Box::new(crate::net::Link::new(
                     plan.session,
-                    plan.seat,
+                    plan.seating.watched(),
                     plan.budget,
                     transport,
                 ));
@@ -343,7 +354,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             graphics,
             ear,
             play: playing,
-            seat: plan.seat,
+            seating: plan.seating,
             previous,
             current,
             at,
@@ -560,11 +571,18 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         // The one call that is the same on both paths, and the reason a game
         // implements nothing to play over a network: what goes on the wire is
         // whatever this returns.
-        let action = self.controller.action(Acting {
-            state: &self.current,
-            input: self.acting(),
-            time: self.now(),
-            seat: self.seat,
+        //
+        // Not made at all by a client that plays nobody. A spectator with no
+        // action to submit has no question to ask its controller, and asking
+        // anyway would run a game's decision code once per tick to throw the
+        // answer away.
+        let action = self.seating.playing().map(|seat| {
+            self.controller.action(Acting {
+                state: &self.current,
+                input: self.acting(),
+                time: self.now(),
+                seat,
+            })
         });
         let commands = match &mut self.play {
             Play::Local(_) => self.advance_alone(asked, action)?,
@@ -612,26 +630,31 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// One tick with nobody else in the session: write this machine's action
     /// into the log, simulate it, and shift the displayed pair by one.
     ///
-    /// This is what every run did before there was a transport, unchanged: the
-    /// action is recorded against this client's seat, `tick` is called with the
-    /// roster the session says was seated, and the digest of what came out goes
-    /// into the trace.
+    /// The action is recorded against this client's seat, `tick` is called with
+    /// the roster the session says was seated, and the digest of what came out
+    /// goes into the trace.
+    ///
+    /// The row is grown either way and the write is what a spectator skips: a
+    /// row nobody wrote reads [`Action::default`](Default::default), which is
+    /// what a seat nobody is submitting for holds, and it is the same row a
+    /// seat driven by a bot or by a peer would have had filled in.
     fn advance_alone(
         &mut self,
         asked: Tick,
-        action: <G::State as State>::Action,
+        action: Option<<G::State as State>::Action>,
     ) -> Result<Vec<Command<LevelRef<G::State>>>, Error> {
         self.play
             .session_mut()
             .log
             .extend_to(asked)
             .map_err(Error::Log)?;
-        let seat = self.seat;
-        self.play
-            .session_mut()
-            .log
-            .set(asked, seat, action)
-            .map_err(Error::Log)?;
+        if let Some((seat, action)) = self.seating.playing().zip(action) {
+            self.play
+                .session_mut()
+                .log
+                .set(asked, seat, action)
+                .map_err(Error::Log)?;
+        }
 
         let (next, commands) = self.simulate();
         self.play.session_mut().marks.push(digest(&next));
@@ -659,10 +682,17 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// it was, because a datagram corrected a prediction and the rollback went
     /// deeper than one tick. So the display's tick and its pair are read back
     /// off the peer rather than incremented here.
+    ///
+    /// [`None`] is a client that plays nobody: the peer submits nothing and
+    /// only receives, predicts and simulates. That is expressible because
+    /// submitting is a call of its own — [`Peer::submit`](corvid_lockstep::Peer::submit)
+    /// — rather than an argument to
+    /// [`advance`](corvid_lockstep::Peer::advance), and a row this machine
+    /// never wrote is predicted for exactly as any other seat's is.
     #[cfg(feature = "net")]
     fn advance_linked(
         &mut self,
-        action: <G::State as State>::Action,
+        action: Option<<G::State as State>::Action>,
     ) -> Result<Vec<Command<LevelRef<G::State>>>, Error> {
         let was = self.at;
         let Play::Linked(link) = &mut self.play else {
@@ -904,7 +934,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             loading: None,
             time,
             dt,
-            seat: self.seat,
+            seat: self.seating.watched(),
         });
         self.persist_settings();
         let camera = self.controller.look();

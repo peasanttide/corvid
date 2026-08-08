@@ -23,6 +23,7 @@ use crate::{
     headless::Headless,
     runtime::{Plan, Runtime},
     saves::{NotASave, Saves, StateAt},
+    seating::Seating,
     settings::Settings,
 };
 
@@ -206,8 +207,8 @@ pub struct App<G: Game> {
     clock: Option<Box<dyn Elapsed>>,
     /// How often a tick runs.
     rate: TickSpan,
-    /// Which seat this client submits for.
-    seat: PlayerId,
+    /// Which seat this client watches, and whether it plays it.
+    seating: Seating,
     /// What carries this client's actions to the other machines, if there are
     /// any. See [`transport`](Self::transport).
     #[cfg(feature = "net")]
@@ -286,7 +287,7 @@ where
             opening: None,
             clock: None,
             rate: G::PERIOD,
-            seat: PlayerId(0),
+            seating: Seating::default(),
             #[cfg(feature = "net")]
             transport: None,
             #[cfg(feature = "net")]
@@ -519,7 +520,7 @@ where
         self
     }
 
-    /// Which seat this client submits an action for.
+    /// Which seat this client submits an action for, and looks through.
     ///
     /// The default is seat zero. Without a [`transport`](Self::transport) this
     /// is the only seat any action is recorded against and every other seat in
@@ -529,7 +530,30 @@ where
     /// is [`Error::Seat`] either way.
     #[must_use]
     pub const fn seat(mut self, seat: PlayerId) -> Self {
-        self.seat = seat;
+        self.seating = Seating::Playing(seat);
+        self
+    }
+
+    /// Watch a seat without playing it.
+    ///
+    /// The camera, the renderer and the ears are the watched seat's, and
+    /// nothing is submitted for it: the column is filled by a peer or a bot, or
+    /// holds the idle action. The controller is not asked for one either —
+    /// [`action`](corvid_control::Controller::action) is not called at all on a
+    /// run that plays nobody — so a spectator costs the run the whole of what
+    /// deciding an action costs rather than only the write.
+    ///
+    /// The seat watched is the roster's first. It is written here as
+    /// [`PlayerId(0)`](PlayerId) and checked against the roster when the run
+    /// opens, because that is when the roster is known: a `--load` or a
+    /// [`replay`](Self::replay) plays the roster it resumed rather than the one
+    /// the builder was handed.
+    ///
+    /// Undoes [`seat`](Self::seat), and is undone by it, whichever is written
+    /// second — the two are one setting.
+    #[must_use]
+    pub const fn spectating(mut self) -> Self {
+        self.seating = Seating::Watching(PlayerId(0));
         self
     }
 
@@ -823,7 +847,8 @@ where
     /// # Errors
     ///
     /// [`Error::Unopened`] if no opening was given, [`Error::Shape`] if the
-    /// opening cannot be made into a session, [`Error::Seat`] if the seat is not
+    /// opening cannot be made into a session, [`Error::NoSeats`] if that
+    /// session's roster is empty, [`Error::Seat`] if the seat is not
     /// in the roster of the session the run ends up playing, [`Error::Log`] if
     /// the action log refuses a write, and [`Error::Wrote`] or
     /// [`Error::Encoded`] if a capture cannot be written. A run with a device
@@ -882,13 +907,14 @@ where
     }
 
     /// Everything a run needs that does not depend on which backend it gets:
-    /// the session, the seat it is played from, the capture, and the plan the
+    /// the session, the seat it is watched from, the capture, and the plan the
     /// runtime is driven by.
     ///
     /// # Errors
     ///
-    /// [`Error::Unopened`], [`Error::Shape`], [`Error::Seat`], and whatever
-    /// opening a capture directory or reading a save reported.
+    /// [`Error::Unopened`], [`Error::Shape`], [`Error::NoSeats`],
+    /// [`Error::Seat`], and whatever opening a capture directory or reading a
+    /// save reported.
     fn prepare(&mut self) -> Result<(Plan<G::State>, Option<Capture>), Error> {
         let opening = self.opening.take().ok_or(Error::Unopened)?;
         let saves = Saves::resolve(self.saves.take(), <G::State as State>::NAME);
@@ -902,9 +928,16 @@ where
         // later as `Error::Log`, at the write, with nothing saying which seat
         // was wrong.
         let seats = session.opening.roster.len();
-        if usize::from(self.seat.0) >= seats {
+        // First, because "seat zero is not one of the zero seats" is a true
+        // thing to say and a useless one to read: what is wrong with an empty
+        // roster is the roster, and it is wrong for a spectator exactly as much
+        // as for a player.
+        if seats == 0 {
+            return Err(Error::NoSeats);
+        }
+        if usize::from(self.seating.watched().0) >= seats {
             return Err(Error::Seat {
-                seat: self.seat,
+                seat: self.seating.watched(),
                 seats,
             });
         }
@@ -932,7 +965,7 @@ where
         });
         let plan = Plan {
             session,
-            seat: self.seat,
+            seating: self.seating,
             #[cfg(feature = "net")]
             transport: self.transport.take(),
             #[cfg(feature = "net")]
@@ -1200,21 +1233,22 @@ pub enum Error {
     /// No [`opening`](App::opening) was given.
     #[error("this app has no opening, and nothing can invent a game's opening state for it")]
     Unopened,
-    /// The [`seat`](App::seat) is not one the roster of the session being played
-    /// has.
+    /// The seat this client would watch is not one the roster of the session
+    /// being played has.
     ///
     /// A run with nobody in the seat it submits for would record its actions
     /// nowhere, and a replay of it would be a replay of a session in which this
-    /// client did nothing at all. A roster with nobody in it lands here too,
-    /// whatever the seat.
+    /// client did nothing at all. It is refused for a
+    /// [`spectating`](App::spectating) run too, where there is nothing to
+    /// record and still nothing to look through.
     ///
     /// The roster is the one the run plays with rather than the one the builder
     /// was handed: a [`load`](App::load) or a [`replay`](App::replay) discards
     /// the game's fresh opening and carries the saved session's roster on, so a
     /// seat is checked against that one.
     #[error(
-        "this client submits for seat {} and the roster has {seats}, so there would be nowhere \
-         to record what it did",
+        "this client watches seat {} and the roster has {seats}, so there would be nobody to \
+         look through and nowhere to record what it did",
         seat.0
     )]
     Seat {
@@ -1223,6 +1257,15 @@ pub enum Error {
         /// How many the roster has.
         seats: usize,
     },
+    /// The roster has no seats, so there is nobody to watch and no run.
+    ///
+    /// Separate from [`Seat`](Self::Seat) and checked before it, because the
+    /// seat is not what is wrong: an empty roster has no seat to name and no
+    /// camera to offer, so a spectator is refused by it exactly as a player is.
+    #[error(
+        "this session has no seats in its roster, so there is nobody to play and nobody to watch"
+    )]
+    NoSeats,
     /// The opening could not be made into a session.
     #[error("the opening is not a session: {0}")]
     Shape(#[source] Shape),

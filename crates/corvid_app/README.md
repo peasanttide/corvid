@@ -499,8 +499,10 @@ app was given, so a run driven by a fake clock is a run whose ticks and whose
 `look` intervals are the fake's; the roster is rebuilt from the opening and the
 log every tick rather than remembered, so there is no fourth input a capture does
 not record; the action a tick sees comes out of the log; and a run refuses to
-start when the seat it submits for is not in the roster, because a run recording
-its actions nowhere would replay as a run in which this client did nothing.
+start when the seat it watches is not in the roster, or when the roster has no
+seats at all, because a run recording its actions nowhere would replay as a run
+in which this client did nothing and a run with nobody to look through has
+nothing to draw.
 
 What the **caller owes**: everything `corvid_behavior` and `corvid_present` say
 they owe, and this is the call site that makes all of it load-bearing. A `Clone`
@@ -509,6 +511,32 @@ an `intend` whose action names a screen pixel — none of those is refused here,
 and each of them is a run that does not replay to what it ran. A `static` with interior mutability survives every check in this workspace;
 what would find one is two peers that are genuinely two processes comparing
 digests, and nothing here runs two processes.
+
+## The seat a client watches, and the seat it plays
+
+Two questions, and [`Seating`] is one value that answers both. A client always
+watches a seat — the camera is somebody's, and so are the renderer and the ears
+that follow it — so [`Seating::watched`] is a `PlayerId` and not an `Option`,
+and it is what `update`, `look`, `draw` and `hear` are handed. Whether the same
+client also submits an action is the other question, and [`Seating::playing`]
+is the `Option`.
+
+[`App::seat`] answers both with one seat, which is a person playing a game.
+[`App::spectating`] answers the first and declines the second: the run looks
+through the roster's first seat and submits nothing for it, so the column is
+filled by whatever else fills it — a peer on another machine, or the idle
+action a row nobody wrote already holds. The controller is not asked for an
+action at all, which is worth stating because it is more than skipping the
+write: a game's decision code does not run on a client that has decided
+nothing.
+
+Over a transport the same distinction is one call rather than a mode.
+[`Peer::submit`](corvid_lockstep::Peer::submit) is separate from
+[`Peer::advance`](corvid_lockstep::Peer::advance), so a client that plays
+nobody simply does not submit; it still receives, folds in corrections,
+predicts and simulates, and it still sends a datagram, because acknowledging
+what it has heard is what keeps everyone else's window reaching back far enough
+to catch it up.
 
 ## Three backends, one loop
 

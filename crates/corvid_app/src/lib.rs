@@ -26,6 +26,7 @@ mod runtime;
 mod saves;
 #[cfg(feature = "render")]
 mod screen;
+mod seating;
 mod settings;
 
 #[cfg(feature = "window")]
@@ -41,6 +42,7 @@ pub use game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig}
 pub use net::{Departures, TickTraffic, Traffic, seat_of};
 pub use retention::Retention;
 pub use saves::NotASave;
+pub use seating::Seating;
 pub use settings::Settings;
 
 /// What a run answers with: nothing, or why it could not play.

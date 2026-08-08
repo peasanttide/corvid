@@ -406,6 +406,14 @@ impl<S: State> Link<S> {
 
     /// One tick: submit, receive, advance, send.
     ///
+    /// [`None`] is a client that plays nobody. Nothing is submitted and the
+    /// rest of the tick is unchanged — a peer receives, folds in, predicts and
+    /// simulates whether or not it has spoken, and the seat it watches is
+    /// predicted for out of whatever the machine actually sitting in it sent.
+    /// What goes out is still a datagram, because acknowledging what this
+    /// machine has heard is what keeps everyone else's window reaching back far
+    /// enough to catch it up.
+    ///
     /// The sink is the caller's, for the reason it is everywhere
     /// else in this workspace — a rollback simulates with it, so it cannot be
     /// borrowed from the loop for the length of the call — and the commands
@@ -423,7 +431,7 @@ impl<S: State> Link<S> {
     /// anybody could stop.
     pub(crate) fn play(
         &mut self,
-        action: S::Action,
+        action: Option<S::Action>,
         command: &mut impl corvid_behavior::Command<Reference = LevelRef<S>>,
     ) -> Result<(), crate::Error> {
         let mut traffic = TickTraffic::default();
@@ -431,7 +439,9 @@ impl<S: State> Link<S> {
         // This machine's own intent, for `now + Budget::delay`. It goes in
         // before the sending below, so the datagram this tick puts on the wire
         // already carries it.
-        self.peer.submit(action).map_err(refused)?;
+        if let Some(action) = action {
+            self.peer.submit(action).map_err(refused)?;
+        }
 
         self.collect(&mut traffic)?;
 
