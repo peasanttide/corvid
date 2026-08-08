@@ -26,9 +26,7 @@
 
 use std::{fs, path::Path, process::Command};
 
-use corvid_test::{
-    BLESS, FLAVOUR, Finding, How, Mismatch, Scratchpad, hex, matches_goldens, unhex,
-};
+use corvid_test::{BLESS, Finding, How, Mismatch, Scratchpad, hex, matches_goldens, unhex};
 
 /// Writes `contents` at `path`, creating the directories above it.
 fn put(path: &Path, contents: &[u8]) {
@@ -43,7 +41,7 @@ fn capture(scratchpad: &Scratchpad) -> &Path {
     scratchpad.path()
 }
 
-/// A goldens directory holding what [`capture`] writes, blessed by this build.
+/// A goldens directory holding what [`capture`] writes.
 fn goldens(scratchpad: &Scratchpad) -> &Path {
     put(
         &scratchpad.path().join("trace.hex"),
@@ -52,10 +50,6 @@ fn goldens(scratchpad: &Scratchpad) -> &Path {
     put(
         &scratchpad.path().join("draw").join("42.hex"),
         hex(&[0xab, 0xcd]).as_bytes(),
-    );
-    put(
-        &scratchpad.path().join(FLAVOUR),
-        format!("{}\n", corvid_app::flavour()).as_bytes(),
     );
     scratchpad.path()
 }
@@ -401,75 +395,4 @@ fn a_golden_is_wrapped_where_a_person_can_read_it() {
     let text = hex(&(0..96_u8).collect::<Vec<u8>>());
     assert_eq!(text.lines().count(), 3);
     assert!(text.lines().all(|line| line.len() == 64), "{text}");
-}
-
-#[test]
-fn goldens_blessed_by_the_other_build_are_refused_rather_than_reported_as_moved() {
-    // The whole point of the marker. `dev` and plain builds are specified to
-    // compute different states for a game that reads its scratch, so a
-    // comparison across the pair moves every golden at once — which is exactly
-    // what a capture-format change looks like, and what a wrong answer to the
-    // question the caller asked looks like.
-    let (one, two) = (
-        Scratchpad::new("flavour-capture"),
-        Scratchpad::new("flavour-goldens"),
-    );
-    let (capture, goldens) = (capture(&one), goldens(&two));
-    put(goldens.join(FLAVOUR).as_path(), b"a-third-thing\n");
-
-    let Err(mismatch) = matches_goldens(capture, goldens) else {
-        panic!("the comparison ran against goldens another build blessed");
-    };
-    let Mismatch::Flavour {
-        blessed: Some(ref blessed),
-        running,
-        ..
-    } = mismatch
-    else {
-        panic!("{mismatch}");
-    };
-    assert_eq!(blessed, "a-third-thing");
-    assert_eq!(running, corvid_app::flavour());
-
-    // And the message says both names and what to do, because "the goldens do
-    // not match" is the report this exists to replace.
-    let message = mismatch.to_string();
-    assert!(message.contains("a-third-thing"), "{message}");
-    assert!(message.contains(running), "{message}");
-}
-
-#[test]
-fn goldens_that_do_not_say_which_build_blessed_them_are_refused() {
-    // A frozen set with no marker is one that will be compared against the wrong
-    // build eventually, and there is no way to tell from the bytes which build
-    // it was. Refusing is the only answer that is not a guess.
-    let (one, two) = (
-        Scratchpad::new("unmarked-capture"),
-        Scratchpad::new("unmarked-goldens"),
-    );
-    let (capture, goldens) = (capture(&one), goldens(&two));
-    fs::remove_file(goldens.join(FLAVOUR)).unwrap();
-
-    let Err(mismatch) = matches_goldens(capture, goldens) else {
-        panic!("the comparison ran against goldens nobody claimed");
-    };
-    assert!(
-        matches!(mismatch, Mismatch::Flavour { blessed: None, .. }),
-        "{mismatch}",
-    );
-    // The message says which command records it, since that is the only thing
-    // to do about it.
-    assert!(mismatch.to_string().contains(BLESS), "{mismatch}");
-}
-
-#[test]
-fn a_flavour_marker_is_not_a_golden() {
-    // The marker sits in the goldens directory and names no capture file. A
-    // walk that treated it as one would look for a capture file called
-    // `flavour` and report it `Absent` for ever.
-    let (one, two) = (
-        Scratchpad::new("marker-capture"),
-        Scratchpad::new("marker-goldens"),
-    );
-    matches_goldens(capture(&one), goldens(&two)).unwrap();
 }

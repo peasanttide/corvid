@@ -589,14 +589,6 @@ could be reached as `corvid_app::present::transform::Factor32`, as
 spellings of one type, with nothing to say which was meant. There is one now,
 and it is `corvid::Factor32`.
 
-[`flavour`] is the other half of what a feature costs. A capture recorded by a
-`dev` build and one recorded by a release build are recordings of two different
-computations whenever the game reads its scratch, so anything freezing a capture
-as a golden has to record which of the two it blessed. This crate cannot do that
-for a caller — a capture directory is a caller's format — so it publishes the
-name and says here that a golden which does not carry it is a golden that will
-be compared against the wrong build eventually.
-
 [`App::arguments`]: crate::App::arguments
 [`App`]: crate::App
 [`App::launch`]: crate::App::launch
@@ -613,7 +605,6 @@ be compared against the wrong build eventually.
 [`Snapshots`]: corvid_replay::Snapshots
 [`TickSpan::CRADLE`]: corvid_time::TickSpan::CRADLE
 [`Unreachable::Before`]: corvid_replay::Unreachable::Before
-[`flavour`]: crate::flavour
 [`ActionLog`]: corvid_replay::ActionLog
 [`AudioFrame`]: corvid_sound::AudioFrame
 [`Clock`]: corvid_time::Clock

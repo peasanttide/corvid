@@ -15,20 +15,9 @@ pub const BLESS: &str = "CORVID_BLESS";
 ///
 /// A golden for the capture file `audio/42` is `audio/42.hex`. Anything under
 /// the goldens directory without this extension is not a golden and is ignored,
-/// so a README, the [`FLAVOUR`] marker and the `frames/*.png` that
+/// so a README and the `frames/*.png` that
 /// [`images_agree`](crate::images_agree) compares can sit beside them.
 pub const EXTENSION: &str = "hex";
-
-/// The file, directly under the goldens directory, that says which build
-/// blessed them.
-///
-/// It holds [`flavour`](corvid_app::flavour) and nothing else. A `dev` build and a plain
-/// one are *specified* to compute different states for a game that reads its
-/// scratch, so a golden directory blessed by one is evidence about that one and
-/// about nothing else — and without this marker the only symptom of comparing
-/// across the pair is every golden moving at once, which reads exactly like the
-/// capture format changing.
-pub const FLAVOUR: &str = "flavour";
 
 /// How many hex characters go on one line of a golden.
 ///
@@ -64,23 +53,6 @@ const DIGITS: &[u8; 16] = b"0123456789abcdef";
 /// A goldens directory with no goldens in it is [`Mismatch::Unfrozen`] and never
 /// a pass. A comparison with nothing in it is the failure mode a golden test
 /// exists to avoid.
-///
-/// # The goldens say which build blessed them
-///
-/// A [`FLAVOUR`] file beside them holds [`flavour`](corvid_app::flavour), and a build
-/// whose own flavour is not the one written there refuses to compare —
-/// [`Mismatch::Flavour`] — rather than reporting every golden as moved. The two
-/// flavours are documented to compute different states for a game that reads its
-/// scratch, so that report would be true and useless: it would say the
-/// arithmetic moved when what moved was a feature.
-///
-/// The marker is the one thing here a person edits by hand, and deliberately so.
-/// Blessing writes it when it is missing, which is the first blessing of a new
-/// goldens directory; it never *changes* one, because rewriting every golden
-/// from the other build is the mistake this exists to prevent and it should not
-/// be one command away. Moving a frozen set from one build to the other is
-/// editing one line and then blessing, which is two steps and a reviewable diff.
-///
 /// # Blessing
 ///
 /// With [`BLESS`] set to anything non-empty, every golden that no longer says
@@ -102,8 +74,7 @@ const DIGITS: &[u8; 16] = b"0123456789abcdef";
 /// # Errors
 ///
 /// [`Mismatch::Unfrozen`] if the goldens directory holds no goldens,
-/// [`Mismatch::Flavour`] if they were blessed by a build that computes something
-/// else, [`Mismatch::Unreadable`] if a directory could not be walked or a file
+/// [`Mismatch::Unreadable`] if a directory could not be walked or a file
 /// could not be read or written, [`Mismatch::Moved`] naming every golden that no
 /// longer agrees, and [`Mismatch::Rewritten`] naming every golden a blessing run
 /// rewrote.
@@ -116,7 +87,6 @@ pub fn matches_goldens(capture: &Path, goldens: &Path) -> Result<(), Mismatch> {
     }
 
     let blessing = std::env::var_os(BLESS).is_some_and(|value| !value.is_empty());
-    flavoured(goldens, blessing)?;
     let mut findings = Vec::new();
     for what in frozen {
         let golden = goldens.join(format!("{what}.{EXTENSION}"));
@@ -139,40 +109,6 @@ pub fn matches_goldens(capture: &Path, goldens: &Path) -> Result<(), Mismatch> {
     } else {
         Mismatch::Moved { goldens, findings }
     })
-}
-
-/// Checks the [`FLAVOUR`] marker against this build, writing it if a blessing
-/// run found none.
-///
-/// Before a single byte is compared, because a flavour mismatch makes every
-/// later comparison an answer to a question nobody asked.
-fn flavoured(goldens: &Path, blessing: bool) -> Result<(), Mismatch> {
-    let marker = goldens.join(FLAVOUR);
-    let running = corvid_app::flavour();
-    let blessed = match fs::read_to_string(&marker) {
-        Ok(text) => Some(text.trim().to_owned()),
-        Err(why) if why.kind() == io::ErrorKind::NotFound => None,
-        Err(why) => return Err(unreadable(&marker, why)),
-    };
-    match blessed {
-        Some(blessed) if blessed == running => Ok(()),
-        // A marker that is there and says something else is never written over,
-        // blessing or not. See `matches_goldens`.
-        Some(blessed) => Err(Mismatch::Flavour {
-            goldens: goldens.to_path_buf(),
-            blessed: Some(blessed),
-            running,
-        }),
-        // Missing, which is a goldens directory nobody has blessed. A blessing
-        // run records it and goes on to rewrite whatever else moved; a comparing
-        // run has nothing to compare against and says so.
-        None if blessing => write(&marker, format!("{running}\n").as_bytes()),
-        None => Err(Mismatch::Flavour {
-            goldens: goldens.to_path_buf(),
-            blessed: None,
-            running,
-        }),
-    }
 }
 
 /// How one golden and its capture file disagree, or [`None`] if they do not.
@@ -400,16 +336,6 @@ pub enum Mismatch {
         /// The directory that holds none.
         goldens: PathBuf,
     },
-    /// The goldens were blessed by a build that computes something else, or do
-    /// not say which build blessed them. Nothing was compared.
-    Flavour {
-        /// Where they live.
-        goldens: PathBuf,
-        /// What the [`FLAVOUR`] marker says, or [`None`] if there is no marker.
-        blessed: Option<String>,
-        /// What this build is, from [`flavour`](corvid_app::flavour).
-        running: &'static str,
-    },
     /// A file or a directory could not be read or written. Nothing else was
     /// compared.
     Unreadable {
@@ -444,36 +370,6 @@ impl fmt::Display for Mismatch {
                  nothing to say: create a file per capture file to freeze and \
                  set {BLESS} to record them",
                 goldens.display(),
-            ),
-            Self::Flavour {
-                goldens,
-                blessed: Some(blessed),
-                running,
-            } => write!(
-                f,
-                "{} was blessed by a {blessed} build and this is a {running} \
-                 one, so nothing was compared: the two are specified to compute \
-                 different states for a game that reads its scratch, and every \
-                 golden would have been reported as moved. Run the check under a \
-                 {blessed} build, or — if this set is being moved to {running} \
-                 on purpose — edit {} to say {running} and bless it.",
-                goldens.display(),
-                goldens.join(FLAVOUR).display(),
-            ),
-            Self::Flavour {
-                goldens,
-                blessed: None,
-                running,
-            } => write!(
-                f,
-                "{} does not say which build blessed it, so nothing was \
-                 compared: a {running} build and the other one compute \
-                 different states for a game that reads its scratch, and a \
-                 frozen set that does not name one will eventually be compared \
-                 against the wrong build. {BLESS}=1 records this build's name in \
-                 {}.",
-                goldens.display(),
-                goldens.join(FLAVOUR).display(),
             ),
             Self::Unreadable { path, why } => write!(f, "{}: {why}", path.display()),
             Self::Moved { goldens, findings } => {
@@ -548,10 +444,7 @@ impl std::error::Error for Mismatch {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Unreadable { why, .. } => Some(why),
-            Self::Unfrozen { .. }
-            | Self::Flavour { .. }
-            | Self::Moved { .. }
-            | Self::Rewritten { .. } => None,
+            Self::Unfrozen { .. } | Self::Moved { .. } | Self::Rewritten { .. } => None,
         }
     }
 }

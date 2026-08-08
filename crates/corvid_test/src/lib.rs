@@ -18,7 +18,7 @@ mod roster;
 mod scratchpad;
 
 pub use diverged::{Diverged, Failed, What};
-pub use goldens::{BLESS, EXTENSION, FLAVOUR, Finding, How, Mismatch, hex, matches_goldens, unhex};
+pub use goldens::{BLESS, EXTENSION, Finding, How, Mismatch, hex, matches_goldens, unhex};
 pub use images::{Different, Frozen, Tolerance, images_agree, read_png};
 pub use replay::replays_to_itself;
 pub use reproducible::is_reproducible;

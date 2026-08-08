@@ -225,25 +225,6 @@ ever recorded means. Both are one command, and neither should be.
 A golden edited by hand is a golden that says what somebody expected rather than
 what the runtime produced, which is the single thing a frozen capture is for.
 
-### The goldens say which build blessed them
-
-A `flavour` file beside them holds [`corvid_app::flavour`], and a build whose own
-flavour is not the one written there refuses to compare. `corvid_app`'s `dev`
-feature discards a tick's `Scratch` on a schedule that is part of the session, so
-a `dev` build and a plain one are *specified* to compute different states for a
-game that reads its scratch. Comparing one's goldens against the other moves
-every golden at once — which is precisely what a capture-format change looks
-like, so the report would be true and would send a reader to the wrong place.
-
-That marker is the one thing in a goldens directory a person edits by hand.
-Blessing writes it when it is missing, which is the first blessing of a new
-directory, and never changes one that is there: rewriting a whole frozen set from
-the other build is the mistake this exists to prevent and should not be one
-command away. Moving a set from one build to the other is editing one line and
-then blessing, which is two steps and a diff somebody can review.
-
-[`corvid_app::flavour`]: corvid_app::flavour
-
 ## What is not here
 
 **`Policy`, and the agent players built on it.** A trait whose `act` sees exactly
