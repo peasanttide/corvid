@@ -24,7 +24,7 @@ use corvid::Tick;
 use corvid_net::{Lost, PeerId, Schedule};
 use pong::{
     Move,
-    rally::{Match, Trace, agreed, chase, idle},
+    rally::{Match, Policy, Trace, agreed},
 };
 
 /// How long a session in this file plays. Nine hundred ticks is thirty seconds
@@ -70,7 +70,7 @@ fn traces_agree(traces: &[Trace]) -> Result<Tick, String> {
 /// nothing is ever predicted wrongly and nothing rolls back.
 #[test]
 fn a_perfect_link_never_rolls_back() -> Fallible {
-    let mut playing = Match::new(Schedule::PERFECT, SEED, [chase, chase])?;
+    let mut playing = Match::new(Schedule::PERFECT, SEED, [Policy::Chase, Policy::Chase])?;
     playing.play(TICKS)?;
 
     let line = traces_agree(playing.traces())?;
@@ -93,7 +93,7 @@ fn a_perfect_link_never_rolls_back() -> Fallible {
 /// agree about every tick they have both heard about.
 #[test]
 fn a_domestic_link_agrees() -> Fallible {
-    let mut playing = Match::new(Schedule::DOMESTIC, SEED, [chase, chase])?;
+    let mut playing = Match::new(Schedule::DOMESTIC, SEED, [Policy::Chase, Policy::Chase])?;
     playing.play(TICKS)?;
 
     let line = traces_agree(playing.traces())?;
@@ -121,7 +121,7 @@ fn a_domestic_link_agrees() -> Fallible {
 /// that missed its frame.
 #[test]
 fn a_mobile_link_rolls_back_and_still_agrees() -> Fallible {
-    let mut playing = Match::new(Schedule::MOBILE, SEED, [chase, chase])?;
+    let mut playing = Match::new(Schedule::MOBILE, SEED, [Policy::Chase, Policy::Chase])?;
     playing.play(TICKS)?;
 
     traces_agree(playing.traces())?;
@@ -151,13 +151,13 @@ fn a_mobile_link_rolls_back_and_still_agrees() -> Fallible {
 /// failure in any test here can be reproduced rather than chased.
 #[test]
 fn a_session_is_reproducible() -> Fallible {
-    let mut once = Match::new(Schedule::MOBILE, SEED, [chase, chase])?;
+    let mut once = Match::new(Schedule::MOBILE, SEED, [Policy::Chase, Policy::Chase])?;
     once.play(400)?;
-    let mut twice = Match::new(Schedule::MOBILE, SEED, [chase, chase])?;
+    let mut twice = Match::new(Schedule::MOBILE, SEED, [Policy::Chase, Policy::Chase])?;
     twice.play(400)?;
     assert_eq!(once.traces(), twice.traces());
 
-    let mut other = Match::new(Schedule::MOBILE, SEED + 1, [chase, chase])?;
+    let mut other = Match::new(Schedule::MOBILE, SEED + 1, [Policy::Chase, Policy::Chase])?;
     other.play(400)?;
     assert_ne!(
         once.traces(),
@@ -176,7 +176,7 @@ fn a_session_is_reproducible() -> Fallible {
 /// not decide the other player has left.
 #[test]
 fn a_total_outage_is_not_a_desync() -> Fallible {
-    let mut playing = Match::new(Schedule::PERFECT, SEED, [chase, chase])?;
+    let mut playing = Match::new(Schedule::PERFECT, SEED, [Policy::Chase, Policy::Chase])?;
     playing.play(120)?;
     let before = agreed(playing.traces());
 
@@ -219,7 +219,7 @@ fn a_total_outage_is_not_a_desync() -> Fallible {
 /// session carries on.
 #[test]
 fn a_cut_link_stalls_rather_than_halting() -> Fallible {
-    let mut playing = Match::new(Schedule::PERFECT, SEED, [chase, idle])?;
+    let mut playing = Match::new(Schedule::PERFECT, SEED, [Policy::Chase, Policy::Idle])?;
     playing.play(90)?;
     playing.net().cut(PeerId(0), PeerId(1), Lost::TimedOut);
     // No error, which is the assertion: a peer with nobody to talk to is a peer

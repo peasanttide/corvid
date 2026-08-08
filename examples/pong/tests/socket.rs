@@ -25,12 +25,16 @@ use std::{
 
 use corvid::PlayerId;
 
+use corvid::Controller;
 use corvid::Tick;
 use corvid::digest as mark_of;
 use corvid_lockstep::{Budget, Datagram, Peer};
 use corvid_net::{Delivery, PeerId, Transport, udp::UdpNet};
 use corvid_replay::Session;
-use pong::{Move, Table, opening, rally::chase};
+use pong::{
+    Move, Table, opening,
+    rally::{Policy, Racket},
+};
 
 /// Whatever the test needs to say went wrong.
 type Fallible = Result<(), Box<dyn std::error::Error>>;
@@ -66,11 +70,14 @@ fn step(
     socket: &UdpNet,
     other: PeerId,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let action = chase(
-        usize::from(peer.seat().0),
+    let racket = Racket::new(peer.seat().0, Policy::Chase);
+    let action = racket.action(
         peer.state(),
-        &pong::court(),
-        &pong::rules(),
+        &corvid::Input::new(pong::action::SETS),
+        corvid::Time {
+            tick: peer.tick(),
+            ..corvid::Time::default()
+        },
     );
     peer.submit(action)?;
 

@@ -197,7 +197,7 @@ fn socket_error(what: &str, why: &std::io::Error) -> Error {
 #[cfg(feature = "net")]
 fn demo() -> corvid::Result {
     use corvid_net::Schedule;
-    use pong::rally::{Match, SEED, agreed, chase};
+    use pong::rally::{Match, Policy, SEED, agreed};
 
     tracing::info!(
         ticks = TICKS,
@@ -211,7 +211,8 @@ fn demo() -> corvid::Result {
         ("domestic", Schedule::DOMESTIC),
         ("mobile", Schedule::MOBILE),
     ] {
-        let mut playing = Match::new(schedule, SEED, [chase, chase]).map_err(Error::Shape)?;
+        let mut playing =
+            Match::new(schedule, SEED, [Policy::Chase, Policy::Chase]).map_err(Error::Shape)?;
         playing.play(TICKS).map_err(halted)?;
         let traces = playing.traces();
         let line = agreed(traces);
