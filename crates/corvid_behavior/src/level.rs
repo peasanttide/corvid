@@ -21,18 +21,6 @@ pub trait Level: Data {
     /// [`Command::load`](crate::Command::load) carries.
     type Reference: Data + core::str::FromStr;
 
-    /// Whether the loaded level's digest enters the session hash.
-    ///
-    /// `true` is what makes two peers holding different builds of the same file
-    /// desync **at the load tick**, with the reference in the report, rather
-    /// than diverging silently a hundred ticks later — which is the difference
-    /// between "your data is stale, here is which file" and a bisect.
-    ///
-    /// `false` is the bypass, for a level too large to hash every time it is
-    /// loaded. It is a promise that every peer's copy is byte-identical, made
-    /// by whoever wrote `false`, and nothing checks it afterwards.
-    const HASHED: bool = true;
-
     /// Read one.
     ///
     /// # This never runs inside a tick
@@ -47,9 +35,11 @@ pub trait Level: Data {
     ///
     /// So this may read a clock, walk a directory and take as long as it takes.
     /// What it may **not** do is answer differently on two machines given the
-    /// same reference and the same bytes — the level is hashed into the session
-    /// when [`HASHED`](Self::HASHED) is set, so a loader that folded in a
-    /// timestamp or an environment variable desyncs at the tick it is applied.
+    /// same reference and the same bytes. The level is hashed into the session
+    /// — always, with no way to ask for it not to be — so a loader that folded
+    /// in a timestamp or an environment variable disagrees at the tick it is
+    /// applied, with the reference in the report. That is the difference
+    /// between "your data is stale, here is which file" and a bisect.
     ///
     /// # Errors
     ///

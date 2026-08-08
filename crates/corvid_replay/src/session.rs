@@ -2,7 +2,7 @@
 //! it down and read it back.
 
 use alloc::{sync::Arc, vec::Vec};
-use core::fmt;
+use core::{fmt, hash::Hash};
 
 use corvid_behavior::{Level, PlayerId, Presence, ProfileId, State};
 use corvid_hash::Digest;
@@ -28,10 +28,10 @@ pub type LevelRef<S> = <<S as State>::Level as Level>::Reference;
 ///
 /// Nothing hashes it. An [`Opening`] has no [`Hash`] impl and no digest of its
 /// own; the one digest it carries is [`schema`](Opening::schema), which is
-/// about the *types* rather than about the values, and a session's marks are
-/// digests of states. So a peer that opened with a different seed is told apart
-/// by the first mark, because the origin state it seeded is what that mark is
-/// of — and not by a comparison of openings, which nothing here performs.
+/// about the *types* rather than about the values. So a peer that opened with a
+/// different seed is told apart by the first mark, because the origin state it
+/// seeded is one of the two things that mark is taken of — the level being the
+/// other — and not by a comparison of openings, which nothing here performs.
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
@@ -183,6 +183,31 @@ impl<S: State> Opening<S> {
         self.origin.clone().unwrap_or_default()
     }
 
+    /// The mark a session's trace opens on.
+    ///
+    /// **Not a state's digest**, which every other mark in a trace is. This one
+    /// covers the origin *and* the level, because both are starting conditions
+    /// two peers have to agree about, and a peer holding a different build of
+    /// the same file should disagree at the first mark — with the reference in
+    /// the report — rather than once the contents start mattering.
+    ///
+    /// It is a method rather than two lines at each site because there are two
+    /// sites: the trace a live session opens with, and the trace a replay
+    /// recomputes to compare against it. The two disagreeing would report every
+    /// capture in the workspace as diverged at tick zero.
+    ///
+    /// The **resolved** origin, not the [`Option`] field. An `Option`'s [`Hash`]
+    /// writes a discriminant before its payload, so digesting the field directly
+    /// would make this depend on whether a session stated its origin or let it
+    /// default — two ways of saying the same state, hashing differently.
+    #[must_use]
+    pub fn mark(&self) -> Digest {
+        let mut hasher = corvid_hash::Hasher::new();
+        self.origin().hash(&mut hasher);
+        self.content.hash(&mut hasher);
+        hasher.digest()
+    }
+
     /// How many seats the roster has, or [`None`] for a roster no [`PlayerId`]
     /// can name.
     ///
@@ -251,12 +276,7 @@ impl<S: State> TryFrom<Opening<S>> for Session<S> {
             });
         };
         let mut marks = HashTrace::new(opening.first);
-        // The **resolved** origin, not the `Option`. An `Option`'s `Hash`
-        // writes a discriminant before its payload, so digesting the field
-        // directly would make the opening mark depend on whether a session
-        // stated its origin or let it default — two ways of saying the same
-        // state, hashing differently.
-        marks.push(corvid_hash::digest(&*opening.origin()));
+        marks.push(opening.mark());
         Ok(Self {
             log: ActionLog::new(opening.first, seats),
             marks,

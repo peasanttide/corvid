@@ -45,15 +45,21 @@ fn a_run_whose_every_part_survives_being_written_down_replays_to_itself() {
 }
 
 #[test]
-fn a_level_a_capture_does_not_record_is_caught_on_the_first_tick_that_used_it() {
+fn a_level_a_capture_does_not_record_is_caught_before_a_single_tick_runs() {
     // The commonest shape of the bug this exists for: a `#[serde(skip)]` on a
-    // field the tick reads. The opening state is written down whole, so the
-    // first mark agrees; the level is not, so every tick after it computes
-    // something else.
+    // field the tick reads.
+    //
+    // This used to be caught at tick 1 — the first tick that *used* the level —
+    // because the opening mark was a digest of the origin alone and a level
+    // that had not survived the round trip was invisible until it changed a
+    // state. The level is in that mark now, so the disagreement is at tick 0,
+    // before anything is simulated, which is the whole point of hashing it:
+    // "this file is not the one that was recorded" rather than "your states
+    // stopped matching, go and find out why".
     let diverged = diverged(replays_to_itself(&played(opening_on_a_lossy_level())));
 
-    assert_eq!(diverged.at, Tick(1));
-    assert_eq!(diverged.agreed_through, Some(Tick(0)));
+    assert_eq!(diverged.at, Tick(0));
+    assert_eq!(diverged.agreed_through, None);
     let What::Marks { recorded, computed } = diverged.what else {
         panic!("{diverged}");
     };
@@ -87,7 +93,11 @@ fn a_field_outside_the_digest_is_caught_after_every_digest_agreed() {
 
 #[test]
 fn the_message_names_the_tick_and_what_moved() {
-    let message = diverged(replays_to_itself(&played(opening_on_a_lossy_level()))).to_string();
-    assert!(message.contains("tick 1"), "{message}");
-    assert!(message.contains("agreed through 0"), "{message}");
+    // A divergence that is *not* at the first tick, so the message has both
+    // halves to report: where it broke and how far it held. The lossy level is
+    // no use for this any more — it is caught at tick 0 now, where there is
+    // nothing to have agreed through.
+    let message = diverged(replays_to_itself(&played(opening(Habit::Blind, 6, 0)))).to_string();
+    assert!(message.contains(&format!("tick {TICKS}")), "{message}");
+    assert!(message.contains("agreed through"), "{message}");
 }

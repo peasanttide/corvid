@@ -87,7 +87,17 @@ pub fn replays_to_itself<S: State>(outcome: &Outcome<S>) -> Result<(), Failed<Le
     let mut at = first;
 
     loop {
-        let computed = digest(&state);
+        // The opening mark is not a state's digest — it covers the level as
+        // well, so that a peer on a different build of the same file disagrees
+        // here rather than once the contents start mattering. `Opening::mark`
+        // is the one definition of it, and this walk has to use the same one
+        // the live session opened with or every capture reports as diverged at
+        // its first tick.
+        let computed = if at == first {
+            opening.mark()
+        } else {
+            digest(&state)
+        };
         if live.marks.get(at) != Some(computed) {
             return Err(Diverged::walked(
                 first,

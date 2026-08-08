@@ -9,10 +9,14 @@
 
 mod common;
 
-use common::{Action, Counter, forward, opening, play, schema};
+use std::sync::Arc;
+
+use common::{Action, Counter, Level, forward, opening, play, schema};
+use core::hash::Hash;
 use corvid_behavior::round_trip_is_faithful;
 use corvid_behavior::{PlayerId, ProfileId};
-use corvid_hash::{Digest, digest};
+
+use corvid_hash::{Digest, Hasher, digest};
 use corvid_replay::{
     ActionLog, HashTrace, Load, Opening, Profile, Refused, Session, Shape, Snapshots,
 };
@@ -177,16 +181,48 @@ fn a_new_session_is_consistent_with_the_opening_it_was_built_from() {
     assert_eq!(session.last(), session.opening.first);
     assert_eq!(session.check(), Ok(()));
 
-    // And its one mark is the opening state's, so a peer comparing traces from
-    // tick zero has something to compare.
+    // And its one mark is the opening state *and the level*, so a peer
+    // comparing traces from tick zero has something to compare, and a peer
+    // holding a different build of the same file disagrees there rather than
+    // once the contents start mattering.
     //
     // The **resolved** origin, not the `Option` field. An `Option`'s `Hash`
     // writes a discriminant before its payload, so an opening that stated its
     // origin and one that let it default would mark differently while opening
     // on the same state.
+    let mut opener = Hasher::new();
+    session.opening.origin().hash(&mut opener);
+    session.opening.content.hash(&mut opener);
     assert_eq!(
         session.marks.get(session.opening.first),
-        Some(digest(&*session.opening.origin())),
+        Some(opener.digest())
+    );
+}
+
+/// The level is in the opening mark, which is what `Level` promises and what
+/// the removed `HASHED` opt-out used to be able to switch off.
+///
+/// Two openings alike in every other way, differing only inside the level, mark
+/// differently. Without this the guarantee is a sentence in a doc comment: the
+/// assertion above would pass just as well against a mark taken of the origin
+/// alone, because these tests never vary the level.
+#[test]
+fn the_level_is_in_the_opening_mark() {
+    let session = Session::new(opening()).unwrap();
+
+    let mut other = opening();
+    other.content = Arc::new(Level {
+        name: other.content.name.clone(),
+        // The same level by name, built differently — which is the case the
+        // report is supposed to name a file for.
+        ceiling: other.content.ceiling + 1,
+    });
+    let stale = Session::new(other).unwrap();
+
+    assert_ne!(
+        session.marks.get(session.opening.first),
+        stale.marks.get(stale.opening.first),
+        "two builds of one level opened to the same mark",
     );
 }
 

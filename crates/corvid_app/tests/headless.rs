@@ -77,7 +77,11 @@ fn the_trace_of_a_fixed_run_is_frozen() {
     // the workspace replays to. Paste the new column only after knowing which
     // of those it is.
     const TRACE: &[DigestRow<'_>] = &[
-        ("tick 0, the opening", 0x1247_dfc2_acce_bd4e),
+        // Moved when the level joined the origin in this mark — see
+        // `Level::load`'s documentation for why it is always hashed now. Every
+        // row below is a digest of a state and none of them moved with it,
+        // which is what says the change reached the opening and nothing else.
+        ("tick 0, the opening", 0x8794_c23c_9575_2fb3),
         ("tick 1, after a bump", 0xf05f_ef26_79e4_62da),
         ("tick 2", 0x94a6_a690_0b46_d6af),
         ("tick 3", 0x85d7_bce6_e290_ae71),
