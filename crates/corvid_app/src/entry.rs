@@ -207,18 +207,23 @@ fn command_line() -> Result<Option<Arguments>> {
 /// and a `main` of three lines has nowhere to install a subscriber. A windowed
 /// run prints nothing: the digest is not what somebody watching a window came
 /// for.
+///
+/// The stdout line is a `println!` under a named exception rather than a write
+/// to a handle. Both reach the same stream; only one of them says so where a
+/// reader looking for the workspace's printing rule will find it.
 fn finish<S: corvid_behavior::State>(outcome: &Outcome<S>, headless: bool) {
     if headless {
-        // A refused write to stdout is not worth ending a run that already
-        // succeeded over — the tracing event below carries the same values.
-        let mut out = io::stdout();
-        let _ = writeln!(
-            out,
-            "tick {} mark {}",
-            outcome.session.last(),
-            digest(&outcome.state)
-        );
-        let _ = out.flush();
+        #[allow(
+            clippy::print_stdout,
+            reason = "this crate's `main` is a program rather than a library: an operator who passed `--headless` asked for this line on stdout, and a `main` of three lines has nowhere to install a subscriber. Writing to an `io::stdout()` handle instead would pass the lint while doing the identical thing, which is worse — the exception belongs where a reader can see it"
+        )]
+        {
+            println!(
+                "tick {} mark {}",
+                outcome.session.last(),
+                digest(&outcome.state)
+            );
+        }
     }
     tracing::info!(
         name: "corvid_app.finished",
