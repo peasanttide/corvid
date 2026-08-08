@@ -51,7 +51,7 @@ use corvid_files::{Malformed, Source};
 use corvid_hash::Digest;
 use corvid_input::Input;
 use corvid_replay::{Opening, Profile, Schema, Seed};
-use corvid_time::{Duration, Tick};
+use corvid_time::Tick;
 use serde::{Deserialize, Serialize};
 
 /// The counters the misbehaving habits read.
@@ -309,7 +309,7 @@ impl corvid_control::Controller<Climb> for Legs {
         self.rules = rules;
     }
 
-    fn action(&self, _state: &Climb, _input: &Input, _time: corvid_behavior::Time) -> Step {
+    fn action(&self, _acting: corvid_control::Acting<'_, Climb>) -> Step {
         if matches!(self.rules.habit, Habit::Fickle)
             && spin(self.rules.spin) >= self.rules.threshold
         {
@@ -319,15 +319,7 @@ impl corvid_control::Controller<Climb> for Legs {
         }
     }
 
-    fn update(
-        &mut self,
-        _state: &Climb,
-        _input: &Input,
-        _loading: Option<corvid_behavior::Loading<'_, String>>,
-        _time: corvid_behavior::Time,
-        _dt: Duration,
-    ) {
-    }
+    fn update(&mut self, _updating: corvid_control::Updating<'_, Climb>) {}
 
     fn look(&self) -> corvid_camera::Camera {
         corvid_camera::Camera::default()

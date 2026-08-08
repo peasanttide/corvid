@@ -57,7 +57,7 @@ use corvid_behavior::{
     AchievementId, Command, ExitCode, Extract, Extracting, Player, PlayerId, Presence, ProfileId,
     SaveSlot, Time,
 };
-use corvid_control::Controller;
+use corvid_control::{Acting, Controller, Updating};
 use corvid_fixed::Factor16;
 use corvid_hash::{Digest, digest};
 use corvid_input::{Digital, Input};
@@ -377,11 +377,11 @@ impl Controller<Tally> for Hands {
     /// clock it is a function of the tick number and nothing else, so the
     /// sequence is fixed; under a real clock a run of a few dozen ticks never
     /// reaches one second and the sequence is a different one.
-    fn action(&self, state: &Tally, input: &Input, _time: Time) -> Action {
-        if input.digital(action::REST).held {
+    fn action(&self, acting: Acting<'_, Tally>) -> Action {
+        if acting.input.digital(action::REST).held {
             return Action::Idle;
         }
-        let phase = state.now.0.wrapping_add(self.elapsed.as_secs());
+        let phase = acting.state.now.0.wrapping_add(self.elapsed.as_secs());
         if phase.is_multiple_of(3) {
             Action::Bump
         } else {
@@ -394,18 +394,11 @@ impl Controller<Tally> for Hands {
     /// The pause is counted in *displayed frames* rather than in ticks, and it
     /// has to be: once it starts there are no more ticks, so a condition
     /// written against the tick number would never come round again.
-    fn update(
-        &mut self,
-        state: &Tally,
-        _input: &Input,
-        _loading: Option<corvid_behavior::Loading<'_, Ref>>,
-        _time: Time,
-        dt: Duration,
-    ) {
-        self.elapsed = self.elapsed.saturating_add(dt);
+    fn update(&mut self, updating: Updating<'_, Tally>) {
+        self.elapsed = self.elapsed.saturating_add(updating.dt);
         self.frames += 1;
-        self.at = state.now;
-        if self.pause_at.is_some_and(|at| state.now >= at) {
+        self.at = updating.state.now;
+        if self.pause_at.is_some_and(|at| updating.state.now >= at) {
             self.held = self.held.saturating_add(1);
             self.paused = self.held <= self.pause_for;
         }
@@ -814,22 +807,14 @@ impl Controller<Attendance> for Marker {
 
     fn configure(&mut self, (): ()) {}
 
-    fn action(&self, _state: &Attendance, _input: &Input, _time: Time) -> Mark {
+    fn action(&self, _acting: Acting<'_, Attendance>) -> Mark {
         Mark {
             mine: true,
             alpha: 0,
         }
     }
 
-    fn update(
-        &mut self,
-        _state: &Attendance,
-        _input: &Input,
-        _loading: Option<corvid_behavior::Loading<'_, Ref>>,
-        _time: Time,
-        _dt: Duration,
-    ) {
-    }
+    fn update(&mut self, _updating: Updating<'_, Attendance>) {}
 
     fn look(&self) -> corvid_camera::Camera {
         corvid_camera::Camera::default()

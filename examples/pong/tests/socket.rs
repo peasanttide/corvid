@@ -71,14 +71,15 @@ fn step(
     other: PeerId,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let racket = Racket::new(peer.seat().0, Policy::Chase);
-    let action = racket.action(
-        peer.state(),
-        &corvid::Input::new(pong::action::SETS),
-        corvid::Time {
+    let action = racket.action(corvid::Acting {
+        state: peer.state(),
+        input: &corvid::Input::new(pong::action::SETS),
+        time: corvid::Time {
             tick: peer.tick(),
             ..corvid::Time::default()
         },
-    );
+        seat: peer.seat(),
+    });
     peer.submit(action)?;
 
     let mut arrived: Vec<Vec<u8>> = Vec::new();

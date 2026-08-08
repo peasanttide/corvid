@@ -22,9 +22,7 @@
 //! on a clock, a display or a scheduler: the same two numbers come out of a
 //! debug build, a release build and a machine with one core.
 
-use corvid::{
-    App, Camera, Controller, Duration, Input, Loading, PlayerId, SetDescriptor, Tick, Time,
-};
+use corvid::{Acting, App, Camera, Controller, Input, PlayerId, SetDescriptor, Tick, Updating};
 use pong::{Move, RATE, Table};
 
 /// How far back the compared digest is taken from.
@@ -64,24 +62,16 @@ impl Controller<Table> for Scripted {
         self.seat = seat;
     }
 
-    fn action(&self, _state: &Table, _input: &Input, time: Time) -> Move {
+    fn action(&self, acting: Acting<'_, Table>) -> Move {
         let period = if self.seat == 0 { 17 } else { 11 };
-        if time.tick.0 % period < period / 2 {
+        if acting.time.tick.0 % period < period / 2 {
             Move::Up
         } else {
             Move::Down
         }
     }
 
-    fn update(
-        &mut self,
-        _state: &Table,
-        _input: &Input,
-        _loading: Option<Loading<'_, pong::Level>>,
-        _time: Time,
-        _dt: Duration,
-    ) {
-    }
+    fn update(&mut self, _updating: Updating<'_, Table>) {}
 
     fn look(&self) -> Camera {
         Camera::default()

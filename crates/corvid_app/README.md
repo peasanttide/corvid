@@ -69,17 +69,10 @@ use corvid_time::Tick;
 #     const SETS: &'static [corvid_input::SetDescriptor] = &[];
 #     fn new((): ()) -> Self { Self }
 #     fn configure(&mut self, (): ()) {}
-#     fn action(&self, _: &Climb, _: &corvid_input::Input, _: corvid_behavior::Time) -> Effort {
+#     fn action(&self, _: corvid_control::Acting<'_, Climb>) -> Effort {
 #         Effort::Up
 #     }
-#     fn update(
-#         &mut self,
-#         _: &Climb,
-#         _: &corvid_input::Input,
-#         _: Option<corvid_behavior::Loading<'_, String>>,
-#         _: corvid_behavior::Time,
-#         _: core::time::Duration,
-#     ) {}
+#     fn update(&mut self, _: corvid_control::Updating<'_, Climb>) {}
 #     fn look(&self) -> corvid_camera::Camera { corvid_camera::Camera::default() }
 # }
 #

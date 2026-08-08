@@ -4,8 +4,9 @@
 use std::sync::Arc;
 
 use corvid::{
-    AudioFrame, Auralizer, Camera, Controller, Cue, Digest, Extract, Extracting, FinePoint, I16F16,
-    Opening, Opens, Profile, ProfileId, Schema, Seed, SoundId, Tick, Time, sound::Listener,
+    Acting, AudioFrame, Auralizer, Camera, Controller, Cue, Digest, Extract, Extracting, FinePoint,
+    I16F16, Opening, Opens, Profile, ProfileId, Schema, Seed, SoundId, Tick, Time, Updating,
+    sound::Listener,
 };
 
 use crate::table::{Contact, Court, Level, Move, Play, SEATS, Table};
@@ -140,13 +141,13 @@ impl Controller<Table> for Hands {
     /// Both directions held is [`Still`](Move::Still) rather than one of them
     /// winning, because a player rolling their hand across two keys should stop
     /// rather than lurch.
-    fn action(&self, _state: &Table, input: &corvid::Input, time: Time) -> Move {
-        if let Some(scripted) = self.script(time.tick) {
+    fn action(&self, acting: Acting<'_, Table>) -> Move {
+        if let Some(scripted) = self.script(acting.time.tick) {
             return scripted;
         }
         match (
-            input.digital(action::UP).held,
-            input.digital(action::DOWN).held,
+            acting.input.digital(action::UP).held,
+            acting.input.digital(action::DOWN).held,
         ) {
             (true, false) => Move::Up,
             (false, true) => Move::Down,
@@ -155,15 +156,7 @@ impl Controller<Table> for Hands {
     }
 
     /// Nothing accumulates: there is no camera to smooth and no cursor to cast.
-    fn update(
-        &mut self,
-        _state: &Table,
-        _input: &corvid::Input,
-        _loading: Option<corvid::Loading<'_, Level>>,
-        _time: Time,
-        _dt: corvid::Duration,
-    ) {
-    }
+    fn update(&mut self, _updating: Updating<'_, Table>) {}
 
     fn look(&self) -> Camera {
         Camera::default()

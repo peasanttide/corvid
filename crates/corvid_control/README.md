@@ -15,11 +15,10 @@ impl Controller<Table> for Hands {
     fn new(config: Sensitivity) -> Self { /* … */ }
     fn configure(&mut self, config: Sensitivity) { self.sensitivity = config; }
 
-    fn update(&mut self, state: &Table, input: &Input, loading: Option<Loading<'_, _>>,
-              time: Time, dt: Duration) { /* the camera moves here */ }
+    fn update(&mut self, updating: Updating<'_, Table>) { /* the camera moves here */ }
 
     fn look(&self) -> Camera { self.eye.camera() }
-    fn action(&self, state: &Table, input: &Input, time: Time) -> Move { /* … */ }
+    fn action(&self, acting: Acting<'_, Table>) -> Move { /* … */ }
 }
 ```
 

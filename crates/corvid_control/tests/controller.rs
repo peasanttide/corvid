@@ -8,9 +8,9 @@
 
 use core::time::Duration;
 
-use corvid_behavior::{Level, Loading, State, Time};
+use corvid_behavior::{Level, PlayerId, State, Time};
 use corvid_camera::Camera;
-use corvid_control::Controller;
+use corvid_control::{Acting, Controller, Updating};
 use corvid_files::{Malformed, Source};
 use corvid_input::{Input, SetDescriptor};
 use corvid_rotation::FineRotation;
@@ -72,15 +72,8 @@ impl Controller<Walk> for Hands {
         self.speed = config.0;
     }
 
-    fn update(
-        &mut self,
-        _state: &Walk,
-        _input: &Input,
-        _loading: Option<Loading<'_, String>>,
-        _time: Time,
-        dt: Duration,
-    ) {
-        self.height += self.speed * i32::try_from(dt.as_millis()).unwrap_or(i32::MAX);
+    fn update(&mut self, updating: Updating<'_, Walk>) {
+        self.height += self.speed * i32::try_from(updating.dt.as_millis()).unwrap_or(i32::MAX);
     }
 
     fn look(&self) -> Camera {
@@ -90,19 +83,20 @@ impl Controller<Walk> for Hands {
         )
     }
 
-    fn action(&self, _state: &Walk, _input: &Input, _time: Time) -> Step {
+    fn action(&self, _acting: Acting<'_, Walk>) -> Step {
         Step(true)
     }
 }
 
 fn frame(hands: &mut Hands, millis: u64) {
-    hands.update(
-        &Walk,
-        &Input::new(&[]),
-        None,
-        Time::default(),
-        Duration::from_millis(millis),
-    );
+    hands.update(Updating {
+        state: &Walk,
+        input: &Input::new(&[]),
+        loading: None,
+        time: Time::default(),
+        dt: Duration::from_millis(millis),
+        seat: PlayerId(0),
+    });
 }
 
 #[test]
@@ -163,7 +157,12 @@ fn the_unit_controller_is_not_real_and_answers_the_idle_action() {
     // A dropped player submits the default forever, and so does this: a seat
     // driven by `()` is a seat nobody is sitting in.
     assert_eq!(
-        nobody.action(&Walk, &Input::new(&[]), Time::default()),
+        nobody.action(Acting {
+            state: &Walk,
+            input: &Input::new(&[]),
+            time: Time::default(),
+            seat: PlayerId(0),
+        }),
         Step::default(),
     );
     assert_eq!(
@@ -175,11 +174,14 @@ fn the_unit_controller_is_not_real_and_answers_the_idle_action() {
     // rather than as a placeholder that panics.
     Controller::<Walk>::update(
         &mut nobody,
-        &Walk,
-        &Input::new(&[]),
-        None,
-        Time::default(),
-        Duration::from_millis(16),
+        Updating {
+            state: &Walk,
+            input: &Input::new(&[]),
+            loading: None,
+            time: Time::default(),
+            dt: Duration::from_millis(16),
+            seat: PlayerId(0),
+        },
     );
 }
 
@@ -189,4 +191,29 @@ fn a_real_controller_is_real_by_default() {
         C::REAL
     }
     assert!(real::<Walk, Hands>());
+}
+
+#[test]
+fn a_controller_is_told_which_seat_it_answers_for() {
+    let hands = Hands::new(Speed(0));
+    let state = Walk;
+    let input = Input::new(&[]);
+    let time = Time::default();
+
+    let first = hands.action(Acting {
+        state: &state,
+        input: &input,
+        time,
+        seat: PlayerId(0),
+    });
+    let second = hands.action(Acting {
+        state: &state,
+        input: &input,
+        time,
+        seat: PlayerId(1),
+    });
+
+    // `Hands` here ignores the seat, so both answers are the idle one — what
+    // this pins is that the seat reaches the call at all.
+    assert_eq!(first, second);
 }

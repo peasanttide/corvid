@@ -108,17 +108,17 @@ impl Controller<Table> for Racket {
 
     /// The input is ignored, which is the point: a scripted seat answers from
     /// the state rather than from a device.
-    fn action(&self, table: &Table, _input: &corvid::Input, _time: corvid::Time) -> Move {
+    fn action(&self, acting: corvid::Acting<'_, Table>) -> Move {
         let seat = self.seat as usize;
         match self.policy {
             Policy::Idle => Move::Still,
             Policy::Chase => {
-                let Some(paddle) = table.paddles.get(seat) else {
+                let Some(paddle) = acting.state.paddles.get(seat) else {
                     return Move::Still;
                 };
                 crate::bot::toward(
                     paddle.at,
-                    crate::bot::target(seat, table, &court(), &rules()),
+                    crate::bot::target(seat, acting.state, &court(), &rules()),
                     &court(),
                 )
             }
@@ -126,15 +126,7 @@ impl Controller<Table> for Racket {
     }
 
     /// Nothing accumulates: there is no camera to smooth and no cursor to cast.
-    fn update(
-        &mut self,
-        _table: &Table,
-        _input: &corvid::Input,
-        _loading: Option<corvid::Loading<'_, crate::Level>>,
-        _time: corvid::Time,
-        _dt: Duration,
-    ) {
-    }
+    fn update(&mut self, _updating: corvid::Updating<'_, Table>) {}
 
     fn look(&self) -> corvid::Camera {
         corvid::Camera::default()
@@ -322,14 +314,15 @@ impl Match {
             return Ok(());
         };
 
-        let action = policy.action(
-            peer.state(),
-            &corvid::Input::new(crate::action::SETS),
-            corvid::Time {
+        let action = policy.action(corvid::Acting {
+            state: peer.state(),
+            input: &corvid::Input::new(crate::action::SETS),
+            time: corvid::Time {
                 tick: peer.tick(),
                 ..corvid::Time::default()
             },
-        );
+            seat: peer.seat(),
+        });
         // A refusal here is the log declining this machine's own action, which
         // is a `Halt::Refused` in the same family as everything else that stops
         // a peer.
@@ -497,14 +490,15 @@ fn opponent_loop(
         due += period;
 
         let racket = Racket::new(seat.0, Policy::Chase);
-        let action = racket.action(
-            peer.state(),
-            &corvid::Input::new(crate::action::SETS),
-            corvid::Time {
+        let action = racket.action(corvid::Acting {
+            state: peer.state(),
+            input: &corvid::Input::new(crate::action::SETS),
+            time: corvid::Time {
                 tick: peer.tick(),
                 ..corvid::Time::default()
             },
-        );
+            seat,
+        });
         if peer.submit(action).is_err() {
             return;
         }

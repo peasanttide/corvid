@@ -109,7 +109,7 @@ pub use corvid_files::{self as files, Malformed, Missing, Source};
 pub use corvid_hash::{self as hash, Digest, Hasher, digest};
 
 // The client-local half: what a player reads, hears and sees.
-pub use corvid_control::{self as control, Controller};
+pub use corvid_control::{self as control, Acting, Controller, LevelRef, Updating};
 pub use corvid_sound::{self as sound, AudioFrame, Auralizer, Cue, CueId, SoundId};
 // Unconditional. Every `Controller` declares its input sets and is
 // handed an `Input`, whether or not there is a device to fill one — a headless

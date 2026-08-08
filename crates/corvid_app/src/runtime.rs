@@ -2,7 +2,7 @@
 //! where the boundary between them is.
 
 use crate::commands::Command;
-use corvid_control::Controller;
+use corvid_control::{Acting, Controller, Updating};
 use corvid_render::Render;
 use corvid_replay::LevelRef;
 use corvid_sound::Auralizer;
@@ -550,9 +550,12 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         // The one call that is the same on both paths, and the reason a game
         // implements nothing to play over a network: what goes on the wire is
         // whatever this returns.
-        let action = self
-            .controller
-            .action(&self.current, self.acting(), self.now());
+        let action = self.controller.action(Acting {
+            state: &self.current,
+            input: self.acting(),
+            time: self.now(),
+            seat: self.seat,
+        });
         let commands = match &mut self.play {
             Play::Local(_) => self.advance_alone(asked, action)?,
             #[cfg(feature = "net")]
@@ -882,8 +885,14 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         // ordinary method call and the three calls below are free to take
         // `&mut self.view` in whatever order they like.
         let time = self.now();
-        self.controller
-            .update(&self.current, &self.input, None, time, dt);
+        self.controller.update(Updating {
+            state: &self.current,
+            input: &self.input,
+            loading: None,
+            time,
+            dt,
+            seat: self.seat,
+        });
         self.persist_settings();
         let camera = self.controller.look();
 

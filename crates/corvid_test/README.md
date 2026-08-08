@@ -60,15 +60,8 @@ is four calls, and `examples/headless` makes all four.
 #     const SETS: &'static [corvid_input::SetDescriptor] = &[];
 #     fn new((): ()) -> Self { Self }
 #     fn configure(&mut self, (): ()) {}
-#     fn action(&self, _: &Climb, _: &Input, _: Time) -> Effort { Effort::Up }
-#     fn update(
-#         &mut self,
-#         _: &Climb,
-#         _: &Input,
-#         _: Option<corvid_behavior::Loading<'_, String>>,
-#         _: Time,
-#         _: core::time::Duration,
-#     ) {}
+#     fn action(&self, _: corvid_control::Acting<'_, Climb>) -> Effort { Effort::Up }
+#     fn update(&mut self, _: corvid_control::Updating<'_, Climb>) {}
 #     fn look(&self) -> corvid_camera::Camera { corvid_camera::Camera::default() }
 # }
 #

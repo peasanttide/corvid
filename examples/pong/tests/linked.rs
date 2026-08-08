@@ -23,7 +23,7 @@ use std::{thread, time::Duration};
 
 use corvid::Input;
 use corvid::digest;
-use corvid::{App, Camera, Controller, Loading, Outcome, SetDescriptor, Time};
+use corvid::{Acting, App, Camera, Controller, Outcome, SetDescriptor, Updating};
 
 use corvid::PlayerId;
 
@@ -126,23 +126,15 @@ impl Controller<Table> for Metronome {
         self.period = period;
     }
 
-    fn action(&self, _state: &Table, _input: &Input, time: Time) -> Move {
-        if time.tick.0 % self.period < self.period / 2 {
+    fn action(&self, acting: Acting<'_, Table>) -> Move {
+        if acting.time.tick.0 % self.period < self.period / 2 {
             Move::Up
         } else {
             Move::Down
         }
     }
 
-    fn update(
-        &mut self,
-        _state: &Table,
-        _input: &Input,
-        _loading: Option<Loading<'_, pong::Level>>,
-        _time: Time,
-        _dt: Duration,
-    ) {
-    }
+    fn update(&mut self, _updating: Updating<'_, Table>) {}
 
     fn look(&self) -> Camera {
         Camera::default()

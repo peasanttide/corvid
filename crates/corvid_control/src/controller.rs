@@ -2,12 +2,70 @@
 
 use core::time::Duration;
 
-use corvid_behavior::{Data, Level, Loading, RumbleId, State, Time};
+use corvid_behavior::{Data, Level, Loading, PlayerId, RumbleId, State, Time};
 use corvid_camera::Camera;
 use corvid_input::{Cursor, Input, SetDescriptor, platform::Bindings};
 
 /// How a state's level names itself, spelled once.
-type LevelRef<S> = <<S as State>::Level as Level>::Reference;
+pub type LevelRef<S> = <<S as State>::Level as Level>::Reference;
+
+/// What a controller is handed when it is asked for an action.
+///
+/// One struct rather than four arguments, so that a new thing to hand over is a
+/// field here and not a signature change in every implementation.
+///
+/// [`Copy`], because a bot answering for several seats is handed one of these
+/// per seat in the same tick.
+///
+/// Written by hand rather than derived: a derive puts `S: Copy` on the impl,
+/// because it goes by which type parameters appear rather than by what the
+/// fields actually hold. Every field here is a shared reference, a `Time` or a
+/// `PlayerId`, copy regardless of whether `S` is.
+#[derive(Debug)]
+pub struct Acting<'a, S: State> {
+    /// The state to read.
+    pub state: &'a S,
+    /// What the devices say, with every edge since the last tick folded in.
+    pub input: &'a Input,
+    /// Where the session is.
+    pub time: Time,
+    /// Which seat this answer is for.
+    ///
+    /// A controller playing one seat reads it or ignores it; a bot answering
+    /// for several is called once per seat and this is how it tells them apart.
+    /// It is here rather than on [`Time`] because a seat is not something a
+    /// tick may read.
+    pub seat: PlayerId,
+}
+
+#[allow(
+    clippy::expl_impl_clone_on_copy,
+    reason = "a derive would add S: Clone, which is not true of every game's state and not needed by any field here"
+)]
+impl<S: State> Clone for Acting<'_, S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S: State> Copy for Acting<'_, S> {}
+
+/// What a controller is handed once per displayed frame.
+#[derive(Debug)]
+pub struct Updating<'a, S: State> {
+    /// The state to read.
+    pub state: &'a S,
+    /// What the devices say.
+    pub input: &'a Input,
+    /// How far along this machine's bytes are, while a level is being read.
+    pub loading: Option<Loading<'a, LevelRef<S>>>,
+    /// Where the session is.
+    pub time: Time,
+    /// Real time since the last displayed frame.
+    pub dt: Duration,
+    /// Which seat this controller is looking through.
+    pub seat: PlayerId,
+}
 
 /// The half of a game's client-local code that reads a player.
 ///
@@ -174,14 +232,7 @@ pub trait Controller<S: State> {
     /// reloads into a different game, because what a session writes down is the
     /// state. And it **is** a rollback that does not roll back, because there
     /// is no controller to restore.
-    fn update(
-        &mut self,
-        state: &S,
-        input: &Input,
-        loading: Option<Loading<'_, LevelRef<S>>>,
-        time: Time,
-        dt: Duration,
-    );
+    fn update(&mut self, updating: Updating<'_, S>);
 
     /// Where this player is looking.
     ///
@@ -208,7 +259,7 @@ pub trait Controller<S: State> {
     /// an `action` that reads a smoothed camera is reading a number produced at
     /// display rate, so the actions a headless run submits are not the actions
     /// the same inputs produce in front of a player.
-    fn action(&self, state: &S, input: &Input, time: Time) -> S::Action;
+    fn action(&self, acting: Acting<'_, S>) -> S::Action;
 
     /// What this machine's pad should be doing, once per tick.
     ///
@@ -226,7 +277,7 @@ pub trait Controller<S: State> {
     /// Once per **tick** rather than once per frame, so an effect fires exactly
     /// once for the tick that earned it and there is no retrigger to
     /// deduplicate.
-    fn rumble(&self, _state: &S, _time: Time) -> Option<RumbleId> {
+    fn rumble(&self, _acting: Acting<'_, S>) -> Option<RumbleId> {
         None
     }
 
@@ -298,21 +349,14 @@ impl<S: State> Controller<S> for () {
 
     fn configure(&mut self, (): ()) {}
 
-    fn update(
-        &mut self,
-        _state: &S,
-        _input: &Input,
-        _loading: Option<Loading<'_, LevelRef<S>>>,
-        _time: Time,
-        _dt: Duration,
-    ) {
-    }
+    fn update(&mut self, _updating: Updating<'_, S>) {}
 
     fn look(&self) -> Camera {
         Camera::default()
     }
 
-    fn action(&self, _state: &S, _input: &Input, _time: Time) -> S::Action {
+    fn action(&self, acting: Acting<'_, S>) -> S::Action {
+        let _ = acting;
         S::Action::default()
     }
 }
