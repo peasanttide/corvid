@@ -44,6 +44,10 @@ corvid_signal = { workspace = true }
 # workspace says so — pinned at the workspace level so there is one subscriber
 # registry rather than two.
 tracing = { workspace = true, features = ["std"] }
+# `Display` and `std::error::Error` on `Error`, derived. `std` because this is
+# the crate that opens files: `Error` carries `io::Error`, whose `Error` impl
+# is `std`'s, and a `core`-only derive could not name it as a source.
+thiserror = { workspace = true, features = ["std"] }
 # The device half, and not optional: `corvid_control` sits on top of
 # `corvid_render` now, so a build of this crate compiles `wgpu` whatever it was
 # asked for and a feature gating the renderer would gate nothing. What is still

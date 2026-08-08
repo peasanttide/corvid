@@ -1091,7 +1091,7 @@ where
 /// Nothing here is a game's tick going wrong. A tick cannot fail — it returns a
 /// state — so every case below is about the session the loop was asked to play
 /// or about the filesystem it was asked to write to.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// The command line [`launch`](App::launch) read could not be acted on.
@@ -1102,8 +1102,10 @@ pub enum Error {
     /// [`main`](crate::main) never hands one back — it writes the usage to
     /// stdout and answers `Ok(())` — so a `Help` here is one a harness driving
     /// a run through [`launch`](App::launch) asked for.
+    #[error(transparent)]
     Argument(Argument),
     /// No [`opening`](App::opening) was given.
+    #[error("this app has no opening, and nothing can invent a game's opening state for it")]
     Unopened,
     /// The [`seat`](App::seat) is not one the roster of the session being played
     /// has.
@@ -1117,6 +1119,11 @@ pub enum Error {
     /// was handed: a [`load`](App::load) or a [`replay`](App::replay) discards
     /// the game's fresh opening and carries the saved session's roster on, so a
     /// seat is checked against that one.
+    #[error(
+        "this client submits for seat {} and the roster has {seats}, so there would be nowhere \
+         to record what it did",
+        seat.0
+    )]
     Seat {
         /// The seat that was asked for.
         seat: PlayerId,
@@ -1124,14 +1131,16 @@ pub enum Error {
         seats: usize,
     },
     /// The opening could not be made into a session.
-    Shape(Shape),
+    #[error("the opening is not a session: {0}")]
+    Shape(#[source] Shape),
     /// The action log refused a write.
     ///
     /// The loop writes one entry per tick, at the frontier, into a row it has
     /// just grown, so this is [`Refused::Memory`] on a machine that has run out
     /// or a session whose log was replaced under the runtime by a caller
     /// holding the public field.
-    Log(Refused),
+    #[error("the action log refused this tick's action: {0}")]
+    Log(#[source] Refused),
     /// Two peers computed different states from what they agree is the same
     /// action log, and this run stopped rather than playing on.
     ///
@@ -1150,7 +1159,11 @@ pub enum Error {
     /// Boxed because it is much the largest thing this enum could carry and
     /// every other variant would pay for it by value.
     #[cfg(feature = "net")]
-    Diverged(Box<corvid_lockstep::Desync>),
+    #[error(
+        "this session diverged: {0}; every peer simulated the same actions and did not reach \
+         the same state, which is a tick that is not a pure function of what it was handed"
+    )]
+    Diverged(#[source] Box<corvid_lockstep::Desync>),
     /// A peer could not carry on for a reason that is not a divergence.
     ///
     /// A datagram naming a tick past the horizon — the denial-of-service arm,
@@ -1158,45 +1171,58 @@ pub enum Error {
     /// somewhere else — a peer that has sent two different actions for one
     /// tick, or a state offered for a tick outside the session.
     #[cfg(feature = "net")]
-    Halted(Box<corvid_lockstep::Halt>),
+    #[error("this peer cannot carry on: {0}")]
+    Halted(#[source] Box<corvid_lockstep::Halt>),
     /// A file could not be written.
+    #[error("{} could not be written: {why}", path.display())]
     Wrote {
         /// Which file. `io::Error` does not carry the path it was about.
         path: PathBuf,
         /// Why not.
+        #[source]
         why: io::Error,
     },
     /// A file could not be read.
+    #[error("{} could not be read: {why}", path.display())]
     Read {
         /// Which file.
         path: PathBuf,
         /// Why not.
+        #[source]
         why: io::Error,
     },
     /// A file is there and is not a save this build can play.
+    #[error("{} is not a save this build can play: {why}", path.display())]
     Saved {
         /// Which file.
         path: PathBuf,
         /// Why not.
+        #[source]
         why: NotASave,
     },
     /// The run was told to open a slot nothing has written.
     ///
     /// A refusal rather than a fresh game, because a run that was asked to
     /// resume and quietly started over is a run that has lost somebody's save.
+    #[error(
+        "nothing has been written to save slot {}, so there is nothing there to open",
+        slot.0
+    )]
     Empty {
         /// Which slot.
         slot: SaveSlot,
     },
     /// A device would not open, or stopped working.
     #[cfg(feature = "render")]
-    Drew(corvid_render::Error),
+    #[error("the device could not draw this run: {0}")]
+    Drew(#[source] corvid_render::Error),
     /// The platform would not give us an event loop or a window.
     ///
     /// On a machine with no display server, which is most build machines, this
     /// is what `window` answers.
     #[cfg(feature = "window")]
-    NoWindow(corvid_window::Opening),
+    #[error("this run has no window: {0}")]
+    NoWindow(#[source] corvid_window::Opening),
     /// The player's binding file is there and cannot be used.
     ///
     /// A refusal rather than a fall back to the table the game ships, because
@@ -1204,10 +1230,12 @@ pub enum Error {
     /// nothing and a player with no way to learn why. What is wrong is a word
     /// in a text file, and the message names it.
     #[cfg(feature = "window")]
+    #[error("{} is not a binding table this build can use: {why}", path.display())]
     Bound {
         /// Which file.
         path: PathBuf,
         /// What could not be read out of it.
+        #[source]
         why: crate::controls::Misbound,
     },
     /// A windowed run ended without ever opening a window, so there is no
@@ -1216,99 +1244,18 @@ pub enum Error {
     /// The platform never resumed the application, which on a desktop means the
     /// loop was told to exit before it started.
     #[cfg(feature = "window")]
+    #[error(
+        "the event loop ended before the platform ever gave us a window, so this run played \
+         no ticks"
+    )]
     NeverOpened,
     /// Something could not be encoded on the way into a capture.
+    #[error("{what} could not be encoded: {why}")]
     Encoded {
         /// What it was.
         what: &'static str,
         /// Why not.
+        #[source]
         why: corvid_wire::Error,
     },
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Argument(why) => write!(f, "{why}"),
-            Self::Unopened => f.write_str(
-                "this app has no opening, and nothing can invent a game's opening state for it",
-            ),
-            Self::Seat { seat, seats } => write!(
-                f,
-                "this client submits for seat {} and the roster has {seats}, so \
-                 there would be nowhere to record what it did",
-                seat.0,
-            ),
-            Self::Shape(shape) => write!(f, "the opening is not a session: {shape}"),
-            Self::Log(refused) => write!(f, "the action log refused this tick's action: {refused}"),
-            #[cfg(feature = "net")]
-            Self::Diverged(desync) => write!(
-                f,
-                "this session diverged: {desync}; every peer simulated the same actions                  and did not reach the same state, which is a tick that is not a pure                  function of what it was handed",
-            ),
-            #[cfg(feature = "net")]
-            Self::Halted(halt) => write!(f, "this peer cannot carry on: {halt}"),
-            Self::Wrote { path, why } => {
-                write!(f, "{} could not be written: {why}", path.display())
-            }
-            Self::Read { path, why } => {
-                write!(f, "{} could not be read: {why}", path.display())
-            }
-            Self::Saved { path, why } => {
-                write!(
-                    f,
-                    "{} is not a save this build can play: {why}",
-                    path.display()
-                )
-            }
-            Self::Empty { slot } => write!(
-                f,
-                "nothing has been written to save slot {}, so there is nothing \
-                 there to open",
-                slot.0,
-            ),
-            Self::Encoded { what, why } => write!(f, "{what} could not be encoded: {why}"),
-            #[cfg(feature = "render")]
-            Self::Drew(why) => write!(f, "the device could not draw this run: {why}"),
-            #[cfg(feature = "window")]
-            Self::NoWindow(why) => write!(f, "this run has no window: {why}"),
-            #[cfg(feature = "window")]
-            Self::Bound { path, why } => write!(
-                f,
-                "{} is not a binding table this build can use: {why}",
-                path.display(),
-            ),
-            #[cfg(feature = "window")]
-            Self::NeverOpened => f.write_str(
-                "the event loop ended before the platform ever gave us a window, so this run \
-                 played no ticks",
-            ),
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Unopened | Self::Seat { .. } | Self::Empty { .. } => None,
-            Self::Argument(why) => Some(why),
-            Self::Shape(shape) => Some(shape),
-            Self::Log(refused) => Some(refused),
-            #[cfg(feature = "net")]
-            Self::Diverged(desync) => Some(&**desync),
-            #[cfg(feature = "net")]
-            Self::Halted(halt) => Some(&**halt),
-            Self::Wrote { why, .. } | Self::Read { why, .. } => Some(why),
-            Self::Saved { why, .. } => Some(why),
-            Self::Encoded { why, .. } => Some(why),
-            #[cfg(feature = "render")]
-            Self::Drew(why) => Some(why),
-            #[cfg(feature = "window")]
-            Self::NoWindow(why) => Some(why),
-            #[cfg(feature = "window")]
-            Self::Bound { why, .. } => Some(why),
-            #[cfg(feature = "window")]
-            Self::NeverOpened => None,
-        }
-    }
 }
