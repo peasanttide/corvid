@@ -54,8 +54,8 @@ use std::{
 };
 
 use corvid_behavior::{
-    AchievementId, Command, ExitCode, Extract, Player, PlayerId, Presence, ProfileId, SaveSlot,
-    Time,
+    AchievementId, Command, ExitCode, Extract, Extracting, Player, PlayerId, Presence, ProfileId,
+    SaveSlot, Time,
 };
 use corvid_control::Controller;
 use corvid_fixed::Factor16;
@@ -437,12 +437,12 @@ pub(crate) struct Ears {
 }
 
 impl Extract<Tally> for Ears {
-    fn extract(&mut self, state: &Tally, _level: &Level, _time: Time) {
-        if state.now != self.at {
+    fn extract(&mut self, extracting: Extracting<'_, Tally>) {
+        if extracting.state.now != self.at {
             self.was = self.count;
         }
-        self.count = state.count;
-        self.at = state.now;
+        self.count = extracting.state.count;
+        self.at = extracting.state.now;
     }
 }
 
@@ -481,7 +481,7 @@ impl Auralizer<Tally> for Ears {
 /// the base of the client-local half: `Present` reads and writes the view in
 /// all three of its functions and declares neither.
 impl Extract<Tally> for Painted {
-    fn extract(&mut self, _state: &Tally, _level: &Level, _time: Time) {}
+    fn extract(&mut self, _extracting: Extracting<'_, Tally>) {}
 }
 
 impl corvid_render::Render<Tally> for Painted {

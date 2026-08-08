@@ -27,7 +27,7 @@ pub use command::{
     AchievementId, Command, Discard, ExitCode, LobbyId, PresenceText, RumbleId, SaveSlot, Scope,
     StatId, Url,
 };
-pub use extract::Extract;
+pub use extract::{Extract, Extracting};
 pub use faithful::{Unfaithful, round_trip_is_faithful};
 pub use level::Level;
 pub use name::InvalidName;

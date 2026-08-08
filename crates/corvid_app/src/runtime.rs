@@ -8,7 +8,7 @@ use corvid_replay::LevelRef;
 use corvid_sound::Auralizer;
 use std::{mem, sync::Arc};
 
-use corvid_behavior::{ExitCode, Player, PlayerId, SaveSlot, Time};
+use corvid_behavior::{ExitCode, Extracting, Player, PlayerId, SaveSlot, Time};
 use corvid_fixed::Factor16;
 use corvid_hash::digest;
 #[cfg(feature = "window")]
@@ -890,11 +890,17 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         // Extracted once per displayed frame, for the settled newest state —
         // never once per replayed tick. The renderer holds the pair and the
         // shader lerps between them with `alpha`.
+        let state = Arc::clone(&self.current);
+        let level = Arc::clone(&self.play.session().opening.content);
+        let extracting = Extracting {
+            state: &*state,
+            level: &*level,
+            time,
+        };
         if let Some(graphics) = self.graphics.as_mut() {
-            graphics.extract(&self.current, &self.play.session().opening.content, time);
+            graphics.extract(extracting);
         }
-        self.ear
-            .extract(&self.current, &self.play.session().opening.content, time);
+        self.ear.extract(extracting);
 
         self.audio.clear();
         self.ear.hear(&mut self.audio, &camera, time);

@@ -98,8 +98,8 @@ pub use corvid_app::*;
 
 // The deterministic contract, and the digest a mark is.
 pub use corvid_behavior::{
-    self as behavior, Command, Data, Discard, ExitCode, Extract, Level, Loading, Player, PlayerId,
-    Presence, ProfileId, Scope, State, Time,
+    self as behavior, Command, Data, Discard, ExitCode, Extract, Extracting, Level, Loading,
+    Player, PlayerId, Presence, ProfileId, Scope, State, Time,
 };
 // The filesystem a level is read through, named here rather than forwarded by
 // `corvid_behavior`. `Source` is in `Level::load`'s signature and `Malformed`

@@ -14,7 +14,7 @@
 
 mod common;
 
-use corvid_behavior::{Extract, Time};
+use corvid_behavior::{Extract, Extracting, Time};
 use corvid_sound::Auralizer;
 use std::{fs, num::NonZeroU32};
 
@@ -212,8 +212,16 @@ fn a_captured_audio_frame_is_the_one_the_extractor_produced_at_that_tick() {
         // previous and current, so feeding it the two states in order is what
         // reproduces what the loop did.
         let mut ears = <Ears as Auralizer<Tally>>::new(());
-        ears.extract(&previous, &session.opening.content, Time::default());
-        ears.extract(&current, &session.opening.content, Time::default());
+        ears.extract(Extracting {
+            state: &previous,
+            level: &session.opening.content,
+            time: Time::default(),
+        });
+        ears.extract(Extracting {
+            state: &current,
+            level: &session.opening.content,
+            time: Time::default(),
+        });
         ears.hear(
             &mut frame,
             &corvid_camera::Camera::default(),

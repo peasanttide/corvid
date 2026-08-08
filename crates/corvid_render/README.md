@@ -8,7 +8,7 @@ gets a real `wgpu::Device` and writes real `wgpu`. Every abstraction over a GPU
 is a bet about which games exist, and this one is not in that business.
 
 ```rust
-use corvid_behavior::{Extract, Level, State, Time};
+use corvid_behavior::{Extract, Extracting, Level, State, Time};
 use corvid_files::{Malformed, Source};
 use corvid_camera::Camera;
 use corvid_fixed::Factor16;
@@ -34,7 +34,7 @@ struct Clear;
 impl Extract<Game> for Clear {
     /// At most once per displayed frame, for the settled newest state. This is
     /// where a renderer writes the pair its shader will lerp between.
-    fn extract(&mut self, _state: &Game, _level: &Field, _time: Time) {}
+    fn extract(&mut self, _extracting: Extracting<'_, Game>) {}
 }
 
 impl Render<Game> for Clear {

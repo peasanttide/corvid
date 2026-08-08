@@ -2,6 +2,40 @@
 
 use crate::{State, Time};
 
+/// What an extractor is handed.
+///
+/// One struct rather than three arguments, so that a new thing to hand over is
+/// a field here and not a signature change in every implementation.
+///
+/// [`Copy`], because two extractors are handed the same one per frame.
+///
+/// Written by hand rather than derived: a derive puts `S: Copy` on the impl,
+/// because it goes by which type parameters appear rather than by what the
+/// fields actually hold. Every field here is a shared reference or a `Time`,
+/// copy regardless of whether `S` is, and the state a game hands over is
+/// behind an `Arc` precisely so that it does not have to be.
+#[derive(Debug)]
+pub struct Extracting<'a, S: State> {
+    /// The state to read.
+    pub state: &'a S,
+    /// The level it is being played on.
+    pub level: &'a S::Level,
+    /// Where the session is.
+    pub time: Time,
+}
+
+#[allow(
+    clippy::expl_impl_clone_on_copy,
+    reason = "a derive would add S: Clone, which is not true of every game's state and not needed by any field here"
+)]
+impl<S: State> Clone for Extracting<'_, S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S: State> Copy for Extracting<'_, S> {}
+
 /// State into whatever a device wants, once per displayed frame.
 ///
 /// Implemented by a renderer and by an auralizer, **for their own types** —
@@ -34,11 +68,11 @@ use crate::{State, Time};
 /// or compared against a golden, which is why an `f32` lerp is allowed there
 /// and nowhere below it.
 pub trait Extract<S: State> {
-    /// Take what this device needs out of the state.
-    fn extract(&mut self, state: &S, level: &S::Level, time: Time);
+    /// Read out of a state whatever this half needs to draw or to sound.
+    fn extract(&mut self, extracting: Extracting<'_, S>);
 }
 
 /// A device that wants nothing, which is what a dedicated server has two of.
 impl<S: State> Extract<S> for () {
-    fn extract(&mut self, _state: &S, _level: &S::Level, _time: Time) {}
+    fn extract(&mut self, _extracting: Extracting<'_, S>) {}
 }

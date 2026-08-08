@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use corvid::{
-    AudioFrame, Auralizer, Camera, Controller, Cue, Digest, Extract, FinePoint, I16F16, Opening,
-    Opens, Profile, ProfileId, Schema, Seed, SoundId, Tick, Time, sound::Listener,
+    AudioFrame, Auralizer, Camera, Controller, Cue, Digest, Extract, Extracting, FinePoint, I16F16,
+    Opening, Opens, Profile, ProfileId, Schema, Seed, SoundId, Tick, Time, sound::Listener,
 };
 
 use crate::table::{Contact, Court, Level, Move, Play, SEATS, Table};
@@ -180,9 +180,9 @@ pub struct Ears {
 }
 
 impl Extract<Table> for Ears {
-    fn extract(&mut self, state: &Table, _level: &Court, _time: Time) {
-        self.contact = state.contact;
-        self.at = state.now;
+    fn extract(&mut self, extracting: Extracting<'_, Table>) {
+        self.contact = extracting.state.contact;
+        self.at = extracting.state.now;
     }
 }
 

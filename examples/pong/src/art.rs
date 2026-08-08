@@ -12,7 +12,7 @@
 
 use core::time::Duration;
 
-use corvid::{Extent, Extract, Factor16, Factor32, I16F16, Render, Target, Time};
+use corvid::{Extent, Extract, Extracting, Factor16, Factor32, I16F16, Render, Target, Time};
 
 use crate::{
     play::FLASH,
@@ -214,21 +214,21 @@ impl Graphics {
 
 impl Extract<Table> for Graphics {
     /// At most once per displayed frame, for the settled newest state.
-    fn extract(&mut self, state: &Table, level: &Court, time: Time) {
+    fn extract(&mut self, extracting: Extracting<'_, Table>) {
         // The pair shifts only when the state does. A frame that saw no tick
         // extracts nothing new, and the shader keeps lerping between the same
         // two.
-        if state.now != self.current.now {
-            self.previous = core::mem::replace(&mut self.current, state.clone());
+        if extracting.state.now != self.current.now {
+            self.previous = core::mem::replace(&mut self.current, extracting.state.clone());
         }
-        self.court = level.clone();
+        self.court = extracting.level.clone();
 
-        let dt = time.elapsed.saturating_sub(self.seen);
-        self.seen = time.elapsed;
-        if state.scores == self.scores {
+        let dt = extracting.time.elapsed.saturating_sub(self.seen);
+        self.seen = extracting.time.elapsed;
+        if extracting.state.scores == self.scores {
             self.since_goal = (self.since_goal + dt.as_secs_f32()).min(FLASH);
         } else {
-            self.scores = state.scores;
+            self.scores = extracting.state.scores;
             self.since_goal = 0.0;
         }
     }
