@@ -64,6 +64,47 @@ jobs:
           echo "== corvid_glm --features $feature"
           cargo build -p corvid_glm --no-default-features --features "$feature"
         done
+        # `corvid_hash`'s one feature switches nothing on — the crate never
+        # reaches past `core`, and `std` is there so a downstream can forward it
+        # uniformly across the workspace instead of special-casing one leaf. A
+        # feature that does nothing is exactly the kind that rots without anyone
+        # noticing, because no other arm of this workflow ever names it on its
+        # own, so it is built here to keep the name honest.
+        for feature in std; do
+          echo "== corvid_hash --features $feature"
+          cargo build -p corvid_hash --no-default-features --features "$feature"
+        done
+    # `corvid_hash` overrides `write_usize` and `write_isize` so a `Vec`'s
+    # length prefix is eight bytes on every target rather than the pointer
+    # width, which is the one thing standing between a `wasm32` browser peer and
+    # a native server agreeing on a digest. Every arm above runs on the 64-bit
+    # host, where the override and the native-width default write the identical
+    # eight little-endian bytes — so deleting the override outright leaves all
+    # of them green, `tests/width.rs` included. The regression this crate exists
+    # to prevent is invisible to a workflow that never leaves `x86_64`.
+    #
+    # `i686-unknown-linux-gnu` is the cheapest target that actually *runs* the
+    # tests with a four-byte `usize`: it needs a multilib gcc and no emulator,
+    # where `wasm32` would need a runtime and would only ever be a build.
+    #
+    # Measured rather than assumed. Replacing both overrides with the
+    # native-width write that `core` defaults to leaves all 68 tests green on
+    # `x86_64` and fails exactly one here —
+    # `width::a_pointer_sized_integer_is_absorbed_as_sixty_four_bits`. So this
+    # arm is the only thing in the workflow standing between that regression and
+    # a merge, and `tests/width.rs` is the only file in it that notices.
+    # `tests/golden.rs` is not a second net: its rows drive the `Hasher` with
+    # words and byte slices directly rather than through `Hash` on a container,
+    # so they never reach `write_usize` and cannot move with the pointer width.
+    # The whole suite is run anyway, because it costs one link over running the
+    # one file and it covers whatever becomes width-dependent later.
+    - name: Run tests on a 32-bit target
+      run: |
+        set -eu
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib
+        rustup target add i686-unknown-linux-gnu
+        cargo test -p corvid_hash --all-features --target i686-unknown-linux-gnu
     # Overflow checks are on in dev and off in release, so the two profiles
     # disagree about what a wrapped intermediate does — the one divergence a
     # bit-exactness crate cannot ship. Both arms have to run.
