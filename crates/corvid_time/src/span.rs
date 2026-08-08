@@ -106,6 +106,34 @@ impl TickSpan {
         Self(nonzero(NANOS_PER_SECOND / hz.get() as u64))
     }
 
+    /// The span of exactly this many whole milliseconds.
+    ///
+    /// The constructor a game writes. It is total because zero milliseconds is
+    /// not a span: a `0` is taken as the shortest span there is, the same
+    /// answer every other zero in this module gets, rather than as a division
+    /// by zero in [`Step`](crate::Step).
+    ///
+    /// A game wanting a span no whole millisecond names — a 72 Hz headset's
+    /// 13 888 888 ns — has [`from_nanos`](Self::from_nanos).
+    ///
+    /// ```
+    /// use core::time::Duration;
+    /// use corvid_time::TickSpan;
+    ///
+    /// const PONG: TickSpan = TickSpan::from_millis(33);
+    /// assert_eq!(PONG.period(), Duration::from_millis(33));
+    /// assert_eq!(PONG.hz(), 30);
+    ///
+    /// // Exact across the whole range.
+    /// assert_eq!(TickSpan::from_millis(1).period(), Duration::from_millis(1));
+    /// assert_eq!(TickSpan::from_millis(255).period(), Duration::from_millis(255));
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn from_millis(millis: u8) -> Self {
+        Self(nonzero(millis as u64 * 1_000_000))
+    }
+
     /// How long a tick lasts, in nanoseconds.
     #[must_use]
     #[inline]
