@@ -39,6 +39,14 @@ const MOVED: Mat4 = Mat4::new(
 
 #[test]
 fn every_alias_is_its_components_and_nothing_else() {
+    // Every alignment here is four, and every one of these types is aligned to
+    // sixteen by WGSL. That is not a defect being pinned in place: the payload
+    // is what this crate promises, and a payload written at an offset that is
+    // already sixteen-aligned is read correctly whatever the Rust type's own
+    // alignment says. What the four rules out is casting a `#[repr(C)]` struct
+    // with one of these in the middle and expecting the shader to agree about
+    // where the field starts. The aliases are asserted rather than described
+    // because that is the assumption a caller doing the cast is making.
     assert_eq!((size_of::<Vec2>(), align_of::<Vec2>()), (8, 4));
     assert_eq!((size_of::<Vec3>(), align_of::<Vec3>()), (12, 4));
     assert_eq!((size_of::<Vec4>(), align_of::<Vec4>()), (16, 4));

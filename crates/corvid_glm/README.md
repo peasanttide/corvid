@@ -18,6 +18,17 @@ WGSL's `mat4x4` is column-major and so is nalgebra's `Matrix4`, so a matrix
 here is already in the order a uniform buffer wants. There is no transpose on
 the way to the device.
 
+That is a claim about byte *order* and not about alignment, and the two are
+worth keeping apart. `Mat4` is sixty-four bytes aligned to four; a WGSL matrix
+is aligned to sixteen, and so are `vec3` and `vec4` against this crate's `Vec3`
+and `Vec4`. Written at an offset that is already sixteen-aligned — the start of
+a buffer, or a binding of its own — the difference cannot be observed, which is
+why the ordinary case just works. Put one inside a `#[repr(C)]` struct and cast
+the struct to bytes and it can be: Rust places the field on four, the shader
+reads it on sixteen, and they disagree from the first field that does not land
+on both. A struct that crosses to a shader owes its own padding, and that
+padding belongs to the game, because only the game knows what else is in it.
+
 `Matrix4::new` takes its arguments row by row and stores them column by column,
 so a matrix can still be *written* in reading order:
 

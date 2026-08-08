@@ -28,14 +28,29 @@ pub type Vec4 = nalgebra::Vector4<f32>;
 
 /// A 3×3 matrix: a rotation or a normal transform, without the translation.
 ///
-/// Column-major like [`Mat4`], but unlike [`Mat4`] it is not a shader layout.
-/// This is nine floats packed into thirty-six bytes; a WGSL `mat3x3<f32>` pads
-/// every column out to sixteen and occupies forty-eight. The order is right and
-/// the stride is not, so a normal matrix bound to a buffer goes across as a
-/// [`Mat4`] or as three [`Vec4`]s. This type is the CPU side of that.
+/// Column-major like [`Mat4`], and further from what a shader reads than
+/// [`Mat4`] is. This is nine floats packed into thirty-six bytes; a WGSL
+/// `mat3x3<f32>` pads every column out to sixteen and occupies forty-eight.
+/// Where [`Mat4`] parts company with the shader only over alignment, this parts
+/// company over the bytes themselves — the order is right and the stride is not
+/// — so a normal matrix bound to a buffer goes across as a [`Mat4`] or as three
+/// [`Vec4`]s. This type is the CPU side of that.
 pub type Mat3 = nalgebra::Matrix3<f32>;
 
 /// A 4×4 matrix, column-major — the order a WGSL `mat4x4` reads.
+///
+/// **The order, which is not the whole layout.** The sixty-four bytes are in
+/// the order a `mat4x4<f32>` wants, and that is what makes handing one to a
+/// buffer a copy rather than a transpose. It is not a promise that this type
+/// *is* the shader's type: its Rust alignment is four, where WGSL gives a
+/// matrix sixteen. At an offset that is already sixteen-aligned — the start of
+/// a buffer, a binding of its own — nothing can observe the difference, and
+/// that is the common case. Inside a `#[repr(C)]` struct that is cast to bytes
+/// it can be observed: Rust will place the field on four and the shader will
+/// read it on sixteen, and they part company at the first field that does not
+/// happen to land on both. A struct crossing to a shader owes its own padding.
+/// The same gap applies to [`Vec3`] and [`Vec4`], which WGSL also aligns to
+/// sixteen and this crate aligns to four.
 ///
 /// ```
 /// use corvid_glm::Mat4;
