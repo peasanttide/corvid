@@ -14,11 +14,11 @@ that would make one.
 ```rust
 use std::sync::Arc;
 
-use corvid_app::App;
+use corvid_app::{App, Game};
 use corvid_control::Controller;
 use corvid_behavior::{ProfileId, State};
-use corvid_replay::{Opening, Profile, Schema, Seed, Snapshots};
-use corvid_time::Tick;
+use corvid_replay::{Opening, Opens, Profile, Schema, Seed, Snapshots};
+use corvid_time::{Tick, TickSpan};
 # use corvid_behavior::{Command, Level, Player};
 # use corvid_files::{Malformed, Source};
 # use serde::{Deserialize, Serialize};
@@ -59,9 +59,9 @@ use corvid_time::Tick;
 #
 # /// The climber, who always climbs.
 # ///
-# /// A controller is not optional for a game whose actions matter: `App`
-# /// defaults `C` to `()`, and `()` submits `Action::default()` forever — which
-# /// for this game is `Effort::Rest`, so the run below would never finish.
+# /// A controller is not optional for a game whose actions matter: `()` is a
+# /// controller too, and it submits `Action::default()` forever — which for this
+# /// game is `Effort::Rest`, so the run below would never finish.
 # #[derive(Clone, Copy, Debug, Default)]
 # struct Legs;
 # impl Controller<Climb> for Legs {
@@ -92,7 +92,27 @@ fn opening() -> Opening<Climb> {
     }
 }
 
-let run = App::<Climb, Legs>::new()
+# impl Opens for Climb {
+#     fn opening() -> Opening<Self> { opening() }
+# }
+#
+/// The game: a state, a climber at the controls, and nothing else. `()` is a
+/// bot that never plays, a renderer that opens no adapter and an ear that
+/// opens no sound card, so a run of this reads no device and draws nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Climbing;
+
+impl Game for Climbing {
+    const PERIOD: TickSpan = TickSpan::CRADLE;
+
+    type State = Climb;
+    type Controller = Legs;
+    type Bot = ();
+    type Render = ();
+    type Auralizer = ();
+}
+
+let run = App::<Climbing>::new()
     .headless()
     .opening(opening())
     .until(|state: &Climb, _at: Tick| state.metres >= 100)
@@ -105,7 +125,7 @@ assert_eq!(run.session.last(), Tick(100));
 // The predicate is handed the tick as well as the state, so "a hundred ticks"
 // needs no counter in the game's own state — and when that is the whole of the
 // condition, `for_ticks` says it in one word.
-let counted = App::<Climb, Legs>::new()
+let counted = App::<Climbing>::new()
     .headless()
     .opening(opening())
     .for_ticks(100)
@@ -340,6 +360,10 @@ fn main() -> corvid_app::Result {
 }
 ```
 
+`Bounce` there is a [`Game`]: the five types a game is — a state, a controller,
+a bot, a renderer and an ear — and how long its tick lasts. Naming one names all
+five, which is what lets the line above be the whole of a `main`.
+
 A window, a headless run, a capture, a replay and a save slot are all the same
 program: `main` reads the process's arguments and decides. **A game never asks
 for determinism**, because a game that had to call `.headless()` would have a
@@ -366,13 +390,12 @@ be a flag whose legal values only the game could list. `--ticks 100` and
 none is refused rather than defaulted, because "zero ticks" and "as long as you
 like" are both things somebody might have meant.
 
-`main` is one function with one bound, `G: Present` — which is `G: Render`,
-because the client-local half is a chain of traits over one marker. A game that
-draws nothing writes `type Graphics = ();` and satisfies it. There used to be two
-definitions under opposite `cfg`s and a trait reconciling their bounds, and both
-existed because a `wgpu` type could not be named a crate lower down; it can now.
-[`App`] is still here for a harness driving a run by hand, and [`App::launch`]
-is the same reading of the command line for one.
+`main` is one function with one bound, `G: Game`, and there is no configuration
+in which it is weaker: a game that reaches it has a renderer and an ear whether
+it draws or sounds or not. A game that draws nothing writes `type Render = ();`
+and satisfies it, and the run opens no adapter. [`App`] is still here for a
+harness driving a run by hand, and [`App::launch`] is the same reading of the
+command line for one.
 
 ## Save and load, without a game asking
 
@@ -584,6 +607,7 @@ and it is `corvid::Factor32`.
 
 [`App::arguments`]: crate::App::arguments
 [`App`]: crate::App
+[`Game`]: crate::Game
 [`App::launch`]: crate::App::launch
 [`main`]: crate::main
 [`Render::icon`]: corvid_render::Render::icon

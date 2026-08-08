@@ -17,8 +17,8 @@ use crate::{
     Error,
     backend::{Backend, Frame},
     capture::Capture,
+    game::Game,
 };
-use corvid_behavior::State;
 
 /// Where a displayed frame goes when there is a device to draw it with.
 ///
@@ -36,15 +36,15 @@ use corvid_behavior::State;
 /// run's capture holds the same files a headless run's does and no PNG, and
 /// [`App::offscreen`](crate::App::offscreen) is the run that produces one.
 ///
-/// # Why this asks for `Render` and its `Backend` implementation asks for
-/// `Present`
+/// # Why the type asks for nothing and its `Backend` implementation asks for a
+/// game
 ///
-/// What a screen *is* needs only [`Render`]: a device, a target, and the
-/// pipelines [`setup`](Render::setup) built, which [`draw`](Render::draw) is
-/// handed back. Nothing on this type reads an input, extracts a sound or asks
-/// for a cursor. What makes it a *backend* is the loop, and the loop plays a
-/// [`Present`] — so the two bounds are written where each is true rather than
-/// the stronger one being pushed up onto the type.
+/// What a screen *is* is a device, a target and a capture, and none of those
+/// needs to know what is being drawn — the pipelines [`Render::new`] built are
+/// the runtime's, and [`draw`](Render::draw) is handed them back. What makes it
+/// a *backend* is the loop, and the loop plays a [`Game`]. So the bound is
+/// written where it is true rather than pushed up onto the type, and the
+/// parameter here is a name for which game this screen belongs to.
 ///
 /// # The derived `Debug`
 ///
@@ -52,21 +52,20 @@ use corvid_behavior::State;
 /// graphics were a trait object with no bound: every field prints, including
 /// the pipelines, because [`Render::Graphics`] is [`Debug`].
 ///
-/// The bound the derive generates is `G: Debug` rather than the
-/// `G::Graphics: Debug` it actually needs — that is what `derive` does with a
-/// type parameter, and it is wrong in shape rather than in effect here. Every
-/// `Render` implementation is a marker type, which is the one shape that
-/// always derives [`Debug`] in a line, and nothing in this crate asks for
-/// `Screen<S>: Debug` anyway. A game whose marker somehow is not `Debug` gets a
-/// `Screen` that is not either, and notices nothing.
+/// The bound the derive generates is `G: Debug`, which is what `derive` does
+/// with a type parameter, and it is wrong in shape rather than in effect here.
+/// A game is a marker type, which is the one shape that always derives
+/// [`Debug`] in a line, and nothing in this crate asks for `Screen<G>: Debug`
+/// anyway. A game whose marker somehow is not `Debug` gets a `Screen` that is
+/// not either, and notices nothing.
 #[derive(Debug)]
-pub(crate) struct Screen<S: State> {
+pub(crate) struct Screen<G> {
     /// The device and the target.
     renderer: Renderer,
     /// Which game this draws, which is a bound rather than a value: the
     /// renderer holding the pipelines is the runtime's now, and what is left
     /// here is a device.
-    game: core::marker::PhantomData<fn() -> S>,
+    game: core::marker::PhantomData<fn() -> G>,
     /// Where to write, if anywhere.
     capture: Option<Capture>,
     /// How many frames have arrived.
@@ -128,7 +127,7 @@ fn open_audio() -> Option<corvid_audio::Audio> {
     }
 }
 
-impl<S: State> Screen<S> {
+impl<G> Screen<G> {
     /// A backend drawing with `renderer` and writing into `capture`.
     ///
     /// The game's `setup` runs here, which is the one place it can: the device
@@ -169,7 +168,7 @@ impl<S: State> Screen<S> {
     }
 }
 
-impl<S: State, R: Render<S>> Backend<S, R> for Screen<S> {
+impl<G: Game> Backend<G> for Screen<G> {
     /// The renderer's target, which a windowed run's
     /// [`resize`](Self::resize) keeps in step with the window and an offscreen
     /// run fixed when it opened.
@@ -178,7 +177,7 @@ impl<S: State, R: Render<S>> Backend<S, R> for Screen<S> {
         Some(Viewport::new(size.width, size.height))
     }
 
-    fn present(&mut self, frame: Frame<'_, S, R>) -> Result<(), Error> {
+    fn present(&mut self, frame: Frame<'_, G>) -> Result<(), Error> {
         let Frame {
             at,
             graphics,

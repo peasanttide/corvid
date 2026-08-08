@@ -11,7 +11,12 @@
 //! ```
 //!
 //! ```rust
-//! use corvid::{App, Level, Malformed, Source, State};
+//! use std::sync::Arc;
+//!
+//! use corvid::{
+//!     App, Game, Level, Malformed, Opening, Opens, Profile, ProfileId, Schema, Seed, Source,
+//!     State, Tick, TickSpan,
+//! };
 //! use serde::{Deserialize, Serialize};
 //!
 //! /// A level with nothing in it, read from nothing.
@@ -25,8 +30,8 @@
 //!     }
 //! }
 //!
-//! /// A game's own state, and the game. `Hash` is what a mark is taken
-//! /// through; `Default` is what a fresh session opens on.
+//! /// A game's own state. `Hash` is what a mark is taken through; `Default` is
+//! /// what a fresh session opens on.
 //! #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 //! struct Still;
 //!
@@ -37,31 +42,64 @@
 //!     type Action = ();
 //! }
 //!
-//! // Four types, a name, and nothing else: `tick` and `load_level` both have
-//! // defaults, so a game that does nothing writes no function at all.
-//! //
-//! // There is no controller, no renderer and no ear here either. `App`
-//! // defaults all three to `()`, which opens no window, no adapter and no
-//! // sound card — so this is a dedicated server, and the shortest way of
-//! // drawing nothing is to say nothing.
-//! let app = App::<Still>::new().headless().for_ticks(10);
+//! /// Where a fresh run starts: one seat, from tick zero, on the only level.
+//! /// The one thing a runtime cannot invent for a game.
+//! impl Opens for Still {
+//!     fn opening() -> Opening<Self> {
+//!         Opening {
+//!             level: "nowhere".to_owned(),
+//!             content: Arc::new(Nowhere),
+//!             rules: Arc::new(()),
+//!             roster: vec![Profile { account: ProfileId(1), joined: Tick::ZERO, left: None }],
+//!             seed: Seed(0),
+//!             first: Tick::ZERO,
+//!             origin: None,
+//!             schema: Schema::new("nothing").digest(),
+//!         }
+//!     }
+//! }
+//!
+//! /// The game, which is where its five types are declared and the only thing
+//! /// a run is given.
+//! ///
+//! /// Four of the five are `()`: no controller, no bot, no renderer and no ear,
+//! /// which opens no window, no adapter and no sound card. So this is a whole
+//! /// dedicated server, and the shortest way of drawing nothing is to say so.
+//! #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+//! struct Nothing;
+//!
+//! impl Game for Nothing {
+//!     const PERIOD: TickSpan = TickSpan::CRADLE;
+//!
+//!     type State = Still;
+//!     type Controller = ();
+//!     type Bot = ();
+//!     type Render = ();
+//!     type Auralizer = ();
+//! }
+//!
+//! let app = App::<Nothing>::new()
+//!     .opening(Still::opening())
+//!     .headless()
+//!     .for_ticks(10);
 //! ```
 //!
-//! # The four contracts, and which one a game starts with
+//! # The five types, and which one a game starts with
 //!
-//! A Corvid game is four types, each carrying one of these:
+//! A Corvid game is one [`Game`], and a `Game` is five types and a tick span:
 //!
 //! | | What it says |
 //! |---|---|
 //! | [`State`] | What a tick is: the state, the level, the rules, the actions, and the one function that advances them |
 //! | [`Controller`] | Everything client-local that is not a device: the input declaration, `action`, `look` and what a pad should feel |
-//! | [`Render`] | What a frame is drawn with: the game's `Graphics`, and the `draw` that uses them |
+//! | `Bot` | A second [`Controller`], for the seats nobody is in |
+//! | [`Render`] | What a frame is drawn with: the game's pipelines, and the `draw` that uses them |
 //! | [`Auralizer`] | What a frame sounds like: the `hear` that fills an [`AudioFrame`] from a state |
 //!
-//! A headless run needs only the first. The other three are what a player in
-//! front of the run reads, hears and sees, and [`App`] defaults every one of
-//! them to `()` — which is why the example above is a whole dedicated server
-//! that never names a controller, a renderer or an ear.
+//! A headless run needs only the first. The other four are what a player in
+//! front of the run reads, hears and sees, and `()` implements every one of
+//! them — which is why the example above is a whole dedicated server whose
+//! controller, bot, renderer and ear are one character each.
 //!
 //! # What is behind it, and what is not
 //!

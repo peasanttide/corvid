@@ -1,6 +1,9 @@
 //! The builder, what a run hands back, and everything that can go wrong.
 
 use corvid_control::Controller;
+// Named for one call: the offscreen path builds the game's pipelines, and a
+// build with no device never reaches it.
+#[cfg(feature = "render")]
 use corvid_render::Render;
 use corvid_sound::Auralizer;
 use std::{fmt, io, path::PathBuf, sync::Arc};
@@ -16,6 +19,7 @@ use crate::{
     Arguments, Requests, Retention,
     capture::Capture,
     cli::Argument,
+    game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig},
     headless::Headless,
     runtime::{Plan, Runtime},
     saves::{NotASave, Saves, StateAt},
@@ -54,6 +58,18 @@ impl<S> fmt::Debug for Stop<S> {
     }
 }
 
+/// What [`App::open`] answers: the session the run plays, and — for a run
+/// carrying a save or a recording on — the tick it opens at and the state
+/// there.
+///
+/// An alias because the pair is a mouthful written out and the second half is
+/// already a [`StateAt`]. A fresh session is [`None`] in the second position:
+/// there is nothing to resume, and the opening's own origin is where it starts.
+type Started<G> = (
+    Session<<G as Game>::State>,
+    Option<StateAt<<G as Game>::State>>,
+);
+
 /// Where a run has got to, for whoever is watching it from another thread.
 ///
 /// [`run`](App::run) blocks the thread it was called on until the game stops,
@@ -88,7 +104,7 @@ pub struct Progress {
 /// anything silently and a record nobody can read is a record that does not
 /// exist: an unhandled request would otherwise be a `tracing` warning and
 /// nothing a test could assert on.
-pub struct Outcome<S: State> {
+pub struct Outcome<G: Game> {
     /// The session the run played, which is everything needed to replay **what
     /// it still holds**.
     ///
@@ -99,7 +115,7 @@ pub struct Outcome<S: State> {
     /// [`last`](corvid_replay::Session::last) is where the run stopped, which
     /// does not move. [`retain`](App::retain) is where a run says it wants the
     /// lot, and [`capture`](App::capture) already implies it.
-    pub session: Session<S>,
+    pub session: Session<G::State>,
     /// The state the run stopped at, which is the state at
     /// [`Session::last`](corvid_replay::Session::last).
     ///
@@ -107,14 +123,14 @@ pub struct Outcome<S: State> {
     /// holding: an [`Opening`]'s origin and this speak the same type, so a run
     /// hands its last state over without copying it and a caller that wants it
     /// by itself derefs.
-    pub state: Arc<S>,
+    pub state: Arc<G::State>,
     /// What the run asks the process to exit with. The status a
     /// [`quit`](corvid_behavior::Command::quit) named, or
     /// [`ExitCode::SUCCESS`] when the run stopped because
     /// [`until`](App::until) said so.
     pub exit: ExitCode,
     /// Every request the ticks made, and what became of each.
-    pub requests: Requests<LevelRef<S>>,
+    pub requests: Requests<LevelRef<G::State>>,
     /// What the netcode did over the whole run, for a run that had a
     /// [`transport`](App::transport).
     ///
@@ -125,7 +141,7 @@ pub struct Outcome<S: State> {
     pub traffic: crate::Traffic,
 }
 
-impl<S: State> fmt::Debug for Outcome<S> {
+impl<G: Game> fmt::Debug for Outcome<G> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut printed = f.debug_struct("Outcome");
         let printed = printed
@@ -144,8 +160,8 @@ impl<S: State> fmt::Debug for Outcome<S> {
 /// Nothing here runs until [`run`](Self::run), and everything before it is a
 /// setting with a default. The defaults are the ones a headless run wants,
 /// because a headless run is the kind that needs no setting up: a clock
-/// [stepping](corvid_time::Clock::stepping) one period per call, the
-/// [`CRADLE`](TickSpan::CRADLE) rate, seat zero, an input snapshot with nothing
+/// [stepping](corvid_time::Clock::stepping) one period per call, the game's own
+/// [`PERIOD`](Game::PERIOD), seat zero, an input snapshot with nothing
 /// held, no capture, and [`Retention::RECENT`] — which is the one default that
 /// reads another setting, since a run being captured keeps everything instead.
 ///
@@ -154,7 +170,7 @@ impl<S: State> fmt::Debug for Outcome<S> {
 ///
 /// # What printing one shows
 ///
-/// Everything, including the opening. The three configs are
+/// Everything, including the opening. The four configs are
 /// [`Data`](corvid_behavior::Data), which is already `Debug`; the clock and the
 /// transport are trait objects whose traits say so; and the two boxed closures
 /// are behind newtypes that name themselves. So this is a derive rather than a
@@ -166,12 +182,7 @@ impl<S: State> fmt::Debug for Outcome<S> {
 /// report is for, and a caller who wants the short version prints the fields
 /// they care about.
 #[derive(Debug)]
-pub struct App<S: State, C = (), R = (), A = ()>
-where
-    C: Controller<S>,
-    R: Render<S>,
-    A: Auralizer<S>,
-{
+pub struct App<G: Game> {
     /// What the player has set, which the runtime builds all three of the
     /// client-local halves from.
     ///
@@ -181,9 +192,9 @@ where
     /// [`None`] is "read the file", which is what [`run`](Self::run) does; a
     /// caller that set [`settings`](Self::settings) has overridden the file for
     /// this run and nothing is read.
-    settings: Option<Settings<S, C, R, A>>,
+    settings: Option<Settings<G>>,
     /// What the session starts from.
-    opening: Option<Opening<S>>,
+    opening: Option<Opening<G::State>>,
     /// Where real time comes from, or [`None`] to build the default from
     /// whatever [`rate`](Self::rate) ends up being.
     clock: Option<Box<dyn Elapsed>>,
@@ -219,7 +230,7 @@ where
     /// The recorded session to open on, if the run is carrying one on.
     replay: Option<PathBuf>,
     /// When to stop.
-    stop: Option<Stop<S>>,
+    stop: Option<Stop<G::State>>,
     /// How many ticks to run, if the caller said a number rather than a
     /// predicate. Turned into the tick to stop at in [`run`](Self::run), where
     /// the opening's first tick is known.
@@ -242,22 +253,24 @@ where
     any_thread: bool,
 }
 
-impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Default for App<S, C, R, A>
+impl<G: Game> Default for App<G>
 where
-    C::Config: Default,
-    R::Config: Default,
-    A::Config: Default,
+    ControllerConfig<G>: Default,
+    BotConfig<G>: Default,
+    RenderConfig<G>: Default,
+    AuralizerConfig<G>: Default,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> App<S, C, R, A>
+impl<G: Game> App<G>
 where
-    C::Config: Default,
-    R::Config: Default,
-    A::Config: Default,
+    ControllerConfig<G>: Default,
+    BotConfig<G>: Default,
+    RenderConfig<G>: Default,
+    AuralizerConfig<G>: Default,
 {
     /// An app with every default and no opening.
     #[must_use]
@@ -266,7 +279,7 @@ where
             settings: None,
             opening: None,
             clock: None,
-            rate: TickSpan::CRADLE,
+            rate: G::PERIOD,
             seat: PlayerId(0),
             #[cfg(feature = "net")]
             transport: None,
@@ -303,7 +316,7 @@ where
     /// tool driving a run with settings it was handed.
     ///
     /// It replaces the whole document rather than one field of it, because the
-    /// three configs are one thing to a person and a run that took its controls
+    /// four configs are one thing to a person and a run that took its controls
     /// from a caller and its volume from a file would be a run nobody can
     /// reproduce from either.
     ///
@@ -311,7 +324,7 @@ where
     /// override that persisted itself would be a test rewriting the developer's
     /// own settings.
     #[must_use]
-    pub fn settings(mut self, settings: Settings<S, C, R, A>) -> Self {
+    pub fn settings(mut self, settings: Settings<G>) -> Self {
         self.settings = Some(settings);
         self
     }
@@ -477,6 +490,16 @@ where
     }
 
     /// How often a tick runs.
+    ///
+    /// The default is [`G::PERIOD`](Game::PERIOD), which is the answer for
+    /// every run a player plays: the period is a property of the session and
+    /// two peers on different ones compute different states from the same
+    /// actions. **A game never calls this.**
+    ///
+    /// It is still a setter because a harness may run a game at a rate the game
+    /// did not choose — a soak test compressing an hour, a benchmark timing one
+    /// tick — and a run like that has nobody on the other end of a link to
+    /// disagree with.
     #[must_use]
     pub const fn rate(mut self, rate: TickSpan) -> Self {
         self.rate = rate;
@@ -485,7 +508,7 @@ where
 
     /// What the session starts from. The one setting with no default.
     #[must_use]
-    pub fn opening(mut self, opening: Opening<S>) -> Self {
+    pub fn opening(mut self, opening: Opening<G::State>) -> Self {
         self.opening = Some(opening);
         self
     }
@@ -608,7 +631,7 @@ where
     /// until someone closes the window is the ordinary case, and a headless run
     /// has no window to close.
     #[must_use]
-    pub fn until(mut self, stop: impl Fn(&S, Tick) -> bool + 'static) -> Self {
+    pub fn until(mut self, stop: impl Fn(&G::State, Tick) -> bool + 'static) -> Self {
         self.stop = Some(Stop::new(stop));
         self
     }
@@ -669,17 +692,13 @@ where
     ///
     /// [`load`](Self::load) beats [`replay`](Self::replay), because a slot is
     /// the more specific of the two.
-    fn open(
-        &mut self,
-        opening: Opening<S>,
-        saves: &Saves,
-    ) -> Result<(Session<S>, Option<StateAt<S>>), Error> {
+    fn open(&mut self, opening: Opening<G::State>, saves: &Saves) -> Result<Started<G>, Error> {
         let schema = opening.schema;
         let resumed = match (self.load.take(), self.replay.take()) {
             (Some(slot), _) => saves
-                .read::<S>(slot, schema)?
+                .read::<G::State>(slot, schema)?
                 .ok_or(Error::Empty { slot })?,
-            (None, Some(path)) => crate::saves::recorded::<S>(&path, schema)?,
+            (None, Some(path)) => crate::saves::recorded::<G::State>(&path, schema)?,
             (None, None) => return Ok((Session::new(opening).map_err(Error::Shape)?, None)),
         };
         let (session, state) = resumed;
@@ -733,14 +752,31 @@ where
     /// # }
     /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     /// # struct Bounce;
-    /// # mod hello { pub fn opening() -> corvid_replay::Opening<super::Bounce> { unimplemented!() } }
     /// # impl corvid_behavior::State for Bounce { /* … */
     /// #     const NAME: &'static str = "bounce";
     /// #     type Level = Nowhere; type Rules = (); type Action = ();
     /// # }
+    /// # impl corvid_replay::Opens for Bounce {
+    /// #     fn opening() -> corvid_replay::Opening<Self> { unimplemented!() }
+    /// # }
+    /// use corvid_replay::Opens;
+    ///
+    /// /// The game: a state, and nobody playing, drawing or listening.
+    /// #[derive(Debug)]
+    /// struct Hello;
+    ///
+    /// impl corvid_app::Game for Hello {
+    ///     const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
+    ///     type State = Bounce;
+    ///     type Controller = ();
+    ///     type Bot = ();
+    ///     type Render = ();
+    ///     type Auralizer = ();
+    /// }
+    ///
     /// fn main() -> corvid_app::Result {
-    ///     corvid_app::App::<Bounce>::new()
-    ///         .opening(hello::opening())
+    ///     corvid_app::App::<Hello>::new()
+    ///         .opening(Bounce::opening())
     ///         .launch()?;
     ///     Ok(())
     /// }
@@ -759,24 +795,21 @@ where
     /// [`Error::Argument`] for anything the command line could not be read as —
     /// including `--help`, which is not a failure and arrives as one because
     /// this crate may not print — and then whatever [`run`](Self::run) reports.
-    pub fn launch(self) -> Result<Outcome<S>, Error> {
+    pub fn launch(self) -> Result<Outcome<G>, Error> {
         let arguments = Arguments::from_env().map_err(Error::Argument)?;
         self.arguments(arguments).run()
     }
 
     /// Plays the game.
     ///
-    /// # Four bounds, and what they buy
+    /// # One bound, and what it buys
     ///
-    /// `S: State`, `C: Controller<S>`, `R: Render<S>` and `A: Auralizer<S>` —
-    /// a game is four types, and a run names every one of them. A game that
-    /// reaches a run therefore has a `draw` whether it draws anything or not,
-    /// and `type Graphics = ();` is the one line that says it draws nothing.
-    /// There used to be a trait here reconciling two bounds under opposite
-    /// `cfg`s, and a macro to write the implementation; there are four plain
-    /// bounds now and one line.
+    /// `G: Game`, which carries the five types a game is: a state, a
+    /// controller, a bot, a renderer and an ear. A game that reaches a run
+    /// therefore has a `draw` whether it draws anything or not, and
+    /// `type Render = ();` is the one line that says it draws nothing.
     ///
-    /// What that buys is below the surface: this can name `Screen<S>`, which
+    /// What that buys is below the surface: this can name `Screen<G>`, which
     /// holds a game's pipelines by value and calls `Render::draw` directly, so
     /// nothing between the loop and the game is boxed, dispatched through a
     /// vtable, or reached through a function pointer.
@@ -789,7 +822,7 @@ where
     /// the action log refuses a write, and [`Error::Wrote`] or
     /// [`Error::Encoded`] if a capture cannot be written. A run with a device
     /// adds [`Error::Drew`], and a windowed one adds [`Error::NoWindow`].
-    pub fn run(mut self) -> Result<Outcome<S>, Error> {
+    pub fn run(mut self) -> Result<Outcome<G>, Error> {
         // The one setting applied here rather than where it was written, so
         // that an operator's flag beats a builder call made after it. Taken
         // rather than read, so that `apply`'s own builder calls cannot see it
@@ -807,7 +840,7 @@ where
         // does and not something a `new` does.
         let settings = match self.settings.take() {
             Some(settings) => settings,
-            None => Settings::load(S::NAME)?,
+            None => Settings::load(<G::State as State>::NAME)?,
         };
         let (plan, capture) = self.prepare()?;
 
@@ -850,9 +883,9 @@ where
     ///
     /// [`Error::Unopened`], [`Error::Shape`], [`Error::Seat`], and whatever
     /// opening a capture directory or reading a save reported.
-    fn prepare(&mut self) -> Result<(Plan<S>, Option<Capture>), Error> {
+    fn prepare(&mut self) -> Result<(Plan<G::State>, Option<Capture>), Error> {
         let opening = self.opening.take().ok_or(Error::Unopened)?;
-        let saves = Saves::resolve(self.saves.take(), S::NAME);
+        let saves = Saves::resolve(self.saves.take(), <G::State as State>::NAME);
 
         let (session, resumed) = self.open(opening, &saves)?;
 
@@ -944,10 +977,10 @@ where
     #[cfg(feature = "window")]
     fn run_windowed(
         mut self,
-        plan: Plan<S>,
+        plan: Plan<G::State>,
         capture: Option<Capture>,
-        settings: Settings<S, C, R, A>,
-    ) -> Result<Outcome<S>, Error> {
+        settings: Settings<G>,
+    ) -> Result<Outcome<G>, Error> {
         // the snapshot from the window's devices every frame, and what a
         // binding table is written against is which actions exist.
         let declaration = plan.input.sets();
@@ -976,11 +1009,11 @@ where
             .take()
             .unwrap_or_else(|| corvid_input::platform::Bindings::placeholder(declaration));
         let bindings = crate::controls::resolve(plan.saves.root(), declaration, shipped)?;
-        let config = corvid_window::Config::new(S::NAME, declaration)
+        let config = corvid_window::Config::new(<G::State as State>::NAME, declaration)
             .icon(None)
             .bindings(bindings)
             .any_thread(self.any_thread);
-        let pending = crate::windowed::Pending::<S, C, R, A> {
+        let pending = crate::windowed::Pending::<G> {
             controls: settings.controls.clone(),
             graphics: settings.graphics.clone(),
             audio: settings.audio.clone(),
@@ -996,14 +1029,11 @@ where
                 .take()
                 .unwrap_or_else(|| Box::new(corvid_time::Clock::wall())),
         };
-        let host = corvid_window::run(
-            config,
-            crate::windowed::Windowed::<S, C, R, A>::new(pending),
-        )
-        .map_err(|why| match why {
-            corvid_window::Error::Opening(opening) => Error::NoWindow(opening),
-            corvid_window::Error::Host(why) => why,
-        })?;
+        let host = corvid_window::run(config, crate::windowed::Windowed::<G>::new(pending))
+            .map_err(|why| match why {
+                corvid_window::Error::Opening(opening) => Error::NoWindow(opening),
+                corvid_window::Error::Host(why) => why,
+            })?;
         host.into_outcome()
     }
 
@@ -1017,16 +1047,16 @@ where
     #[cfg(feature = "render")]
     fn run_offscreen(
         self,
-        plan: Plan<S>,
+        plan: Plan<G::State>,
         capture: Option<Capture>,
         clock: Box<dyn Elapsed>,
         size: corvid_render::Extent,
-        settings: Settings<S, C, R, A>,
-    ) -> Result<Outcome<S>, Error> {
+        settings: Settings<G>,
+    ) -> Result<Outcome<G>, Error> {
         let renderer = corvid_render::Renderer::offscreen(size).map_err(Error::Drew)?;
         // The pipelines are built here because here is where the device
         // is, which is the whole of what `Setup` used to be for.
-        let graphics = R::new(
+        let graphics = G::Render::new(
             corvid_render::Opened {
                 device: renderer.device(),
                 queue: renderer.queue(),
@@ -1038,10 +1068,10 @@ where
         // window. Nobody is in front of it, so nothing opens a sound card.
         Runtime::new(
             plan,
-            crate::screen::Screen::new(renderer, capture, false),
-            C::new(settings.controls.clone()),
+            crate::screen::Screen::<G>::new(renderer, capture, false),
+            G::Controller::new(settings.controls.clone()),
             Some(graphics),
-            A::new(settings.audio.clone()),
+            G::Auralizer::new(settings.audio.clone()),
             settings,
         )?
         .drive(clock, Step::new(self.rate))
@@ -1054,21 +1084,21 @@ where
     /// Whatever the run reported.
     fn run_headless(
         self,
-        plan: Plan<S>,
+        plan: Plan<G::State>,
         capture: Option<Capture>,
         clock: Box<dyn Elapsed>,
-        settings: Settings<S, C, R, A>,
-    ) -> Result<Outcome<S>, Error> {
+        settings: Settings<G>,
+    ) -> Result<Outcome<G>, Error> {
         // pipelines against and no renderer to hold. `None` is that, said
         // plainly, rather than a renderer built from a device that is not
         // there.
         drop(settings.graphics.clone());
         Runtime::new(
             plan,
-            Headless::new(capture),
-            C::new(settings.controls.clone()),
-            Option::<R>::None,
-            A::new(settings.audio.clone()),
+            Headless::<G>::new(capture),
+            G::Controller::new(settings.controls.clone()),
+            Option::<G::Render>::None,
+            G::Auralizer::new(settings.audio.clone()),
             settings,
         )?
         .drive(clock, Step::new(self.rate))

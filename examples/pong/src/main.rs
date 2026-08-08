@@ -14,10 +14,30 @@
 //! flags below are taken out of the command line and the rest is handed to
 //! [`corvid::Arguments`] unchanged.
 
-use corvid::{App, Arguments, Error, Input};
+use corvid::{App, Arguments, Error, Game, Input};
 
 use corvid::PlayerId;
 use pong::{Ears, Graphics, Hands, RATE, Table};
+
+/// The game this binary plays, as one type.
+///
+/// Five types and a period, which is everything a run needs to be told: the
+/// table simulates, [`Hands`] reads the keyboard, [`Graphics`] draws and
+/// [`Ears`] hears. `()` is the bot, because nothing here fills a seat nobody
+/// is in yet — `--seat 1` and a second process is what puts somebody in the
+/// other one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Pong;
+
+impl Game for Pong {
+    const PERIOD: corvid::TickSpan = RATE;
+
+    type State = Table;
+    type Controller = Hands;
+    type Bot = ();
+    type Render = Graphics;
+    type Auralizer = Ears;
+}
 
 /// What this binary was asked to do, beyond what `corvid` understands.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -75,7 +95,7 @@ fn main() -> corvid::Result {
     // run with an adapter and no window, so that a capture with no window in it
     // still has a picture in it. Every other flag goes through untouched.
     let headless = std::mem::take(&mut arguments.headless);
-    let app = App::<Table, Hands, Graphics, Ears>::new()
+    let app = App::<Pong>::new()
         .opening(pong::opening())
         .rate(RATE)
         .seat(PlayerId(ours.seat))
@@ -325,7 +345,7 @@ const TICKS: u64 = 900;
 /// [`watch`](corvid::watch) sends to stderr. That also makes it
 /// *structured*: `RUST_LOG=pong=info pong --headless` gives the fields by name
 /// rather than a sentence somebody has to split on em dashes.
-fn report(outcome: &corvid::Outcome<Table>) {
+fn report<G: Game<State = Table>>(outcome: &corvid::Outcome<G>) {
     let table = &outcome.state;
     // **Not the last tick's digest.** A run stops when it stops, and the newest
     // few ticks of a peer's state were simulated partly from predictions of
@@ -350,7 +370,7 @@ fn report(outcome: &corvid::Outcome<Table>) {
         won = ?table.over,
         "the run ended",
     );
-    netcode(outcome);
+    netcode::<G>(outcome);
 
     #[allow(
         clippy::print_stdout,
@@ -363,7 +383,7 @@ fn report(outcome: &corvid::Outcome<Table>) {
 
 /// What the netcode did, as an event, for a run that had a transport.
 #[cfg(feature = "net")]
-fn netcode(outcome: &corvid::Outcome<Table>) {
+fn netcode<G: Game<State = Table>>(outcome: &corvid::Outcome<G>) {
     let traffic = outcome.traffic;
     if traffic.heard == 0 && traffic.sent == 0 {
         return;
@@ -382,4 +402,4 @@ fn netcode(outcome: &corvid::Outcome<Table>) {
 
 /// The same, on a build with no netcode compiled in.
 #[cfg(not(feature = "net"))]
-fn netcode(_outcome: &corvid::Outcome<Table>) {}
+fn netcode<G: Game<State = Table>>(_outcome: &corvid::Outcome<G>) {}

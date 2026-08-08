@@ -21,8 +21,8 @@ use std::{
 };
 
 use common::{
-    APPLAUSE, Attendance, Ears, FAREWELL, Hands, Marker, Painted, Rules, SLOT, Scratchpad, Tally,
-    attendance, opening, seat,
+    APPLAUSE, Attending, Counting, FAREWELL, Rules, SLOT, Scratchpad, Tally, attendance, opening,
+    seat,
 };
 use corvid_app::Command;
 use corvid_app::{Answer, App};
@@ -45,9 +45,9 @@ const TICKS: u64 = 12;
 /// test: two tests in one binary would write the same slot, and the run that
 /// asked whether a slot was empty would find whatever another test had left
 /// there. `tests/saves.rs` is where the directory itself is the subject.
-fn play(rules: Rules) -> corvid_app::Outcome<Tally> {
+fn play(rules: Rules) -> corvid_app::Outcome<Counting> {
     let scratchpad = Scratchpad::new("commands");
-    App::<Tally, Hands, Painted, Ears>::new()
+    App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(rules))
         .saves(scratchpad.path())
@@ -274,7 +274,7 @@ fn a_screenshot_is_recorded_and_no_picture_is_written() {
     // is answered by writing down that it was made, and a capture that grew a
     // `.png` would be this crate claiming something it cannot do.
     let scratchpad = Scratchpad::new("screenshot");
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .capture(scratchpad.path())
         .opening(opening::<Tally>(Rules {
@@ -373,7 +373,7 @@ fn the_roster_the_loop_ticks_with_is_the_one_the_session_records() {
     // one-seat roster answers the same way under a loop that filtered nothing,
     // numbered every seat zero, or handed the tick the whole roster whatever
     // the tick was.
-    let run = App::<Attendance, Marker>::new()
+    let run = App::<Attending>::new()
         .headless()
         .opening(attendance(vec![
             seat(1000),

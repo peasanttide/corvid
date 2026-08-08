@@ -2,14 +2,13 @@
 
 use core::marker::PhantomData;
 
-use corvid_behavior::State;
 use corvid_input::Viewport;
-use corvid_render::Render;
 
 use crate::{
     Error,
     backend::{Backend, Frame},
     capture::Capture,
+    game::Game,
 };
 
 /// Where a displayed frame goes when there is nowhere to display it.
@@ -23,20 +22,20 @@ use crate::{
 /// run that did not ask for one whatever features are compiled in: a headless
 /// run is the default and stays the default.
 #[derive(Debug)]
-pub(crate) struct Headless<S> {
+pub(crate) struct Headless<G> {
     /// Where to write, if anywhere.
     capture: Option<Capture>,
     /// How many frames have arrived.
     frames: u64,
     /// Which game this is a backend for.
     ///
-    /// The trait is generic over `G` because a backend with a device calls
+    /// The trait is generic over the game because a backend with a device calls
     /// `Render::draw`, and this one is the case where knowing the game buys
     /// nothing.
-    game: PhantomData<fn() -> S>,
+    game: PhantomData<fn() -> G>,
 }
 
-impl<S> Headless<S> {
+impl<G> Headless<G> {
     /// A backend that writes into `capture`, or nowhere if there is none.
     pub(crate) const fn new(capture: Option<Capture>) -> Self {
         Self {
@@ -47,14 +46,14 @@ impl<S> Headless<S> {
     }
 }
 
-impl<S: State, R: Render<S>> Backend<S, R> for Headless<S> {
+impl<G: Game> Backend<G> for Headless<G> {
     /// Nothing, because there is nothing to draw into. A game's `look` is what
     /// decides what to do about that; nothing here invents a size for it.
     fn viewport(&self) -> Option<Viewport> {
         None
     }
 
-    fn present(&mut self, frame: Frame<'_, S, R>) -> Result<(), Error> {
+    fn present(&mut self, frame: Frame<'_, G>) -> Result<(), Error> {
         self.frames = self.frames.saturating_add(1);
         self.capture
             .as_ref()

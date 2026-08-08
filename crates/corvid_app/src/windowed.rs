@@ -3,11 +3,11 @@
 use crate::{
     Error, Outcome,
     capture::Capture,
+    game::{AuralizerConfig, ControllerConfig, Game, RenderConfig},
     runtime::{Plan, Runtime},
     screen::Screen,
 };
 use corvid_behavior::ExitCode;
-use corvid_behavior::State;
 use corvid_control::Controller;
 use corvid_input::{Cursor, Input};
 use corvid_render::Render;
@@ -25,20 +25,20 @@ use corvid_window::{Attached, Flow, Host, SurfaceState};
 /// and can happen again after the app has been in the background. So the run's
 /// ingredients wait here and become a [`Runtime`] in
 /// [`attach`](Host::attach).
-pub(crate) struct Pending<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> {
+pub(crate) struct Pending<G: Game> {
     /// What the player has set, carried whole so that the runtime can write it
     /// back when a controller edits it.
-    pub(crate) settings: crate::Settings<S, C, R, A>,
+    pub(crate) settings: crate::Settings<G>,
     /// What the three client-side types are built from, once the window and
     /// the device exist. Configs rather than instances, because only the event
     /// loop knows when that is.
-    pub(crate) controls: C::Config,
+    pub(crate) controls: ControllerConfig<G>,
     /// What the renderer is built from.
-    pub(crate) graphics: R::Config,
+    pub(crate) graphics: RenderConfig<G>,
     /// What the ear is built from.
-    pub(crate) audio: A::Config,
+    pub(crate) audio: AuralizerConfig<G>,
     /// The run: the session, the seat, when to stop, and how much to keep.
-    pub(crate) plan: Plan<S>,
+    pub(crate) plan: Plan<G::State>,
     /// Where to write the run down, if anywhere.
     pub(crate) capture: Option<Capture>,
     /// How often a tick runs.
@@ -56,11 +56,11 @@ pub(crate) struct Pending<S: State, C: Controller<S>, R: Render<S>, A: Auralizer
 /// state, a tick or a digest, and this type does not give it one — which is
 /// why a windowed run and a headless run of the same opening land on the same
 /// trace.
-pub(crate) struct Windowed<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> {
+pub(crate) struct Windowed<G: Game> {
     /// The ingredients, until the window exists.
-    pending: Option<Pending<S, C, R, A>>,
+    pending: Option<Pending<G>>,
     /// The loop, once it does.
-    runtime: Option<Runtime<S, C, R, A, Screen<S>>>,
+    runtime: Option<Runtime<G, Screen<G>>>,
     /// The fixed step, carried across frames.
     step: Step,
     /// Where real time comes from.
@@ -68,7 +68,7 @@ pub(crate) struct Windowed<S: State, C: Controller<S>, R: Render<S>, A: Auralize
     /// The window's published state, and how much of it has been noticed.
     surface: Option<(Watch<SurfaceState>, Seen)>,
     /// What the run ended with, once it has.
-    finished: Option<Outcome<S>>,
+    finished: Option<Outcome<G>>,
     /// What went wrong on the way out, which is the one error a windowed run
     /// has nowhere else to put: [`Host::detach`] cannot fail.
     failed: Option<Error>,
@@ -76,9 +76,9 @@ pub(crate) struct Windowed<S: State, C: Controller<S>, R: Render<S>, A: Auralize
     exit: ExitCode,
 }
 
-impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Windowed<S, C, R, A> {
+impl<G: Game> Windowed<G> {
     /// A host that has not opened anything yet.
-    pub(crate) fn new(pending: Pending<S, C, R, A>) -> Self {
+    pub(crate) fn new(pending: Pending<G>) -> Self {
         let step = Step::new(pending.rate);
         Self {
             pending: Some(pending),
@@ -102,7 +102,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Windowed<S, C, R
     /// whose capture could not be closed has played every tick it was asked
     /// for, and answering it with "this run played no ticks" names the wrong
     /// thing and hides the disk that filled up.
-    pub(crate) fn into_outcome(self) -> Result<Outcome<S>, Error> {
+    pub(crate) fn into_outcome(self) -> Result<Outcome<G>, Error> {
         if let Some(outcome) = self.finished {
             return Ok(outcome);
         }
@@ -110,7 +110,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Windowed<S, C, R
     }
 }
 
-impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Host for Windowed<S, C, R, A> {
+impl<G: Game> Host for Windowed<G> {
     type Error = Error;
 
     fn attach(&mut self, attached: &Attached) -> Result<Flow, Error> {
@@ -153,7 +153,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Host for Windowe
         // The pipelines are built here, which is the one place they can be:
         // the device exists and the window does, and neither did when the
         // `App` was described.
-        let graphics = R::new(
+        let graphics = G::Render::new(
             corvid_render::Opened {
                 device: renderer.device(),
                 queue: renderer.queue(),
@@ -164,10 +164,10 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Host for Windowe
         self.runtime = Some(Runtime::new(
             plan,
             // `true`: a window is the one backend with a player in front of it.
-            Screen::new(renderer, pending.capture, true),
-            C::new(pending.controls),
+            Screen::<G>::new(renderer, pending.capture, true),
+            G::Controller::new(pending.controls),
             Some(graphics),
-            A::new(pending.audio),
+            G::Auralizer::new(pending.audio),
             pending.settings,
         )?);
         Ok(Flow::Go)

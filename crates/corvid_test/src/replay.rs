@@ -1,6 +1,6 @@
 //! The claim "a captured run replays to the same state", as one call.
 
-use corvid_app::Outcome;
+use corvid_app::{Game, Outcome};
 use corvid_behavior::{Discard, Player, State};
 use corvid_hash::digest;
 use corvid_replay::{HashTrace, LevelRef, Session};
@@ -62,10 +62,11 @@ use crate::{Diverged, Failed, What, roster::seat};
 /// the bytes did not read back as a session this build can replay, and
 /// [`Failed::Diverged`] naming the first tick the replay and the run disagree
 /// about.
-pub fn replays_to_itself<S: State>(outcome: &Outcome<S>) -> Result<(), Failed<LevelRef<S>>> {
+pub fn replays_to_itself<G: Game>(outcome: &Outcome<G>) -> Result<(), Failed<LevelRef<G::State>>> {
     let live = &outcome.session;
     let bytes = live.save().map_err(Failed::Wrote)?;
-    let session: Session<S> = Session::load(&bytes, live.opening.schema).map_err(Failed::Read)?;
+    let session: Session<G::State> =
+        Session::load(&bytes, live.opening.schema).map_err(Failed::Read)?;
 
     let first = session.first();
     if let Some(diverged) = survived_the_round_trip(live, &session) {
@@ -81,9 +82,9 @@ pub fn replays_to_itself<S: State>(outcome: &Outcome<S>) -> Result<(), Failed<Le
     // state — the walk owns each one until the next replaces it — so the one
     // deep clone at the top is the whole cost, where carrying an `Arc` would
     // allocate once per tick to hold something no second reader ever sees.
-    let mut state = S::clone(&opening.origin());
-    let idle = S::Action::default();
-    let mut roster: Vec<Player<'_, S::Action>> = Vec::new();
+    let mut state = <G::State>::clone(&opening.origin());
+    let idle = <<G::State as State>::Action>::default();
+    let mut roster: Vec<Player<'_, <G::State as State>::Action>> = Vec::new();
     let mut at = first;
 
     loop {
@@ -116,7 +117,7 @@ pub fn replays_to_itself<S: State>(outcome: &Outcome<S>) -> Result<(), Failed<Le
         seat(opening, &session.log, at, &idle, &mut roster);
         // A `Discard`: this walk is re-simulating ticks that already ran, and
         // a request re-issued by a replay would save a file for a second time.
-        let next = S::clone(&state).tick(
+        let next = <G::State>::clone(&state).tick(
             &opening.content,
             &roster,
             &opening.rules,

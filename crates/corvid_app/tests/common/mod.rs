@@ -60,7 +60,7 @@ use corvid_behavior::{
 use corvid_control::{Acting, Controller, Updating};
 use corvid_hash::{Digest, digest};
 use corvid_input::{Digital, Input};
-use corvid_replay::{Opening, Profile, Schema, Seed};
+use corvid_replay::{Opening, Opens, Profile, Schema, Seed};
 use corvid_sound::Auralizer;
 use corvid_sound::{Cue, Hearing, Listener, SoundId, Source, SourceId};
 use corvid_time::{Duration, Tick};
@@ -774,6 +774,91 @@ impl Drop for Scratchpad {
     fn drop(&mut self) {
         drop(fs::remove_dir_all(&self.path));
     }
+}
+
+/// Where a run of [`Tally`] that was told nothing else starts.
+///
+/// Every test here says [`App::opening`](corvid_app::App::opening) for itself,
+/// because what a test varies is the rules: which tick quits, which tick saves,
+/// which tick asks for a screenshot. This is here because a
+/// [`Game`](corvid_app::Game) names a state that can open a session on its own,
+/// and the quiet rules are the honest answer for a run nobody has configured.
+impl Opens for Tally {
+    fn opening() -> Opening<Self> {
+        opening(Rules::quiet())
+    }
+}
+
+/// The same, for the roster fixture: one seat, joined on the first tick.
+impl Opens for Attendance {
+    fn opening() -> Opening<Self> {
+        attendance(vec![seat(1000)])
+    }
+}
+
+/// The game the tests in this crate play.
+///
+/// Written out rather than generated, and it is five lines because a game is
+/// five types: the tally simulates, [`Hands`] plays it, nothing bots for it,
+/// [`Painted`] draws it and [`Ears`] hears it.
+///
+/// [`CRADLE`](corvid_time::TickSpan::CRADLE) is the period because it is the
+/// rate every timed assertion in these tests was written against — a marker
+/// that chose another one would change how many ticks a run of a fixed duration
+/// simulates, which is a different run and a different digest.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Counting;
+
+impl corvid_app::Game for Counting {
+    const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
+
+    type State = Tally;
+    type Controller = Hands;
+    type Bot = ();
+    type Render = Painted;
+    type Auralizer = Ears;
+}
+
+/// The tally with nobody playing it: a dedicated server, as a game.
+///
+/// Four `()`s, which is what a game that reads no device, runs no bot, opens no
+/// adapter and opens no sound card writes. It is here for the settings tests,
+/// whose subject is the *document* rather than what is in it — four configs of
+/// `()` are four fields that still have to be named, written down and read
+/// back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Bare;
+
+impl corvid_app::Game for Bare {
+    const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
+
+    type State = Tally;
+    type Controller = ();
+    type Bot = ();
+    type Render = ();
+    type Auralizer = ();
+}
+
+/// The game the roster tests play: [`Attendance`], with nothing drawn and
+/// nothing heard.
+///
+/// A marker of its own beside [`Counting`] rather than a parameter on it. What
+/// these tests are about is the *arguments* a tick was handed — which seats
+/// were in the roster, and which column this client's action landed in — and a
+/// run of them opens no device and makes no sound, so the two types that would
+/// have to be `()` for one game and real for the other are written as `()`
+/// here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Attending;
+
+impl corvid_app::Game for Attending {
+    const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
+
+    type State = Attendance;
+    type Controller = Marker;
+    type Bot = ();
+    type Render = ();
+    type Auralizer = ();
 }
 
 /// The controller for [`Attendance`]: it marks every action as its own.

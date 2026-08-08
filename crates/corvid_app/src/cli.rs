@@ -14,7 +14,10 @@ use corvid_behavior::SaveSlot;
 use corvid_hash::digest;
 use corvid_replay::Opens;
 
-use crate::{App, Error, Outcome, Retention};
+use crate::{
+    App, Error, Outcome, Retention,
+    game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig},
+};
 // `crate::Result` is spelled in full at each use below rather than imported:
 // this file also parses into `Result<_, Argument>`, and one `Result` in scope
 // standing for a one-parameter alias would shadow the other.
@@ -385,11 +388,23 @@ pub fn watch() {
 /// # impl corvid_replay::Opens for Server {
 /// #     fn opening() -> corvid_replay::Opening<Self> { unimplemented!() }
 /// # }
-/// // A game that draws nothing says nothing at all: `App`'s renderer defaults
-/// // to `()`, which opens no device and is never asked to draw. There is no
-/// // line to write, which is the shortest way of drawing nothing there is.
+/// /// A game that draws nothing, hears nothing and reads no device says so in
+/// /// four lines: `()` is a controller that submits the idle action forever, a
+/// /// renderer that opens no adapter and an ear that opens no sound card.
+/// #[derive(Debug)]
+/// struct Dedicated;
+///
+/// impl corvid_app::Game for Dedicated {
+///     const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
+///     type State = Server;
+///     type Controller = ();
+///     type Bot = ();
+///     type Render = ();
+///     type Auralizer = ();
+/// }
+///
 /// fn main() -> corvid_app::Result {
-///     corvid_app::main::<Server>()
+///     corvid_app::main::<Dedicated>()
 /// }
 /// ```
 ///
@@ -411,19 +426,14 @@ pub fn watch() {
 ///
 /// # The bound, and the game that has nothing to draw
 ///
-/// `S: State`, which is `G: Render`: the client-local half is one chain of
-/// traits over one marker, so a game that reaches this has a `setup` and a
-/// `draw` whether it draws anything or not. There is no configuration in which
-/// the bound is weaker, and there used to be — a trait reconciling `Render`
-/// with `Present` under opposite `cfg`s, which existed because a `wgpu` type
-/// could not be named a crate lower down. It can now.
+/// `G: Game`, which is the five types a game is. There is no configuration in
+/// which the bound is weaker: a game that reaches this has a renderer and an
+/// ear whether it draws or sounds or not.
 ///
-/// `type Graphics = ();` is the one line that satisfies the bound for a game
-/// with nothing to draw: a dedicated server, a determinism check, or a game
-/// that has not drawn anything yet writes that line and writes no `wgpu`. The
-/// view is declared on [`Render`](corvid_render::Render) rather than beside
-/// it, because the macro supplies the whole implementation and only the game
-/// knows what its view is.
+/// `type Render = ();` is the one line that satisfies it for a game with
+/// nothing to draw: a dedicated server, a determinism check, or a game that has
+/// not drawn anything yet writes that line and writes no `wgpu`. The run opens
+/// no adapter and never calls `draw`, so the line costs what it says it does.
 ///
 /// # `--help` is not a failure
 ///
@@ -450,7 +460,13 @@ pub fn watch() {
 ///
 /// [`Error::Argument`] for a command line that could not be acted on, and then
 /// whatever [`App::run`] reports.
-pub fn main<S: corvid_behavior::State + Opens>() -> crate::Result {
+pub fn main<G: Game>() -> crate::Result
+where
+    ControllerConfig<G>: Default,
+    BotConfig<G>: Default,
+    RenderConfig<G>: Default,
+    AuralizerConfig<G>: Default,
+{
     // Before anything, so that a refusal to parse the command line is itself
     // reportable.
     watch();
@@ -466,8 +482,8 @@ pub fn main<S: corvid_behavior::State + Opens>() -> crate::Result {
     // `RELEASED` to every query for the length of the run. `Present::SETS` is
     // what closed it, and it is required rather than defaulted so that the
     // same hole cannot be dug again.
-    let app = App::<S>::new()
-        .opening(S::opening())
+    let app = App::<G>::new()
+        .opening(<G::State as Opens>::opening())
         .input(corvid_input::Input::new(&[]));
     // The table is a windowed run's business alone: `App::bindings` holds a
     // `corvid_window::Bindings` and a run with no window reads no device.
@@ -495,7 +511,7 @@ pub fn main<S: corvid_behavior::State + Opens>() -> crate::Result {
             app
         }
     };
-    finish(&app.arguments(arguments).run()?, headless);
+    finish::<G>(&app.arguments(arguments).run()?, headless);
     Ok(())
 }
 
@@ -538,7 +554,7 @@ fn command_line() -> crate::Result<Option<Arguments>> {
 /// The stdout line is a `println!` under a named exception rather than a write
 /// to a handle. Both reach the same stream; only one of them says so where a
 /// reader looking for the workspace's printing rule will find it.
-fn finish<S: corvid_behavior::State>(outcome: &Outcome<S>, headless: bool) {
+fn finish<G: Game>(outcome: &Outcome<G>, headless: bool) {
     if headless {
         #[allow(
             clippy::print_stdout,

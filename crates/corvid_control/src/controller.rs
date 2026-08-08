@@ -74,10 +74,11 @@ pub struct Updating<'a, S: State> {
 
 /// The half of a game's client-local code that reads a player.
 ///
-/// One of the four parameters an [`App`](../corvid_app/struct.App.html) is made
-/// of, and the one that is a *player*. A game may have several: a keyboard and
-/// a pad is one, a scripted opponent is another, a replay is a third, and each
-/// is a different type implementing this trait rather than a flag inside one.
+/// One of the five types a `Game` is made of, and the one that is a *player*.
+/// A game may have several: a keyboard and a pad is one, a scripted opponent is
+/// another, a replay is a third, and each is a different type implementing this
+/// trait rather than a flag inside one. Two of the five are this trait, because
+/// a bot is a controller with nobody behind it.
 ///
 /// Nothing here is deterministic and nothing here has to be. What crosses back
 /// into the simulation is one value — the

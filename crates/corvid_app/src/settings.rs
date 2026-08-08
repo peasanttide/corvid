@@ -2,13 +2,12 @@
 
 use std::path::{Path, PathBuf};
 
-use corvid_behavior::State;
-use corvid_control::Controller;
-use corvid_render::Render;
-use corvid_sound::Auralizer;
 use serde::{Deserialize, Serialize};
 
-use crate::Error;
+use crate::{
+    Error,
+    game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig},
+};
 
 /// Where a game's settings file lives under the config home.
 const FILE: &str = "setting.json";
@@ -46,9 +45,9 @@ fn config_home() -> Option<PathBuf> {
 
 /// Everything the player has set, as one document.
 ///
-/// The three configs together, because they are one thing to a person: a
+/// The four configs together, because they are one thing to a person: a
 /// resolution, a volume and a key binding are all "settings", and a game with
-/// three files for them is a game with three files to back up and three chances
+/// four files for them is a game with four files to back up and four chances
 /// to disagree about which run they belong to.
 ///
 /// # Why JSON, and why this file is the one text format
@@ -57,39 +56,61 @@ fn config_home() -> Option<PathBuf> {
 /// spends a text format on — the same argument the binding table is written
 /// under. Everything a peer or a replay reads is `corvid_wire`, because a varint
 /// is not something to hand somebody a text editor for; this is the other case.
+///
+/// # The derives, and the bound they invent
+///
+/// Every field is a [`Data`](corvid_behavior::Data), so all four are `Clone`,
+/// `Debug`, `Eq`, `Serialize` and `Deserialize` whatever game this is. The
+/// derives ask for `G` itself to be each of those anyway, which is what a derive
+/// does with a type parameter and is wrong in shape rather than in effect: a
+/// game is a marker with no fields, which is the one shape that derives all four
+/// in a line, and this document's contents do not depend on `G` for anything but
+/// their types. `#[derive(Clone, Copy, Debug, PartialEq, Eq)]` on the marker is
+/// what a game writes.
+///
+/// [`Default`] is the one that could not be derived at all, for the reason
+/// below: what has to be `Default` is the configs and not the game.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct Settings<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> {
+pub struct Settings<G: Game> {
     /// What the controller is built from.
-    pub controls: C::Config,
+    pub controls: ControllerConfig<G>,
+    /// What the bot is built from.
+    ///
+    /// One config for however many seats a run fills with bots, because a bot
+    /// is a setting of the run rather than of a seat: a game whose bots differ
+    /// from one another says so in the config, which is the game's own type.
+    pub bot: BotConfig<G>,
     /// What the renderer is built from, once there is a device to build it
     /// against.
-    pub graphics: R::Config,
+    pub graphics: RenderConfig<G>,
     /// What the sound card is built from.
-    pub audio: A::Config,
+    pub audio: AuralizerConfig<G>,
 }
 
 /// The defaults, which is what a fresh install has.
 ///
-/// Written out rather than derived: a derive would bound `S`, `C`, `R` and `A`
-/// on `Default` when what has to be `Default` is the three *configs*, which is
-/// the same `where` clause [`App`](crate::App)'s own `Default` carries.
-impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Default for Settings<S, C, R, A>
+/// Written out rather than derived: a derive would bound `G` on `Default` when
+/// what has to be `Default` is the four *configs*, which is the same `where`
+/// clause [`App`](crate::App)'s own `Default` carries.
+impl<G: Game> Default for Settings<G>
 where
-    C::Config: Default,
-    R::Config: Default,
-    A::Config: Default,
+    ControllerConfig<G>: Default,
+    BotConfig<G>: Default,
+    RenderConfig<G>: Default,
+    AuralizerConfig<G>: Default,
 {
     fn default() -> Self {
         Self {
-            controls: C::Config::default(),
-            graphics: R::Config::default(),
-            audio: A::Config::default(),
+            controls: ControllerConfig::<G>::default(),
+            bot: BotConfig::<G>::default(),
+            graphics: RenderConfig::<G>::default(),
+            audio: AuralizerConfig::<G>::default(),
         }
     }
 }
 
-impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Settings<S, C, R, A> {
+impl<G: Game> Settings<G> {
     /// Where this game's settings file is, or [`None`] where the environment
     /// names no home at all.
     ///
@@ -115,9 +136,10 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Settings<S, C, R
     /// [`Error::Setting`] if it is there and is not this game's settings.
     pub fn load(name: &str) -> Result<Self, Error>
     where
-        C::Config: Default,
-        R::Config: Default,
-        A::Config: Default,
+        ControllerConfig<G>: Default,
+        BotConfig<G>: Default,
+        RenderConfig<G>: Default,
+        AuralizerConfig<G>: Default,
     {
         let Some(path) = Self::path(name) else {
             return Ok(Self::default());

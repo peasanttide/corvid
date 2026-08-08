@@ -36,7 +36,7 @@ mod common;
 
 use std::time::Duration;
 
-use common::{Ears, Hands, Holding, Painted, Rules, Tally, action, opening};
+use common::{Counting, Hands, Holding, Rules, Tally, action, opening};
 use corvid_app::{App, Outcome, Progress, Settings};
 use corvid_control::Controller;
 use corvid_hash::{Digest, digest};
@@ -135,7 +135,7 @@ const fn never() -> Holding {
 /// The progress watch is the only way in from outside a run: it carries the
 /// tick the run reached and how many frames the backend was handed, which
 /// between them are exactly what a pause is supposed to move apart.
-fn play(holding: Holding, on: u64, stall: Duration) -> (Outcome<Tally>, Progress) {
+fn play(holding: Holding, on: u64, stall: Duration) -> (Outcome<Counting>, Progress) {
     let rate = TickSpan::CRADLE;
     let (emitter, watch) = channel(
         "pause",
@@ -146,7 +146,7 @@ fn play(holding: Holding, on: u64, stall: Duration) -> (Outcome<Tally>, Progress
             finished: false,
         },
     );
-    let outcome = App::<Tally, Hands, Painted, Ears>::new()
+    let outcome = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .settings(Settings {
@@ -165,7 +165,7 @@ fn play(holding: Holding, on: u64, stall: Duration) -> (Outcome<Tally>, Progress
 }
 
 /// A run with no stall at all.
-fn played(holding: Holding) -> (Outcome<Tally>, Progress) {
+fn played(holding: Holding) -> (Outcome<Counting>, Progress) {
     // Reading zero is a reading that never happens, so nothing stalls.
     play(holding, 0, Duration::ZERO)
 }

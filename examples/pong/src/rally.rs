@@ -403,6 +403,28 @@ impl Match {
 /// The seed the demo's link lies with, and the one `--together` plays over.
 pub const SEED: u64 = 0x0f_1e_2d_3c;
 
+/// The game [`together`] plays: the whole client half, against a peer on a
+/// thread.
+///
+/// The same five types the binary's own game names, declared again here because
+/// this mode is a *library* function a test drives and a run needs a game to be
+/// told about. `()` is the bot, because the other seat is a real
+/// [`Peer`] rather than something the runtime fills in.
+#[cfg(feature = "window")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rallying;
+
+#[cfg(feature = "window")]
+impl corvid::Game for Rallying {
+    const PERIOD: corvid::TickSpan = crate::RATE;
+
+    type State = Table;
+    type Controller = Hands;
+    type Bot = ();
+    type Render = Graphics;
+    type Auralizer = Ears;
+}
+
 /// Plays both seats in this process: one in a window, one on a thread.
 ///
 /// **This is real netcode against a real peer**, and the only thing about it
@@ -430,7 +452,7 @@ pub fn together(
     rate: corvid::TickSpan,
     ticks: Option<u64>,
     windowed: bool,
-) -> corvid::Result<corvid::Outcome<Table>> {
+) -> corvid::Result<corvid::Outcome<Rallying>> {
     use corvid::{App, Error, Input};
     let net = MockNet::new(seats(), SEED);
     net.all(Schedule::DOMESTIC);
@@ -447,7 +469,7 @@ pub fn together(
         opponent_loop(session, other, &opponent, &clock, period);
     }));
 
-    let app = App::<Table, Hands, Graphics, Ears>::new()
+    let app = App::<Rallying>::new()
         .opening(opening())
         .rate(rate)
         .seat(seat)

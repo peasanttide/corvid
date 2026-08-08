@@ -17,11 +17,11 @@
 
 mod common;
 
-use common::Tally;
+use common::Bare;
 use corvid_app::Settings;
 
 /// The settings for the harness's game, with nothing set.
-type Plain = Settings<Tally, (), (), ()>;
+type Plain = Settings<Bare>;
 
 #[test]
 fn the_file_is_named_for_the_game_and_ends_in_setting_json() {
@@ -50,13 +50,13 @@ fn the_document_survives_being_written_down_and_read_back() {
 }
 
 #[test]
-fn the_three_configs_are_named_rather_than_positional() {
-    // A JSON object with three keys, not an array of three values: a player
+fn the_four_configs_are_named_rather_than_positional() {
+    // A JSON object with four keys, not an array of four values: a player
     // opens this file, and a document whose fields were positional would be one
-    // where inserting a config silently reinterprets the other two.
+    // where inserting a config silently reinterprets the other three.
     let text = serde_json::to_string(&Plain::default()).unwrap();
 
-    for key in ["controls", "graphics", "audio"] {
+    for key in ["controls", "bot", "graphics", "audio"] {
         assert!(text.contains(&format!("\"{key}\"")), "{text}");
     }
 }

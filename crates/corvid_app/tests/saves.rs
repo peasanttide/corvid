@@ -16,7 +16,7 @@ mod common;
 
 use std::{fs, path::Path};
 
-use common::{Ears, FAREWELL, Hands, Painted, Rules, SLOT, Scratchpad, Tally, opening, schema};
+use common::{Counting, FAREWELL, Rules, SLOT, Scratchpad, Tally, opening, schema};
 use corvid_app::Command;
 use corvid_app::{Answer, App, Error, NotASave};
 use corvid_behavior::SaveSlot;
@@ -61,8 +61,8 @@ fn make_saving_fail(saves: &Path) {
 }
 
 /// A run of the game with the rules given, with its slots under `saves`.
-fn play(saves: &Path, rules: Rules, ticks: u64) -> corvid_app::Outcome<Tally> {
-    App::<Tally, Hands, Painted, Ears>::new()
+fn play(saves: &Path, rules: Rules, ticks: u64) -> corvid_app::Outcome<Counting> {
+    App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(rules))
         .saves(saves)
@@ -96,7 +96,7 @@ fn a_run_that_loads_what_another_run_saved_reaches_the_same_state() {
     // one that asked, and this run opens there. `--ticks` counts from where a
     // run opened, so what is left is the rest of the twelve.
     let opened_at = SAVED_AT.next();
-    let resumed = App::<Tally, Hands, Painted, Ears>::new()
+    let resumed = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .saves(saves)
@@ -134,7 +134,7 @@ fn a_run_can_open_on_the_session_a_capture_recorded() {
     // something to take somebody's word for.
     let scratchpad = Scratchpad::new("replay");
     let capture = scratchpad.path().join("capture");
-    let recorded = App::<Tally, Hands, Painted, Ears>::new()
+    let recorded = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .capture(&capture)
@@ -142,7 +142,7 @@ fn a_run_can_open_on_the_session_a_capture_recorded() {
         .run()
         .unwrap();
 
-    let resumed = App::<Tally, Hands, Painted, Ears>::new()
+    let resumed = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .replay(capture.join("session"))
@@ -230,7 +230,7 @@ fn a_save_that_cannot_be_written_leaves_the_one_it_was_replacing_readable() {
     // it and arrives exactly where the first one did, which it could not do from
     // a prefix and would not do from the second run's save.
     let opened_at = SAVED_AT.next();
-    let resumed = App::<Tally, Hands, Painted, Ears>::new()
+    let resumed = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .saves(saves)
@@ -255,7 +255,7 @@ fn a_run_whose_save_fails_keeps_its_capture_and_says_the_save_failed() {
     // One tick both asks to save and asks to quit, in that order — which is the
     // arrangement that would lose the quit if the failing save aborted the
     // drain.
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules {
             save_at: Some(SAVED_AT),
@@ -324,7 +324,7 @@ fn a_save_whose_recorded_state_is_not_what_its_own_log_replays_to_is_refused() {
     written.state = corvid_wire::encode(&recorded).unwrap();
     fs::write(&path, corvid_wire::encode(&written).unwrap()).unwrap();
 
-    let why = App::<Tally, Hands, Painted, Ears>::new()
+    let why = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .saves(saves)
@@ -347,7 +347,7 @@ fn opening_a_slot_nothing_has_written_is_refused_rather_than_started_over() {
     // A run that was asked to resume and quietly started a new game is a run
     // that has lost somebody's save, so the empty slot is an error at start-up.
     let scratchpad = Scratchpad::new("empty");
-    let why = App::<Tally, Hands, Painted, Ears>::new()
+    let why = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .saves(scratchpad.path())

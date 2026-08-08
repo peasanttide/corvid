@@ -17,7 +17,7 @@ mod common;
 use std::{cell::RefCell, num::NonZeroU32, rc::Rc, sync::Arc, thread, time::Instant};
 
 use common::{
-    Action, Attendance, Ears, Hands, Marker, Painted, Rules, Scratchpad, Tally, attendance,
+    Action, Attending, Counting, Rules, Scratchpad, Tally, attendance,
     backstop::{joined, once},
     opening, resting, seat,
 };
@@ -36,8 +36,8 @@ const TICKS: u64 = 40;
 const SEAT: PlayerId = PlayerId(0);
 
 /// A run of [`TICKS`] ticks of the honest game, with the rules given.
-fn play(rules: Rules) -> corvid_app::Outcome<Tally> {
-    App::<Tally, Hands, Painted, Ears>::new()
+fn play(rules: Rules) -> corvid_app::Outcome<Counting> {
+    App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(rules))
         .for_ticks(TICKS)
@@ -134,7 +134,7 @@ fn a_headless_run_is_not_paced_by_the_time_it_simulates() {
     let simulated = rate.period() * 300;
 
     let started = Instant::now();
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .rate(rate)
         .opening(opening::<Tally>(Rules::quiet()))
@@ -156,7 +156,7 @@ fn the_input_the_app_was_given_reaches_intend() {
     // The one thing a caller can say to `intend` when nothing refills the
     // snapshot. `Tally::intend` returns `Idle` while the rest button is held, so a
     // run given this snapshot never bumps and the tally never moves.
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .input(resting())
@@ -184,7 +184,7 @@ fn asking_for_the_headless_backend_changes_nothing() {
     // `headless()` is a no-op today and says so. This is what would notice if
     // it stopped being one without anybody meaning it to.
     let with = play(Rules::quiet());
-    let without = App::<Tally, Hands, Painted, Ears>::new()
+    let without = App::<Counting>::new()
         .opening(opening::<Tally>(Rules::quiet()))
         .for_ticks(TICKS)
         .run()
@@ -199,7 +199,7 @@ fn asking_for_the_headless_backend_changes_nothing() {
 fn until_stops_at_the_tick_whose_state_satisfied_it() {
     // The predicate is checked against the state a tick produced, so the run
     // stops with exactly as many ticks as it took to satisfy it and none after.
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         // The tick ceiling is a backstop rather than part of the claim: a
@@ -228,7 +228,7 @@ fn for_ticks_of_zero_is_a_run_of_no_ticks() {
     // being read on the way in as well, and this is the only test that can see
     // that read — every other `for_ticks` here would pass just as well without
     // it.
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .for_ticks(0)
@@ -253,7 +253,7 @@ fn until_is_handed_the_tick_the_state_it_is_looking_at_is_at() {
     // pass and shift a caller's own predicate by one.
     let seen = Rc::new(RefCell::new(Vec::new()));
     let recorded = Rc::clone(&seen);
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .until(move |state: &Tally, at: Tick| {
@@ -297,7 +297,7 @@ fn for_ticks_counts_from_the_openings_first_tick_and_not_from_zero() {
     Arc::make_mut(&mut origin).now = OPENS_AT;
     opening.origin = Some(origin);
 
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .opening(opening)
         .for_ticks(PLAYS)
@@ -342,7 +342,7 @@ fn the_clock_the_app_was_given_is_what_decides_how_often_a_tick_runs() {
         },
     );
 
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .rate(rate)
         .clock(Clock::stepping(rate.period() / 4))
@@ -367,7 +367,7 @@ fn the_clock_the_app_was_given_is_what_decides_how_often_a_tick_runs() {
             finished: false,
         },
     );
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .rate(rate)
         .opening(opening::<Tally>(Rules::quiet()))
@@ -382,7 +382,7 @@ fn the_clock_the_app_was_given_is_what_decides_how_often_a_tick_runs() {
 
 #[test]
 fn a_run_with_no_opening_is_refused() {
-    let refused = App::<Tally, Hands, Painted, Ears>::new().headless().run();
+    let refused = App::<Counting>::new().headless().run();
     assert!(matches!(refused, Err(corvid_app::Error::Unopened)));
 }
 
@@ -394,7 +394,7 @@ fn this_client_submits_for_the_seat_it_was_given_and_for_no_other() {
     // three, and the client is the last of them.
     const MINE: PlayerId = PlayerId(2);
 
-    let run = App::<Attendance, Marker>::new()
+    let run = App::<Attending>::new()
         .headless()
         .opening(attendance(vec![seat(1000), seat(1001), seat(1002)]))
         .seat(MINE)
@@ -448,7 +448,7 @@ fn the_clock_decides_how_many_ticks_a_reading_owes() {
     // one and a half periods owes one tick on its first reading and two on its
     // second, so four ticks arrive over three readings.
     let rate = TickSpan::from_hz(NonZeroU32::new(20).unwrap());
-    let run = App::<Attendance, Marker>::new()
+    let run = App::<Attending>::new()
         .headless()
         .rate(rate)
         .clock(Clock::stepping(rate.period() * 3 / 2))
@@ -476,13 +476,13 @@ fn the_default_clock_is_the_rate_the_app_was_given() {
     assert_ne!(rate.period(), TickSpan::CRADLE.period());
 
     let defaulted = frames_of(
-        App::<Tally, Hands, Painted, Ears>::new()
+        App::<Counting>::new()
             .headless()
             .rate(rate)
             .opening(opening::<Tally>(Rules::quiet())),
     );
     let spelled_out = frames_of(
-        App::<Tally, Hands, Painted, Ears>::new()
+        App::<Counting>::new()
             .headless()
             .rate(rate)
             .clock(Clock::stepping(rate.period()))
@@ -494,7 +494,7 @@ fn the_default_clock_is_the_rate_the_app_was_given() {
     // an assertion rather than a coincidence about a loop that displays once
     // per tick whatever it is driven by.
     let elsewhere = frames_of(
-        App::<Tally, Hands, Painted, Ears>::new()
+        App::<Counting>::new()
             .headless()
             .rate(rate)
             .clock(Clock::stepping(TickSpan::CRADLE.period()))
@@ -505,7 +505,7 @@ fn the_default_clock_is_the_rate_the_app_was_given() {
 
 /// How many frames a run displays, which is the thing a clock decides and a
 /// tick count does not.
-fn frames_of(app: App<Tally, Hands, Painted, Ears>) -> u64 {
+fn frames_of(app: App<Counting>) -> u64 {
     let (emit, watch) = channel(
         "frames",
         Progress {
@@ -525,7 +525,7 @@ fn a_seat_the_roster_does_not_have_is_refused() {
     // The roster these openings carry has one seat. Submitting for the second
     // would record this client's actions nowhere, and a replay of the session
     // would be a replay of a run in which nobody did anything.
-    let refused = App::<Tally, Hands, Painted, Ears>::new()
+    let refused = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .seat(PlayerId(1))
@@ -549,7 +549,7 @@ fn a_resumed_run_checks_its_seat_against_the_roster_it_is_resuming() {
     // discarded is a seat checked against a roster nobody will play with.
     let scratchpad = Scratchpad::new("resumed-seat");
     let capture = scratchpad.path().join("capture");
-    App::<Attendance, Marker>::new()
+    App::<Attending>::new()
         .headless()
         .opening(attendance(vec![seat(1000), seat(1001)]))
         .capture(&capture)
@@ -560,7 +560,7 @@ fn a_resumed_run_checks_its_seat_against_the_roster_it_is_resuming() {
     // Seat three is in the fresh roster of four and not in the recorded roster
     // of two. Refused, and refused as a seat rather than a hundred ticks later
     // as a log that would not take a write.
-    let refused = App::<Attendance, Marker>::new()
+    let refused = App::<Attending>::new()
         .headless()
         .opening(attendance(vec![
             seat(1000),
@@ -614,7 +614,7 @@ fn a_run_reports_where_it_has_got_to_while_it_is_still_running() {
     let mut seen = watch.seen_now();
 
     let playing = thread::spawn(move || {
-        App::<Tally, Hands, Painted, Ears>::new()
+        App::<Counting>::new()
             .headless()
             .opening(opening::<Tally>(Rules::quiet()))
             .progress(emit)

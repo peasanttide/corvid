@@ -15,7 +15,7 @@
 
 mod common;
 
-use common::{Action, Ears, Hands, Painted, Rules, Scratchpad, Tally, mark, opening, seat};
+use common::{Action, Counting, Rules, Scratchpad, Tally, mark, opening, seat};
 use corvid_app::{App, Outcome, Progress, Retention};
 use corvid_behavior::PlayerId;
 use corvid_hash::Digest;
@@ -34,8 +34,8 @@ const WINDOW: u64 = 23;
 const TICKS: u64 = 213;
 
 /// A run of [`TICKS`] ticks under `retention`.
-fn play(retention: Retention) -> Outcome<Tally> {
-    App::<Tally, Hands, Painted, Ears>::new()
+fn play(retention: Retention) -> Outcome<Counting> {
+    App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .retain(retention)
@@ -122,7 +122,7 @@ fn no_run_length_holds_more_than_twice_the_window() {
     // several times over and the widest tooth there is falls inside the range.
     let mut widest = 0;
     for ticks in 1..=(3 * WINDOW + 2) {
-        let run = App::<Tally, Hands, Painted, Ears>::new()
+        let run = App::<Counting>::new()
             .headless()
             .opening(opening::<Tally>(Rules::quiet()))
             .retain(Retention::Recent { ticks: WINDOW })
@@ -163,7 +163,7 @@ fn no_run_length_holds_more_than_twice_the_window() {
 
 #[test]
 fn a_run_shorter_than_its_window_forgets_nothing() {
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .retain(Retention::Recent { ticks: WINDOW })
@@ -180,7 +180,7 @@ fn the_default_keeps_a_window_and_a_capture_keeps_everything() {
     // Long enough to pass the default window twice, so that a default which
     // quietly kept everything fails here rather than merely looking generous.
     let ticks = 700;
-    let long = App::<Tally, Hands, Painted, Ears>::new()
+    let long = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .for_ticks(ticks)
@@ -199,7 +199,7 @@ fn the_default_keeps_a_window_and_a_capture_keeps_everything() {
     );
 
     let pad = Scratchpad::new("retention-capture");
-    let recorded = App::<Tally, Hands, Painted, Ears>::new()
+    let recorded = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .capture(pad.path())
@@ -218,7 +218,7 @@ fn the_default_keeps_a_window_and_a_capture_keeps_everything() {
     // And a capture that was told otherwise records the window instead, which
     // is the setting winning over the capture rather than the other way round.
     let pad = Scratchpad::new("retention-capture-bounded");
-    let bounded = App::<Tally, Hands, Painted, Ears>::new()
+    let bounded = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .capture(pad.path())
@@ -278,7 +278,7 @@ fn a_bounded_run_can_still_be_rolled_back_inside_its_window() {
     // one a lockstep transport would be filling in late.
     let mut open = opening::<Tally>(Rules::quiet());
     open.roster.push(seat(1001));
-    let mut run = App::<Tally, Hands, Painted, Ears>::new()
+    let mut run = App::<Counting>::new()
         .headless()
         .opening(open)
         .retain(Retention::Recent { ticks: WINDOW })
@@ -328,7 +328,7 @@ fn a_bounded_run_still_publishes_the_mark_for_the_tick_it_is_on() {
             finished: false,
         },
     );
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .retain(Retention::Recent { ticks: WINDOW })
@@ -354,7 +354,7 @@ fn a_window_of_nothing_keeps_the_row_it_is_writing() {
     // is here because it is the floor the sawtooth is measured from: a session
     // always covers the tick the loop is writing at, so "keep nothing" is one
     // row rather than none.
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .retain(Retention::Recent { ticks: 0 })

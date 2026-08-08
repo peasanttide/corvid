@@ -12,7 +12,7 @@ use crate::Opening;
 /// that starting a run means naming the game and nothing else.
 ///
 /// It is a trait rather than an argument because the entry point takes no
-/// arguments — `corvid_app::main::<S>()` reads the process's command line and
+/// arguments — `corvid_app::main::<G>()` reads the process's command line and
 /// decides everything else — and it lives here rather than on
 /// [`State`] because [`Opening`] is this crate's type and the simulation
 /// ring does not depend on this crate.

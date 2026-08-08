@@ -18,7 +18,7 @@ use corvid_behavior::{Extract, Extracting, Time};
 use corvid_sound::Auralizer;
 use std::{fs, num::NonZeroU32};
 
-use common::{Action, Ears, Hands, Painted, Rules, Scratchpad, Tally, opening, schema};
+use common::{Action, Counting, Ears, Rules, Scratchpad, Tally, opening, schema};
 use corvid_app::App;
 use corvid_hash::digest;
 use corvid_replay::{HashTrace, Load, Schema, Session, Snapshots};
@@ -33,8 +33,8 @@ const TICKS: u64 = 12;
 const SEAT: corvid_behavior::PlayerId = corvid_behavior::PlayerId(0);
 
 /// A run of [`TICKS`] ticks, written into `where_to`.
-fn capture_into(where_to: &Scratchpad) -> corvid_app::Outcome<Tally> {
-    App::<Tally, Hands, Painted, Ears>::new()
+fn capture_into(where_to: &Scratchpad) -> corvid_app::Outcome<Counting> {
+    App::<Counting>::new()
         .headless()
         .capture(where_to.path())
         .opening(opening::<Tally>(Rules::quiet()))
@@ -260,7 +260,7 @@ fn a_clock_slower_than_the_tick_rate_displays_at_the_opening_tick() {
     // for a tick would stutter whenever the simulation is not due.
     let rate = TickSpan::from_hz(NonZeroU32::new(20).unwrap());
     let scratchpad = Scratchpad::new("slow");
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .rate(rate)
         .clock(Clock::stepping(rate.period() / 4))
@@ -281,7 +281,7 @@ fn a_clock_slower_than_the_tick_rate_displays_at_the_opening_tick() {
     // rather than about a loop that always displays before it ticks.
     let quick = Scratchpad::new("quick");
     drop(
-        App::<Tally, Hands, Painted, Ears>::new()
+        App::<Counting>::new()
             .headless()
             .rate(rate)
             .capture(quick.path())
@@ -303,7 +303,7 @@ fn capturing_does_not_change_what_a_run_computes() {
     // game.
     let scratchpad = Scratchpad::new("observed");
     let watched = capture_into(&scratchpad);
-    let unwatched = App::<Tally, Hands, Painted, Ears>::new()
+    let unwatched = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .for_ticks(TICKS)
@@ -320,7 +320,7 @@ fn a_capture_directory_is_created_where_it_was_asked_for() {
     let nested = scratchpad.path().join("deep").join("under");
     assert!(!nested.exists());
 
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .capture(&nested)
         .opening(opening::<Tally>(Rules::quiet()))

@@ -17,6 +17,7 @@ mod commands;
 // The player's own binding table, which only a windowed run has one of.
 #[cfg(feature = "window")]
 mod controls;
+mod game;
 mod headless;
 #[cfg(feature = "net")]
 mod net;
@@ -35,6 +36,7 @@ pub use cli::{Argument, Arguments, main, watch};
 pub use commands::{Answer, Command, Request, Requests};
 #[cfg(feature = "window")]
 pub use controls::Misbound;
+pub use game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig};
 #[cfg(feature = "net")]
 pub use net::{Departures, TickTraffic, Traffic, seat_of};
 pub use retention::Retention;

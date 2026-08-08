@@ -44,7 +44,7 @@
 
 mod common;
 
-use common::{Ears, Hands, Painted, Rules, Scratchpad, Tally, backstop, opening};
+use common::{Counting, Rules, Scratchpad, Tally, backstop, opening};
 use corvid_app::{App, Outcome};
 use corvid_hash::digest;
 use corvid_render::Extent;
@@ -57,8 +57,8 @@ const TICKS: u64 = 40;
 const SIZE: Extent = Extent::new(64, 64);
 
 /// A run with no adapter and nowhere to draw.
-fn without() -> Outcome<Tally> {
-    App::<Tally, Hands, Painted, Ears>::new()
+fn without() -> Outcome<Counting> {
+    App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .until(|state: &Tally, _| state.now >= Tick(TICKS))
@@ -68,8 +68,8 @@ fn without() -> Outcome<Tally> {
 
 /// The same run, with a device rasterising every frame, or [`None`] on a
 /// machine with no adapter at all.
-fn with() -> Option<Outcome<Tally>> {
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+fn with() -> Option<Outcome<Counting>> {
+    let run = App::<Counting>::new()
         .offscreen(SIZE)
         .opening(opening::<Tally>(Rules::quiet()))
         .until(|state: &Tally, _| state.now >= Tick(TICKS))
@@ -129,7 +129,7 @@ fn the_renderer_cannot_report_what_it_drew() {
             return;
         };
 
-        let second = App::<Tally, Hands, Painted, Ears>::new()
+        let second = App::<Counting>::new()
             .offscreen(Extent::new(17, 5))
             .opening(opening::<Tally>(Rules::quiet()))
             .until(|state: &Tally, _| state.now >= Tick(TICKS))
@@ -160,14 +160,14 @@ fn a_run_with_a_renderer_is_still_a_run_that_asks_the_platform_for_things() {
         // when the comparison is over: the default is `./saves/NAME/`, which is
         // right for a game and would be this test leaving a file in the crate.
         let scratchpad = Scratchpad::new("windowless");
-        let dark = App::<Tally, Hands, Painted, Ears>::new()
+        let dark = App::<Counting>::new()
             .headless()
             .opening(opening::<Tally>(rules.clone()))
             .saves(scratchpad.path())
             .run()
             .unwrap();
 
-        let drawn = match App::<Tally, Hands, Painted, Ears>::new()
+        let drawn = match App::<Counting>::new()
             .offscreen(SIZE)
             .opening(opening::<Tally>(rules))
             .saves(scratchpad.path())

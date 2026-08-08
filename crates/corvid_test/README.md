@@ -16,7 +16,7 @@ is four calls, and `examples/headless` makes all four.
 # use corvid_files::{Malformed, Source};
 # use corvid_control::Controller;
 # use corvid_input::Input;
-# use corvid_replay::{Opening, Profile, Schema, Seed};
+# use corvid_replay::{Opening, Opens, Profile, Schema, Seed};
 # use corvid_time::Tick;
 # use serde::{Deserialize, Serialize};
 #
@@ -78,13 +78,33 @@ is four calls, and `examples/headless` makes all four.
 #     }
 # }
 #
+# impl Opens for Climb {
+#     fn opening() -> Opening<Self> { opening() }
+# }
+#
+# /// The game: the climb, the climber, and nothing drawn, heard or botted.
+# #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+# struct Climbing;
+# impl corvid_app::Game for Climbing {
+#     const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
+#     type State = Climb;
+#     type Controller = Legs;
+#     type Bot = ();
+#     type Render = ();
+#     type Auralizer = ();
+# }
+#
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
-// A climber who gains a metre per tick. `State` and `Controller` for `Climb`
-// are elided here; there is no renderer and no ear, because `App` defaults
-// both to `()` and a game that draws nothing writes no line at all.
+// A climber who gains a metre per tick. `State`, `Controller` and `Game` for
+// `Climb` are elided here; there is no renderer and no ear, because a game that
+// draws nothing writes `()` and the run opens no device.
+//
+// The determinism check names the two types it is about — a state and a
+// controller — and decides the rest for itself: a run that opened an adapter to
+// prove a digest would be a check with a side effect.
 corvid_test::is_reproducible::<Climb, Legs>(&opening(), &(), &Input::new(&[]), 100)?;
 
-let run = App::<Climb, Legs>::new()
+let run = App::<Climbing>::new()
     .headless()
     .opening(opening())
     .until(|climb: &Climb, _at| climb.metres >= 100)

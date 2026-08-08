@@ -50,7 +50,7 @@ use corvid_behavior::{Command, Level, Player, ProfileId, StatId, State};
 use corvid_files::{Malformed, Source};
 use corvid_hash::Digest;
 use corvid_input::Input;
-use corvid_replay::{Opening, Profile, Schema, Seed};
+use corvid_replay::{Opening, Opens, Profile, Schema, Seed};
 use corvid_time::Tick;
 use serde::{Deserialize, Serialize};
 
@@ -400,6 +400,36 @@ pub(crate) fn opening_with_a_lossy_origin() -> Opening<Climb> {
         ..Climb::default()
     }));
     opening
+}
+
+/// Where a run of the climb that was told nothing else starts.
+///
+/// Every check here says which opening it wants, because what these fixtures
+/// vary is the habit: which global a tick reads and when it starts reading it.
+/// This is here because a [`Game`](corvid_app::Game) names a state that can
+/// open a session on its own, and the steady habit is the honest answer for a
+/// run nobody has configured.
+impl Opens for Climb {
+    fn opening() -> Opening<Self> {
+        opening(Habit::Steady, 0, 0)
+    }
+}
+
+/// The game the replay checks play: the climb, with nobody at the controls.
+///
+/// Four `()`s. What a replay check compares is a session against the states it
+/// recorded, and neither a controller nor a device is on the path between them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Climbing;
+
+impl corvid_app::Game for Climbing {
+    const PERIOD: corvid_time::TickSpan = corvid_time::TickSpan::CRADLE;
+
+    type State = Climb;
+    type Controller = ();
+    type Bot = ();
+    type Render = ();
+    type Auralizer = ();
 }
 
 /// The input every run here plays with: nothing held, because this game's

@@ -1,16 +1,47 @@
 //! Playing one opening twice and finding the first tick the two runs stop being
 //! the same game.
 
-use corvid_app::{App, Outcome, Retention, Settings};
+use core::marker::PhantomData;
+
+use corvid_app::{App, Game, Outcome, Retention, Settings};
 use corvid_behavior::{PlayerId, State};
 use corvid_hash::Digest;
 use corvid_hash::digest;
 use corvid_input::Input;
 use corvid_replay::LevelRef;
-use corvid_replay::Opening;
-use corvid_time::Tick;
+use corvid_replay::{Opening, Opens};
+use corvid_time::{Tick, TickSpan};
 
 use crate::{Diverged, Failed, What};
+
+/// The game the two runs play: the caller's state and controller, and nothing
+/// else.
+///
+/// [`App`] takes one parameter and that parameter is a whole game, so a check
+/// about a *state* and a *controller* has to name a game to run one — and the
+/// other three are decided rather than asked for. No bot, because a run with
+/// one is a run whose seats are filled by something the caller did not hand
+/// over; no renderer and no ear, because a determinism check that opened an
+/// adapter or a sound card would be a determinism check with a side effect, and
+/// neither is on the path from an action log to a state.
+///
+/// A private marker rather than a parameter on [`is_reproducible`], so that a
+/// caller with a state and a controller still writes exactly those two.
+struct Twice<S, C>(PhantomData<fn() -> (S, C)>);
+
+impl<S: State + Opens, C: corvid_control::Controller<S>> Game for Twice<S, C> {
+    /// The rate is not a variable here. Both runs use it, a stepping clock
+    /// makes each reading one owed tick whatever it is, and nothing either run
+    /// computes depends on it — so a period this check invented is a period
+    /// neither comparison can see.
+    const PERIOD: TickSpan = TickSpan::CRADLE;
+
+    type State = S;
+    type Controller = C;
+    type Bot = ();
+    type Render = ();
+    type Auralizer = ();
+}
 
 /// Plays `opening` twice with the same input and compares the two runs.
 ///
@@ -100,7 +131,7 @@ pub fn is_reproducible<S, C>(
     ticks: u64,
 ) -> Result<(), Failed<LevelRef<S>>>
 where
-    S: State,
+    S: State + Opens,
     C: corvid_control::Controller<S>,
     C::Config: Clone + Default,
 {
@@ -115,9 +146,9 @@ fn play<S, C>(
     controls: C::Config,
     input: Input,
     ticks: u64,
-) -> Result<Outcome<S>, Failed<LevelRef<S>>>
+) -> Result<Outcome<Twice<S, C>>, Failed<LevelRef<S>>>
 where
-    S: State,
+    S: State + Opens,
     C: corvid_control::Controller<S>,
     C::Config: Default,
 {
@@ -136,7 +167,7 @@ where
     // of that window would be compared against nothing and reported as
     // agreement. `tests/reproducible.rs` has the case, at a tick chosen to be
     // outside the default window.
-    App::<S, C>::new()
+    App::<Twice<S, C>>::new()
         .headless()
         .opening(opening)
         .settings(Settings {
@@ -151,10 +182,10 @@ where
 }
 
 /// The five comparisons, in the order the documentation gives.
-fn compare<S: State>(
-    recorded: &Outcome<S>,
-    computed: &Outcome<S>,
-) -> Result<(), Diverged<LevelRef<S>>> {
+fn compare<G: Game>(
+    recorded: &Outcome<G>,
+    computed: &Outcome<G>,
+) -> Result<(), Diverged<LevelRef<G::State>>> {
     let first = recorded.session.first();
 
     if let Some(at) = recorded
@@ -209,10 +240,10 @@ fn compare<S: State>(
 
 /// The first tick and seat the two logs disagree about, over the ticks both
 /// runs reached.
-fn actions<S: State>(
-    recorded: &Outcome<S>,
-    computed: &Outcome<S>,
-) -> Option<Diverged<LevelRef<S>>> {
+fn actions<G: Game>(
+    recorded: &Outcome<G>,
+    computed: &Outcome<G>,
+) -> Option<Diverged<LevelRef<G::State>>> {
     let first = recorded.session.first().max(computed.session.first());
     let until = recorded.session.last().min(computed.session.last());
     // The narrower of the two, so that a roster this crate cannot produce — the
@@ -253,11 +284,11 @@ fn actions<S: State>(
 /// one tick and a run that asked for one are different at the second, and a
 /// comparison keyed on the tick would have to decide which of the two to hold
 /// against it.
-fn requests<S: State>(
-    recorded: &Outcome<S>,
-    computed: &Outcome<S>,
+fn requests<G: Game>(
+    recorded: &Outcome<G>,
+    computed: &Outcome<G>,
     last: Tick,
-) -> Option<Diverged<LevelRef<S>>> {
+) -> Option<Diverged<LevelRef<G::State>>> {
     let mut mine = recorded.requests.iter();
     let mut theirs = computed.requests.iter();
     loop {

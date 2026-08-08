@@ -23,7 +23,7 @@ use std::{thread, time::Duration};
 
 use corvid::Input;
 use corvid::digest;
-use corvid::{Acting, App, Camera, Controller, Outcome, SetDescriptor, Updating};
+use corvid::{Acting, App, Camera, Controller, Game, Outcome, SetDescriptor, TickSpan, Updating};
 
 use corvid::PlayerId;
 
@@ -141,9 +141,28 @@ impl Controller<Table> for Metronome {
     }
 }
 
+/// The game both peers play: the table, a paddle on a metronome, and no device
+/// at either end.
+///
+/// The claim here is that a link does not move a digest, so neither run opens
+/// an adapter or a sound card: a picture and a sound are things a peer does not
+/// send.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Linked;
+
+impl Game for Linked {
+    const PERIOD: TickSpan = RATE;
+
+    type State = Table;
+    type Controller = Metronome;
+    type Bot = ();
+    type Render = ();
+    type Auralizer = ();
+}
+
 /// Plays one seat over one endpoint, headless, at this game's rate.
-fn play(seat: u16, transport: Box<dyn Transport>) -> Result<Outcome<Table>, corvid::Error> {
-    App::<Table, Metronome>::new()
+fn play(seat: u16, transport: Box<dyn Transport>) -> Result<Outcome<Linked>, corvid::Error> {
+    App::<Linked>::new()
         .opening(opening())
         .rate(RATE)
         .seat(PlayerId(seat))
@@ -266,7 +285,7 @@ fn two_runtimes_over_one_link_agree() -> Fallible {
 #[test]
 fn a_run_with_no_transport_is_unchanged() -> Fallible {
     let alone = |seat: u16| {
-        App::<Table, Metronome>::new()
+        App::<Linked>::new()
             .opening(opening())
             .rate(RATE)
             .seat(PlayerId(seat))

@@ -2,8 +2,8 @@
 //! where the boundary between them is.
 
 use crate::commands::Command;
+use corvid_behavior::Extract;
 use corvid_control::{Acting, Controller, Updating};
-use corvid_render::Render;
 use corvid_replay::LevelRef;
 use corvid_sound::{Auralizer, Hearing};
 use std::{mem, sync::Arc};
@@ -25,6 +25,7 @@ use crate::{
     app::Stop,
     backend::{Backend, Frame},
     commands::{Answer, Sink},
+    game::Game,
     saves::{Saves, StateAt},
 };
 use corvid_behavior::State;
@@ -150,6 +151,17 @@ impl<S: State> Play<S> {
     }
 }
 
+/// What one tick produces: the state after it, and everything it asked the
+/// platform for.
+///
+/// An alias because it is written at both ends of the one call that produces
+/// it, and the second half is a list of a game's own requests rather than
+/// anything this crate has a shorter name for.
+type Ticked<G> = (
+    <G as Game>::State,
+    Vec<Command<LevelRef<<G as Game>::State>>>,
+);
+
 /// Whether the loop carries on.
 enum Flow {
     /// Keep going.
@@ -165,30 +177,30 @@ enum Flow {
 /// are handles because that is what a [`Frame`] holds: building one is four
 /// atomic increments and no copy of a state, which is what makes it affordable
 /// to build one per call rather than once per displayed frame.
-pub(crate) struct Runtime<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B> {
+pub(crate) struct Runtime<G: Game, B> {
     /// The session being played, which is the run's whole output, and whoever
     /// is playing it.
-    play: Play<S>,
+    play: Play<G::State>,
     /// Which seat this client's action is recorded against.
     seat: PlayerId,
     /// The game's caches, carried from tick to tick.
     /// The state at [`at`](Self::at) minus one.
-    previous: Arc<S>,
+    previous: Arc<G::State>,
     /// The state at [`at`](Self::at).
-    current: Arc<S>,
+    current: Arc<G::State>,
     /// Which tick [`current`](Self::current) is.
     at: Tick,
     /// The client-local half's state, moved only by `look`.
     /// Who is playing, and where they are looking.
-    controller: C,
+    controller: G::Controller,
     /// What is drawn with, or [`None`] on a run that opened no device.
     ///
-    /// An `Option` rather than a `R` because a renderer is built against a
-    /// device and a headless run has none — so "there is no renderer" is the
-    /// honest thing to hold rather than one built from nothing.
-    graphics: Option<R>,
+    /// An `Option` rather than a bare renderer because a renderer is built
+    /// against a device and a headless run has none — so "there is no renderer"
+    /// is the honest thing to hold rather than one built from nothing.
+    graphics: Option<G::Render>,
     /// The ear.
-    ear: A,
+    ear: G::Auralizer,
     /// What the devices say, as of the last reading. This is the frame's input,
     /// and `look` is what reads it.
     input: Input,
@@ -211,11 +223,11 @@ pub(crate) struct Runtime<S: State, C: Controller<S>, R: Render<S>, A: Auralizer
     /// Where a displayed frame goes.
     backend: B,
     /// What the ticks asked the platform for.
-    sink: Sink<LevelRef<S>>,
+    sink: Sink<LevelRef<G::State>>,
     /// Where a save is written and read.
     saves: Saves,
     /// When to stop, if the caller said.
-    stop: Option<Stop<S>>,
+    stop: Option<Stop<G::State>>,
     /// The tick to stop *before*, if the caller asked for a fixed number of
     /// them. A count rather than a predicate, because the predicate is checked
     /// after a tick has run and `for_ticks(0)` has to mean no ticks at all.
@@ -223,16 +235,14 @@ pub(crate) struct Runtime<S: State, C: Controller<S>, R: Render<S>, A: Auralizer
     /// Where to publish progress, if the caller said.
     progress: Option<Emitter<Progress>>,
     /// How far back the session is kept.
-    horizon: Horizon<S>,
+    horizon: Horizon<G::State>,
     /// What the player has set, as it stands. Compared against what the
     /// controller answers after every displayed frame, and written down when
     /// the two differ.
-    settings: Settings<S, C, R, A>,
+    settings: Settings<G>,
 }
 
-impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>>
-    Runtime<S, C, R, A, B>
-{
+impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// Builds the loop's state from a session that is already at its opening.
     ///
     /// A [`Frame`] holds two states and there is only one before the first
@@ -270,7 +280,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
             return;
         }
         self.settings.controls = config;
-        if let Err(why) = self.settings.save(S::NAME) {
+        if let Err(why) = self.settings.save(<G::State as State>::NAME) {
             tracing::warn!(
                 name: "corvid_app.unsaved",
                 %why,
@@ -280,12 +290,12 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
     }
 
     pub(crate) fn new(
-        mut plan: Plan<S>,
+        mut plan: Plan<G::State>,
         backend: B,
-        controller: C,
-        graphics: Option<R>,
-        ear: A,
-        settings: Settings<S, C, R, A>,
+        controller: G::Controller,
+        graphics: Option<G::Render>,
+        ear: G::Auralizer,
+        settings: Settings<G>,
     ) -> Result<Self, Error> {
         let resumed = plan.resumed.take();
         let (at, state) = resumed
@@ -316,7 +326,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
                     transport,
                 ));
                 if let Some((at, state)) = resumed {
-                    link.adopt(at, S::clone(&state))?;
+                    link.adopt(at, <G::State>::clone(&state))?;
                 }
                 Play::Linked(link)
             }
@@ -362,7 +372,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         mut self,
         mut clock: Box<dyn Elapsed>,
         mut step: Step,
-    ) -> Result<Outcome<S>, Error> {
+    ) -> Result<Outcome<G>, Error> {
         self.publish(false);
         let exit = loop {
             let elapsed = clock.elapsed();
@@ -510,7 +520,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
 
     /// Publishes the last progress and hands the run back.
     #[cfg(feature = "window")]
-    pub(crate) fn stop(self, exit: ExitCode) -> Result<Outcome<S>, Error> {
+    pub(crate) fn stop(self, exit: ExitCode) -> Result<Outcome<G>, Error> {
         self.publish(true);
         self.finish(exit)
     }
@@ -609,8 +619,8 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
     fn advance_alone(
         &mut self,
         asked: Tick,
-        action: S::Action,
-    ) -> Result<Vec<Command<LevelRef<S>>>, Error> {
+        action: <G::State as State>::Action,
+    ) -> Result<Vec<Command<LevelRef<G::State>>>, Error> {
         self.play
             .session_mut()
             .log
@@ -650,7 +660,10 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
     /// deeper than one tick. So the display's tick and its pair are read back
     /// off the peer rather than incremented here.
     #[cfg(feature = "net")]
-    fn advance_linked(&mut self, action: S::Action) -> Result<Vec<Command<LevelRef<S>>>, Error> {
+    fn advance_linked(
+        &mut self,
+        action: <G::State as State>::Action,
+    ) -> Result<Vec<Command<LevelRef<G::State>>>, Error> {
         let was = self.at;
         let Play::Linked(link) = &mut self.play else {
             // Reached only if this were called on a local run, which the one
@@ -670,7 +683,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         let now = link.tick();
         let corrected = link.traffic().rolled.happened();
         if now != was || corrected {
-            let state = Arc::new(S::clone(link.state()));
+            let state = Arc::new(<G::State>::clone(link.state()));
             if now == was.next() {
                 // Ordinary forward play: the pair shifts by one, exactly as it
                 // does with nobody else in the session.
@@ -834,9 +847,9 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
     /// [`Session::seek`](corvid_replay::Session::seek) rebuilds from the same
     /// two things. A roster the runtime remembered would be a fourth input to
     /// the simulation that no capture records.
-    fn simulate(&self) -> (S, Vec<Command<LevelRef<S>>>) {
-        let idle = S::Action::default();
-        let mut roster: Vec<Player<'_, S::Action>> = Vec::new();
+    fn simulate(&self) -> Ticked<G> {
+        let idle = <<G::State as State>::Action>::default();
+        let mut roster: Vec<Player<'_, <G::State as State>::Action>> = Vec::new();
         for (seat, profile) in self.play.session().opening.roster.iter().enumerate() {
             let Ok(seat) = u16::try_from(seat) else {
                 break;
@@ -856,7 +869,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         // the runtime wants the requests in order so it can route and record
         // them, and a test wants exactly the same thing.
         let mut asked = crate::commands::Asked::default();
-        let next = S::clone(&self.current).tick(
+        let next = <G::State>::clone(&self.current).tick(
             &self.play.session().opening.content,
             &roster,
             &self.play.session().opening.rules,
@@ -966,7 +979,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
     }
 
     /// Writes the capture's last two files and hands the run back.
-    fn finish(self, exit: ExitCode) -> Result<Outcome<S>, Error> {
+    fn finish(self, exit: ExitCode) -> Result<Outcome<G>, Error> {
         #[cfg(feature = "net")]
         let traffic = match &self.play {
             Play::Local(_) => crate::Traffic::default(),

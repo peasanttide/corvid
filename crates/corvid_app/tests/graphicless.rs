@@ -60,8 +60,8 @@ fn tree(features: &str) -> Result<String, Box<dyn std::error::Error>> {
 /// This test used to assert the opposite, and the reversal is deliberate rather
 /// than a regression, so it is worth writing down where it happened.
 ///
-/// The runtime names `Render` in the `App`'s own bounds — `App<S, C, R, A>` has
-/// a renderer whether or not it opens one — so `corvid_render` is an
+/// The runtime names `Render` in the `App`'s own bounds — a `Game` has a
+/// renderer whether or not it opens one — so `corvid_render` is an
 /// unconditional dependency and there is no build of this crate without a
 /// graphics stack in it. What was bought by the arrangement this replaced was
 /// true only of a workspace where *nothing whatsoever* enabled the feature, and

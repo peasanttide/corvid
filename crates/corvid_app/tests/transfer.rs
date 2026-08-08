@@ -26,7 +26,7 @@ mod common;
 
 use std::sync::{Arc, Mutex};
 
-use common::{Ears, Hands, Painted, Tally, opening, resting};
+use common::{Counting, Tally, opening, resting};
 use corvid_app::{App, Retention};
 use corvid_behavior::PlayerId;
 use corvid_hash::digest;
@@ -149,10 +149,10 @@ fn play(
     seat: u16,
     ticks: u64,
     incoming: Vec<Arrival>,
-) -> Result<(corvid_app::Outcome<Tally>, Vec<Sent>), Box<dyn std::error::Error>> {
+) -> Result<(corvid_app::Outcome<Counting>, Vec<Sent>), Box<dyn std::error::Error>> {
     let recorded = Arc::new(Mutex::new(Vec::new()));
     let transport = Scripted::new(&[PeerId(1 - seat)], incoming, Arc::clone(&recorded));
-    let outcome = App::<Tally, Hands, Painted, Ears>::new()
+    let outcome = App::<Counting>::new()
         .opening(two_seats())
         .seat(PlayerId(seat))
         .rate(TickSpan::CRADLE)

@@ -28,7 +28,7 @@ use std::path::Path;
 
 use corvid::Input;
 use corvid::Retention;
-use corvid::{Acting, App, Camera, Controller, SetDescriptor, Updating};
+use corvid::{Acting, App, Camera, Controller, Game, SetDescriptor, TickSpan, Updating};
 
 use corvid::PlayerId;
 
@@ -107,8 +107,27 @@ impl Controller<Table> for Metronome {
     }
 }
 
+/// The game this file draws: the table, a paddle on a metronome, and the whole
+/// device half.
+///
+/// A marker of its own beside the binary's, because what this test wants at the
+/// controls is a paddle that moves the same way on every machine — a keyboard
+/// would make the picture a function of who is watching.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Drawn;
+
+impl Game for Drawn {
+    const PERIOD: TickSpan = RATE;
+
+    type State = Table;
+    type Controller = Metronome;
+    type Bot = ();
+    type Render = Graphics;
+    type Auralizer = Ears;
+}
+
 fn draw_into(into: &Path) -> Result<bool, Box<dyn std::error::Error>> {
-    let played = App::<Table, Metronome, Graphics, Ears>::new()
+    let played = App::<Drawn>::new()
         .opening(opening())
         .rate(RATE)
         .seat(PlayerId(0))

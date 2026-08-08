@@ -17,21 +17,30 @@
 //! A game records `wgpu` calls into an encoder, and only the backend can open
 //! one — so the backend is what calls the game rather than the other way round,
 //! and there is no intermediate picture for the loop to carry between them.
-//! That is why this trait is generic over `G`, and why the headless
+//! That is why this trait is generic over the game, and why the headless
 //! implementation, which calls nothing, carries a `PhantomData`.
+//!
+//! # Why the whole game and not the two halves of it a frame names
+//!
+//! A frame carries a renderer and a level reference, so what a backend actually
+//! reads is [`Game::Render`] and [`Game::State`] — two of the five. It is
+//! written over `G` anyway, because the loop that hands frames over is
+//! [`Runtime<G, B>`](crate::runtime::Runtime) and a backend named by two
+//! parameters would have to be re-proved equal to the runtime's game at every
+//! call site. One name for one game is what the rest of this crate is arranged
+//! around, and this is not the place to make an exception for two saved bounds.
 
 use corvid_input::Viewport;
 
 use corvid_sound::AudioFrame;
 use corvid_time::Tick;
 
-use corvid_behavior::{Loading, State, Time};
+use corvid_behavior::{Loading, Time};
 use corvid_camera::Camera;
 use corvid_fixed::Factor16;
-use corvid_render::Render;
 use corvid_replay::LevelRef;
 
-use crate::{Error, capture::Capture};
+use crate::{Error, capture::Capture, game::Game};
 
 /// One displayed frame, as the loop hands it to a backend.
 ///
@@ -47,17 +56,17 @@ use crate::{Error, capture::Capture};
 /// holds whatever [`Extract`](corvid_behavior::Extract) put in it; what goes
 /// over is the weight between them.
 #[derive(Debug)]
-pub(crate) struct Frame<'a, S: State, R: Render<S>> {
+pub(crate) struct Frame<'a, G: Game> {
     /// The tick the newest extracted state is at, which is what a capture names
     /// its files after.
     pub(crate) at: Tick,
     /// The renderer, or [`None`] for a run whose game draws nothing.
-    pub(crate) graphics: Option<&'a mut R>,
+    pub(crate) graphics: Option<&'a mut G::Render>,
     /// Where the eye is, which a device turns into a matrix and an ear into a
     /// listener.
     pub(crate) camera: &'a Camera,
     /// A level being loaded, for whatever draws a progress bar.
-    pub(crate) loading: Option<Loading<'a, LevelRef<S>>>,
+    pub(crate) loading: Option<Loading<'a, LevelRef<G::State>>>,
     /// Where the session is.
     pub(crate) time: Time,
     /// Where the display sits between the last tick and the next.
@@ -67,7 +76,7 @@ pub(crate) struct Frame<'a, S: State, R: Render<S>> {
 }
 
 /// Somewhere a displayed frame goes.
-pub(crate) trait Backend<S: State, R: Render<S>> {
+pub(crate) trait Backend<G: Game> {
     /// How big the target is, or [`None`] where there is nothing to draw into.
     ///
     /// This is the one thing that crosses back out of a backend besides an
@@ -86,7 +95,7 @@ pub(crate) trait Backend<S: State, R: Render<S>> {
     /// # Errors
     ///
     /// Whatever the device or the filesystem said. Nothing about the game.
-    fn present(&mut self, frame: Frame<'_, S, R>) -> Result<(), Error>;
+    fn present(&mut self, frame: Frame<'_, G>) -> Result<(), Error>;
 
     /// How many displayed frames have been handed over.
     fn frames(&self) -> u64;

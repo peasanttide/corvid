@@ -11,7 +11,7 @@
 
 mod common;
 
-use common::{Ears, Hands, Painted, Tally};
+use common::Counting;
 use corvid_app::App;
 
 /// Compiles only while `T` is [`Debug`].
@@ -19,5 +19,5 @@ const fn printable<T: std::fmt::Debug>() {}
 
 #[test]
 fn the_builder_can_be_printed() {
-    printable::<App<Tally, Hands, Painted, Ears>>();
+    printable::<App<Counting>>();
 }

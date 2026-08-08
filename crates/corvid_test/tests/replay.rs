@@ -10,7 +10,9 @@
 
 mod common;
 
-use common::{Climb, Habit, idle, opening, opening_on_a_lossy_level, opening_with_a_lossy_origin};
+use common::{
+    Climb, Climbing, Habit, idle, opening, opening_on_a_lossy_level, opening_with_a_lossy_origin,
+};
 use corvid_app::{App, Outcome};
 use corvid_replay::Opening;
 use corvid_test::{Diverged, Failed, What, replays_to_itself};
@@ -19,8 +21,8 @@ use corvid_time::Tick;
 const TICKS: u64 = 20;
 
 /// A run of `opening` for [`TICKS`] ticks.
-fn played(opening: Opening<Climb>) -> Outcome<Climb> {
-    App::<Climb>::new()
+fn played(opening: Opening<Climb>) -> Outcome<Climbing> {
+    App::<Climbing>::new()
         .headless()
         .opening(opening)
         .input(idle())

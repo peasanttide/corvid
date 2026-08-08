@@ -17,7 +17,7 @@ mod common;
 
 use std::path::PathBuf;
 
-use common::{Ears, Hands, Painted, Rules, Scratchpad, Tally, opening};
+use common::{Counting, Rules, Scratchpad, Tally, opening};
 use corvid_app::{App, Argument, Arguments, Retention};
 use corvid_time::Tick;
 #[test]
@@ -112,7 +112,7 @@ fn every_way_a_command_line_is_refused() {
 
 #[test]
 fn an_argument_beats_the_builder_and_silence_does_not() {
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .for_ticks(50)
@@ -125,7 +125,7 @@ fn an_argument_beats_the_builder_and_silence_does_not() {
     // ordinary builder setter does not have: a game's `main` that reads the
     // command line first and then sets its own defaults must still answer to
     // `--ticks`.
-    let first = App::<Tally, Hands, Painted, Ears>::new()
+    let first = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .arguments(Arguments::parse(["--ticks=7"]).expect("a count is an argument"))
@@ -139,7 +139,7 @@ fn an_argument_beats_the_builder_and_silence_does_not() {
     );
 
     // Two command lines is one command line, and it is the later one.
-    let twice = App::<Tally, Hands, Painted, Ears>::new()
+    let twice = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .arguments(Arguments::parse(["--ticks=7"]).expect("a count is an argument"))
@@ -149,7 +149,7 @@ fn an_argument_beats_the_builder_and_silence_does_not() {
     assert_eq!(twice.session.last(), Tick(9));
 
     let empty: [&str; 0] = [];
-    let untouched = App::<Tally, Hands, Painted, Ears>::new()
+    let untouched = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .for_ticks(50)
@@ -169,7 +169,7 @@ fn the_arguments_do_what_the_builder_calls_do() {
     let path = pad.path().to_string_lossy().into_owned();
     let long = 700;
 
-    let run = App::<Tally, Hands, Painted, Ears>::new()
+    let run = App::<Counting>::new()
         .opening(opening::<Tally>(Rules::quiet()))
         .arguments(
             Arguments::parse(["--headless", &format!("--ticks={long}"), "--capture", &path])
@@ -194,7 +194,7 @@ fn the_arguments_do_what_the_builder_calls_do() {
     // of these flags.
     let pad = Scratchpad::new("arguments-capture-bounded");
     let path = pad.path().to_string_lossy().into_owned();
-    let bounded = App::<Tally, Hands, Painted, Ears>::new()
+    let bounded = App::<Counting>::new()
         .opening(opening::<Tally>(Rules::quiet()))
         .arguments(
             Arguments::parse([
