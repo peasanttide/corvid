@@ -1,5 +1,6 @@
-//! The trait's own contract: the two failures, the sources that are not
-//! `Memory`, and what an implementation gets for free.
+//! The trait's own contract: the three findings, the sources that are not
+//! `Memory`, and what an implementation gets for free — including the write it
+//! is entitled to refuse.
 
 #![allow(
     clippy::expect_used,
@@ -9,7 +10,7 @@
 
 use std::thread;
 
-use corvid_files::{Malformed, Memory, Missing, Source};
+use corvid_files::{Malformed, Memory, Missing, ReadOnly, Source};
 
 /// The two failures are different findings and the types keep them apart.
 #[test]
@@ -91,10 +92,85 @@ fn the_unit_source_holds_nothing_and_says_so_rather_than_panicking() {
         "and it names the path it was asked for",
     );
     assert_eq!(
-        Source::list(&(), "level/").expect("an empty source is still askable"),
+        Source::list(&()).expect("an empty source is still askable"),
         Vec::<String>::new()
     );
     assert!(!Source::exists(&(), "level/court.bin"));
+    assert_eq!(
+        Source::write(&mut (), "level/court.bin", &[1]).expect_err("() takes no writes either"),
+        ReadOnly::new("level/court.bin"),
+        "and the refusal names the path the write was aimed at",
+    );
+}
+
+/// A source that overrides nothing refuses every write, and says which path it
+/// refused rather than answering a bare unit.
+///
+/// The default is what most implementations will keep — a directory mounted for
+/// reading, an archive, a constant compiled in — so it is the behaviour worth
+/// pinning rather than the override.
+#[test]
+fn a_source_that_overrides_nothing_refuses_the_write_and_names_the_path() {
+    struct ReadsOnly;
+
+    impl Source for ReadsOnly {
+        fn read(&self, path: &str) -> Result<Vec<u8>, Missing> {
+            Err(Missing::new(path))
+        }
+
+        fn list(&self) -> Result<Vec<String>, Missing> {
+            Ok(Vec::new())
+        }
+    }
+
+    assert_eq!(
+        ReadsOnly
+            .write("level/court.bin", &[1, 2, 3])
+            .expect_err("the default refuses"),
+        ReadOnly::new("level/court.bin"),
+    );
+}
+
+/// A shared borrow of a writable source cannot write through to it.
+///
+/// This is the property the `&mut self` receiver exists for, and it is worth a
+/// test rather than a sentence because it is the one place the blanket impl on
+/// `&T` deliberately does *not* forward: `&mut &Memory` is a mutable borrow of
+/// the reference, not of the map, so there is no `&mut Memory` to reach. A
+/// `Level::load` handed a `&dyn Source` is on the wrong side of exactly this,
+/// which is what keeps a load from writing during its own load.
+#[test]
+fn a_shared_borrow_cannot_write_through_to_the_source_behind_it() {
+    let mut files = Memory::new();
+    files
+        .write("level/court.bin", &[1])
+        .expect("Memory takes writes");
+
+    let mut borrowed: &Memory = &files;
+    assert_eq!(
+        borrowed
+            .write("level/court.bin", &[9, 9, 9])
+            .expect_err("a shared borrow inherits the refusing default"),
+        ReadOnly::new("level/court.bin"),
+    );
+
+    assert_eq!(
+        files
+            .read("level/court.bin")
+            .expect("still the first write"),
+        [1],
+        "and the refusal was a refusal, not a write that went somewhere else",
+    );
+}
+
+/// What a refused write says when something prints it, alongside the two
+/// findings on the reading side.
+#[test]
+fn a_refused_write_says_which_finding_it_is_when_printed() {
+    assert_eq!(
+        ReadOnly::new("level/court.bin").to_string(),
+        "nothing can be written to level/court.bin"
+    );
 }
 
 /// A borrow of a source satisfies an `S: Source` bound, and that — not the
@@ -107,7 +183,7 @@ fn a_borrow_of_a_source_is_itself_a_source() {
     fn through_the_bound<S: Source>(source: S) -> (Vec<u8>, Vec<String>, bool) {
         (
             source.read("level/court.bin").expect("just inserted"),
-            source.list("level/").expect("a prefix with an entry"),
+            source.list().expect("a source with an entry"),
             source.exists("level/absent.bin"),
         )
     }
@@ -144,7 +220,7 @@ fn a_borrow_forwards_exists_rather_than_falling_back_to_the_default() {
             Err(Missing::new(path))
         }
 
-        fn list(&self, _prefix: &str) -> Result<Vec<String>, Missing> {
+        fn list(&self) -> Result<Vec<String>, Missing> {
             Ok(Vec::new())
         }
 
@@ -177,8 +253,8 @@ fn the_default_exists_reads_the_file_and_drops_the_bytes() {
             self.0.read(path)
         }
 
-        fn list(&self, prefix: &str) -> Result<Vec<String>, Missing> {
-            self.0.list(prefix)
+        fn list(&self) -> Result<Vec<String>, Missing> {
+            self.0.list()
         }
     }
 
