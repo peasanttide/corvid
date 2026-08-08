@@ -1027,9 +1027,11 @@ where
         // The pipelines are built here because here is where the device
         // is, which is the whole of what `Setup` used to be for.
         let graphics = R::new(
-            renderer.device(),
-            renderer.queue(),
-            renderer.format(),
+            corvid_render::Opened {
+                device: renderer.device(),
+                queue: renderer.queue(),
+                format: renderer.format(),
+            },
             settings.graphics.clone(),
         );
         // `false`: this is the offscreen path, which has an adapter and no

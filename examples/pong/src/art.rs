@@ -12,11 +12,11 @@
 
 use core::time::Duration;
 
-use corvid::{Extent, Extract, Extracting, Factor16, Factor32, I16F16, Render, Target, Time};
+use corvid::{Drawing, Extent, Extract, Extracting, Factor16, Factor32, I16F16, Opened, Render};
 
 use crate::{
     play::FLASH,
-    table::{Contact, Court, Level, SEATS, Table},
+    table::{Contact, Court, SEATS, Table},
 };
 
 /// A frame's alpha as the [`Factor32`] every `lerp` in the maths stack takes.
@@ -237,25 +237,15 @@ impl Extract<Table> for Graphics {
 impl Render<Table> for Graphics {
     type Config = ();
 
-    fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        format: wgpu::TextureFormat,
-        (): (),
-    ) -> Self {
-        Self::setup(device, queue, format)
+    fn new(opened: Opened<'_>, (): ()) -> Self {
+        Self::setup(opened.device, opened.queue, opened.format)
     }
 
     fn configure(&mut self, (): ()) {}
 
-    fn draw(
-        &mut self,
-        target: Target<'_>,
-        _camera: &corvid::Camera,
-        _loading: Option<corvid::Loading<'_, Level>>,
-        _time: Time,
-        alpha: corvid::Factor16,
-    ) {
+    fn draw(&mut self, drawing: Drawing<'_, Table>) {
+        let target = drawing.target;
+        let alpha = drawing.alpha;
         let graphics = self;
         let court = graphics.court.clone();
         let space = Space::new(&court, target.size);

@@ -157,7 +157,7 @@ pub use corvid_mesh::{self as mesh, Mesh, Vertex};
 #[cfg(feature = "render")]
 pub use corvid_mesh_render::{self as mesh_render, Uploaded};
 #[cfg(feature = "render")]
-pub use corvid_render::{self as render, Extent, Icon, Render, Target, wgpu};
+pub use corvid_render::{self as render, Drawing, Extent, Icon, Opened, Render, Target, wgpu};
 #[cfg(feature = "render")]
 pub use corvid_ui_render as ui_render;
 #[cfg(feature = "window")]

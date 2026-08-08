@@ -58,7 +58,6 @@ use corvid_behavior::{
     SaveSlot, Time,
 };
 use corvid_control::{Acting, Controller, Updating};
-use corvid_fixed::Factor16;
 use corvid_hash::{Digest, digest};
 use corvid_input::{Digital, Input};
 use corvid_replay::{Opening, Profile, Schema, Seed};
@@ -480,27 +479,16 @@ impl Extract<Tally> for Painted {
 impl corvid_render::Render<Tally> for Painted {
     type Config = ();
 
-    fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        format: wgpu::TextureFormat,
-        (): (),
-    ) -> Self {
-        Self::setup(device, queue, format)
+    fn new(opened: corvid_render::Opened<'_>, (): ()) -> Self {
+        Self::setup(opened.device, opened.queue, opened.format)
     }
 
     fn configure(&mut self, (): ()) {}
 
-    fn draw(
-        &mut self,
-        target: corvid_render::Target<'_>,
-        _camera: &corvid_camera::Camera,
-        _loading: Option<corvid_behavior::Loading<'_, Ref>>,
-        _time: Time,
-        _alpha: Factor16,
-    ) {
+    fn draw(&mut self, drawing: corvid_render::Drawing<'_, Tally>) {
         use corvid_render::wgpu;
 
+        let target = drawing.target;
         let graphics = self;
         let mut pass = target
             .encoder

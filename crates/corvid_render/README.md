@@ -8,11 +8,9 @@ gets a real `wgpu::Device` and writes real `wgpu`. Every abstraction over a GPU
 is a bet about which games exist, and this one is not in that business.
 
 ```rust
-use corvid_behavior::{Extract, Extracting, Level, State, Time};
+use corvid_behavior::{Extract, Extracting, Level, State};
 use corvid_files::{Malformed, Source};
-use corvid_camera::Camera;
-use corvid_fixed::Factor16;
-use corvid_render::{Render, Target};
+use corvid_render::{Drawing, Opened, Render};
 # use serde::{Deserialize, Serialize};
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 # struct Field;
@@ -40,27 +38,16 @@ impl Extract<Game> for Clear {
 impl Render<Game> for Clear {
     type Config = ();
 
-    fn new(
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        _format: wgpu::TextureFormat,
-        (): (),
-    ) -> Self {
+    fn new(_opened: Opened<'_>, (): ()) -> Self {
         Self
     }
 
     fn configure(&mut self, (): ()) {}
 
-    fn draw(
-        &mut self,
-        target: Target<'_>,
-        _camera: &Camera,
-        _loading: Option<corvid_behavior::Loading<'_, String>>,
-        _time: Time,
-        _alpha: Factor16,
-    ) {
+    fn draw(&mut self, drawing: Drawing<'_, Game>) {
         // A real encoder, a real texture view, a real device and queue. Begin
         // as many passes as the frame wants; nothing here is a wrapper.
+        let target = drawing.target;
         target.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("clear"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {

@@ -8,7 +8,7 @@ mod render;
 mod renderer;
 
 pub use icon::{Icon, NotAnIcon};
-pub use render::{Render, Target};
+pub use render::{Drawing, Opened, Render, Target};
 pub use renderer::{
     Error, Extent, Image, Pacing, Renderer, SOFTWARE, Unacquired, adapter_is_software,
 };

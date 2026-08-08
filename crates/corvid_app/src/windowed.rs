@@ -154,9 +154,11 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Host for Windowe
         // the device exists and the window does, and neither did when the
         // `App` was described.
         let graphics = R::new(
-            renderer.device(),
-            renderer.queue(),
-            renderer.format(),
+            corvid_render::Opened {
+                device: renderer.device(),
+                queue: renderer.queue(),
+                format: renderer.format(),
+            },
             pending.graphics,
         );
         self.runtime = Some(Runtime::new(

@@ -211,7 +211,15 @@ impl<S: State, R: Render<S>> Backend<S, R> for Screen<S> {
         };
         let drawn = self
             .renderer
-            .frame(|target| graphics.draw(target, camera, loading, time, alpha))
+            .frame(|target| {
+                graphics.draw(corvid_render::Drawing {
+                    target,
+                    camera,
+                    loading,
+                    time,
+                    alpha,
+                });
+            })
             .map_err(Error::Drew)?;
 
         // Counted after the fact, and only when something was drawn. A

@@ -1,14 +1,12 @@
 //! The drawing half of a game's client-local code, and what it is handed.
 
-use corvid_behavior::{Data, Extract, Level, Loading, State, Time};
+use corvid_behavior::{Data, Extract, Loading, State, Time};
 use corvid_camera::Camera;
+use corvid_control::LevelRef;
 use corvid_fixed::Factor16;
 
 use crate::icon::Icon;
 use crate::renderer::Extent;
-
-/// How a state's level names itself, spelled once.
-type LevelRef<S> = <<S as State>::Level as Level>::Reference;
 
 /// Everything a game needs to record one frame, and nothing else.
 ///
@@ -64,6 +62,40 @@ pub struct Target<'a> {
     /// size it last built one at.
     pub size: Extent,
 }
+
+/// The device a renderer builds its pipelines against.
+///
+/// [`Copy`]: it is handed to [`Render::new`] and read there, nowhere held
+/// past the call.
+#[derive(Clone, Copy, Debug)]
+pub struct Opened<'a> {
+    /// The device to create resources on.
+    pub device: &'a wgpu::Device,
+    /// The queue to submit on.
+    pub queue: &'a wgpu::Queue,
+    /// The surface's format, which is not the same on every machine.
+    pub format: wgpu::TextureFormat,
+}
+
+/// What a renderer is handed for one frame.
+///
+/// One struct rather than five arguments, so that a new thing to hand over is
+/// a field here and not a signature change in every implementation.
+#[derive(Debug)]
+pub struct Drawing<'a, S: State> {
+    /// Where the frame goes.
+    pub target: Target<'a>,
+    /// Whatever the controller's `look` answered.
+    pub camera: &'a Camera,
+    /// How far along this machine's bytes are, while a level is being read.
+    pub loading: Option<Loading<'a, LevelRef<S>>>,
+    /// Where the session is.
+    pub time: Time,
+    /// The weight between the two extracted states: [`ZERO`](Factor16::ZERO)
+    /// is the older.
+    pub alpha: Factor16,
+}
+
 /// What a game draws with, and how.
 ///
 /// One of the four types an [`App`](../corvid_app/struct.App.html) is made of,
@@ -116,15 +148,10 @@ pub trait Render<S: State>: Extract<S> {
     /// Build the pipelines.
     ///
     /// Called once, when the device is opened, and never on a run with
-    /// [`REAL`](Self::REAL) unset. `format` is the surface's own and is not the
-    /// same on every machine; a pipeline built for the wrong one is a
+    /// [`REAL`](Self::REAL) unset. `opened.format` is the surface's own and is
+    /// not the same on every machine; a pipeline built for the wrong one is a
     /// validation error on the first frame.
-    fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        format: wgpu::TextureFormat,
-        config: Self::Config,
-    ) -> Self;
+    fn new(opened: Opened<'_>, config: Self::Config) -> Self;
 
     /// The player changed a setting while the game was running.
     ///
@@ -135,26 +162,21 @@ pub trait Render<S: State>: Extract<S> {
 
     /// Record one frame.
     ///
-    /// `alpha` is the weight between the two states
+    /// `drawing.alpha` is the weight between the two states
     /// [`extract`](Extract::extract) pushed: [`ZERO`](Factor16::ZERO) is the
     /// older and [`ONE`](Factor16::ONE) the newer. It goes into a uniform and
     /// the shader lerps.
     ///
-    /// `camera` is whatever the controller's `look` answered, so the eye and
-    /// the ears are in the same place without either being told twice.
+    /// `drawing.camera` is whatever the controller's `look` answered, so the
+    /// eye and the ears are in the same place without either being told
+    /// twice.
     ///
-    /// `loading` is present only while a level is being read, and carries how
-    /// far along **this machine's** bytes are. Whether the game *is* loading is
-    /// in the state, because every peer agrees about that; how far along one
-    /// disk has got is nobody else's business, which is why it is here instead.
-    fn draw(
-        &mut self,
-        target: Target<'_>,
-        camera: &Camera,
-        loading: Option<Loading<'_, LevelRef<S>>>,
-        time: Time,
-        alpha: Factor16,
-    );
+    /// `drawing.loading` is present only while a level is being read, and
+    /// carries how far along **this machine's** bytes are. Whether the game
+    /// *is* loading is in the state, because every peer agrees about that;
+    /// how far along one disk has got is nobody else's business, which is why
+    /// it is here instead.
+    fn draw(&mut self, drawing: Drawing<'_, S>);
 
     /// The picture a platform puts in the title bar, the dock and the task
     /// switcher, or [`None`] to leave whatever the platform would have used.
@@ -182,23 +204,9 @@ impl<S: State> Render<S> for () {
 
     const REAL: bool = false;
 
-    fn new(
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        _format: wgpu::TextureFormat,
-        (): (),
-    ) -> Self {
-    }
+    fn new(_opened: Opened<'_>, (): ()) -> Self {}
 
     fn configure(&mut self, (): ()) {}
 
-    fn draw(
-        &mut self,
-        _target: Target<'_>,
-        _camera: &Camera,
-        _loading: Option<Loading<'_, LevelRef<S>>>,
-        _time: Time,
-        _alpha: Factor16,
-    ) {
-    }
+    fn draw(&mut self, _drawing: Drawing<'_, S>) {}
 }
