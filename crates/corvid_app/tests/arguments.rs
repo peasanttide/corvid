@@ -79,6 +79,11 @@ fn the_attached_spelling_is_the_same_argument() {
     let parsed = Arguments::parse(["--ticks=90", "--bots=2"]).expect("attached values");
     assert_eq!(parsed.ticks, Some(Ticks(90)));
     assert_eq!(parsed.num_bots, 2);
+
+    // The split is on the *first* `=`, so a path with one in it survives being
+    // attached rather than being cut in half.
+    let odd = Arguments::parse(["--record=out/a=b"]).expect("a path may contain an equals sign");
+    assert_eq!(odd.record.as_deref(), Some(Path::new("out/a=b")));
 }
 
 #[test]
@@ -297,6 +302,66 @@ fn the_arguments_do_what_the_builder_calls_do() {
         .run()
         .expect("a run carrying a recording on");
     assert_eq!(carried.session.last(), Tick(long + 10));
+}
+
+/// `--level` opens on the level it names — the reference *and* the content,
+/// because the reference is hashed into nothing and a flag that moved only it
+/// would rename the level a run is already on rather than choose one.
+#[test]
+fn a_level_this_game_has_is_what_the_run_opens_on() {
+    let run = App::<Counting>::new()
+        .opening(opening::<Tally>(Rules::quiet()))
+        .arguments(
+            Arguments::parse(["--headless", "--ticks=2", "--level", "\"meadow\""])
+                .expect("a level reference is JSON of the game's own type"),
+        )
+        .run()
+        .expect("this game builds that level from its name");
+
+    assert_eq!(run.session.opening.level, "meadow");
+    assert_eq!(
+        run.session.opening.content.name, "meadow",
+        "the content moved with the reference, so this run played the level it named",
+    );
+}
+
+/// The two ways a `--level` is refused, which are two different things being
+/// wrong and say so differently.
+#[test]
+fn a_level_this_game_cannot_open_on_is_refused() {
+    // Not the game's reference at all: `Ref` is a `String`, and a bare word is
+    // not JSON.
+    let why = App::<Counting>::new()
+        .opening(opening::<Tally>(Rules::quiet()))
+        .arguments(Arguments::parse(["--level", "meadow"]).expect("the parser holds a string"))
+        .run()
+        .expect_err("a bare word is not this game's level reference");
+    assert!(
+        matches!(why, corvid_app::Error::Argument(Argument::NotALevel { .. })),
+        "{why:?}",
+    );
+
+    // The game's reference, naming a level it reads out of files — which a
+    // command line has none of to hand it. Refused, rather than opened on
+    // whatever content the opening happened to carry.
+    let why = App::<Counting>::new()
+        .opening(opening::<Tally>(Rules::quiet()))
+        .arguments(
+            Arguments::parse(["--level", &format!("\"{}\"", common::ELSEWHERE)])
+                .expect("the parser holds a string"),
+        )
+        .run()
+        .expect_err("this game reads that level from files");
+    let corvid_app::Error::Argument(why) = why else {
+        panic!("a level that will not load is an argument this run could not act on: {why:?}");
+    };
+    assert!(matches!(why, Argument::UnreadableLevel { .. }), "{why:?}");
+    let said = why.to_string();
+    assert!(said.contains("elsewhere"), "{said}");
+    assert!(
+        said.contains("there is nothing to read it from"),
+        "the game's own loader is what says why: {said}",
+    );
 }
 
 /// `--state DIR` is the one directory a game keeps anything in, so a run told

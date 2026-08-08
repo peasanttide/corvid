@@ -156,9 +156,9 @@ fn a_run_with_a_renderer_is_still_a_run_that_asks_the_platform_for_things() {
             snap_at: Some(Tick(10)),
             ..Rules::quiet()
         };
-        // Both runs write their slots into a directory of their own, removed
-        // when the comparison is over: the default is `./saves/NAME/`, which is
-        // right for a game and would be this test leaving a file in the crate.
+        // Both runs keep their files in a directory of their own, removed when
+        // the comparison is over: the default is the player's own data
+        // directory, and a test has no business writing there.
         let scratchpad = Scratchpad::new("windowless");
         let dark = App::<Counting>::new()
             .headless()

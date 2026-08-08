@@ -398,7 +398,17 @@ know — its rules, its passes, its opening — is not here and should not be,
 because a flag for it would be a flag whose legal values only the game could
 list. `--level` is the near miss, and the reason it works is that what it
 carries is the game's *own* reference type as JSON: the parser holds a string,
-and `App::run` is what reads it into a `LevelRef`.
+and `App::run` is what reads it into a `LevelRef` and hands it to
+[`Level::load`](corvid_behavior::Level::load).
+
+The source that `load` is handed is the **empty** one, because a runtime has no
+files of a game's and inventing a directory to look in would be inventing where
+a game keeps its levels. So a game whose levels are self-describing — an enum, a
+name — opens on the one named, content and all; and a game that reads its levels
+from files is refused, with what its own loader said. Those are the two honest
+answers, and the alternative to both is a flag that appears to choose the level
+and only renames it, since the reference is hashed into nothing and the content
+is what a tick is handed.
 
 `--ticks 100` and `--ticks=100` are the same argument, and a flag that takes a
 value and is given none is refused rather than defaulted, because "zero ticks"
@@ -455,6 +465,15 @@ would be overwritten by a `for_ticks` two lines further down and the flag would
 be silently ignored. A game that wants none of this calls [`App::run`] without
 ever calling `arguments`, and the command line is never read.
 
+**Two flags have a value that "nobody gave it" cannot be told from.** `--seat`
+and `--bots` are a `PlayerId` and a `u16` rather than options, so `--seat 0` and
+`--bots 0` arrive looking exactly like a command line that said neither — and
+both are the value the builder defaults to anyway. They are therefore applied
+only when they are not zero, which keeps the rule above for the case that
+matters (a harness that called `.seat(PlayerId(1))` and an operator who said
+nothing) and gives up the case that does not (an operator writing `--seat 0`
+over a harness's `.seat(1)`, where the run they get is the harness's).
+
 **`--help` is not a failure, and [`main`] answers it.** An operator who asked for
 the usage got what they asked for: [`main`] writes [`Arguments::USAGE`] to
 **stdout** and answers `Ok(())`, so the process exits zero and a shell script
@@ -462,11 +481,20 @@ does not have to special-case it. It travels that far as an error only because
 the parser that noticed it may not print — this crate denies the printing macros,
 a library that reaches for somebody's stdout being one they cannot silence — so
 [`Arguments::parse`] reports [`Argument::Help`], whose `Display` *is* the usage,
-and [`main`] is the one place in the crate that writes it. A harness driving a
-run through [`App::launch`] rather than through [`main`] gets the `Help` back and
-does as it likes with it. Nothing here takes a command-line parsing dependency:
-seven flags, no subcommands, and no completion is less code than the manifest
-entry would be.
+and [`main`] is the one place in the crate that writes it.
+
+A command line that could **not** be acted on is the other half of the same
+arrangement, one stream over: [`main`] writes the reason and the usage to
+**stderr** and stops the process with status 2. Handing it back as an `Err`
+instead would leave the runtime to print it — with `Debug`, so an operator would
+read `Argument(Conflicting { flags: [...] })` and no list of what the runtime
+accepts — and would collapse it to status 1, which is what any other failed run
+exits with.
+
+A harness driving a run through [`App::launch`] rather than through [`main`]
+gets the `Argument` back, printed nowhere, and does as it likes with it. Nothing
+here takes a command-line parsing dependency: eleven flags, no subcommands, and
+no completion is less code than the manifest entry would be.
 
 ## The command sink
 

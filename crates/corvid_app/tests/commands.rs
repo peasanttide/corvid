@@ -40,11 +40,11 @@ const TICKS: u64 = 12;
 
 /// A run of the honest game with the rules given.
 ///
-/// Its save slots go in a directory of their own, removed when the run is over.
-/// The default is `./saves/NAME/`, which is right for a game and wrong for a
-/// test: two tests in one binary would write the same slot, and the run that
-/// asked whether a slot was empty would find whatever another test had left
-/// there. `tests/saves.rs` is where the directory itself is the subject.
+/// Its files go in a directory of their own, removed when the run is over. The
+/// default is the player's own data directory, which is right for a game and
+/// wrong for a test: two tests in one binary would write the same slot, and the
+/// run that asked whether a slot was empty would find whatever another test had
+/// left there. `tests/saves.rs` is where the directory itself is the subject.
 fn play(rules: Rules) -> corvid_app::Outcome<Counting> {
     let scratchpad = Scratchpad::new("commands");
     App::<Counting>::new()

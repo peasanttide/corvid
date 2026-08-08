@@ -139,11 +139,11 @@ fn a_run_that_loads_what_another_run_saved_reaches_the_same_state() {
 
 #[test]
 fn a_run_can_open_on_the_session_a_capture_recorded() {
-    // `--replay FILE` is the other way into a session that already happened,
-    // and the file is the one a `--capture` wrote. A run that opens on it and
-    // plays no further ticks is standing exactly where the recorded run stopped
-    // — which is what makes a recording something to look at rather than
-    // something to take somebody's word for.
+    // `App::replay` is the other way into a session that already happened, and
+    // the file is the `session` a capture directory holds. A run that opens on
+    // it and plays no further ticks is standing exactly where the recorded run
+    // stopped — which is what makes a recording something to look at rather
+    // than something to take somebody's word for.
     let scratchpad = Scratchpad::new("replay");
     let capture = scratchpad.path().join("capture");
     let recorded = App::<Counting>::new()

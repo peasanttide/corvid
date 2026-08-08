@@ -88,6 +88,13 @@ pub(crate) type Ref = String;
 /// The level every session here opens on.
 pub(crate) const FIELD: &str = "field";
 
+/// A level this fixture keeps in a file, and so cannot build from its name.
+///
+/// [`Level::load`](corvid_behavior::Level::load) refuses it, which is what a
+/// game whose levels are read from disk does when it is handed a source with
+/// nothing in it — the source a `--level` on the command line has to offer.
+pub(crate) const ELSEWHERE: &str = "elsewhere";
+
 /// The slot the game saves into.
 pub(crate) const SLOT: SaveSlot = SaveSlot(2);
 
@@ -271,16 +278,29 @@ fn requests(rules: &Rules, now: Tick, command: &mut impl Command<Reference = Ref
     }
 }
 
-/// The level reads nothing: this fixture's is a constant.
+/// Every level but one is its own name: this fixture builds what it is asked
+/// for and reads nothing.
+///
+/// [`ELSEWHERE`] is the exception, and it is here so that both answers a
+/// `--level` can get are reachable. A game whose levels are self-describing
+/// opens on the one named; a game that reads a level out of files refuses when
+/// the source it is handed has none, and this loader stands in for the second
+/// without the fixture needing a file.
 impl corvid_behavior::Level for Level {
     type Reference = Ref;
 
     fn load(
-        _reference: &Ref,
+        reference: &Ref,
         _files: &dyn corvid_files::Source,
     ) -> Result<Self, corvid_files::Malformed> {
+        if reference == ELSEWHERE {
+            return Err(corvid_files::Malformed::at(
+                "level/elsewhere",
+                "there is nothing to read it from",
+            ));
+        }
         Ok(Self {
-            name: FIELD.to_owned(),
+            name: reference.clone(),
         })
     }
 }

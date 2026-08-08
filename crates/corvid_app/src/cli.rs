@@ -3,9 +3,10 @@
 //!
 //! Parsing, the usage text and every byte this crate writes to the process's
 //! streams live here together, so that "what the command line does" is one file
-//! rather than a parser in one and a printer in another. The two writes to
-//! stdout are the only ones in the crate, they are `println!` under a named
-//! exception rather than handles that dodge the lint, and they are both in
+//! rather than a parser in one and a printer in another. The three writes below
+//! — the usage and the digest on stdout, a refused command line on stderr — are
+//! the only ones in the crate, they are `println!` and `eprintln!` under named
+//! exceptions rather than handles that dodge the lint, and they are all in
 //! sight of each other.
 
 use std::{fmt, path::PathBuf};
@@ -16,7 +17,7 @@ use corvid_replay::Opens;
 use corvid_time::{Tick, Ticks};
 
 use crate::{
-    App, Error, Outcome,
+    App, Outcome,
     game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig},
 };
 // `crate::Result` is spelled in full at each use below rather than imported:
@@ -396,6 +397,38 @@ pub enum Argument {
         /// Why it could not be read.
         why: String,
     },
+    /// A `--listen`/`--connect` from a seat that pair of flags cannot arrange.
+    ///
+    /// Two flags name one other machine, so what they can express is the pair
+    /// of seats zero and one: this machine announces itself as its own seat and
+    /// reaches the other of the two. A seat above one has no third address to
+    /// connect to and no peer number to announce that anybody is expecting, and
+    /// computing one would open a link that carries datagrams and matches no
+    /// seat at the far end. A session with more machines in it is assembled by
+    /// a lobby, which is told who sits where.
+    ///
+    /// Noticed when the socket is opened rather than by
+    /// [`parse`](Arguments::parse), because a build without the `net` feature
+    /// has no socket to open and the same three flags are then three settings
+    /// that do nothing rather than a contradiction.
+    Pairing {
+        /// The seat that was asked for.
+        seat: PlayerId,
+    },
+    /// A `--level` that names one of this game's levels and could not be
+    /// loaded without the game's files.
+    ///
+    /// The reference was read; what refused is
+    /// [`Level::load`](corvid_behavior::Level::load), handed the empty source.
+    /// A game whose levels are self-describing never sees this, and a game that
+    /// reads its levels from files always does — which is the honest answer for
+    /// a flag that has no way to be told where those files are.
+    UnreadableLevel {
+        /// What was passed.
+        value: String,
+        /// What the game's own loader said.
+        why: String,
+    },
 }
 
 impl fmt::Display for Argument {
@@ -426,6 +459,22 @@ impl fmt::Display for Argument {
                     f,
                     "--level was given {value}, which is not a level this game has: {why}\n\n\
                      {USAGE}"
+                )
+            }
+            Self::Pairing { seat } => {
+                write!(
+                    f,
+                    "this machine plays seat {}, and --listen with --connect can only arrange \
+                     the pair of seats 0 and 1: a session with more machines in it is assembled \
+                     by a lobby, which is told who sits where rather than computing it\n\n{USAGE}",
+                    seat.0
+                )
+            }
+            Self::UnreadableLevel { value, why } => {
+                write!(
+                    f,
+                    "--level was given {value}, and this game reads that level from files \
+                     that a command line has no way to hand it: {why}\n\n{USAGE}"
                 )
             }
         }
@@ -557,17 +606,25 @@ pub fn watch() {
 /// not drawn anything yet writes that line and writes no `wgpu`. The run opens
 /// no adapter and never calls `draw`, so the line costs what it says it does.
 ///
-/// # `--help` is not a failure
+/// # What it does with a command line
 ///
-/// An operator who asked for the usage got what they asked for. This writes it
-/// to **stdout** and answers `Ok(())`, so the process exits zero and a shell
+/// An operator who asked for the usage got what they asked for: `--help` writes
+/// it to **stdout** and answers `Ok(())`, so the process exits zero and a shell
 /// script does not have to special-case it. [`Arguments::parse`] still reports
-/// it as [`Argument::Help`], because that function may not print. This module is
-/// the only one in the crate that writes to the process's streams at all, and it
-/// does so through `println!` under a stated exception rather than through a
-/// handle that would reach the same stream while passing the lint. Every other
-/// command line that could not be acted on goes to stderr through the `Err` this
-/// hands back, and exits non-zero.
+/// it as [`Argument::Help`], because that function may not print.
+///
+/// A command line that could not be acted on writes the reason and the usage to
+/// **stderr** and stops the process with status 2 — rather than handing back an
+/// `Err`, which the runtime would print with [`Debug`] and collapse to status 1.
+/// So neither kind of answer arrives here as an error, and this function's `Err`
+/// is a run that started and could not finish.
+///
+/// This module is the only one in the crate that writes to the process's
+/// streams at all, and it does so through `println!` and `eprintln!` under
+/// stated exceptions rather than through handles that would reach the same
+/// streams while passing the lint. A harness that wants none of that drives
+/// [`App::launch`], which reads the same command line and hands
+/// [`Error::Argument`](crate::Error::Argument) back without writing anything.
 ///
 /// # What it does with the exit code
 ///
@@ -580,8 +637,9 @@ pub fn watch() {
 ///
 /// # Errors
 ///
-/// [`Error::Argument`] for a command line that could not be acted on, and then
-/// whatever [`App::run`] reports.
+/// Whatever [`App::run`] reports. A command line that could not be acted on is
+/// not among them: it is written to stderr and the process stops with status 2
+/// before a run is built.
 pub fn main<G: Game>() -> crate::Result
 where
     ControllerConfig<G>: Default,
@@ -592,7 +650,7 @@ where
     // Before anything, so that a refusal to parse the command line is itself
     // reportable.
     watch();
-    let Some(arguments) = command_line()? else {
+    let Some(arguments) = command_line() else {
         return Ok(());
     };
     // Whether the operator asked for a run with no devices, which is the one
@@ -611,7 +669,13 @@ where
 
     #[cfg(feature = "net")]
     let app = match (arguments.listen, arguments.connect.as_deref()) {
-        (Some(port), Some(peer)) => app.transport(crate::net::udp(port, arguments.seat, peer)?),
+        (Some(port), Some(peer)) => match crate::net::udp(port, arguments.seat, peer) {
+            Ok(transport) => app.transport(transport),
+            // A seat these two flags cannot arrange, which is a command line
+            // rather than a run: same stream, same status as any other.
+            Err(crate::Error::Argument(why)) => refuse(&why),
+            Err(why) => return Err(why),
+        },
         // A `--listen` with nobody to reach, or a `--connect` with no socket to
         // reach it from, is half a link: the run plays alone, which is what it
         // would have done with neither.
@@ -628,23 +692,50 @@ where
         app.window().bindings(G::Controller::bindings())
     };
 
-    let outcome = app.arguments(arguments).run()?;
+    let outcome = match app.arguments(arguments).run() {
+        Ok(outcome) => outcome,
+        // A `--level` this game cannot open on is a command line that could not
+        // be acted on, noticed where the game is known rather than in the
+        // parser — so it gets the answer every other refused command line gets,
+        // on the same stream and with the same status, instead of arriving as a
+        // failed run.
+        Err(crate::Error::Argument(why)) => refuse(&why),
+        Err(why) => return Err(why),
+    };
     finish::<G>(&outcome, headless);
     Ok(())
 }
 
-/// Reads the process's arguments, answering a request for the usage on the way.
+/// What a process that could not read its command line exits with.
+///
+/// Two, which is the conventional status for a usage error and is deliberately
+/// not one: every `Err` a `main` hands back collapses to one, so a run that
+/// failed for a reason that is not the command line stays distinguishable from
+/// a command line nobody could act on.
+const REFUSED: i32 = 2;
+
+/// Reads the process's arguments, and answers whatever they asked for that is
+/// not a game.
 ///
 /// [`None`] is "the usage was asked for and has been written, and there is no
-/// game left to play" — which is a success, and is why this is an `Option`
-/// inside the `Ok` rather than a third error variant.
+/// game left to play" — a success, and the process exits zero.
 ///
-/// # Errors
+/// A command line that could **not** be acted on is written to stderr and the
+/// process stops with [`REFUSED`], rather than travelling back as an `Err`.
+/// Both halves of that are the point. The message is
+/// [`Argument`]'s [`Display`](fmt::Display) — the sentence and the usage under
+/// it — where an `Err` out of a `main` is printed by the runtime with
+/// [`Debug`], which would show an operator `Argument(Conflicting { flags:
+/// [...] })` and no list of what the runtime accepts. And the status is 2
+/// rather than the 1 an `Err` collapses to.
 ///
-/// [`Error::Argument`] for a command line that could not be acted on.
-fn command_line() -> crate::Result<Option<Arguments>> {
+/// It is the same shape the `--help` arm has, one stream over: this crate's
+/// `main` is a program, and a program answers a command line it was given.
+/// [`App::launch`] is the library half — it hands [`Error::Argument`] back and
+/// writes nothing — which is what a harness driving a run by hand wants.
+fn command_line() -> Option<Arguments> {
     match Arguments::from_env() {
-        Ok(arguments) => Ok(Some(arguments)),
+        Ok(arguments) => Some(arguments),
         Err(Argument::Help) => {
             #[allow(
                 clippy::print_stdout,
@@ -653,10 +744,30 @@ fn command_line() -> crate::Result<Option<Arguments>> {
             {
                 println!("{}", Arguments::USAGE);
             }
-            Ok(None)
+            None
         }
-        Err(why) => Err(Error::Argument(why)),
+        Err(why) => refuse(&why),
     }
+}
+
+/// Says why a command line could not be acted on, and stops the process.
+///
+/// The one place either kind of refusal is answered — the parser's, and the
+/// `--level` that only the game could judge — so an operator gets the same
+/// sentence, on the same stream, with the same status, wherever it was noticed.
+///
+/// Nothing is open when this is reached: no window, no adapter, no capture
+/// directory, no file. So there is nothing here that unwinding would close and
+/// exiting will not.
+fn refuse(why: &Argument) -> ! {
+    #[allow(
+        clippy::print_stderr,
+        reason = "the third and last write to the process's streams in this crate, and it is here for the reason the other two are: a program that was handed a command line it cannot act on says so where an operator reads it. stderr rather than stdout, because a program's own answer belongs alone on stdout for a pipe"
+    )]
+    {
+        eprintln!("{why}");
+    }
+    std::process::exit(REFUSED);
 }
 
 /// How far back a reported digest is taken from.

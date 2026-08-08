@@ -12,7 +12,7 @@ use std::{
     sync::Arc,
 };
 
-use corvid_behavior::{ExitCode, PlayerId, SaveSlot, State};
+use corvid_behavior::{ExitCode, Level, PlayerId, SaveSlot, State};
 use corvid_hash::Digest;
 use corvid_input::Input;
 use corvid_replay::{LevelRef, Opening, Refused, Session, Shape};
@@ -849,20 +849,28 @@ where
     /// Opens on the level `json` names rather than on the one the game's
     /// opening does.
     ///
-    /// What it replaces is the opening's
-    /// [`level`](corvid_replay::Opening::level): the reference the session
-    /// records, that a recording carries and that a peer's own opening is read
-    /// beside.
+    /// Both halves of the opening move: the
+    /// [`level`](corvid_replay::Opening::level) reference a session records,
+    /// and the [`content`](corvid_replay::Opening::content) a tick is handed.
+    /// The second is what makes this a flag that opens on a level rather than
+    /// one that renames the level a run is already on — the reference is hashed
+    /// into nothing, so a `--level` that moved only it would change what the
+    /// session claims and not a byte of what it plays.
     ///
-    /// **It does not reload the level's
-    /// [`content`](corvid_replay::Opening::content)**, and cannot from here:
-    /// reading a level from a reference is
-    /// [`Level::load`](corvid_behavior::Level::load), which is handed the
-    /// game's own file source, and this crate has none of a game's files to
-    /// hand it. So what a game with more than one level's worth of content
-    /// needs is for its [`Opens::opening`](corvid_replay::Opens::opening) to
-    /// choose; what this decides is which level the session is on record as
-    /// being.
+    /// # The files it reads, which are none
+    ///
+    /// [`Level::load`](corvid_behavior::Level::load) is handed a
+    /// [`Source`](corvid_files::Source), and the one handed here is the empty
+    /// one: this crate has no files of a game's, and inventing a directory to
+    /// look in would be inventing where a game keeps its levels.
+    ///
+    /// So a game whose levels are self-describing — an enum, a name, anything
+    /// its `load` builds without reading — opens on the one named, content and
+    /// all. A game that reads its levels from files is **refused**, with what
+    /// its own loader said about the missing file. That is the honest pair of
+    /// answers: the alternative is a flag that appears to choose and does not.
+    ///
+    /// # Why JSON
     ///
     /// The value is JSON of the game's own
     /// [`Reference`](corvid_behavior::Level::Reference) rather than the
@@ -873,8 +881,9 @@ where
     /// # Errors
     ///
     /// [`Error::Argument`] carrying [`Argument::NotALevel`] if the JSON is not
-    /// this game's reference, and [`Error::Unopened`] if there is no opening to
-    /// name a level in.
+    /// this game's reference and [`Argument::UnreadableLevel`] if it is one and
+    /// the level will not load from nothing, and [`Error::Unopened`] if there
+    /// is no opening to name a level in.
     fn open_on(mut self, json: &str) -> Result<Self, Error> {
         let level: LevelRef<G::State> = serde_json::from_str(json).map_err(|why| {
             Error::Argument(Argument::NotALevel {
@@ -882,8 +891,18 @@ where
                 why: why.to_string(),
             })
         })?;
+        // `&()` is the source with nothing in it, which `corvid_files`
+        // implements for exactly this: a caller that has no files to offer says
+        // so in the type rather than by handing over an empty directory.
+        let content = <<G::State as State>::Level as Level>::load(&level, &()).map_err(|why| {
+            Error::Argument(Argument::UnreadableLevel {
+                value: json.to_owned(),
+                why: why.to_string(),
+            })
+        })?;
         let opening = self.opening.as_mut().ok_or(Error::Unopened)?;
         opening.level = level;
+        opening.content = Arc::new(content);
         Ok(self)
     }
 
@@ -970,15 +989,18 @@ where
     ///
     /// # Errors
     ///
-    /// [`Error::Unopened`] if no opening was given, [`Error::Shape`] if the
-    /// opening cannot be made into a session, [`Error::NoSeats`] if that
-    /// session's roster is empty, [`Error::Seat`] if the seat is not
-    /// in the roster of the session the run ends up playing,
-    /// [`Error::BotsAndPeers`] if it asked for bots and a transport at once,
-    /// [`Error::Log`] if
-    /// the action log refuses a write, and [`Error::Wrote`] or
-    /// [`Error::Encoded`] if a capture cannot be written. A run with a device
-    /// adds [`Error::Drew`], and a windowed one adds [`Error::NoWindow`].
+    /// [`Error::Argument`] for a `--level` in the
+    /// [`arguments`](Self::arguments) that this game cannot open on — the one
+    /// flag whose value only the game can judge, and so the one that is refused
+    /// here rather than by the parser. Then [`Error::Unopened`] if no opening
+    /// was given, [`Error::Shape`] if the opening cannot be made into a
+    /// session, [`Error::NoSeats`] if that session's roster is empty,
+    /// [`Error::Seat`] if the seat is not in the roster of the session the run
+    /// ends up playing, [`Error::BotsAndPeers`] if it asked for bots and a
+    /// transport at once, [`Error::Log`] if the action log refuses a write, and
+    /// [`Error::Wrote`] or [`Error::Encoded`] if a capture or a recording
+    /// cannot be written. A run with a device adds [`Error::Drew`], and a
+    /// windowed one adds [`Error::NoWindow`].
     pub fn run(mut self) -> Result<Outcome<G>, Error> {
         // The one setting applied here rather than where it was written, so
         // that an operator's flag beats a builder call made after it. Taken
@@ -1378,14 +1400,18 @@ where
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
-    /// The command line [`launch`](App::launch) read could not be acted on.
+    /// The command line [`launch`](App::launch) read could not be acted on, or
+    /// a `--level` this game could not open on.
     ///
     /// [`Argument::Help`] can be in here too, which is the one case that is not
     /// a failure: `--help` is a request for the usage, and it arrives as an
     /// error because the parser that noticed it may not print.
-    /// [`main`](crate::main) never hands one back — it writes the usage to
-    /// stdout and answers `Ok(())` — so a `Help` here is one a harness driving
-    /// a run through [`launch`](App::launch) asked for.
+    ///
+    /// [`main`](crate::main) hands **none** of these back. It writes the usage
+    /// to stdout for a `Help` and answers `Ok(())`, and writes any other
+    /// refusal to stderr and stops the process with status 2 — so every one of
+    /// these is one a harness driving a run through [`launch`](App::launch) or
+    /// [`arguments`](App::arguments) asked for, and can match on.
     #[error(transparent)]
     Argument(Argument),
     /// No [`opening`](App::opening) was given.

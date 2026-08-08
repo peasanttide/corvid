@@ -83,13 +83,31 @@ fn data_home() -> Option<PathBuf> {
 /// and read by the same game, and separating them would mean a `--state` that
 /// redirected some of what a run writes.
 ///
-/// A relative path is what an environment naming no home at all falls back to:
-/// a directory named for the game, beside wherever it was launched from.
-/// Nothing that runs a game ordinarily hits it — it is a login shell with no
-/// `HOME`, or a service account — and a run refusing to start over an unusual
-/// environment would be the worse answer.
+/// # The machine that names no home
+///
+/// `./NAME/`, beside wherever the game was launched from — which is a decision
+/// and is worth saying out loud, because it means a **settings file gets
+/// written into the working directory** on such a machine, where a run that
+/// resolved the settings path on its own could answer "nowhere" and quietly use
+/// the defaults.
+///
+/// It is the right answer once there is one root. A game that saved somebody's
+/// hour into `./NAME/saves/` and refused to remember the volume they set would
+/// be making two different judgements about the same directory; and the run
+/// that hits this at all is a login shell with no `HOME` or a service account,
+/// where refusing to start is worse than writing where it was told. An operator
+/// who does not want files there passes `--state`.
 pub(crate) fn root(named: Option<PathBuf>, name: &str) -> PathBuf {
-    named.unwrap_or_else(|| data_home().map_or_else(|| PathBuf::from(name), |home| home.join(name)))
+    resolve(data_home(), named, name)
+}
+
+/// [`root`] with the environment handed to it rather than read.
+///
+/// Split out so that all three answers are testable: `std::env::set_var` is
+/// `unsafe`, which this workspace forbids, so a test that moved `XDG_DATA_HOME`
+/// would be a test moving the environment of every other test in the process.
+fn resolve(home: Option<PathBuf>, named: Option<PathBuf>, name: &str) -> PathBuf {
+    named.unwrap_or_else(|| home.map_or_else(|| PathBuf::from(name), |home| home.join(name)))
 }
 
 /// What one slot's file is called.
@@ -394,5 +412,83 @@ impl std::error::Error for NotASave {
             Self::Unreachable(why) => Some(why),
             Self::Diverged { .. } => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        reason = "a failed assertion in a test is a failed test, which is what a test is for"
+    )]
+
+    use super::{Saves, data_home, resolve, root};
+    use corvid_behavior::SaveSlot;
+    use std::path::{Path, PathBuf};
+
+    /// A game's name, for the joins below.
+    const NAME: &str = "counter";
+
+    #[test]
+    fn a_named_directory_is_the_root_whatever_the_environment_says() {
+        // `--state DIR` is the operator's answer and nothing looks anywhere
+        // else, which is what makes it usable from a test: a run told where to
+        // put its files touches nothing of the developer's.
+        let named = PathBuf::from("scratch/here");
+        assert_eq!(
+            resolve(Some(PathBuf::from("/data")), Some(named.clone()), NAME),
+            named,
+        );
+        assert_eq!(resolve(None, Some(named.clone()), NAME), named);
+    }
+
+    #[test]
+    fn the_default_root_is_the_data_home_and_the_games_name() {
+        assert_eq!(
+            resolve(Some(PathBuf::from("/data")), None, NAME),
+            Path::new("/data").join(NAME),
+        );
+    }
+
+    #[test]
+    fn a_machine_that_names_no_home_writes_beside_itself() {
+        // The documented fallback, and the one arm that cannot be reached by
+        // running on a developer's machine: a relative directory named for the
+        // game. Everything a run keeps is under it, settings included.
+        assert_eq!(resolve(None, None, NAME), PathBuf::from(NAME));
+    }
+
+    #[test]
+    fn the_environment_the_real_resolution_reads_is_the_data_home() {
+        // The environment is not moved — `std::env::set_var` is `unsafe`, which
+        // this workspace forbids — so what is asserted is that `root` is
+        // `resolve` over `data_home()`, whichever of the two answers this
+        // machine gives.
+        assert_eq!(root(None, NAME), resolve(data_home(), None, NAME));
+        // And that the answer is a directory named for the game, absolute
+        // wherever there is a home to be absolute under.
+        let resolved = root(None, NAME);
+        assert!(resolved.ends_with(NAME), "{}", resolved.display());
+        assert_eq!(
+            resolved.is_absolute(),
+            data_home().is_some(),
+            "{}",
+            resolved.display(),
+        );
+    }
+
+    #[test]
+    fn the_slots_are_a_leaf_of_the_root() {
+        // Half of the claim `--state` rests on: the slots are under the root
+        // rather than resolved apart from it. `tests/settings.rs` is the other
+        // half, since a `Settings` needs a game to name and this module has
+        // none.
+        let root = Path::new("/data/counter");
+        assert_eq!(
+            Saves::under(root).path(SaveSlot(2)),
+            root.join("saves").join("2.corvid"),
+        );
     }
 }

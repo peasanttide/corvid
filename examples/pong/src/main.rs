@@ -122,15 +122,21 @@ fn main() -> corvid::Result {
     };
 
     // The backend, which is this binary's decision and not a flag's: a window
-    // for a player, an adapter drawing into a texture for a run that is being
-    // recorded with nobody watching, and neither for everything else.
-    let app = match (headless, arguments.record.is_some()) {
-        (true, true) => app.offscreen(OFFSCREEN),
-        (true, false) => app.headless(),
+    // for a player, and no device at all for a run nobody is watching. A
+    // headless run opens no adapter whatever else it was asked for, so
+    // `--headless` still means the same thing on a machine that has none.
+    // `tests/drawn.rs` is what draws, and it builds its own `App`.
+    let app = if headless {
+        app.headless()
+    } else {
         #[cfg(feature = "window")]
-        (false, _) => app.window().bindings(pong::action::bindings()),
+        {
+            app.window().bindings(pong::action::bindings())
+        }
         #[cfg(not(feature = "window"))]
-        (false, _) => app,
+        {
+            app
+        }
     };
 
     let outcome = app.arguments(arguments).run()?;
@@ -320,11 +326,6 @@ fn halted(why: corvid_lockstep::Halt) -> Error {
 /// Past `Budget::DEFAULT`'s eight ticks ahead and two of delay, with room: a
 /// state that far back was computed from actions every seat really submitted.
 const SETTLED: u64 = 20;
-/// How big a headless capture draws.
-///
-/// Sixteen by nine at a size a golden can be compared at without being a
-/// megabyte of PNG per frame.
-const OFFSCREEN: corvid::Extent = corvid::Extent::new(640, 360);
 
 /// How long the demo plays.
 #[cfg(feature = "net")]

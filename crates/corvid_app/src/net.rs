@@ -1076,22 +1076,39 @@ pub const fn seat_of(peer: PeerId) -> PlayerId {
 ///
 /// The seat it announces is **this machine's own seat number**, so the two
 /// halves of a two-machine session are `--seat 0 --listen A --connect B` and
-/// `--seat 1 --listen B --connect A`. The peer it connects to is the other one
-/// of the two, which is the same arithmetic: a session with more machines than
-/// that is assembled by a lobby over
-/// [`Channel::Control`](corvid_net::Channel) rather than by a command line.
+/// `--seat 1 --listen B --connect A`. The peer it connects to is the other of
+/// those two, which is the whole of the arithmetic a command line can do: a
+/// session with more machines in it is assembled by a lobby over
+/// [`Channel::Control`](corvid_net::Channel), which is told who sits where
+/// rather than working it out from a subtraction.
+///
+/// That is why a seat above one is
+/// [`Argument::Pairing`](crate::Argument::Pairing) rather than something to
+/// compute. There is no third address here to connect to, and the peer this
+/// machine would announce itself as is `1 - seat`, which for seat two is not a
+/// peer anybody is expecting — the link would come up, carry datagrams and
+/// match no seat at the other end.
 ///
 /// # Errors
 ///
+/// [`Error::Argument`](crate::Error::Argument) carrying
+/// [`Argument::Pairing`](crate::Argument::Pairing) for a seat this pair of
+/// flags cannot arrange — a command line that could not be acted on, which is
+/// what [`main`](crate::main) writes to stderr — and
 /// [`Error::Socket`](crate::Error::Socket) if the port will not bind or the
-/// other machine's address will not resolve. Both are facts about the machine
-/// and the network rather than about the session, which is why they are one
-/// variant naming which of the two it was.
+/// other machine's address will not resolve. The second pair are facts about
+/// the machine and the network rather than about what was typed, which is why
+/// they are one variant naming which of the two it was.
 pub(crate) fn udp(
     port: u16,
     seat: PlayerId,
     peer: &str,
 ) -> Result<Box<dyn Transport>, crate::Error> {
+    // Before the socket, so that a session nobody could have joined does not
+    // bind a port on the way to saying so.
+    let Some(other) = 1_u16.checked_sub(seat.0) else {
+        return Err(crate::Error::Argument(crate::Argument::Pairing { seat }));
+    };
     let here = ("0.0.0.0", port);
     let socket = corvid_net::udp::UdpNet::bind(here, PeerId(seat.0)).map_err(|why| {
         crate::Error::Socket {
@@ -1100,11 +1117,8 @@ pub(crate) fn udp(
             why,
         }
     })?;
-    // One other machine, and the seat it is in is the one this machine is not.
-    // A third would be a session somebody arranged rather than one two command
-    // lines agreed on.
     socket
-        .connect(PeerId(1_u16.wrapping_sub(seat.0)), peer)
+        .connect(PeerId(other), peer)
         .map_err(|why| crate::Error::Socket {
             what: "reach",
             address: peer.to_owned(),
@@ -1134,5 +1148,35 @@ impl<S: State> core::fmt::Debug for Link<S> {
             .field("peer", &self.peer)
             .field("traffic", &self.traffic)
             .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        clippy::panic,
+        reason = "a failed assertion in a test is a failed test, which is what a test is for"
+    )]
+
+    use super::udp;
+    use crate::{Argument, Error};
+    use corvid_behavior::PlayerId;
+
+    #[test]
+    fn a_seat_two_command_lines_cannot_arrange_is_refused_before_a_port_is_bound() {
+        // The address is one nothing is listening on and the port is one this
+        // never gets as far as binding: the refusal happens on the seat, which
+        // is the whole assertion. A run that computed `1 - 2` instead would
+        // announce itself as peer 65535 and match no seat at the far end.
+        let why = udp(0, PlayerId(2), "127.0.0.1:1").expect_err("seat two is not one of a pair");
+        let Error::Argument(why) = why else {
+            panic!("a seat a command line cannot arrange is a command line: {why:?}");
+        };
+        assert_eq!(why, Argument::Pairing { seat: PlayerId(2) });
+        // And it says so with the seat in it, so an operator knows which flag
+        // to change.
+        assert!(why.to_string().contains("seat 2"), "{why}");
     }
 }
