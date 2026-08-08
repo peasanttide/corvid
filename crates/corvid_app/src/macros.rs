@@ -15,11 +15,28 @@
 ///
 /// `struct` and `const PERIOD` are required. Every `type` line is optional and
 /// defaults to `()` — which reads no device, runs no bot, draws nothing and
-/// hears nothing — and they are written in the order below.
+/// hears nothing.
 ///
-/// The visibility is the caller's, and so are any attributes written above the
-/// `struct`: doc comments land under a generated first line, and a derive of
-/// the caller's own is added to the ones every game marker needs.
+/// # The order is fixed
+///
+/// The `type` lines are written as `State`, `Controller`, `Bot`, `Render`,
+/// `Auralizer`, which is the order [`Game`](crate::Game) declares them in. Any
+/// of them may be left out; none of them may be moved. This is a grammar rather
+/// than a convention, and a line out of place is `no rules expected this token`
+/// pointing at the line rather than at the order.
+///
+/// # The visibility, and the attributes
+///
+/// Both are the caller's. **The default is private**, which is what a game's
+/// own `main.rs` wants — nothing else in a binary names the marker. A library
+/// that exports its game writes `pub struct`, and a marker in a private module
+/// that a test binary reaches writes `pub(crate)`.
+///
+/// Attributes written above the `struct` are forwarded, so a doc comment lands
+/// under the generated first line as a second paragraph. A caller may add
+/// derives the macro does **not** already emit; the list it does emit is under
+/// *What it writes* below, and asking for one of those again is
+/// `conflicting implementations`.
 ///
 /// # What it writes
 ///
@@ -28,6 +45,17 @@
 /// [`Settings`](crate::Settings) ask of a `G`, since a derive bounds the type
 /// parameter rather than the fields — the `impl Game`, and an
 /// `app()` that builds the [`sandbox`](crate::App::sandbox) a test runs from.
+///
+/// # What the game owes
+///
+/// `app()` is written without a `where` clause of its own, so it is checked
+/// against [`sandbox`](crate::App::sandbox) where it is defined rather than
+/// where it is called: **all four configs must be [`Default`]** — the
+/// controller's, the bot's, the renderer's and the ear's — or the game does not
+/// compile at all, with the error pointing into this expansion. That is the
+/// same clause [`App::new`](crate::App::new) carries, so it is a requirement a
+/// game that could start a run already meets; what is new is that it is
+/// reported here.
 ///
 /// ```
 /// # use std::sync::Arc;

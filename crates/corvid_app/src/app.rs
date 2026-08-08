@@ -344,11 +344,23 @@ where
     /// do it: several tests run concurrently in one binary, and two of them
     /// sharing a root is two runs sharing a save slot.
     ///
-    /// Nothing is created here, and a headless run that saves nothing never
+    /// # What is removed, and what is left behind
+    ///
+    /// **Whatever was there is removed here**, and that is the half of this
+    /// that matters. The counter restarts at zero in every process, so the
+    /// second run of a test binary on a machine that has recycled the process id
+    /// resolves to the path the first one used — and a run that opened a
+    /// directory holding a previous run's `saves/` is a run that silently
+    /// resumes somebody else's game. A sandbox is defined by depending on
+    /// nothing about the machine it is on, and a leftover directory is exactly
+    /// such a dependency.
+    ///
+    /// Nothing is *created* here, and a headless run that saves nothing never
     /// creates it either — a run that does save leaves a directory behind,
-    /// which is the cost of a constructor that has nowhere to hang a `Drop`. A
-    /// test that wants the files cleaned up names its own directory with
-    /// [`state`](Self::state).
+    /// which is the cost of a constructor that has nowhere to hang a `Drop`.
+    /// That litter is only litter, because the next call to reach the path
+    /// clears it before reading anything. A test that wants the files gone when
+    /// it ends names its own directory with [`state`](Self::state).
     ///
     /// This is what a test builds from. A run in front of a player is
     /// [`new`](Self::new).
@@ -365,6 +377,10 @@ where
             <G::State as State>::NAME,
             std::process::id()
         ));
+        // Dropped rather than reported: a path with nothing at it is the state
+        // this wants, and that is what a failure to remove one usually means.
+        // What it must not be is left, because the run below would read it.
+        drop(std::fs::remove_dir_all(&root));
         Self::new()
             .opening(<G::State as Opens>::opening())
             .rate(G::PERIOD)

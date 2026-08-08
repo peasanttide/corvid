@@ -73,6 +73,24 @@ fn the_sandbox_is_the_builder_lines_it_stands_for() {
 }
 
 #[test]
+fn two_sandboxes_do_not_share_a_directory() {
+    // The claim the counter in `App::sandbox` is there for. Two calls made the
+    // same way differ in exactly one thing — the state directory — because
+    // every other setting a sandbox makes is a constant, so two renderings that
+    // are not equal is that directory and nothing else. Without the counter
+    // they would be the same path, and two tests running at once in this binary
+    // would be two runs sharing a save slot.
+    let one = format!("{:?}", Counting::app());
+    let two = format!("{:?}", Counting::app());
+
+    assert_ne!(one, two);
+    // And that what differs is the sandbox root rather than something the
+    // assertion above would also have caught.
+    assert!(one.contains("corvid-sandbox-tally-"), "{one}");
+    assert!(two.contains("corvid-sandbox-tally-"), "{two}");
+}
+
+#[test]
 fn a_headless_run_is_reproducible() {
     let first = play(Rules::quiet());
     let second = play(Rules::quiet());
