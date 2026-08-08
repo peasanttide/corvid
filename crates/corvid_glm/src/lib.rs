@@ -1,10 +1,14 @@
 #![doc = include_str!("../README.md")]
 #![no_std]
 
-// The library, whole. A game doing its own linear algebra needs names this
-// crate has no reason to enumerate — decompositions, slices, the iterator
-// adaptors — and re-exporting the crate is what keeps one nalgebra in the
-// graph rather than a second one a game added to its own manifest.
+/// The library, whole. A game doing its own linear algebra needs names this
+/// crate has no reason to enumerate — decompositions, slices, the iterator
+/// adaptors — and reaching them through here rather than through a `nalgebra`
+/// line in the game's own manifest is what keeps one nalgebra in the graph.
+///
+/// The second copy is the failure this prevents. A game that writes down a
+/// version this workspace is not on gets its own nalgebra, whose `Vector3<f32>`
+/// is a different type from [`Vec3`] and will not pass for one.
 pub use nalgebra;
 
 /// A two-component vector: a texture coordinate, a screen position.
@@ -23,6 +27,12 @@ pub type Vec3 = nalgebra::Vector3<f32>;
 pub type Vec4 = nalgebra::Vector4<f32>;
 
 /// A 3×3 matrix: a rotation or a normal transform, without the translation.
+///
+/// Column-major like [`Mat4`], but unlike [`Mat4`] it is not a shader layout.
+/// This is nine floats packed into thirty-six bytes; a WGSL `mat3x3<f32>` pads
+/// every column out to sixteen and occupies forty-eight. The order is right and
+/// the stride is not, so a normal matrix bound to a buffer goes across as a
+/// [`Mat4`] or as three [`Vec4`]s. This type is the CPU side of that.
 pub type Mat3 = nalgebra::Matrix3<f32>;
 
 /// A 4×4 matrix, column-major — the order a WGSL `mat4x4` reads.
@@ -39,7 +49,14 @@ pub type Mat3 = nalgebra::Matrix3<f32>;
 ///     0.0, 0.0, 0.0, 1.0,
 /// );
 ///
+/// // Indexing is `(row, column)`, which would read the same under either
+/// // convention and so proves nothing on its own.
 /// assert_eq!(MOVED[(0, 3)], 5.0);
+///
+/// // The storage is where the convention shows: the translation is the last
+/// // four floats of the sixty-four bytes, which is exactly where a shader
+/// // reading a column-major `mat4x4<f32>` looks for it.
+/// assert_eq!(&MOVED.as_slice()[12..], [5.0, 0.0, 0.0, 1.0]);
 /// ```
 pub type Mat4 = nalgebra::Matrix4<f32>;
 

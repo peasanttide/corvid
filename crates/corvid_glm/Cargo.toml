@@ -8,7 +8,7 @@ repository.workspace = true
 publish.workspace = true
 license.workspace = true
 keywords = ["nalgebra", "matrix", "vector", "no-std", "gamedev"]
-categories = ["game-development", "mathematics", "no-std"]
+categories = ["game-development", "mathematics", "no-std::no-alloc"]
 
 [dependencies]
 # The one linear algebra library in this workspace, and this is the one crate

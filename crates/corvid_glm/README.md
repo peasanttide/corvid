@@ -44,9 +44,34 @@ const FLIP: Mat4 = Mat4::new(
 
 It is `const`, which is what lets a projection be one.
 
+## Features
+
+Every integration is optional and off by default.
+
+| Feature | Effect |
+|---|---|
+| `bytemuck` | `Pod` and `Zeroable`, so a matrix reaches a mapped buffer without an `unsafe` block |
+| `mint` | `From`/`Into` for the `mint` vector and column-matrix types |
+| `std` | Forwards `std` to nalgebra and bytemuck; adds nothing on this side |
+
+The impls behind the first two are nalgebra's own, switched on through its
+`convert-bytemuck` and `mint` features. This crate writes neither, and could
+not have: the workspace forbids `unsafe_code`.
+
+The crate is `no_std` under every feature, `std` included — the inner attribute
+is unconditional, because type aliases and a `const` have nothing an allocator
+could be needed for. `std` exists so a downstream that is already linking it can
+say so to the graph underneath, rather than leave nalgebra and bytemuck in the
+`no_std` configuration the default build picks.
+
 ## What belongs here
 
-Types, and nothing else. The matrices a camera is turned into live in
+Types, and one value. `IDENTITY` is the 4×4 identity as a `const`, which
+`Matrix4::identity` cannot be — it is a function, so a default camera or a model
+matrix a game overwrites per instance would otherwise have to be built at
+runtime.
+
+Nothing beyond that. The matrices a camera is turned into live in
 `corvid_camera`, because every one of them takes a fixed-point Corvid type on
 its near side and this crate has no opinion about fixed point. `corvid_float`
 is the scalar half.
