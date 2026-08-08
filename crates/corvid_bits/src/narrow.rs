@@ -7,10 +7,11 @@
 //!
 //! Two answers, because two are wanted. A camera whose position has run past
 //! what an `i32` reaches should clamp — the far edge of the representable world
-//! is a truer answer than a wrap, and it is what the frustum and the input
-//! scaling do. A conversion that is being *checked* should say so instead,
-//! which is what [`try_narrow_i64`] is for and what `GlobalPoint`'s widening
-//! round trip needs.
+//! is a truer answer than a wrap, and it is what a `Transform` does when it
+//! brings a world-scale position back into the tier its own position type sits
+//! in. A conversion that is being *checked* should say so instead, which is
+//! what [`try_narrow_i64`] is for and what `GlobalPoint`'s widening round trip
+//! needs.
 //!
 //! Wrapping is not offered. It is the one answer that is never right here: a
 //! position that wraps puts an object on the opposite side of the world, and

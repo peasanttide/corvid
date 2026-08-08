@@ -2,11 +2,11 @@
 //!
 //! Every caller of these is doing the same thing with the answer: shifting a
 //! value into the one binade its fixed-point kernel was fitted to, and shifting
-//! the result back afterwards. An integer square root normalizes to `[0.5, 2)`,
-//! a quaternion normalization scales the largest component up to just under the
-//! top of its word, and octahedral packing brings three components down until
-//! the widest fits its field. The shift is different each time; the question is
-//! not.
+//! the result back afterwards. A reciprocal square root normalizes into
+//! `[0.5, 2)`, a quaternion normalization scales the largest component up to
+//! just under the top of its word, and a world-scale distance shifts three
+//! magnitudes down until their squares still fit an `i128`. The shift is
+//! different each time; the question is not.
 
 /// How many bits `value` occupies: zero for zero, otherwise `1 + ⌊log₂ v⌋`.
 ///
