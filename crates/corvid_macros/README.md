@@ -16,6 +16,12 @@ let seat = SeatId(3);
 assert_eq!(seat.0, 3);
 assert_eq!(seat.to_string(), "3");
 
+// And it encodes as one. `#[serde(transparent)]` is part of what `id_type!`
+// declares, so nothing on the wire records that the number was wrapped.
+let json = serde_json::to_string(&seat).expect("a u16 has a json encoding");
+assert_eq!(json, "3");
+assert_eq!(serde_json::from_str::<SeatId>(&json).expect("it reads back"), seat);
+
 // And it is not the other kind of identifier.
 id_type! {
     /// Which account.
@@ -45,9 +51,19 @@ below the simulation ring, to produce a newtype and a `Display`.
 ## No dependencies at all
 
 A macro emits tokens; the crate that *expands* them is the one that has to be
-able to name what they mention. So every path in an expansion is absolute —
-`::core::fmt::Display`, `::serde::Serialize` — and a caller of `id_type!`
-depends on `serde` while this crate depends on nothing.
+able to name what they mention. So every path in an expansion that leaves the
+prelude is absolute — `::core::fmt::Display`, `::serde::Serialize` — and a
+caller of `id_type!` depends on `serde` while this crate depends on nothing.
+The nine built-in derives are left bare, as they are in the newtype macros in
+`corvid_fixed` and `corvid_vector`, because a prelude name needs no help: they
+resolve even inside a module marked `#![no_implicit_prelude]`, which the tests
+pin.
+
+`serde` and `serde_json` do appear under `[dev-dependencies]`, and that is the
+same rule read from the other side rather than an exception to it: the doctest
+above and every test in `tests/` is itself a crate that expands `id_type!`, so
+each has to supply the serde the expansion names. Nothing downstream of this
+crate inherits them.
 
 That is what lets the whole simulation ring use it: `corvid_behavior` is
 `no_std`, and so is this.
@@ -56,6 +72,13 @@ That is what lets the whole simulation ring use it: `corvid_behavior` is
 
 The derived `Hash` absorbs the number and nothing else, which is the convention
 the rest of the workspace hashes under: what establishes that two peers are
-reading the same field is the opening's schema, not a tag on every value. Two
-identifiers of different kinds holding the same number therefore digest alike,
-and that is fine, because nothing ever hashes one out of context.
+reading the same field is the opening's schema, not a tag on every value. An
+identifier therefore digests exactly as the bare integer inside it does, and two
+identifiers of the same width holding the same number digest alike; that is
+fine, because nothing ever hashes one out of context.
+
+Two of *different* widths do not, and the pair in the example above is exactly
+that case: `SeatId(3)` and `AccountId(3)` come apart under a hasher. Read that
+as an accident of `Hash for u16` feeding two bytes where `Hash for u64` feeds
+eight, not as the type tag returning — widen the `u16` and the digests meet
+again. Nothing should be built on it either way.
