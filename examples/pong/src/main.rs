@@ -14,8 +14,6 @@
 //! flags below are taken out of the command line and the rest is handed to
 //! [`corvid::Arguments`] unchanged.
 
-use std::io::Write;
-
 use corvid::{App, Arguments, Error, Input};
 
 use corvid::PlayerId;
@@ -114,7 +112,7 @@ fn main() -> corvid::Result {
 
     let outcome = app.arguments(arguments).run()?;
     if headless {
-        report(&outcome)?;
+        report(&outcome);
     }
     Ok(())
 }
@@ -159,8 +157,13 @@ fn ours(arguments: impl Iterator<Item = String>) -> Result<Ours, Error> {
 
 /// This binary's usage, in front of `corvid`'s.
 fn usage(why: corvid::Argument) -> Error {
-    let mut out = std::io::stderr();
-    drop(writeln!(out, "{USAGE}"));
+    #[allow(
+        clippy::print_stderr,
+        reason = "the same exception the digest line carries: this is a program, and a command line it could not read is what stderr is for. A handle would reach the same stream while passing the lint"
+    )]
+    {
+        eprintln!("{USAGE}");
+    }
     Error::Argument(why)
 }
 
@@ -267,7 +270,7 @@ fn together(ours: &Ours) -> corvid::Result {
         !arguments.headless,
     )?;
     if arguments.headless {
-        report(&outcome)?;
+        report(&outcome);
     }
     Ok(())
 }
@@ -293,35 +296,6 @@ fn halted(why: corvid_lockstep::Halt) -> Error {
 /// Past `Budget::DEFAULT`'s eight ticks ahead and two of delay, with room: a
 /// state that far back was computed from actions every seat really submitted.
 const SETTLED: u64 = 20;
-
-/// What the netcode did, for a run that had any.
-///
-/// Empty for a single-seat run, which heard nothing and rolled back never — so
-/// a run with no network prints exactly what it printed before there was one.
-#[cfg(feature = "net")]
-fn netcode(outcome: &corvid::Outcome<Table>) -> String {
-    let played = outcome.traffic;
-    if played.heard == 0 && played.sent == 0 {
-        return String::new();
-    }
-    format!(
-        "
-{} heard, {} sent, {} rollbacks over {} replayed ticks (deepest {}), {} stalls",
-        played.heard,
-        played.sent,
-        played.rollbacks,
-        played.resimulated,
-        played.deepest,
-        played.stalls,
-    )
-}
-
-/// The same, on a build with no netcode compiled in.
-#[cfg(not(feature = "net"))]
-fn netcode(_outcome: &corvid::Outcome<Table>) -> String {
-    String::new()
-}
-
 /// How big a headless capture draws.
 ///
 /// Sixteen by nine at a size a golden can be compared at without being a
@@ -333,8 +307,21 @@ const OFFSCREEN: corvid::Extent = corvid::Extent::new(640, 360);
 const TICKS: u64 = 900;
 
 /// What a headless run says when it stops.
-fn report(outcome: &corvid::Outcome<Table>) -> corvid::Result {
-    let mut out = std::io::stdout();
+///
+/// # One number on stdout, everything else through the subscriber
+///
+/// Stdout carries the **digest and nothing else**, because that is the only
+/// thing here a script wants: `pong --headless | …` reads one line and compares
+/// it. A score, a winner and six netcode counters on the same stream are things
+/// a person reads, and putting them there means every consumer has to parse
+/// past them.
+///
+/// So the rest is a `tracing` event, which is where every other thing this
+/// framework reports already goes and which
+/// [`watch`](corvid::watch) sends to stderr. That also makes it
+/// *structured*: `RUST_LOG=pong=info pong --headless` gives the fields by name
+/// rather than a sentence somebody has to split on em dashes.
+fn report(outcome: &corvid::Outcome<Table>) {
     let table = &outcome.state;
     // **Not the last tick's digest.** A run stops when it stops, and the newest
     // few ticks of a peer's state were simulated partly from predictions of
@@ -348,21 +335,47 @@ fn report(outcome: &corvid::Outcome<Table>) -> corvid::Result {
         || "unknown".to_owned(),
         |mark| format!("{:#018x}", mark.to_u64()),
     );
-    writeln!(
-        out,
-        "tick {} — {} : {} — digest {mark} at tick {}{}{}",
-        table.now.0,
-        table.scores[0],
-        table.scores[1],
-        settled.0,
-        table
-            .over
-            .map_or_else(String::new, |seat| format!(", seat {seat} won")),
-        netcode(outcome),
-    )
-    .and_then(|()| out.flush())
-    .map_err(|why| Error::Wrote {
-        path: std::path::PathBuf::from("stdout"),
-        why,
-    })
+
+    tracing::info!(
+        name: "pong.finished",
+        tick = table.now.0,
+        settled = settled.0,
+        digest = %mark,
+        left = table.scores[0],
+        right = table.scores[1],
+        won = ?table.over,
+        "the run ended",
+    );
+    netcode(outcome);
+
+    #[allow(
+        clippy::print_stdout,
+        reason = "this is a program rather than a library, and the digest is its answer: an operator piping a headless run reads this line. The exception is stated here for the reason `corvid_app`'s two are — writing to an `io::stdout()` handle instead would pass the lint while doing the identical thing"
+    )]
+    {
+        println!("{mark}");
+    }
 }
+
+/// What the netcode did, as an event, for a run that had a transport.
+#[cfg(feature = "net")]
+fn netcode(outcome: &corvid::Outcome<Table>) {
+    let traffic = outcome.traffic;
+    if traffic.heard == 0 && traffic.sent == 0 {
+        return;
+    }
+    tracing::info!(
+        name: "pong.netcode",
+        heard = traffic.heard,
+        sent = traffic.sent,
+        rollbacks = traffic.rollbacks,
+        resimulated = traffic.resimulated,
+        deepest = traffic.deepest,
+        stalls = traffic.stalls,
+        "what the link cost",
+    );
+}
+
+/// The same, on a build with no netcode compiled in.
+#[cfg(not(feature = "net"))]
+fn netcode(_outcome: &corvid::Outcome<Table>) {}
