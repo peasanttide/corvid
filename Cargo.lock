@@ -93,6 +93,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_hash"
+version = "0.1.0"
+
+[[package]]
 name = "corvid_macros"
 version = "0.1.0"
 dependencies = [
