@@ -158,8 +158,6 @@ pub use corvid_ui_render as ui_render;
 #[cfg(feature = "window")]
 pub use corvid_window::{self as window, Size};
 
-// The console and the tunables, the asset store, and the encoding a save is
-// written in.
-pub use corvid_asset as asset;
+// The console and the tunables, and the encoding a save is written in.
 pub use corvid_dev as dev_console;
 pub use corvid_wire as wire;

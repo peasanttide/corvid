@@ -375,7 +375,6 @@ name = "corvid"
 version = "0.2.0"
 dependencies = [
  "corvid_app",
- "corvid_asset",
  "corvid_behavior",
  "corvid_bits",
  "corvid_camera",
@@ -432,15 +431,6 @@ dependencies = [
  "serde_json",
  "tracing",
  "wgpu",
-]
-
-[[package]]
-name = "corvid_asset"
-version = "0.2.0"
-dependencies = [
- "corvid_behavior",
- "corvid_files",
- "serde",
 ]
 
 [[package]]

@@ -16,8 +16,9 @@ assert_eq!(files.read("level/court.bin")?, [1, 2, 3]);
 
 `corvid_behavior` is `no_std`, and `Level::load` names a `Source` in its
 signature — so the trait has to live somewhere a `no_std` crate can reach.
-Everything that opens an actual directory is `corvid_asset`'s `Files`, one layer
-up, where `std` is already paid for. This crate has no dependencies at all.
+`Memory` is the implementation that ships with it; anything that opens an actual
+directory is a game's own, one layer up, where `std` is already paid for. This
+crate has no dependencies at all.
 
 The one allocation here is a file's bytes, and a filesystem that cannot hand
 back bytes is not one.

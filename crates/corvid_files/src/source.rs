@@ -36,9 +36,9 @@ impl core::error::Error for Missing {}
 ///
 /// Two callers raise this and they know different amounts.
 /// [`Level::load`](../corvid_behavior/trait.Level.html#tymethod.load) was handed
-/// a reference and reads its own files, so it knows which one objected;
-/// `corvid_asset`'s `Asset::decode` is handed bytes and nothing else, because
-/// the store that read them is what knows where they came from. One type with
+/// a reference and reads its own files, so it knows which one objected; a
+/// decoder handed bytes and nothing else cannot, because whatever read them is
+/// what knows where they came from. One type with
 /// [`at`](Self::at) and [`new`](Self::new) rather than two types with the same
 /// name, which is what this workspace already has too many of.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

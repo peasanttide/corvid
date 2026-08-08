@@ -25,7 +25,6 @@ corvid_app = { workspace = true }
 # the workspace's one facade and every other crate re-exports nothing. A chain
 # of forwarding crates gave the same type four spellings and no way to tell
 # which was meant; one list in one place is the trade.
-corvid_asset = { workspace = true }
 corvid_behavior = { workspace = true, features = ["std"] }
 corvid_bits = { workspace = true }
 corvid_camera = { workspace = true, features = ["std", "bytemuck"] }
@@ -242,10 +241,6 @@ corvid_ui_render = { version = "0.2", path = "crates/corvid_ui_render" }
 # The console, the tunables and the inspector. Its registry is typed, so help
 # and completion are generated rather than written.
 corvid_dev = { version = "0.2", path = "crates/corvid_dev" }
-# Loading, caching and evicting what a level is made of. `std`, because it opens
-# files, and its `Handle` cannot satisfy `Data` so it cannot reach a hashed
-# state.
-corvid_asset = { version = "0.2", path = "crates/corvid_asset" }
 # The filesystem a level is read through. No dependencies and `no_std`, because
 # `corvid_behavior` names `Source` in `Level::load`'s signature and everything
 # in the ring is `no_std` — so the trait lives below `std` even though every
