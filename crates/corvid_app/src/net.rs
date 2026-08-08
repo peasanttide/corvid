@@ -406,13 +406,42 @@ impl<S: State> Link<S> {
 
     /// One tick: submit, receive, advance, send.
     ///
-    /// [`None`] is a client that plays nobody. Nothing is submitted and the
-    /// rest of the tick is unchanged — a peer receives, folds in, predicts and
-    /// simulates whether or not it has spoken, and the seat it watches is
-    /// predicted for out of whatever the machine actually sitting in it sent.
+    /// [`None`] is a client that plays nobody: nothing is submitted, and a peer
+    /// receives, folds in, predicts and simulates whether or not it has spoken.
     /// What goes out is still a datagram, because acknowledging what this
     /// machine has heard is what keeps everyone else's window reaching back far
     /// enough to catch it up.
+    ///
+    /// # What a spectator over a transport does not yet do
+    ///
+    /// **Somebody else has to be sitting in the seat it watches, and
+    /// [`Budget::delay`](corvid_lockstep::Budget) has to be greater than
+    /// zero.** Nothing here enforces either, because the case that works is the
+    /// case this is for — watching a seat a real peer plays — and a guard would
+    /// forbid it along with the rest.
+    ///
+    /// If the watched seat is *empty*, the session stops rather than plays on.
+    /// [`Frontier::agreed`](corvid_lockstep::Frontier::agreed) is the minimum
+    /// over live seats of what each has confirmed, counting a seat that has
+    /// confirmed nothing as [`Tick::ZERO`], and
+    /// [`Peer::advance`](corvid_lockstep::Peer::advance) declines to simulate
+    /// past `agreed() + Budget::ahead` — so a column nobody ever writes pins
+    /// the frontier at the opening and every peer in the session stalls after
+    /// `ahead` ticks, **this one included**. What answers that is somebody
+    /// filling the seat: a machine, a bot, or a
+    /// [`Peer::depart`](corvid_lockstep::Peer::depart) retiring it.
+    ///
+    /// And a spectator is not quite silent, whatever it submits.
+    /// [`Peer::outgoing`](corvid_lockstep::Peer::outgoing) falls back to the
+    /// session's first tick for a seat that has confirmed nothing, and a
+    /// datagram fills a row the log does not hold with
+    /// [`Action::default`](Default::default) — so one confirmed idle row for
+    /// the watched seat goes out every tick. At `delay > 0` that row is the
+    /// same default on every machine and costs nothing. At `delay == 0` the
+    /// real peer in that seat writes a real action at exactly that tick, and
+    /// two different confirmed values for one seat is
+    /// [`Halt::Contradiction`](corvid_lockstep::Halt), which ends the session
+    /// rather than stalling it.
     ///
     /// The sink is the caller's, for the reason it is everywhere
     /// else in this workspace — a rollback simulates with it, so it cannot be

@@ -538,11 +538,18 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
 
     /// One tick, and everything the tick owes.
     ///
-    /// In order: build this client's action with `intend`, extend the log and
-    /// record the action against this client's seat, simulate, digest the new
-    /// state into the trace, let go of the state that falls out of the pair the
-    /// display sits between, drain the commands into the sink, and ask whether
-    /// to stop.
+    /// In order: ask [`Controller::action`] for this client's action, extend
+    /// the log and record that action against this client's seat, simulate,
+    /// digest the new state into the trace, let go of the state that falls out
+    /// of the pair the display sits between, drain the commands into the sink,
+    /// and ask whether to stop.
+    ///
+    /// The first two of those are what a client that plays nobody skips. There
+    /// is no action to ask for and none to record, so [`Controller::action`] is
+    /// not called and the row the log grows is left holding
+    /// [`Action::default`](Default::default) — which is what the seat holds
+    /// anyway when a peer or a bot has not filled it. Everything after the
+    /// comma happens exactly as it does for a client that plays.
     ///
     /// The tick that asked for something is the tick whose `tick` returned it —
     /// `asked` below — and not the tick of the state it produced. That is the
@@ -687,8 +694,20 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// only receives, predicts and simulates. That is expressible because
     /// submitting is a call of its own — [`Peer::submit`](corvid_lockstep::Peer::submit)
     /// — rather than an argument to
-    /// [`advance`](corvid_lockstep::Peer::advance), and a row this machine
-    /// never wrote is predicted for exactly as any other seat's is.
+    /// [`advance`](corvid_lockstep::Peer::advance).
+    ///
+    /// **It is not a spectator mode for a session with an empty seat in it, and
+    /// it is not safe at [`Budget::delay`](corvid_lockstep::Budget) zero.** A
+    /// column nobody writes pins
+    /// [`Frontier::agreed`](corvid_lockstep::Frontier::agreed) at the opening
+    /// tick and stalls every peer in the session after
+    /// [`Budget::ahead`](corvid_lockstep::Budget) ticks, this one included; and
+    /// at `delay == 0` the idle row a spectator's datagram carries for the
+    /// watched seat collides with the real action the machine in that seat
+    /// wrote for the same tick, which is
+    /// [`Halt::Contradiction`](corvid_lockstep::Halt).
+    /// [`Link::play`](crate::net::Link::play) has the mechanisms and what would
+    /// answer each.
     #[cfg(feature = "net")]
     fn advance_linked(
         &mut self,

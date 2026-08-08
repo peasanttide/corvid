@@ -1236,11 +1236,11 @@ pub enum Error {
     /// The seat this client would watch is not one the roster of the session
     /// being played has.
     ///
-    /// A run with nobody in the seat it submits for would record its actions
-    /// nowhere, and a replay of it would be a replay of a session in which this
-    /// client did nothing at all. It is refused for a
-    /// [`spectating`](App::spectating) run too, where there is nothing to
-    /// record and still nothing to look through.
+    /// A seat outside the roster is a seat with no camera in it, which is what
+    /// makes this a refusal for a [`spectating`](App::spectating) run as much
+    /// as for a playing one. For a run that does play it, it is also a run that
+    /// would record its actions nowhere, and a replay of it would be a replay
+    /// of a session in which this client did nothing at all.
     ///
     /// The roster is the one the run plays with rather than the one the builder
     /// was handed: a [`load`](App::load) or a [`replay`](App::replay) discards
@@ -1248,7 +1248,7 @@ pub enum Error {
     /// seat is checked against that one.
     #[error(
         "this client watches seat {} and the roster has {seats}, so there would be nobody to \
-         look through and nowhere to record what it did",
+         look through, and nowhere to record what it did if it played",
         seat.0
     )]
     Seat {

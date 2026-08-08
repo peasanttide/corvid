@@ -12,6 +12,9 @@ mod common;
 use common::{Attending, Bare, Counting, Rules, Tally, attendance, opening};
 use corvid_app::App;
 
+/// How far the runs below play.
+const TICKS: u64 = 30;
+
 /// The digests are the assertion: a spectator submits nothing, and a seat
 /// nobody submits for holds the idle action — so the session a spectator
 /// watches is the session an idle player would have produced.
@@ -25,7 +28,7 @@ fn a_spectator_submits_nothing() {
     let watched = App::<Bare>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(30)
+        .for_ticks(TICKS)
         .spectating()
         .run()
         .expect("a spectating run");
@@ -33,9 +36,14 @@ fn a_spectator_submits_nothing() {
     let idle = App::<Bare>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(30)
+        .for_ticks(TICKS)
         .run()
         .expect("a played run");
+
+    // Before the comparison, because two empty traces are also equal: a run
+    // that refused to tick would satisfy the assertion below and say nothing.
+    // A trace holds the opening's mark and one per tick.
+    assert_eq!(watched.session.marks.len(), TICKS + 1);
 
     assert_eq!(watched.session.marks, idle.session.marks);
 }
@@ -53,7 +61,7 @@ fn a_spectator_does_not_play_the_seat_it_watches() {
     let watched = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(30)
+        .for_ticks(TICKS)
         .spectating()
         .run()
         .expect("a spectating run");
@@ -61,7 +69,7 @@ fn a_spectator_does_not_play_the_seat_it_watches() {
     let played = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .for_ticks(30)
+        .for_ticks(TICKS)
         .run()
         .expect("a played run");
 
