@@ -43,6 +43,17 @@ struct State<T> {
     /// rather than comparing values, so a `T` that is not `PartialEq` — or one
     /// whose equality is expensive — still works, and so does a publication
     /// that happened to write the value that was already there.
+    ///
+    /// The bump wraps rather than checks. Overflow checks are on in the dev
+    /// profile, so a plain `+ 1` is a signal that panics on its own counter,
+    /// and a panic nobody could have prevented is the worst kind. What wrapping
+    /// costs is the invariant `FIRST` is there to set up: the publication after
+    /// `u64::MAX` is numbered zero, which is what a `Seen::default()` says it
+    /// has already read, so one consumer that had never polled would miss one
+    /// publication. At a publication every nanosecond that is five hundred and
+    /// eighty years out, and the saturating alternative is worse — a counter
+    /// that stopped moving would stop reporting changes for everybody, for
+    /// good.
     sequence: u64,
 }
 
@@ -50,14 +61,16 @@ impl<T> Shared<T> {
     /// The lock, with poisoning ignored.
     ///
     /// A poisoned mutex here means a [`modify`](Emitter::modify) closure — or
-    /// the `T::clone` its copy-on-write step may take first — panicked while the
-    /// lock was held. Those two are the only caller code that runs under it at
-    /// all; a `Drop`, an allocation and a consumer's own copy all happen
-    /// outside. Propagating that would mean a panicking `unwrap`, which the
-    /// workspace denies, and refusing to serve would mean a signal that stops
-    /// carrying a window size because something unrelated panicked once. So the
-    /// value is served as it stands, and what "as it stands" means is the
-    /// caller's business: see the note on [`modify`](Emitter::modify).
+    /// the `T::clone` its copy-on-write step may take first, or in the one race
+    /// that page describes, the `T::drop` that race lets in — panicked while
+    /// the lock was held. Those are the only caller code that runs under it at
+    /// all; a [`set`](Emitter::set)'s allocation, the drop of the value a `set`
+    /// replaced and a consumer's own copy of what it read all happen outside.
+    /// Propagating that would mean a panicking `unwrap`, which the workspace
+    /// denies, and refusing to serve would mean a signal that stops carrying a
+    /// window size because something unrelated panicked once. So the value is
+    /// served as it stands, and what "as it stands" means is the caller's
+    /// business: see the note on [`modify`](Emitter::modify).
     fn lock(&self) -> MutexGuard<'_, State<T>> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -157,9 +170,17 @@ impl<T> Emitter<T> {
     ///
     /// Opens a `DEBUG` span called `corvid_signal.set`, with the signal's label
     /// and the sequence number this publication was given as fields. The span
-    /// covers the allocation, the lock, the store and the wakeup, so its
-    /// duration is what this publication cost including whatever it queued
-    /// behind.
+    /// covers the allocation, the lock, the store and the wakeup, so what it
+    /// times is the handoff itself including whatever it queued behind.
+    ///
+    /// It is left *before* the value this publication replaced is dropped, and
+    /// that omission is deliberate rather than an accident of where a local
+    /// ends. Freeing a large `T` — a device list is four hundred thousand
+    /// deallocations — is most of what a `set` costs by the clock and none of
+    /// what it costs anybody else, because it happens with the lock released
+    /// and nothing waiting on it. A span that counted it would report a
+    /// publisher's own bookkeeping as time some consumer spent behind this
+    /// signal, which is the one thing a trace of this crate is read to find.
     ///
     /// # What runs under the lock
     ///
@@ -253,6 +274,17 @@ impl<T: Clone> Emitter<T> {
     /// publication, every [`get`](Watch::get), every
     /// [`changed_since`](Watch::changed_since) — waits for both. Keep `f` to the
     /// edit. Touching this signal from inside `f`, by any handle, deadlocks.
+    ///
+    /// One more thing can run under that lock, and no caller chooses when.
+    /// `Arc::make_mut` lets go of the reference it copied away from, and if the
+    /// consumer holding the other one let go in the same instant, that release
+    /// is the last and the old `T` is dropped where it stands — inside the
+    /// lock. [`set`](Self::set) drops what it replaced after releasing the lock
+    /// and says so; `modify` cannot promise the same. So the one re-entrant
+    /// shape `set` is written to survive — a `T` whose `Drop` publishes to this
+    /// signal — is not a shape `modify` survives, and it deadlocks on a race
+    /// rather than every time, which is the worse of the two ways to find out.
+    /// Such a `T` is published with `set` and edited nowhere.
     ///
     /// A publication happens whether or not `f` changed anything, because
     /// nothing here can tell: `T` is not required to be `PartialEq`, and a
@@ -351,6 +383,13 @@ impl<T> Watch<T> {
     /// back is the value as of that instant and stays that value however many
     /// publications land afterwards, which is what makes it a consistent
     /// snapshot rather than a struct assembled from two publications.
+    ///
+    /// It waits for the lock and for nothing else, and what waiting for the
+    /// lock is worth depends on who has it. Behind another reader or a
+    /// [`set`](Emitter::set) it is a reference-count bump; behind a
+    /// [`modify`](Emitter::modify) that has to copy it is a whole `T::clone`,
+    /// because that is the one call in this crate that runs a `T`'s own code
+    /// while holding the lock a reader takes.
     #[must_use]
     pub fn get(&self) -> Arc<T> {
         Arc::clone(&self.shared.lock().value)

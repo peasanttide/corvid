@@ -358,13 +358,14 @@ Two smaller things the implementation does rather than promises. The value a
 publication replaced is dropped *after* the lock is released, so a `T` whose
 `Drop` publishes to the same signal works instead of deadlocking — that is one
 re-entrant path made to work, not a general rule, and the `modify` closure and
-the copy it may take first both still run under the lock. And a poisoned mutex is
-ignored rather than propagated, because the alternative under the workspace's `panic` lint is a
-signal that stops carrying a window size because something unrelated panicked
-once. What a panicking `modify` leaves in the cell is documented on
-[`modify`](Emitter::modify), is the caller's to think about, and is checked
-rather than described: `tests/channel.rs` panics halfway through one and reads
-back what survived.
+the copy it may take first both still run under the lock — as, in one race that
+`modify` documents, can the drop of the value that copy was taken from. And a
+poisoned mutex is ignored rather than propagated, because the workspace denies
+`unwrap_used` and the only other answer is a signal that stops carrying a window
+size because something unrelated panicked once. What a panicking `modify` leaves
+in the cell is documented on [`modify`](Emitter::modify), is the caller's to
+think about, and is checked rather than described: `tests/channel.rs` panics
+halfway through one and reads back what survived.
 
 ## Nothing here is written down
 
@@ -387,7 +388,7 @@ cargo test -p corvid_signal
 
 | File | Covers |
 |---|---|
-| `tests/channel.rs` | latest-value semantics; that three publications between two polls are one observation of the third; that a consumer that never polls and eight consumers parked in `blocking_wait` neither hold up nor grow a publisher; that a consumer half a second into copying the value does not hold one up either; that one publication — by `set` and by `modify` — wakes all eight parked consumers rather than one; that `blocking_wait` wakes, and that it returns without parking when it is already behind; that the value a publication replaced is dropped outside the lock; that `modify` copies the value exactly when a consumer is holding it and never otherwise; that a value handed out does not change underneath its reader; and what a panicking `modify` leaves in the cell, does not publish, and does not break |
+| `tests/channel.rs` | latest-value semantics; that three publications between two polls are one observation of the third; that a consumer that never polls and eight consumers parked in `blocking_wait` neither hold up nor grow a publisher; that a consumer half a second into copying the value does not hold one up either; that one publication — by `set` and by `modify` — wakes all eight parked consumers rather than one; that `blocking_wait` wakes, and that it returns without parking when it is already behind; that the value a publication replaced is dropped outside the lock; that `modify` copies the value exactly when a consumer is holding it and never otherwise; that a value handed out does not change underneath its reader; that both handles name the signal and print nothing of the value, formatted from inside a `modify` closure that is holding the lock; and what a panicking `modify` leaves in the cell, does not publish, and does not break |
 | `tests/threads.rs` | eight publishing threads and eight observing threads on one signal, half of them parked and half polling, checking every observation against a seal over its own fields, against the range of values anybody published, and against a ticket that climbs for every author — plus the check that the seal really does reject a reading assembled out of two publications |
 | `tests/tracing.rs` | a recording subscriber, reading back that a publication opens a span carrying the signal's label, level and sequence number, that an observation leaves the matching event at the level the table above gives it, and that a poll which saw nothing leaves nothing |
 | `examples/signal_bench.rs` | the four figures in the table above, on whatever host runs it |
