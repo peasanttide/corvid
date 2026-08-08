@@ -133,7 +133,13 @@ pub trait Source: Send + Sync {
     /// # Errors
     ///
     /// [`Missing`] for a path this source has nothing under, which includes a
-    /// path it refuses to follow.
+    /// path it refuses to follow and a file it can see and cannot open — a
+    /// permission it does not have, an archive member that will not inflate.
+    /// There is one read failure and it means the bytes did not arrive, the
+    /// same way [`list`](Self::list) folds a directory that will not say what
+    /// is in it into the same type. [`Malformed`] is not raised here at all:
+    /// bytes that arrived and will not parse are a finding of whoever parses
+    /// them, and this method's job ends once they are in hand.
     fn read(&self, path: &str) -> Result<Vec<u8>, Missing>;
 
     /// Every path beginning with `prefix`, in order.
@@ -173,11 +179,14 @@ pub trait Source: Send + Sync {
     }
 }
 
-/// Every `Source` is one behind a reference, so a `&dyn Source` can be handed on
-/// without a second indirection.
+/// A borrow of a `Source` is a `Source`, so code generic over one takes either.
 ///
-/// `Level::load` takes `&dyn Source`, and a caller holding a `&Files` would
-/// otherwise have to name the coercion at every site.
+/// This buys nothing at a `&dyn Source` parameter — `&Memory` already coerces
+/// to `&dyn Source` on its own, and `Level::load` needs no help. What it buys
+/// is the bound `S: Source`: a caller that only borrows its source, or that was
+/// handed the `&dyn Source` from a `load` further up, can satisfy that bound
+/// without owning, cloning or re-boxing anything. `?Sized` is what lets
+/// `&dyn Source` be the `S` in question.
 impl<T: Source + ?Sized> Source for &T {
     fn read(&self, path: &str) -> Result<Vec<u8>, Missing> {
         (**self).read(path)
@@ -187,6 +196,10 @@ impl<T: Source + ?Sized> Source for &T {
         (**self).list(prefix)
     }
 
+    // Forwarded rather than left to the default, which is not a formality: the
+    // default reads the file and throws the bytes away, so a `&Memory` that
+    // inherited it would answer a question the map can settle with a key lookup
+    // by copying a level out of a `BTreeMap` first.
     fn exists(&self, path: &str) -> bool {
         (**self).exists(path)
     }
