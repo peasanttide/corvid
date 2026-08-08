@@ -25,6 +25,7 @@ mod runtime;
 mod saves;
 #[cfg(feature = "render")]
 mod screen;
+mod settings;
 
 #[cfg(feature = "window")]
 mod windowed;
@@ -38,6 +39,7 @@ pub use controls::Misbound;
 pub use net::{Departures, TickTraffic, Traffic, seat_of};
 pub use retention::Retention;
 pub use saves::NotASave;
+pub use settings::Settings;
 
 /// What a run answers with: nothing, or why it could not play.
 ///

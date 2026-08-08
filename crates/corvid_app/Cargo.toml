@@ -74,7 +74,7 @@ corvid_mesh_render = { workspace = true, optional = true }
 # look as though it sometimes did. The `platform` half — the binding table and
 # the device accumulator — is what `window` turns on.
 corvid_input = { workspace = true }
-serde_json = { workspace = true, optional = true }
+serde_json = { workspace = true }
 # The sound card. Its own `device` feature is what pulls `cpal`, and `window`
 # below is what turns it on — without it this crate is mixing arithmetic and an
 # `Audio` that reports it cannot open, which is the same answer a machine with
@@ -152,9 +152,6 @@ window = [
     # without a renderer under it.
     "render",
     "dep:corvid_window",
-    # The binding file. A run with no window reads no device, so it has no use
-    # for a table and no business writing one to disk.
-    "dep:serde_json",
     "corvid_input/platform",
     "corvid_input/serde",
     "corvid_input/std",

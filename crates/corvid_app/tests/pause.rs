@@ -37,7 +37,7 @@ mod common;
 use std::time::Duration;
 
 use common::{Ears, Hands, Holding, Painted, Rules, Tally, action, opening};
-use corvid_app::{App, Outcome, Progress};
+use corvid_app::{App, Outcome, Progress, Settings};
 use corvid_control::Controller;
 use corvid_hash::{Digest, digest};
 use corvid_input::{Digital, Input};
@@ -149,7 +149,10 @@ fn play(holding: Holding, on: u64, stall: Duration) -> (Outcome<Tally>, Progress
     let outcome = App::<Tally, Hands, Painted, Ears>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .controls(holding)
+        .settings(Settings {
+            controls: holding,
+            ..Settings::default()
+        })
         .input(resting())
         .clock(Stalling::new(rate.period(), on, stall))
         .rate(rate)

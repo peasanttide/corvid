@@ -1,7 +1,7 @@
 //! Playing one opening twice and finding the first tick the two runs stop being
 //! the same game.
 
-use corvid_app::{App, Outcome, Retention};
+use corvid_app::{App, Outcome, Retention, Settings};
 use corvid_behavior::{PlayerId, State};
 use corvid_hash::Digest;
 use corvid_hash::digest;
@@ -139,7 +139,10 @@ where
     App::<S, C>::new()
         .headless()
         .opening(opening)
-        .controls(controls)
+        .settings(Settings {
+            controls,
+            ..Settings::default()
+        })
         .input(input)
         .retain(Retention::Everything)
         .for_ticks(ticks.max(1))

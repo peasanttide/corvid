@@ -123,6 +123,28 @@ pub trait Controller<S: State> {
         Bindings::placeholder(Self::SETS)
     }
 
+    /// What the player has set, if this controller has changed it.
+    ///
+    /// Read after every [`update`](Self::update). [`Some`] is "write this
+    /// down": the runtime persists the whole settings document to
+    /// `$XDG_CONFIG_HOME/<NAME>/setting.json` when the answer differs from what
+    /// it last wrote, so a settings menu that rebinds a key in `update` is a
+    /// settings menu whose rebinding survives the run.
+    ///
+    /// [`None`], which is the default, is "nothing to write" — and it is the
+    /// right answer for the overwhelming majority of controllers, which read a
+    /// config at construction and never change it. A controller answering
+    /// [`Some`] unconditionally would have the runtime comparing a whole config
+    /// every frame for a game that never edits one.
+    ///
+    /// The runtime writes rather than the controller, for the reason nothing in
+    /// this ring opens a file: a controller that wrote its own settings would be
+    /// one that cannot run headless, cannot run twice in one process, and does
+    /// its filesystem work from inside a display frame.
+    fn config(&self) -> Option<Self::Config> {
+        None
+    }
+
     /// Advance client-local state, once per displayed frame.
     ///
     /// Where the camera moves, the cursor raycasts, and cosmetic state that is

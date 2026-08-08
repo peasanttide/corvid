@@ -96,7 +96,10 @@ fn play(ticks: u64) -> (u64, [u16; 2]) {
         .rate(RATE)
         .seat(PlayerId(0))
         .input(Input::new(pong::action::SETS))
-        .controls(0)
+        .settings(corvid::Settings {
+            controls: 0,
+            ..corvid::Settings::default()
+        })
         .headless()
         .for_ticks(ticks)
         .run()

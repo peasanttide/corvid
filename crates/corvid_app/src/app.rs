@@ -19,6 +19,7 @@ use crate::{
     headless::Headless,
     runtime::{Plan, Runtime},
     saves::{NotASave, Saves, StateAt},
+    settings::Settings,
 };
 
 /// The predicate [`App::until`] takes, named because it is written down three
@@ -171,16 +172,16 @@ where
     R: Render<S>,
     A: Auralizer<S>,
 {
-    /// What the player has set, which the runtime builds the controller from.
+    /// What the player has set, which the runtime builds all three of the
+    /// client-local halves from.
     ///
-    /// A config rather than a controller, because only the runtime knows when
-    /// the devices exist — and the same is true of the two below, for the
-    /// device and the sound card.
-    controls: C::Config,
-    /// What the renderer is built from.
-    graphics: R::Config,
-    /// What the ear is built from.
-    audio: A::Config,
+    /// Configs rather than a controller, a renderer and an ear, because only
+    /// the runtime knows when the devices exist.
+    ///
+    /// [`None`] is "read the file", which is what [`run`](Self::run) does; a
+    /// caller that set [`settings`](Self::settings) has overridden the file for
+    /// this run and nothing is read.
+    settings: Option<Settings<S, C, R, A>>,
     /// What the session starts from.
     opening: Option<Opening<S>>,
     /// Where real time comes from, or [`None`] to build the default from
@@ -262,9 +263,7 @@ where
     #[must_use]
     pub fn new() -> Self {
         Self {
-            controls: C::Config::default(),
-            graphics: R::Config::default(),
-            audio: A::Config::default(),
+            settings: None,
             opening: None,
             clock: None,
             rate: TickSpan::CRADLE,
@@ -294,29 +293,26 @@ where
         }
     }
 
-    /// What the player has set: the controller is built from this.
+    /// Overrides what the player has set, for this run only.
     ///
-    /// A config rather than a controller, because only the loop knows when the
-    /// devices exist. The same is true of [`graphics`](Self::graphics) and
-    /// [`audio`](Self::audio) below.
+    /// **Nothing needs this.** A run reads
+    /// `$XDG_CONFIG_HOME/<NAME>/setting.json` and starts from what is in it, or
+    /// from the defaults where there is no file — which is what a fresh install
+    /// is. This is for the callers that cannot use that: a test that must not
+    /// depend on the machine it runs on, a benchmark pinning a resolution, a
+    /// tool driving a run with settings it was handed.
+    ///
+    /// It replaces the whole document rather than one field of it, because the
+    /// three configs are one thing to a person and a run that took its controls
+    /// from a caller and its volume from a file would be a run nobody can
+    /// reproduce from either.
+    ///
+    /// The file is neither read nor written for a run that calls this: an
+    /// override that persisted itself would be a test rewriting the developer's
+    /// own settings.
     #[must_use]
-    pub fn controls(mut self, config: C::Config) -> Self {
-        self.controls = config;
-        self
-    }
-
-    /// What the renderer is built from, once there is a device to build it
-    /// against.
-    #[must_use]
-    pub fn graphics(mut self, config: R::Config) -> Self {
-        self.graphics = config;
-        self
-    }
-
-    /// What the ear is built from.
-    #[must_use]
-    pub fn audio(mut self, config: A::Config) -> Self {
-        self.audio = config;
+    pub fn settings(mut self, settings: Settings<S, C, R, A>) -> Self {
+        self.settings = Some(settings);
         self
     }
 
@@ -806,21 +802,28 @@ where
         // which clock this run defaults to and the plan owns the transport from
         // there on.
         let networked = self.networked();
+        // Either what a caller overrode or what the player has set. Read here
+        // rather than in the builder, because reading a file is something a run
+        // does and not something a `new` does.
+        let settings = match self.settings.take() {
+            Some(settings) => settings,
+            None => Settings::load(S::NAME)?,
+        };
         let (plan, capture) = self.prepare()?;
 
         #[cfg(feature = "window")]
         if self.windowed {
-            return self.run_windowed(plan, capture);
+            return self.run_windowed(plan, capture, settings);
         }
 
         let clock = self.chosen_clock(networked);
 
         #[cfg(feature = "render")]
         if let Some(size) = self.offscreen {
-            return self.run_offscreen(plan, capture, clock, size);
+            return self.run_offscreen(plan, capture, clock, size, settings);
         }
 
-        self.run_headless(plan, capture, clock)
+        self.run_headless(plan, capture, clock, settings)
     }
 
     /// Whether this run has another machine in it.
@@ -943,6 +946,7 @@ where
         mut self,
         plan: Plan<S>,
         capture: Option<Capture>,
+        settings: Settings<S, C, R, A>,
     ) -> Result<Outcome<S>, Error> {
         // the snapshot from the window's devices every frame, and what a
         // binding table is written against is which actions exist.
@@ -977,9 +981,10 @@ where
             .bindings(bindings)
             .any_thread(self.any_thread);
         let pending = crate::windowed::Pending::<S, C, R, A> {
-            controls: self.controls,
-            graphics: self.graphics,
-            audio: self.audio,
+            controls: settings.controls.clone(),
+            graphics: settings.graphics.clone(),
+            audio: settings.audio.clone(),
+            settings,
             plan,
             capture,
             rate: self.rate,
@@ -1016,6 +1021,7 @@ where
         capture: Option<Capture>,
         clock: Box<dyn Elapsed>,
         size: corvid_render::Extent,
+        settings: Settings<S, C, R, A>,
     ) -> Result<Outcome<S>, Error> {
         let renderer = corvid_render::Renderer::offscreen(size).map_err(Error::Drew)?;
         // The pipelines are built here because here is where the device
@@ -1024,16 +1030,17 @@ where
             renderer.device(),
             renderer.queue(),
             renderer.format(),
-            self.graphics,
+            settings.graphics.clone(),
         );
         // `false`: this is the offscreen path, which has an adapter and no
         // window. Nobody is in front of it, so nothing opens a sound card.
         Runtime::new(
             plan,
             crate::screen::Screen::new(renderer, capture, false),
-            C::new(self.controls),
+            C::new(settings.controls.clone()),
             Some(graphics),
-            A::new(self.audio),
+            A::new(settings.audio.clone()),
+            settings,
         )?
         .drive(clock, Step::new(self.rate))
     }
@@ -1048,17 +1055,19 @@ where
         plan: Plan<S>,
         capture: Option<Capture>,
         clock: Box<dyn Elapsed>,
+        settings: Settings<S, C, R, A>,
     ) -> Result<Outcome<S>, Error> {
         // pipelines against and no renderer to hold. `None` is that, said
         // plainly, rather than a renderer built from a device that is not
         // there.
-        drop(self.graphics);
+        drop(settings.graphics.clone());
         Runtime::new(
             plan,
             Headless::new(capture),
-            C::new(self.controls),
+            C::new(settings.controls.clone()),
             Option::<R>::None,
-            A::new(self.audio),
+            A::new(settings.audio.clone()),
+            settings,
         )?
         .drive(clock, Step::new(self.rate))
     }
@@ -1295,6 +1304,20 @@ pub enum Error {
          no ticks"
     )]
     NeverOpened,
+    /// The settings file is there and is not this game's settings.
+    ///
+    /// A refusal rather than a fall back to the defaults, for the reason
+    /// [`Bound`](Self::Bound) is one: starting over would silently discard
+    /// whatever the player had set, and what they would see is every control
+    /// back where it started with nothing saying why.
+    #[error("{} is not this game's settings: {why}", path.display())]
+    Setting {
+        /// Which file.
+        path: PathBuf,
+        /// What could not be read out of it.
+        #[source]
+        why: serde_json::Error,
+    },
     /// Something could not be encoded on the way into a capture.
     #[error("{what} could not be encoded: {why}")]
     Encoded {

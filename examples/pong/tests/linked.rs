@@ -161,7 +161,10 @@ fn play(seat: u16, transport: Box<dyn Transport>) -> Result<Outcome<Table>, corv
         .clock(Clock::stepping(RATE.period()))
         .transport(transport)
         .input(Input::new(action::SETS))
-        .controls(if seat == 0 { 11 } else { 7 })
+        .settings(corvid::Settings {
+            controls: if seat == 0 { 11 } else { 7 },
+            ..corvid::Settings::default()
+        })
         .for_ticks(TICKS)
         .retain(corvid::Retention::Everything)
         .run()
@@ -277,7 +280,10 @@ fn a_run_with_no_transport_is_unchanged() -> Fallible {
             .seat(PlayerId(seat))
             .clock(Clock::stepping(RATE.period()))
             .input(Input::new(action::SETS))
-            .controls(if seat == 0 { 11 } else { 7 })
+            .settings(corvid::Settings {
+                controls: if seat == 0 { 11 } else { 7 },
+                ..corvid::Settings::default()
+            })
             .for_ticks(200)
             .retain(corvid::Retention::Everything)
             .run()

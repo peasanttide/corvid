@@ -122,7 +122,10 @@ fn draw_into(into: &Path) -> Result<bool, Box<dyn std::error::Error>> {
         .seat(PlayerId(0))
         .clock(Clock::stepping(RATE.period()))
         .input(Input::new(action::SETS))
-        .controls(20)
+        .settings(corvid::Settings {
+            controls: 20,
+            ..corvid::Settings::default()
+        })
         .offscreen(SIZE)
         .capture(into.to_path_buf())
         .retain(Retention::Everything)

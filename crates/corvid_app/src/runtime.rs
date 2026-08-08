@@ -21,7 +21,7 @@ use corvid_time::Duration;
 use corvid_time::{Elapsed, Step, Tick};
 
 use crate::{
-    Error, Outcome, Progress, Retention,
+    Error, Outcome, Progress, Retention, Settings,
     app::Stop,
     backend::{Backend, Frame},
     commands::{Answer, Sink},
@@ -165,7 +165,7 @@ enum Flow {
 /// are handles because that is what a [`Frame`] holds: building one is four
 /// atomic increments and no copy of a state, which is what makes it affordable
 /// to build one per call rather than once per displayed frame.
-pub(crate) struct Runtime<S: State, C, R, A, B> {
+pub(crate) struct Runtime<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B> {
     /// The session being played, which is the run's whole output, and whoever
     /// is playing it.
     play: Play<S>,
@@ -224,6 +224,10 @@ pub(crate) struct Runtime<S: State, C, R, A, B> {
     progress: Option<Emitter<Progress>>,
     /// How far back the session is kept.
     horizon: Horizon<S>,
+    /// What the player has set, as it stands. Compared against what the
+    /// controller answers after every displayed frame, and written down when
+    /// the two differ.
+    settings: Settings<S, C, R, A>,
 }
 
 impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>>
@@ -244,12 +248,44 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
     /// Only a linked run has one: [`Error::Halted`] if the state a `--load` or
     /// a `--replay` resumed at is one the peer will not adopt, which is a tick
     /// outside the session it was handed.
+    /// Writes the settings file when the controller says its config has moved.
+    ///
+    /// [`Controller::config`](corvid_control::Controller::config) answers
+    /// [`None`] unless a controller edits its own config, which almost none do —
+    /// so the ordinary cost of this per displayed frame is one method call
+    /// returning nothing. Only a controller that answered [`Some`] pays for the
+    /// comparison, and only a controller whose answer *changed* pays for the
+    /// write.
+    ///
+    /// A refused write is dropped rather than ending a run that is otherwise
+    /// fine: a full disk is a reason not to keep somebody's new key binding and
+    /// not a reason to stop the game they are playing. It is reported, because a
+    /// setting that silently did not save is the failure this is not allowed to
+    /// have.
+    fn persist_settings(&mut self) {
+        let Some(config) = self.controller.config() else {
+            return;
+        };
+        if config == self.settings.controls {
+            return;
+        }
+        self.settings.controls = config;
+        if let Err(why) = self.settings.save(S::NAME) {
+            tracing::warn!(
+                name: "corvid_app.unsaved",
+                %why,
+                "the player's settings changed and could not be written down",
+            );
+        }
+    }
+
     pub(crate) fn new(
         mut plan: Plan<S>,
         backend: B,
         controller: C,
         graphics: Option<R>,
         ear: A,
+        settings: Settings<S, C, R, A>,
     ) -> Result<Self, Error> {
         let resumed = plan.resumed.take();
         let (at, state) = resumed
@@ -311,6 +347,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
             deadline: plan.deadline,
             progress: plan.progress,
             horizon,
+            settings,
         })
     }
 
@@ -847,6 +884,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         let time = self.now();
         self.controller
             .update(&self.current, &self.input, None, time, dt);
+        self.persist_settings();
         let camera = self.controller.look();
 
         // Extracted once per displayed frame, for the settled newest state —

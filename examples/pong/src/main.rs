@@ -90,7 +90,10 @@ fn main() -> corvid::Result {
         // A controller's configuration rather than a feed of input snapshots:
         // answering with an action per tick is what a controller is for, and a
         // scripted player is one whose answer does not depend on a device.
-        .controls(ours.bot.then_some(ours.seat));
+        .settings(corvid::Settings {
+            controls: ours.bot.then_some(ours.seat),
+            ..corvid::Settings::default()
+        });
 
     #[cfg(feature = "net")]
     let app = match socket(&ours)? {

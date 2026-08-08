@@ -26,6 +26,9 @@ use corvid_window::{Attached, Flow, Host, SurfaceState};
 /// ingredients wait here and become a [`Runtime`] in
 /// [`attach`](Host::attach).
 pub(crate) struct Pending<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> {
+    /// What the player has set, carried whole so that the runtime can write it
+    /// back when a controller edits it.
+    pub(crate) settings: crate::Settings<S, C, R, A>,
     /// What the three client-side types are built from, once the window and
     /// the device exist. Configs rather than instances, because only the event
     /// loop knows when that is.
@@ -163,6 +166,7 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Host for Windowe
             C::new(pending.controls),
             Some(graphics),
             A::new(pending.audio),
+            pending.settings,
         )?);
         Ok(Flow::Go)
     }
