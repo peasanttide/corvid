@@ -88,7 +88,7 @@ pub struct Progress {
 /// exist: an unhandled request would otherwise be a `tracing` warning and
 /// nothing a test could assert on.
 pub struct Outcome<S: State> {
-    /// The session the run totals, which is everything needed to replay **what
+    /// The session the run played, which is everything needed to replay **what
     /// it still holds**.
     ///
     /// A run keeps a window of its own history by default and lets go of what
@@ -590,7 +590,7 @@ where
     ///
     /// This is the seam a **scripted** run needs, and there was no other one. A
     /// windowed run is refilled from the window once per displayed frame; a run
-    /// without a window totals the whole way through on the single snapshot
+    /// without a window played the whole way through on the single snapshot
     /// [`input`](Self::input) was given, which is a player holding the same keys
     /// from the first tick to the last. So the things a person does — point at a
     /// button, press it, let go, press escape — could be written down against
@@ -823,10 +823,6 @@ where
     /// the action log refuses a write, and [`Error::Wrote`] or
     /// [`Error::Encoded`] if a capture cannot be written. A run with a device
     /// adds [`Error::Drew`], and a windowed one adds [`Error::NoWindow`].
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one function choosing between four backends is the shape the choice has; splitting it would put each arm behind a name that says less than the arm does"
-    )]
     pub fn run(mut self) -> Result<Outcome<S>, Error> {
         // The one setting applied here rather than where it was written, so
         // that an operator's flag beats a builder call made after it. Taken
@@ -836,13 +832,54 @@ where
             self = self.apply(arguments);
         }
 
-        let opening = self.opening.take().ok_or(Error::Unopened)?;
-        let saves = Saves::resolve(self.saves.take(), S::NAME);
-        // Read before the plan below takes the transport, because it decides
+        // Read before `prepare` below takes the transport, because it decides
         // which clock this run defaults to and the plan owns the transport from
         // there on.
+        let networked = self.networked();
+        let (plan, capture) = self.prepare()?;
+
+        #[cfg(feature = "window")]
+        if self.windowed {
+            return self.run_windowed(plan, capture);
+        }
+
+        let clock = self.chosen_clock(networked);
+
+        #[cfg(feature = "render")]
+        if let Some(size) = self.offscreen {
+            return self.run_offscreen(plan, capture, clock, size);
+        }
+
+        self.run_headless(plan, capture, clock)
+    }
+
+    /// Whether this run has another machine in it.
+    ///
+    /// Read while the transport is still on the builder — [`prepare`](Self::prepare)
+    /// moves it into the [`Plan`] — because it is what
+    /// [`clock`](Self::clock) defaults on.
+    const fn networked(&self) -> bool {
         #[cfg(feature = "net")]
-        let networked = self.transport.is_some();
+        {
+            self.transport.is_some()
+        }
+        #[cfg(not(feature = "net"))]
+        {
+            false
+        }
+    }
+
+    /// Everything a run needs that does not depend on which backend it gets:
+    /// the session, the seat it is played from, the capture, and the plan the
+    /// runtime is driven by.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Unopened`], [`Error::Shape`], [`Error::Seat`], and whatever
+    /// opening a capture directory or reading a save reported.
+    fn prepare(&mut self) -> Result<(Plan<S>, Option<Capture>), Error> {
+        let opening = self.opening.take().ok_or(Error::Unopened)?;
+        let saves = Saves::resolve(self.saves.take(), S::NAME);
 
         let (session, resumed) = self.open(opening, &saves)?;
 
@@ -897,112 +934,152 @@ where
             saves,
             resumed,
         };
+        Ok((plan, capture))
+    }
 
-        #[cfg(feature = "window")]
-        if self.windowed {
-            // The *declaration* rather than the values: a windowed run refills
-            // the snapshot from the window's devices every frame, and what a
-            // binding table is written against is which actions exist.
-            let declaration = plan.input.sets();
-            if declaration.is_empty() {
-                // Not an error, because a game with genuinely no actions is a
-                // legal thing to run and refusing it here would be this call
-                // deciding that for it. Said out loud, because the alternative
-                // is a window that opens, draws, and answers every input query
-                // with `RELEASED` for the rest of the run with nothing anywhere
-                // pointing at the missing line.
-                tracing::warn!(
-                    name: "corvid_app.undeclared",
-                    "this run declares no action sets, so the window binds no key \
-                     and no axis and every input query will read released; a \
-                     windowed run wants `App::input` for its declaration even \
-                     though the values are refilled from the devices",
-                );
-            }
-            // The table this run is bound by, in the order the three sources
-            // beat each other: the game's own `Present::bindings` is the
-            // author's answer, `App::bindings` is a harness overriding it for
-            // one run, and the player's file beats both — which is what makes
-            // it a rebinding rather than a suggestion.
-            let shipped = self
-                .bindings
-                .take()
-                .unwrap_or_else(|| corvid_input::platform::Bindings::placeholder(declaration));
-            let bindings = crate::controls::resolve(plan.saves.root(), declaration, shipped)?;
-            let config = corvid_window::Config::new(S::NAME, declaration)
-                .icon(None)
-                .bindings(bindings)
-                .any_thread(self.any_thread);
-            let pending = crate::windowed::Pending::<S, C, R, A> {
-                controls: self.controls,
-                graphics: self.graphics,
-                audio: self.audio,
-                plan,
-                capture,
-                rate: self.rate,
-                // A window runs in front of a player, so the default clock is
-                // the wall. A `Fake` here would run the simulation at whatever
-                // rate the display asked for frames.
-                clock: self
-                    .clock
-                    .take()
-                    .unwrap_or_else(|| Box::new(corvid_time::Clock::wall())),
-            };
-            let host = corvid_window::run(
-                config,
-                crate::windowed::Windowed::<S, C, R, A>::new(pending),
-            )
-            .map_err(|why| match why {
-                corvid_window::Error::Opening(opening) => Error::NoWindow(opening),
-                corvid_window::Error::Host(why) => why,
-            })?;
-            return host.into_outcome();
-        }
-
-        // The default is one *tick period* per reading and not one period of
-        // some other rate: a clock that stepped faster or slower than the rate
-        // it is paired with would owe the loop a number of ticks per reading
-        // that is not one, which is the whole of what makes a headless run a
-        // sequence of endpoint states. `tests/headless.rs` pins it against the
-        // substitution.
-        let clock = self.clock.take().unwrap_or_else(|| {
+    /// The clock this run reads real time from, or the one that stands in for
+    /// it — whichever [`clock`](Self::clock) was given, or the default below.
+    ///
+    /// The default is one *tick period* per reading and not one period of some
+    /// other rate: a clock that stepped faster or slower than the rate it is
+    /// paired with would owe the loop a number of ticks per reading that is not
+    /// one, which is the whole of what makes a headless run a sequence of
+    /// endpoint states. `tests/headless.rs` pins it against the substitution.
+    fn chosen_clock(&mut self, networked: bool) -> Box<dyn Elapsed> {
+        self.clock.take().unwrap_or_else(|| {
             // A run with other machines in it keeps real time, because they do.
-            // The `Fake` below is what makes a headless run a sequence of
+            // A stepping clock is what makes a headless run a sequence of
             // endpoint states — one tick per reading, as fast as the processor
             // allows — and a peer pacing itself that way spends every tick it
             // is ahead of the session spinning against a frontier that only
             // moves when a *real* second has passed on somebody else's machine.
             // It converges either way; it converges having burned a core.
-            #[cfg(feature = "net")]
             if networked {
                 return Box::new(corvid_time::Clock::wall()) as Box<dyn Elapsed>;
             }
             Box::new(Clock::stepping(self.rate.period()))
-        });
-        #[cfg(feature = "render")]
-        if let Some(size) = self.offscreen {
-            let renderer = corvid_render::Renderer::offscreen(size).map_err(Error::Drew)?;
-            // The pipelines are built here because here is where the device
-            // is, which is the whole of what `Setup` used to be for.
-            let graphics = R::new(
-                renderer.device(),
-                renderer.queue(),
-                renderer.format(),
-                self.graphics,
-            );
-            // `false`: this is the offscreen path, which has an adapter and no
-            // window. Nobody is in front of it, so nothing opens a sound card.
-            return Runtime::new(
-                plan,
-                crate::screen::Screen::new(renderer, capture, false),
-                C::new(self.controls),
-                Some(graphics),
-                A::new(self.audio),
-            )?
-            .drive(clock, Step::new(self.rate));
-        }
+        })
+    }
 
-        // A headless run opens no device, so there is nothing to build
+    /// A run with a window: the binding table is resolved, the platform is
+    /// handed an event loop, and the loop runs inside it.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Bound`] for a binding file that cannot be used,
+    /// [`Error::NoWindow`] if the platform would not give us one, and whatever
+    /// the run itself reported.
+    #[cfg(feature = "window")]
+    fn run_windowed(
+        mut self,
+        plan: Plan<S>,
+        capture: Option<Capture>,
+    ) -> Result<Outcome<S>, Error> {
+        // the snapshot from the window's devices every frame, and what a
+        // binding table is written against is which actions exist.
+        let declaration = plan.input.sets();
+        if declaration.is_empty() {
+            // Not an error, because a game with genuinely no actions is a
+            // legal thing to run and refusing it here would be this call
+            // deciding that for it. Said out loud, because the alternative
+            // is a window that opens, draws, and answers every input query
+            // with `RELEASED` for the rest of the run with nothing anywhere
+            // pointing at the missing line.
+            tracing::warn!(
+                name: "corvid_app.undeclared",
+                "this run declares no action sets, so the window binds no key \
+                 and no axis and every input query will read released; a \
+                 windowed run wants `App::input` for its declaration even \
+                 though the values are refilled from the devices",
+            );
+        }
+        // The table this run is bound by, in the order the three sources
+        // beat each other: the game's own `Present::bindings` is the
+        // author's answer, `App::bindings` is a harness overriding it for
+        // one run, and the player's file beats both — which is what makes
+        // it a rebinding rather than a suggestion.
+        let shipped = self
+            .bindings
+            .take()
+            .unwrap_or_else(|| corvid_input::platform::Bindings::placeholder(declaration));
+        let bindings = crate::controls::resolve(plan.saves.root(), declaration, shipped)?;
+        let config = corvid_window::Config::new(S::NAME, declaration)
+            .icon(None)
+            .bindings(bindings)
+            .any_thread(self.any_thread);
+        let pending = crate::windowed::Pending::<S, C, R, A> {
+            controls: self.controls,
+            graphics: self.graphics,
+            audio: self.audio,
+            plan,
+            capture,
+            rate: self.rate,
+            // A window runs in front of a player, so the default clock is
+            // the wall. A `Fake` here would run the simulation at whatever
+            // rate the display asked for frames.
+            clock: self
+                .clock
+                .take()
+                .unwrap_or_else(|| Box::new(corvid_time::Clock::wall())),
+        };
+        let host = corvid_window::run(
+            config,
+            crate::windowed::Windowed::<S, C, R, A>::new(pending),
+        )
+        .map_err(|why| match why {
+            corvid_window::Error::Opening(opening) => Error::NoWindow(opening),
+            corvid_window::Error::Host(why) => why,
+        })?;
+        host.into_outcome()
+    }
+
+    /// A run with an adapter and no window, which is what writes pictures on a
+    /// build machine.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Drew`] if the device would not open, and whatever the run
+    /// itself reported.
+    #[cfg(feature = "render")]
+    fn run_offscreen(
+        self,
+        plan: Plan<S>,
+        capture: Option<Capture>,
+        clock: Box<dyn Elapsed>,
+        size: corvid_render::Extent,
+    ) -> Result<Outcome<S>, Error> {
+        let renderer = corvid_render::Renderer::offscreen(size).map_err(Error::Drew)?;
+        // The pipelines are built here because here is where the device
+        // is, which is the whole of what `Setup` used to be for.
+        let graphics = R::new(
+            renderer.device(),
+            renderer.queue(),
+            renderer.format(),
+            self.graphics,
+        );
+        // `false`: this is the offscreen path, which has an adapter and no
+        // window. Nobody is in front of it, so nothing opens a sound card.
+        Runtime::new(
+            plan,
+            crate::screen::Screen::new(renderer, capture, false),
+            C::new(self.controls),
+            Some(graphics),
+            A::new(self.audio),
+        )?
+        .drive(clock, Step::new(self.rate))
+    }
+
+    /// A run with no device at all.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the run reported.
+    fn run_headless(
+        self,
+        plan: Plan<S>,
+        capture: Option<Capture>,
+        clock: Box<dyn Elapsed>,
+    ) -> Result<Outcome<S>, Error> {
         // pipelines against and no renderer to hold. `None` is that, said
         // plainly, rather than a renderer built from a device that is not
         // there.
@@ -1107,7 +1184,7 @@ pub enum Error {
     /// No [`opening`](App::opening) was given.
     #[error("this app has no opening, and nothing can invent a game's opening state for it")]
     Unopened,
-    /// The [`seat`](App::seat) is not one the roster of the session being totals
+    /// The [`seat`](App::seat) is not one the roster of the session being played
     /// has.
     ///
     /// A run with nobody in the seat it submits for would record its actions
@@ -1245,7 +1322,7 @@ pub enum Error {
     /// loop was told to exit before it started.
     #[cfg(feature = "window")]
     #[error(
-        "the event loop ended before the platform ever gave us a window, so this run totals \
+        "the event loop ended before the platform ever gave us a window, so this run played \
          no ticks"
     )]
     NeverOpened,

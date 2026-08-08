@@ -162,7 +162,7 @@ struct Transfer<S: State> {
 /// digest of its state every tick, they would report each other as *desynced*
 /// while they were merely uninformed. Keeping the earliest proposal fixes the
 /// end state and not the middle: the machine that guessed later would have
-/// totals, sent and been judged on ticks nobody else agreed with.
+/// played, sent and been judged on ticks nobody else agreed with.
 ///
 /// So nothing is applied until everybody still here has said what they think.
 /// Each machine proposes a tick, hears the others', and applies the **minimum
@@ -356,7 +356,7 @@ impl<S: State> Link<S> {
         }
     }
 
-    /// The session being totals, which the peer owns.
+    /// The session being played, which the peer owns.
     pub(crate) const fn session(&self) -> &Session<S> {
         &self.peer.session
     }
