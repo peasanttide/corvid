@@ -27,7 +27,7 @@ const TICKS: u64 = 10;
 /// An opening with a seat for this client and a seat for a bot.
 ///
 /// The fixture's own opening seats one profile, which is a game nobody can be
-/// bottled into: there would be no seat left over. The second is pushed on here
+/// botted into: there would be no seat left over. The second is pushed on here
 /// rather than in `common`, because two seats is what *these* tests need and the
 /// rest of them are written against one.
 fn two_seats() -> Opening<Tally> {

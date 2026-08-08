@@ -29,7 +29,7 @@ pub(crate) struct Pending<G: Game> {
     /// What the player has set, carried whole so that the runtime can write it
     /// back when a controller edits it.
     pub(crate) settings: crate::Settings<G>,
-    /// What the three client-side types are built from, once the window and
+    /// What the four client-side types are built from, once the window and
     /// the device exist. Configs rather than instances, because only the event
     /// loop knows when that is.
     pub(crate) controls: ControllerConfig<G>,

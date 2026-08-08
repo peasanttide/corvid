@@ -535,7 +535,8 @@ nothing.
 seat per tick, with `Acting::seat` naming which, and the answers go into the
 same row of the log as this client's. Seats are taken in roster order and the
 one this client is *playing* is skipped; a spectator plays nobody, so it skips
-nothing and `--spectator` with two bots fills both seats of a two-seat game.
+nothing and [`App::spectating`] with `bots(2)` fills both seats of a two-seat
+game.
 Asking for more bots than the roster has fills the seats there are.
 
 Bots and a transport together are [`Error::BotsAndPeers`]. A controller is no

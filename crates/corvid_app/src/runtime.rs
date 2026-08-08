@@ -45,9 +45,9 @@ pub(crate) struct Plan<S: State> {
     pub(crate) seating: Seating,
     /// The seats the game's bot plays, in roster order.
     ///
-    /// Empty for every run that did not ask for any, which is what keeps a run
-    /// with no bots the run it was before there were any: nothing is asked of
-    /// the bot and nothing is written.
+    /// Empty for every run that did not ask for any, and that is the whole of
+    /// what such a run pays: nothing is asked of the bot and nothing is
+    /// written.
     pub(crate) bots: Vec<PlayerId>,
     /// The transport the other machines are behind, for a run that has any.
     ///

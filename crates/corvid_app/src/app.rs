@@ -543,8 +543,9 @@ where
     ///
     /// Bots take roster seats in order, skipping the seat this client is
     /// [`Playing`](crate::Seating::Playing). A spectator skips nothing: it
-    /// watches a seat it does not play, so `--spectator --bots 2` fills both
-    /// seats of a two-seat game and the run is one this client only watches.
+    /// watches a seat it does not play, so [`spectating`](Self::spectating)
+    /// with `bots(2)` fills both seats of a two-seat game and the run is one
+    /// this client only watches.
     ///
     /// Asking for more bots than there are seats fills the seats there are,
     /// because the number a caller wants and the number a roster has are two
