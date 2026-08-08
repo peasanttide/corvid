@@ -6,7 +6,7 @@ use corvid_control::Controller;
 use corvid_render::Render;
 use corvid_replay::LevelRef;
 use corvid_sound::Auralizer;
-use std::{fmt, mem, sync::Arc};
+use std::{mem, sync::Arc};
 
 use corvid_behavior::{ExitCode, Player, PlayerId, SaveSlot, Time};
 use corvid_fixed::Factor16;
@@ -28,41 +28,6 @@ use crate::{
     saves::{Saves, StateAt},
 };
 use corvid_behavior::State;
-
-/// What a run reads its devices with when there are no devices.
-///
-/// [`App::inputs`](crate::App::inputs) is what fills one in, and its
-/// documentation is where the reason lives. In short: a windowed run is refilled
-/// once per displayed frame by the window, and without this a run with no window
-/// plays the whole way through on one snapshot — so a menu press, a click and a
-/// release cannot be written down in a test at all.
-///
-/// A newtype rather than the alias it used to be, for the reason
-/// [`Stop`](crate::app::Stop) is one: the two structs that hold a feed derive
-/// [`Debug`], and a boxed closure has none.
-pub(crate) struct Feed(Source);
-
-/// The boxed closure a [`Feed`] wraps, named for the reason
-/// [`Stop`](crate::app::Stop)'s is.
-type Source = Box<dyn FnMut(Tick) -> Input>;
-
-impl Feed {
-    /// Boxes a caller's source of frames.
-    pub(crate) fn new(source: impl FnMut(Tick) -> Input + 'static) -> Self {
-        Self(Box::new(source))
-    }
-
-    /// What the devices say at `at`.
-    pub(crate) fn read(&mut self, at: Tick) -> Input {
-        (self.0)(at)
-    }
-}
-
-impl fmt::Debug for Feed {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Feed(<source>)")
-    }
-}
 
 /// Everything a run is, before it has a backend to display itself on.
 ///
@@ -102,7 +67,6 @@ pub(crate) struct Plan<S: State> {
     pub(crate) saves: Saves,
     /// What the devices say, frame by frame, for a run whose caller is
     /// standing in for a player.
-    pub(crate) feed: Option<Feed>,
     /// The tick the run opens at and the state there, for a run that was handed
     /// a session rather than starting one.
     ///
@@ -241,7 +205,6 @@ pub(crate) struct Runtime<S: State, C, R, A, B> {
     /// What the devices say, frame by frame, where a caller is standing in for
     /// a player. [`None`] for a windowed run, which is refilled by the window,
     /// and for a run whose snapshot never changes.
-    feed: Option<Feed>,
     /// The one audio frame, kept for the life of the run and refilled per
     /// frame.
     audio: AudioFrame,
@@ -340,7 +303,6 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
             at,
             input: plan.input,
             unspent: None,
-            feed: plan.feed,
             audio: AudioFrame::new(),
             backend,
             sink: Sink::default(),
@@ -461,13 +423,6 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
     /// rather than an edge, so writing the current value over each of them is
     /// the whole of keeping them in step.
     fn read_devices(&mut self) {
-        if let Some(feed) = self.feed.as_mut() {
-            let fresh = feed.read(self.at);
-            self.input.clone_from(&fresh);
-            self.unspent
-                .get_or_insert_with(|| Input::new(fresh.sets()))
-                .absorb(&fresh);
-        }
         let viewport = self.backend.viewport();
         self.input.set_viewport(viewport);
         if let Some(unspent) = self.unspent.as_mut() {

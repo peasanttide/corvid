@@ -145,7 +145,6 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>> Host for Windowe
         // layer and two of them would be two answers about one keyboard.
         let plan = Plan {
             input: Input::new(&[]),
-            feed: None,
             ..pending.plan
         };
         // The pipelines are built here, which is the one place they can be:

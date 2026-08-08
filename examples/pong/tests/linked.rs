@@ -23,13 +23,13 @@ use std::{thread, time::Duration};
 
 use corvid::Input;
 use corvid::digest;
-use corvid::{App, Outcome};
+use corvid::{App, Camera, Controller, Loading, Outcome, SetDescriptor, Time};
 
 use corvid::PlayerId;
 
 use corvid::{Clock, Tick};
 use corvid_net::{MockNet, PeerId, Schedule, Transport};
-use pong::{Hands, Move, RATE, Table, action, opening};
+use pong::{Move, RATE, Table, action, opening};
 
 /// Whatever the test needs to say went wrong.
 type Fallible = Result<(), Box<dyn std::error::Error>>;
@@ -101,29 +101,57 @@ impl Drop for Ticking {
     }
 }
 
-/// What one seat holds down, tick by tick.
+/// A paddle that moves on a fixed period, so a later frame is not an earlier
+/// one.
 ///
-/// A function of the tick alone, so both peers' input is decided before either
-/// runs and the session's outcome does not depend on which thread got there
-/// first. The two seats hold different patterns, which is what makes each one's
-/// prediction of the other wrong often enough to matter.
-fn pressing(seat: u16) -> impl FnMut(Tick) -> Input {
-    move |at| {
-        let mut input = Input::new(action::SETS);
-        let period = if seat == 0 { 11 } else { 7 };
-        let held = if at.0 % period < period / 2 {
-            action::UP
+/// Its own controller rather than `pong::Hands`'s scripted mode, because the
+/// period here is this test's and not the game's: `Hands` scripts from the seat,
+/// which is what `--bot` wants and not what a test asserting on pictures wants.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Metronome {
+    /// How many ticks a full up-and-down cycle takes.
+    period: u64,
+}
+
+impl Controller<Table> for Metronome {
+    type Config = u64;
+
+    const SETS: &'static [SetDescriptor] = action::SETS;
+
+    fn new(period: u64) -> Self {
+        Self { period }
+    }
+
+    fn configure(&mut self, period: u64) {
+        self.period = period;
+    }
+
+    fn action(&self, _state: &Table, _input: &Input, time: Time) -> Move {
+        if time.tick.0 % self.period < self.period / 2 {
+            Move::Up
         } else {
-            action::DOWN
-        };
-        input.set_digital(held, corvid::Digital::HELD);
-        input
+            Move::Down
+        }
+    }
+
+    fn update(
+        &mut self,
+        _state: &Table,
+        _input: &Input,
+        _loading: Option<Loading<'_, pong::Level>>,
+        _time: Time,
+        _dt: Duration,
+    ) {
+    }
+
+    fn look(&self) -> Camera {
+        Camera::default()
     }
 }
 
 /// Plays one seat over one endpoint, headless, at this game's rate.
 fn play(seat: u16, transport: Box<dyn Transport>) -> Result<Outcome<Table>, corvid::Error> {
-    App::<Table, Hands>::new()
+    App::<Table, Metronome>::new()
         .opening(opening())
         .rate(RATE)
         .seat(PlayerId(seat))
@@ -133,7 +161,7 @@ fn play(seat: u16, transport: Box<dyn Transport>) -> Result<Outcome<Table>, corv
         .clock(Clock::stepping(RATE.period()))
         .transport(transport)
         .input(Input::new(action::SETS))
-        .inputs(pressing(seat))
+        .controls(if seat == 0 { 11 } else { 7 })
         .for_ticks(TICKS)
         .retain(corvid::Retention::Everything)
         .run()
@@ -243,13 +271,13 @@ fn two_runtimes_over_one_link_agree() -> Fallible {
 #[test]
 fn a_run_with_no_transport_is_unchanged() -> Fallible {
     let alone = |seat: u16| {
-        App::<Table, Hands>::new()
+        App::<Table, Metronome>::new()
             .opening(opening())
             .rate(RATE)
             .seat(PlayerId(seat))
             .clock(Clock::stepping(RATE.period()))
             .input(Input::new(action::SETS))
-            .inputs(pressing(seat))
+            .controls(if seat == 0 { 11 } else { 7 })
             .for_ticks(200)
             .retain(corvid::Retention::Everything)
             .run()

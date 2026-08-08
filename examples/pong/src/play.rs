@@ -63,20 +63,66 @@ pub const FLASH: f32 = 0.6;
 /// There is no camera: a court seen from above needs no eye to look through it,
 /// so `look` answers the default. What used to be the `View` — the flash after
 /// a goal — is the renderer's now, because a flash is a picture.
+///
+/// # The scripted paddle is this too, and not a second seam
+///
+/// `--bot`, and every test that needs a session with something happening in it,
+/// plays through a [`scripted`](Self::scripted) pair of hands: the same
+/// controller, answering from the tick number instead of from the keys. It is a
+/// mode here rather than a source of input snapshots a level up, because
+/// answering with an action per tick is the whole of what a controller is for
+/// — and because the binary chooses at run time, from a flag, which one type
+/// with two modes can do and two types cannot.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Hands;
+pub struct Hands {
+    /// Which seat to play automatically, or [`None`] for a person at a
+    /// keyboard.
+    scripted: Option<u16>,
+}
+
+impl Hands {
+    /// A paddle that plays `seat` from the tick number and ignores its input.
+    ///
+    /// A function of the tick alone, so nothing about a run of it depends on a
+    /// clock, a display or a scheduler: the same session comes out of a debug
+    /// build, a release build and a machine with one core. The two seats use
+    /// different periods so that neither peer can predict the other by assuming
+    /// it behaves as it does.
+    #[must_use]
+    pub const fn scripted(seat: u16) -> Self {
+        Self {
+            scripted: Some(seat),
+        }
+    }
+
+    /// What the script says at `at`, or [`None`] for hands that are somebody's.
+    const fn script(self, at: Tick) -> Option<Move> {
+        let Some(seat) = self.scripted else {
+            return None;
+        };
+        let period = if seat == 0 { 17 } else { 11 };
+        Some(if at.0 % period < period / 2 {
+            Move::Up
+        } else {
+            Move::Down
+        })
+    }
+}
 
 impl Controller<Table> for Hands {
-    type Config = ();
+    /// Which seat to play automatically, or [`None`] for a person.
+    type Config = Option<u16>;
 
     /// What this game can be asked to do.
     const SETS: &'static [corvid::SetDescriptor] = action::SETS;
 
-    fn new((): ()) -> Self {
-        Self
+    fn new(scripted: Option<u16>) -> Self {
+        Self { scripted }
     }
 
-    fn configure(&mut self, (): ()) {}
+    fn configure(&mut self, scripted: Option<u16>) {
+        self.scripted = scripted;
+    }
 
     /// And which control does which of them, before the player has edited the
     /// file.
@@ -94,7 +140,10 @@ impl Controller<Table> for Hands {
     /// Both directions held is [`Still`](Move::Still) rather than one of them
     /// winning, because a player rolling their hand across two keys should stop
     /// rather than lurch.
-    fn action(&self, _state: &Table, input: &corvid::Input, _time: Time) -> Move {
+    fn action(&self, _state: &Table, input: &corvid::Input, time: Time) -> Move {
+        if let Some(scripted) = self.script(time.tick) {
+            return scripted;
+        }
         match (
             input.digital(action::UP).held,
             input.digital(action::DOWN).held,

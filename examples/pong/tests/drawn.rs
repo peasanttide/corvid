@@ -26,9 +26,9 @@
 
 use std::path::Path;
 
-use corvid::App;
 use corvid::Input;
 use corvid::Retention;
+use corvid::{App, Camera, Controller, Duration, Loading, SetDescriptor, Time};
 
 use corvid::PlayerId;
 
@@ -36,7 +36,7 @@ use corvid::Extent;
 
 use corvid::Clock;
 use corvid_test::{Scratchpad, read_png};
-use pong::{Ears, Graphics, Hands, RATE, Table, action, opening};
+use pong::{Ears, Graphics, Move, RATE, Table, action, opening};
 
 /// Whatever the test needs to say went wrong.
 type Fallible = Result<(), Box<dyn std::error::Error>>;
@@ -66,24 +66,63 @@ const fn no_adapter(why: &corvid::Error) -> bool {
 
 /// Plays offscreen into `into`, or answers `false` if this machine has no
 /// adapter.
+///
+/// A paddle that moves on a fixed period, so a later frame is not an earlier
+/// one.
+///
+/// Its own controller rather than `pong::Hands`'s scripted mode, because the
+/// period here is this test's and not the game's: `Hands` scripts from the seat,
+/// which is what `--bot` wants and not what a test asserting on pictures wants.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Metronome {
+    /// How many ticks a full up-and-down cycle takes.
+    period: u64,
+}
+
+impl Controller<Table> for Metronome {
+    type Config = u64;
+
+    const SETS: &'static [SetDescriptor] = action::SETS;
+
+    fn new(period: u64) -> Self {
+        Self { period }
+    }
+
+    fn configure(&mut self, period: u64) {
+        self.period = period;
+    }
+
+    fn action(&self, _state: &Table, _input: &Input, time: Time) -> Move {
+        if time.tick.0 % self.period < self.period / 2 {
+            Move::Up
+        } else {
+            Move::Down
+        }
+    }
+
+    fn update(
+        &mut self,
+        _state: &Table,
+        _input: &Input,
+        _loading: Option<Loading<'_, pong::Level>>,
+        _time: Time,
+        _dt: Duration,
+    ) {
+    }
+
+    fn look(&self) -> Camera {
+        Camera::default()
+    }
+}
+
 fn draw_into(into: &Path) -> Result<bool, Box<dyn std::error::Error>> {
-    let played = App::<Table, Hands, Graphics, Ears>::new()
+    let played = App::<Table, Metronome, Graphics, Ears>::new()
         .opening(opening())
         .rate(RATE)
         .seat(PlayerId(0))
         .clock(Clock::stepping(RATE.period()))
         .input(Input::new(action::SETS))
-        .inputs(|at: corvid::Tick| {
-            // A paddle that moves, so a later frame is not an earlier one.
-            let mut input = Input::new(action::SETS);
-            let held = if at.0 % 20 < 10 {
-                action::UP
-            } else {
-                action::DOWN
-            };
-            input.set_digital(held, corvid::Digital::HELD);
-            input
-        })
+        .controls(20)
         .offscreen(SIZE)
         .capture(into.to_path_buf())
         .retain(Retention::Everything)

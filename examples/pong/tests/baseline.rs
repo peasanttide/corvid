@@ -22,8 +22,10 @@
 //! on a clock, a display or a scheduler: the same two numbers come out of a
 //! debug build, a release build and a machine with one core.
 
-use corvid::{App, Digital, Input, PlayerId, Tick};
-use pong::{Hands, RATE, Table};
+use corvid::{
+    App, Camera, Controller, Duration, Input, Loading, PlayerId, SetDescriptor, Tick, Time,
+};
+use pong::{Move, RATE, Table};
 
 /// How far back the compared digest is taken from.
 ///
@@ -36,32 +38,65 @@ const SETTLED: u64 = 20;
 
 /// The paddle `--bot` drives, as a function of the tick alone.
 ///
-/// Copied from `main.rs` rather than shared with it, deliberately: this test's
-/// whole job is to be a fixed point, and a fixed point that moves when the
-/// binary is refactored is not one.
-fn scripted(seat: u16) -> impl FnMut(Tick) -> Input {
-    move |at: Tick| {
-        let mut input = Input::new(pong::action::SETS);
-        let period = if seat == 0 { 17 } else { 11 };
-        let held = if at.0 % period < period / 2 {
-            pong::action::UP
+/// Written out here rather than shared with `pong::Hands`, deliberately: this
+/// test's whole job is to be a fixed point, and a fixed point that moves when
+/// the library is refactored is not one. It was a source of `Input` snapshots
+/// when this file was written and it is a controller now, which is exactly the
+/// kind of change it exists to be independent of — so it answers with the same
+/// `Move` for the same tick, by its own arithmetic, and the digests below say
+/// whether that is true.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Scripted {
+    /// Which seat it plays, which decides its period.
+    seat: u16,
+}
+
+impl Controller<Table> for Scripted {
+    type Config = u16;
+
+    const SETS: &'static [SetDescriptor] = pong::action::SETS;
+
+    fn new(seat: u16) -> Self {
+        Self { seat }
+    }
+
+    fn configure(&mut self, seat: u16) {
+        self.seat = seat;
+    }
+
+    fn action(&self, _state: &Table, _input: &Input, time: Time) -> Move {
+        let period = if self.seat == 0 { 17 } else { 11 };
+        if time.tick.0 % period < period / 2 {
+            Move::Up
         } else {
-            pong::action::DOWN
-        };
-        input.set_digital(held, Digital::HELD);
-        input
+            Move::Down
+        }
+    }
+
+    fn update(
+        &mut self,
+        _state: &Table,
+        _input: &Input,
+        _loading: Option<Loading<'_, pong::Level>>,
+        _time: Time,
+        _dt: Duration,
+    ) {
+    }
+
+    fn look(&self) -> Camera {
+        Camera::default()
     }
 }
 
 /// Plays `ticks` of pong with the scripted paddle, and answers the settled
 /// digest and the score.
 fn play(ticks: u64) -> (u64, [u16; 2]) {
-    let outcome = App::<Table, Hands>::new()
+    let outcome = App::<Table, Scripted>::new()
         .opening(pong::opening())
         .rate(RATE)
         .seat(PlayerId(0))
         .input(Input::new(pong::action::SETS))
-        .inputs(scripted(0))
+        .controls(0)
         .headless()
         .for_ticks(ticks)
         .run()

@@ -202,7 +202,6 @@ where
     input: Input,
     /// Where each frame's devices are read from, if a caller is standing in for
     /// a player. See [`inputs`](Self::inputs).
-    feed: Option<crate::runtime::Feed>,
     /// Where to write the run down, if anywhere.
     capture: Option<PathBuf>,
     /// How much of the session to keep, or [`None`] to let
@@ -275,7 +274,6 @@ where
             #[cfg(feature = "net")]
             budget: corvid_lockstep::Budget::DEFAULT,
             input: Input::new(&[]),
-            feed: None,
             capture: None,
             retention: None,
             arguments: None,
@@ -577,34 +575,6 @@ where
     #[must_use]
     pub fn input(mut self, input: Input) -> Self {
         self.input = input;
-        self
-    }
-
-    /// Where each frame's devices are read from, for a run with no devices.
-    ///
-    /// `source` is called once per reading of the clock, before the ticks that
-    /// reading owes, and is handed the tick the run is about to simulate. What
-    /// it answers is folded in exactly the way a window's reading is: levels
-    /// replace, edges and displacements accumulate until a tick spends them, so
-    /// a press that lands between two ticks reaches exactly one of them.
-    ///
-    /// This is the seam a **scripted** run needs, and there was no other one. A
-    /// windowed run is refilled from the window once per displayed frame; a run
-    /// without a window played the whole way through on the single snapshot
-    /// [`input`](Self::input) was given, which is a player holding the same keys
-    /// from the first tick to the last. So the things a person does — point at a
-    /// button, press it, let go, press escape — could be written down against
-    /// `look` and `intend` directly and not against a run.
-    ///
-    /// It replaces [`input`](Self::input)'s values from the first frame on. Its
-    /// *declaration* still matters and is still read from there, for the reason
-    /// a windowed run's is: the snapshot the loop folds into is sized from it.
-    ///
-    /// A windowed run ignores this, because the window is the device layer and
-    /// two of them would be two answers about the same keyboard.
-    #[must_use]
-    pub fn inputs(mut self, source: impl FnMut(Tick) -> Input + 'static) -> Self {
-        self.feed = Some(crate::runtime::Feed::new(source));
         self
     }
 
@@ -926,7 +896,6 @@ where
             #[cfg(feature = "net")]
             budget: self.budget,
             input: self.input.clone(),
-            feed: self.feed.take(),
             stop: self.stop.take(),
             deadline,
             progress: self.progress.take(),
