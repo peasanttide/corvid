@@ -60,6 +60,10 @@ jobs:
           echo "== corvid_float --features $feature"
           cargo build -p corvid_float --no-default-features --features "$feature"
         done
+        for feature in bytemuck mint std; do
+          echo "== corvid_glm --features $feature"
+          cargo build -p corvid_glm --no-default-features --features "$feature"
+        done
         # `corvid_hash`'s one feature switches nothing on — the crate never
         # reaches past `core`, and `std` is there so a downstream can forward it
         # uniformly across the workspace instead of special-casing one leaf. A
