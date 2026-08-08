@@ -22,7 +22,7 @@ use common::{Action, Ears, Hands, Painted, Rules, Scratchpad, Tally, opening, sc
 use corvid_app::App;
 use corvid_hash::digest;
 use corvid_replay::{HashTrace, Load, Schema, Session, Snapshots};
-use corvid_sound::AudioFrame;
+use corvid_sound::{AudioFrame, Hearing};
 use corvid_time::{Clock, Tick, TickSpan};
 
 /// How far the runs below play.
@@ -222,11 +222,11 @@ fn a_captured_audio_frame_is_the_one_the_extractor_produced_at_that_tick() {
             level: &session.opening.content,
             time: Time::default(),
         });
-        ears.hear(
-            &mut frame,
-            &corvid_camera::Camera::default(),
-            Time::default(),
-        );
+        ears.hear(Hearing {
+            out: &mut frame,
+            camera: &corvid_camera::Camera::default(),
+            time: Time::default(),
+        });
         frame
     };
 

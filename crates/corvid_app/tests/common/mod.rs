@@ -55,14 +55,14 @@ use std::{
 
 use corvid_behavior::{
     AchievementId, Command, ExitCode, Extract, Extracting, Player, PlayerId, Presence, ProfileId,
-    SaveSlot, Time,
+    SaveSlot,
 };
 use corvid_control::{Acting, Controller, Updating};
 use corvid_hash::{Digest, digest};
 use corvid_input::{Digital, Input};
 use corvid_replay::{Opening, Profile, Schema, Seed};
 use corvid_sound::Auralizer;
-use corvid_sound::{AudioFrame, Cue, Listener, SoundId, Source, SourceId};
+use corvid_sound::{Cue, Hearing, Listener, SoundId, Source, SourceId};
 use corvid_time::{Duration, Tick};
 use corvid_vector::FinePoint;
 use serde::{Deserialize, Serialize};
@@ -447,17 +447,19 @@ impl Auralizer<Tally> for Ears {
 
     fn configure(&mut self, (): ()) {}
 
-    fn hear(&mut self, out: &mut AudioFrame, camera: &corvid_camera::Camera, _time: Time) {
-        out.listen(Listener::new(camera.pose));
+    fn hear(&mut self, hearing: Hearing<'_>) {
+        hearing.out.listen(Listener::new(hearing.camera.pose));
 
         let voices = u32::try_from(self.count.rem_euclid(5)).unwrap_or(0) + 1;
         for voice in 0..voices {
-            out.source(Source::new(SourceId(VOICE.0 + voice), HUM).at(FinePoint::ZERO));
+            hearing
+                .out
+                .source(Source::new(SourceId(VOICE.0 + voice), HUM).at(FinePoint::ZERO));
         }
 
         if self.count != self.was {
-            let id = out.next_id(self.at);
-            out.cue(Cue::new(id, CHIME).at(FinePoint::ZERO));
+            let id = hearing.out.next_id(self.at);
+            hearing.out.cue(Cue::new(id, CHIME).at(FinePoint::ZERO));
         }
     }
 }

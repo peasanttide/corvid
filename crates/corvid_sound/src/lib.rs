@@ -16,7 +16,7 @@ mod frame;
 mod id;
 mod source;
 
-pub use auralizer::Auralizer;
+pub use auralizer::{Auralizer, Hearing};
 pub use bus::Bus;
 pub use cue::{Cue, CueId};
 pub use frame::{AudioFrame, Listener};

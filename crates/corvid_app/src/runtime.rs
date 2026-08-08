@@ -5,7 +5,7 @@ use crate::commands::Command;
 use corvid_control::{Acting, Controller, Updating};
 use corvid_render::Render;
 use corvid_replay::LevelRef;
-use corvid_sound::Auralizer;
+use corvid_sound::{Auralizer, Hearing};
 use std::{mem, sync::Arc};
 
 use corvid_behavior::{ExitCode, Extracting, Player, PlayerId, SaveSlot, Time};
@@ -912,7 +912,11 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         self.ear.extract(extracting);
 
         self.audio.clear();
-        self.ear.hear(&mut self.audio, &camera, time);
+        self.ear.hear(Hearing {
+            out: &mut self.audio,
+            camera: &camera,
+            time,
+        });
         // Nothing about the two states crosses this seam. The renderer already
         // holds whatever `extract` put in it; what goes over is the weight
         // between them.

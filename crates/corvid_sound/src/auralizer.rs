@@ -5,6 +5,21 @@ use corvid_camera::Camera;
 
 use crate::AudioFrame;
 
+/// What an ear is handed for one frame.
+///
+/// No type parameter: an ear reads the state through
+/// [`Extract`](corvid_behavior::Extract) and writes cues here, so nothing in
+/// this struct is the game's own type.
+#[derive(Debug)]
+pub struct Hearing<'a> {
+    /// The frame to write cues into.
+    pub out: &'a mut AudioFrame,
+    /// Where the listener is, which is where the eye is.
+    pub camera: &'a Camera,
+    /// Where the session is.
+    pub time: Time,
+}
+
 /// What a game sounds like, and how.
 ///
 /// One of the four types an [`App`](../corvid_app/struct.App.html) is made of,
@@ -46,8 +61,8 @@ pub trait Auralizer<S: State>: Extract<S> {
 
     /// Fill one frame of audio.
     ///
-    /// `camera` is whatever the controller's `look` answered, so the ears are
-    /// where the eye is without either being told twice.
+    /// `hearing.camera` is whatever the controller's `look` answered, so the
+    /// ears are where the eye is without either being told twice.
     ///
     /// # Every position written here is an offset in the listener's own frame
     ///
@@ -57,9 +72,9 @@ pub trait Auralizer<S: State>: Extract<S> {
     /// listener's frame**, in the workspace's right-handed +X right, +Y
     /// forward, +Z up convention. Neither type has a world-space position at
     /// all. The [`Listener`](crate::Listener) is the one thing in the frame
-    /// that is world-space — and `camera.pose` is exactly what it wants — so
-    /// this function is handed the ears and the sounds and does the subtraction
-    /// and the rotation itself.
+    /// that is world-space — and `hearing.camera.pose` is exactly what it
+    /// wants — so this function is handed the ears and the sounds and does the
+    /// subtraction and the rotation itself.
     ///
     /// A `hear` written as though a source carried a world position compiles
     /// against every type here and **does not fail loudly**. It is right at the
@@ -69,12 +84,12 @@ pub trait Auralizer<S: State>: Extract<S> {
     ///
     /// # Reuse
     ///
-    /// `out` is the runtime's frame, handed over cleared and kept for the life
-    /// of the process. Append to it; do not replace it.
+    /// `hearing.out` is the runtime's frame, handed over cleared and kept for
+    /// the life of the process. Append to it; do not replace it.
     /// [`AudioFrame::clear`](crate::AudioFrame::clear) retains its vectors'
     /// capacity, so a frame no larger than the largest before it allocates
     /// nothing.
-    fn hear(&mut self, out: &mut AudioFrame, camera: &Camera, time: Time);
+    fn hear(&mut self, hearing: Hearing<'_>);
 }
 
 /// A game with nothing to hear.
@@ -91,5 +106,5 @@ impl<S: State> Auralizer<S> for () {
 
     fn configure(&mut self, (): ()) {}
 
-    fn hear(&mut self, _out: &mut AudioFrame, _camera: &Camera, _time: Time) {}
+    fn hear(&mut self, _hearing: Hearing<'_>) {}
 }

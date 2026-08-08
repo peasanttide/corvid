@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use corvid::{
-    Acting, AudioFrame, Auralizer, Camera, Controller, Cue, Digest, Extract, Extracting, FinePoint,
-    I16F16, Opening, Opens, Profile, ProfileId, Schema, Seed, SoundId, Tick, Time, Updating,
+    Acting, Auralizer, Camera, Controller, Cue, Digest, Extract, Extracting, FinePoint, Hearing,
+    I16F16, Opening, Opens, Profile, ProfileId, Schema, Seed, SoundId, Tick, Updating,
     sound::Listener,
 };
 
@@ -192,10 +192,10 @@ impl Auralizer<Table> for Ears {
     /// state — so two peers play the same sounds on the same ticks, and a
     /// client that recomputed a hit from two ball positions would have to
     /// guess.
-    fn hear(&mut self, out: &mut AudioFrame, camera: &Camera, _time: Time) {
+    fn hear(&mut self, hearing: Hearing<'_>) {
         // The listener is wherever the eye is, which for this game is the
         // middle of the court looking at it.
-        out.listen(Listener::new(camera.pose));
+        hearing.out.listen(Listener::new(hearing.camera.pose));
 
         let Some(contact) = self.contact else {
             return;
@@ -208,9 +208,9 @@ impl Auralizer<Table> for Ears {
                 FinePoint::new(I16F16::ZERO, I16F16::ZERO, I16F16::ZERO),
             ),
         };
-        if let Some(offset) = camera.pose.to_fine_global(at.to_global_fine()) {
-            let id = out.next_id(self.at);
-            out.cue(Cue::new(id, sound).at(offset));
+        if let Some(offset) = hearing.camera.pose.to_fine_global(at.to_global_fine()) {
+            let id = hearing.out.next_id(self.at);
+            hearing.out.cue(Cue::new(id, sound).at(offset));
         }
     }
 }
