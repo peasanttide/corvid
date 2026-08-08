@@ -33,6 +33,39 @@ use corvid_replay::LevelRef;
 
 use crate::{Error, capture::Capture};
 
+/// One displayed frame, as the loop hands it to a backend.
+///
+/// Seven things travel together — the tick, the renderer, the camera, a load in
+/// progress, the session's time, the weight between the two extracted states,
+/// and what to hear — and they are a struct because that is what they are: the
+/// arguments of a single call that always arrive together and mean nothing
+/// apart. The list was spelled out at each of the four sites for a while, under
+/// an `allow(clippy::too_many_arguments)` whose reason said bundling them
+/// "would be a `Frame` again". It would; that is the point.
+///
+/// **Nothing about the two states crosses this seam.** The renderer already
+/// holds whatever [`Extract`](corvid_behavior::Extract) put in it; what goes
+/// over is the weight between them.
+#[derive(Debug)]
+pub(crate) struct Frame<'a, S: State, R: Render<S>> {
+    /// The tick the newest extracted state is at, which is what a capture names
+    /// its files after.
+    pub(crate) at: Tick,
+    /// The renderer, or [`None`] for a run whose game draws nothing.
+    pub(crate) graphics: Option<&'a mut R>,
+    /// Where the eye is, which a device turns into a matrix and an ear into a
+    /// listener.
+    pub(crate) camera: &'a Camera,
+    /// A level being loaded, for whatever draws a progress bar.
+    pub(crate) loading: Option<Loading<'a, LevelRef<S>>>,
+    /// Where the session is.
+    pub(crate) time: Time,
+    /// Where the display sits between the last tick and the next.
+    pub(crate) alpha: Factor16,
+    /// What to hear.
+    pub(crate) audio: &'a AudioFrame,
+}
+
 /// Somewhere a displayed frame goes.
 pub(crate) trait Backend<S: State, R: Render<S>> {
     /// How big the target is, or [`None`] where there is nothing to draw into.
@@ -47,30 +80,13 @@ pub(crate) trait Backend<S: State, R: Render<S>> {
 
     /// Takes one displayed frame.
     ///
-    /// `at` is the tick the newest extracted state is at, which is what a
-    /// capture names its files after.
-    ///
-    /// The renderer arrives by mutable reference and already holds whatever
-    /// [`Extract`](corvid_behavior::Extract) put in it, so nothing about the
-    /// two states crosses this boundary: what does is the weight between them.
+    /// Everything it needs is in the [`Frame`], including why the two states are
+    /// not.
     ///
     /// # Errors
     ///
     /// Whatever the device or the filesystem said. Nothing about the game.
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "a displayed frame is a tick, a renderer, a camera, a load, a time, a weight and a sound; bundling them into a struct would be a `Frame` again, which is what this replaced"
-    )]
-    fn present(
-        &mut self,
-        at: Tick,
-        graphics: Option<&mut R>,
-        camera: &Camera,
-        loading: Option<Loading<'_, LevelRef<S>>>,
-        time: Time,
-        alpha: Factor16,
-        audio: &AudioFrame,
-    ) -> Result<(), Error>;
+    fn present(&mut self, frame: Frame<'_, S, R>) -> Result<(), Error>;
 
     /// How many displayed frames have been handed over.
     fn frames(&self) -> u64;

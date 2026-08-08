@@ -23,7 +23,7 @@ use corvid_time::{Elapsed, Step, Tick};
 use crate::{
     Error, Outcome, Progress, Retention,
     app::Stop,
-    backend::Backend,
+    backend::{Backend, Frame},
     commands::{Answer, Sink},
     saves::{Saves, StateAt},
 };
@@ -908,15 +908,15 @@ impl<S: State, C: Controller<S>, R: Render<S>, A: Auralizer<S>, B: Backend<S, R>
         // Nothing about the two states crosses this seam. The renderer already
         // holds whatever `extract` put in it; what goes over is the weight
         // between them.
-        self.backend.present(
-            self.at,
-            self.graphics.as_mut(),
-            &camera,
-            None,
+        self.backend.present(Frame {
+            at: self.at,
+            graphics: self.graphics.as_mut(),
+            camera: &camera,
+            loading: None,
             time,
             alpha,
-            &self.audio,
-        )
+            audio: &self.audio,
+        })
     }
 
     /// Where the session is: the tick, and the wall clock since it opened.

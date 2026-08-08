@@ -2,19 +2,15 @@
 
 use core::marker::PhantomData;
 
-use corvid_input::Viewport;
-
-use corvid_sound::AudioFrame;
-use corvid_time::Tick;
-
-use corvid_behavior::{Loading, Time};
-use corvid_camera::Camera;
-use corvid_fixed::Factor16;
-use corvid_render::Render;
-use corvid_replay::LevelRef;
-
-use crate::{Error, backend::Backend, capture::Capture};
 use corvid_behavior::State;
+use corvid_input::Viewport;
+use corvid_render::Render;
+
+use crate::{
+    Error,
+    backend::{Backend, Frame},
+    capture::Capture,
+};
 
 /// Where a displayed frame goes when there is nowhere to display it.
 ///
@@ -58,20 +54,11 @@ impl<S: State, R: Render<S>> Backend<S, R> for Headless<S> {
         None
     }
 
-    fn present(
-        &mut self,
-        at: Tick,
-        _graphics: Option<&mut R>,
-        _camera: &Camera,
-        _loading: Option<Loading<'_, LevelRef<S>>>,
-        _time: Time,
-        _alpha: Factor16,
-        audio: &AudioFrame,
-    ) -> Result<(), Error> {
+    fn present(&mut self, frame: Frame<'_, S, R>) -> Result<(), Error> {
         self.frames = self.frames.saturating_add(1);
         self.capture
             .as_ref()
-            .map_or(Ok(()), |capture| capture.frame(at, None, audio))
+            .map_or(Ok(()), |capture| capture.frame(frame.at, None, frame.audio))
     }
 
     fn frames(&self) -> u64 {

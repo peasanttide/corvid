@@ -7,19 +7,17 @@
 
 use corvid_input::Viewport;
 
-use corvid_behavior::{Loading, Time};
-use corvid_camera::Camera;
-use corvid_fixed::Factor16;
 use corvid_render::{Render, Renderer};
-use corvid_replay::LevelRef;
-use corvid_sound::AudioFrame;
 // Only a windowed run resizes: a window changes size and an offscreen texture
 // does not, so the one caller of `resize` is behind the same feature it is.
 #[cfg(feature = "window")]
 use corvid_render::Extent;
-use corvid_time::Tick;
 
-use crate::{Error, backend::Backend, capture::Capture};
+use crate::{
+    Error,
+    backend::{Backend, Frame},
+    capture::Capture,
+};
 use corvid_behavior::State;
 
 /// Where a displayed frame goes when there is a device to draw it with.
@@ -180,16 +178,16 @@ impl<S: State, R: Render<S>> Backend<S, R> for Screen<S> {
         Some(Viewport::new(size.width, size.height))
     }
 
-    fn present(
-        &mut self,
-        at: Tick,
-        graphics: Option<&mut R>,
-        camera: &Camera,
-        loading: Option<Loading<'_, LevelRef<S>>>,
-        time: Time,
-        alpha: Factor16,
-        audio: &AudioFrame,
-    ) -> Result<(), Error> {
+    fn present(&mut self, frame: Frame<'_, S, R>) -> Result<(), Error> {
+        let Frame {
+            at,
+            graphics,
+            camera,
+            loading,
+            time,
+            alpha,
+            audio,
+        } = frame;
         // Heard before it is drawn, because the mixer runs on a thread the
         // operating system owns and the sooner a note is queued the sooner it
         // starts: drawing first would delay every sound by the time it takes to
