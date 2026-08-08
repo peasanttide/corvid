@@ -81,6 +81,12 @@ assert_eq!(narrow.digest(), wide.digest());
 `isize` is sign-extended to that width rather than zero-extended, which is what
 keeps `-1isize` from colliding with the largest index a 32-bit target can name.
 
+That reaches every pointer-sized integer a `Hash` implementation routes through
+`write_usize` — every scalar one, and every container's length prefix. It does
+not reach a `usize` stored as an *element* of a slice, which `core` hashes by a
+route no `Hasher` is shown; "What the overrides do not reach", below, is about
+that and about the one other thing in the same position.
+
 ## The construction
 
 | Stage | What happens | Why |
@@ -127,10 +133,11 @@ published format as the bytes `serde` writes. The rows below are what `core`'s
 | `usize`, `isize` | eight bytes, whatever the target's pointer width is |
 | `()`, `PhantomData<T>` | nothing at all, because a type with one value carries no information |
 | Tuples, structs | each field in declaration order, no count — the arity is in the type |
-| `str`, `String` | the bytes packed eight to a word, then a `0xff` byte, which is the one byte no UTF-8 sequence contains |
-| `[T]`, `[T; N]`, `Vec<T>` | the element count as eight bytes, then each element's own encoding |
+| `str`, `String` | the bytes packed eight to a word, then a `0xff` byte, which is a byte no UTF-8 sequence contains |
+| `[T]`, `[T; N]`, `Vec<T>` | the element count as eight bytes, then the elements — each by its own encoding, *unless* `T` is a primitive integer, for which `core` packs the whole slice as raw bytes and the next section applies |
 | `BTreeMap<K, V>`, `BTreeSet<T>` | the element count, then each entry in key order |
-| `Option<T>`, `Result<T, E>`, any enum | the variant index as eight bytes, then the payload |
+| `Option<T>`, `Result<T, E>`, a plain enum | the variant index as eight bytes, then the payload |
+| an enum carrying a `#[repr(u8)]` or any other integer `repr` | the variant index at the width that `repr` names, then the payload |
 | `Digest` | one word, its raw bits, so a digest of digests is a digest |
 | `&T`, `&mut T`, `Box<T>`, `Arc<T>` | whatever they point at, never the address |
 
@@ -171,10 +178,45 @@ confusion that cannot happen, because both peers are reading the same field of
 the same type. What establishes that they are running the same types at all is
 the opening's schema digest, computed once with the same function.
 
-Declaration order is therefore the encoding. Reordering two same-typed fields of
-a `#[derive(Hash)]` struct compiles, moves every digest of that type, and is a
-wire break with no compile error attached to it — which is what the golden
-tables across this workspace exist to catch.
+Declaration order is therefore the encoding, and so is an enum's `repr`.
+Reordering two same-typed fields of a `#[derive(Hash)]` struct compiles, moves
+every digest of that type, and is a wire break with no compile error attached to
+it. Adding `#[repr(u8)]` to an enum for the sake of its layout does the same
+thing by a different route: the derive hashes `discriminant_value`, whose type is
+whatever the enum declares, so the `repr` narrows the variant index from eight
+bytes to one and takes every digest of that type with it. Both are what the
+golden tables across this workspace exist to catch.
+
+## What the overrides do not reach
+
+`core` implements `Hash::hash_slice` for every primitive integer by
+reinterpreting the whole slice as bytes and calling `write` once, and a `Hasher`
+cannot intercept it — `write` is handed bytes and is not told what they were. So
+a slice of primitives does not hand its elements over one at a time. It hands
+over `size_of_val` bytes, packed eight to an absorbed word, with the element
+boundaries already gone. Two things follow from that, and neither is a footnote.
+
+**Byte order.** A `Vec<u32>` absorbs the target's own order, past every
+override, with nothing at the call site to see. That is not fixable here, so a
+target where it would be wrong does not build: `corvid_hash` fails to compile on
+a big-endian target, with a message saying why. Every target this workspace
+names is little-endian, and choosing a big-endian one should be a decision taken
+deliberately rather than discovered from a desync.
+
+**Pointer width.** The same specialisation covers `usize` and `isize`, and the
+bytes it hands over are the target's — four per element in a browser, eight on a
+native server. A `Vec<usize>` in hashed state therefore desyncs a `wasm32` peer
+from a native one, in precisely the way the overridden `write_usize` exists to
+prevent, and the override cannot reach past `hash_slice` to stop it. Refusing to
+build is not available as an answer to this one, because a 32-bit target is the
+target this crate exists to keep in agreement. What closes it is a discipline
+rather than a compiler error: hashed state names a fixed-width integer type, so
+a count that crosses the wire is a `u32` or a `u64` and never a `usize`. A
+container's *length* prefix is already safe, because that does go through
+`write_usize`; it is a pointer-sized integer stored as an *element* that is not.
+
+Both behaviours are pinned in `tests/width.rs`, so the ground under the refusal
+and under the discipline cannot quietly move.
 
 ## What has no `Hash`, and why that is the point
 
@@ -229,9 +271,9 @@ to compute.
 |---|---|
 | `tests/avalanche.rs` | The strict avalanche criterion cell by cell, for the mixer alone and for absorb-and-digest; 102 400 two-word inputs collide zero times; word order matters; a trailing zero word is not free; the empty digest is not zero |
 | `tests/encoding.rs` | Length prefixes, discriminants, integer widths, a float that was converted to a fixed-point integer first — including the two zeroes becoming one value on the way — nesting versus flattening, the string encoding against the slice encoding, markers costing no word, insertion-order independence for the ordered collections, pointers digesting as their pointee |
-| `tests/width.rs` | That `write_usize` and `write_u64` of one value agree, that `write_isize` is sign-extended to sixty-four bits, and that a `Vec`'s digest is a sixty-four-bit length prefix and its elements — the three claims a `wasm32` peer's agreement with a native one rests on |
+| `tests/width.rs` | That `write_usize` and `write_u64` of one value agree, that `write_isize` is sign-extended to sixty-four bits, and that a `Vec`'s digest is a sixty-four-bit length prefix and its elements — the three claims a `wasm32` peer's agreement with a native one rests on — and then the one place that agreement does not hold anyway, a slice whose elements are themselves pointer-sized |
 | `tests/golden.rs` | Twenty-seven frozen inputs and their exact digests — words, byte runs and strings, four of the strings not ASCII — plus structured values, a second seed, and `const` evaluation against runtime evaluation |
-| `tests/derive.rs` | `#[derive(Hash)]`: field order as the encoding, a struct's fields at their declared widths, an enum's variant index before its payload, the typed-identifier pattern, and generics with lifetimes and const parameters mixed in |
+| `tests/derive.rs` | `#[derive(Hash)]`: field order as the encoding, a struct's fields at their declared widths, an enum's variant index before its payload and the width a `repr` narrows it to, the typed-identifier pattern, and generics with lifetimes and const parameters mixed in |
 | doctests | Every Rust block in this file and in the crate's documentation |
 
 The avalanche test measures the strict avalanche criterion per cell. For each

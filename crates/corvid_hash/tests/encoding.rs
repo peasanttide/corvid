@@ -150,7 +150,8 @@ fn a_string_is_its_bytes_and_a_terminator() {
 
     // Spelled out. A string absorbs its bytes packed eight to a word and then a
     // `0xff` byte, which is what keeps a concatenation from being mistaken for
-    // a pair — `0xff` is the one byte no UTF-8 sequence contains.
+    // a pair — `0xff` is one of the bytes no UTF-8 sequence contains, so no
+    // string's own bytes can spell the terminator.
     let mut text = Hasher::new();
     text.write(b"ab");
     text.write_u8(0xff);

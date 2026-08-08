@@ -10,6 +10,13 @@
 //! desync rather than a test failure unless something freezes the numbers —
 //! which is what `tests/golden.rs` and the golden tables across the workspace
 //! are for.
+//!
+//! An integer `repr` on an enum is the same edge wearing a different hat, and it
+//! is the less obvious of the two, because a `repr` reads as a statement about
+//! memory rather than about the wire. It is both: the derive hashes the
+//! discriminant at whatever width the enum declares it, so `#[repr(u8)]` spends
+//! one byte on the variant index where the unadorned enum spends eight. That is
+//! asserted below rather than left to be discovered.
 
 #![allow(
     clippy::expect_used,
@@ -78,6 +85,40 @@ fn a_variant_index_precedes_its_payload() {
     hasher.write_isize(1);
     hasher.write_u32(0);
     assert_eq!(hasher.digest(), digest(&Choice::One(0)));
+}
+
+/// The same shape as [`Choice`]'s second variant, under an integer `repr`.
+///
+/// The derive hashes `discriminant_value(self)`, and that value's type is
+/// whatever the enum declares: `isize` by default, and the named integer under a
+/// `repr`. So a `repr` reached for on layout grounds — packing a state enum into
+/// a byte, or matching a C header — narrows the variant index from eight bytes
+/// to one and moves every digest of the type. It is the same sharp edge as
+/// exchanging two same-typed fields, arriving through an attribute that looks
+/// like it is only about memory, so it belongs in the same file as that one.
+#[derive(Hash)]
+#[repr(u8)]
+enum Narrow {
+    Nothing,
+    One(u32),
+}
+
+#[test]
+fn a_repr_narrows_the_variant_index() {
+    // One byte of index and then the payload, where the unadorned enum spends
+    // eight on the index.
+    let mut spelled_out = Hasher::new();
+    spelled_out.write_u8(1);
+    spelled_out.write_u32(0);
+    assert_eq!(spelled_out.digest(), digest(&Narrow::One(0)));
+
+    // Which makes the two enums different values on the wire despite being the
+    // same declaration but for the attribute.
+    assert_ne!(digest(&Narrow::One(0)), digest(&Choice::One(0)));
+    assert_ne!(digest(&Narrow::Nothing), digest(&Choice::Nothing));
+
+    // The narrowed index is still an index: the variants stay apart.
+    assert_ne!(digest(&Narrow::Nothing), digest(&Narrow::One(0)));
 }
 
 #[test]
