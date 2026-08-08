@@ -47,11 +47,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "const_soft_float"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87ca1caa64ef4ed453e68bb3db612e51cf1b2f5b871337f0fcab1c8f87cc3dff"
+
+[[package]]
 name = "corvid"
 version = "0.1.0"
 
 [[package]]
 name = "corvid_bits"
+version = "0.1.0"
+
+[[package]]
+name = "corvid_files"
 version = "0.1.0"
 
 [[package]]
@@ -64,6 +74,13 @@ dependencies = [
  "num-traits",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "corvid_float"
+version = "0.1.0"
+dependencies = [
+ "const_soft_float",
 ]
 
 [[package]]
