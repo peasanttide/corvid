@@ -97,6 +97,14 @@ name = "corvid_hash"
 version = "0.1.0"
 
 [[package]]
+name = "corvid_macros"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "corvid_rotation"
 version = "0.1.0"
 dependencies = [

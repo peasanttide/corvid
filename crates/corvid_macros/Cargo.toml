@@ -1,0 +1,45 @@
+[package]
+name = "corvid_macros"
+description = "The declarative macros Corvid's crates share: the numbered identifier, with its encoding and its display."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["macro", "gamedev", "newtype", "no-std", "deterministic"]
+categories = ["game-development", "rust-patterns", "no-std::no-alloc"]
+
+# No dependencies, and that is a property rather than an accident. A
+# `macro_rules!` crate emits tokens; the crate that *expands* them is the one
+# that has to be able to name what they mention, which is why every path in the
+# expansion that leaves the prelude is absolute and rooted at `::serde` or
+# `::core`. The built-in derives stay bare because a prelude name resolves in
+# any crate anyway, which is also how the newtype macros in `corvid_fixed` and
+# `corvid_vector` spell theirs. So this crate does not depend on `serde` and
+# every caller of `id_type!` does.
+#
+# It is also not a proc-macro crate. `macro_rules!` needs no `syn`, no `quote`
+# and no separate compilation stage, and a proc macro would have added all three
+# to the build for a newtype and a `Display`.
+[dependencies]
+
+[dev-dependencies]
+# The README's example derives `Serialize`/`Deserialize` through `id_type!`,
+# which is the point being made: the expansion names `::serde` and the crate
+# expanding it is what supplies one. `std` on top of the workspace entry's
+# `derive` because a doctest and an integration test are ordinary `std` crates;
+# the union stops here, since nothing depends on this crate for its build.
+serde = { workspace = true, features = ["derive", "std"] }
+# The only claim in this crate with a shape on the wire is that the encoding is
+# the bare number, and a claim about an encoding can only be pinned against a
+# format. `serde_json` rather than a workspace entry for the same reason
+# `corvid_fixed` spells it that way: it is a test detail of one crate, not a
+# version two crates have to agree on.
+serde_json = "1"
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
