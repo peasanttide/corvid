@@ -10,9 +10,9 @@
 //! ```
 //!
 //! Everything `corvid` already accepts — `--headless`, `--ticks N`,
-//! `--capture DIR`, `--replay FILE`, `--load N` — is accepted too, because the
-//! flags below are taken out of the command line and the rest is handed to
-//! [`corvid::Arguments`] unchanged.
+//! `--record FILE`, `--load N`, `--state DIR` — is accepted too,
+//! because the flags below are taken out of the command line and the rest is
+//! handed to [`corvid::Arguments`] unchanged.
 
 use corvid::{App, Arguments, Error, Game, Input};
 
@@ -124,7 +124,7 @@ fn main() -> corvid::Result {
     // The backend, which is this binary's decision and not a flag's: a window
     // for a player, an adapter drawing into a texture for a run that is being
     // recorded with nobody watching, and neither for everything else.
-    let app = match (headless, arguments.capture.is_some()) {
+    let app = match (headless, arguments.record.is_some()) {
         (true, true) => app.offscreen(OFFSCREEN),
         (true, false) => app.headless(),
         #[cfg(feature = "window")]
@@ -143,7 +143,7 @@ fn main() -> corvid::Result {
 /// Takes this binary's own flags out of the command line.
 ///
 /// Everything it does not recognise is left for [`Arguments`], which is what
-/// keeps `--ticks` and `--capture` working here without this function knowing
+/// keeps `--ticks` and `--record` working here without this function knowing
 /// what they mean.
 fn ours(arguments: impl Iterator<Item = String>) -> Result<Ours, Error> {
     let mut ours = Ours::default();
@@ -290,7 +290,7 @@ fn together(ours: &Ours) -> corvid::Result {
     let outcome = pong::rally::together(
         PlayerId(ours.seat),
         RATE,
-        arguments.ticks,
+        arguments.ticks.map(|ticks| ticks.0),
         !arguments.headless,
     )?;
     if arguments.headless {

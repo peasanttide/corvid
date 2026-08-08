@@ -10,104 +10,202 @@
 #![allow(
     clippy::expect_used,
     clippy::unwrap_used,
-    reason = "a failed unwrap in a test is a failed test, which is what a test is for"
+    clippy::panic,
+    reason = "a failed assertion in a test is a failed test, which is what a test is for"
 )]
 
 mod common;
 
-use std::path::PathBuf;
-
 use common::{Counting, Rules, Scratchpad, Tally, opening};
-use corvid_app::{App, Argument, Arguments, Retention};
-use corvid_time::Tick;
+use corvid_app::{App, Argument, Arguments, Load};
+use corvid_behavior::{PlayerId, SaveSlot};
+use corvid_time::{Tick, Ticks};
+use std::path::Path;
+
 #[test]
-fn the_flags_a_game_gets_for_free() {
+fn nothing_at_all_is_every_default() {
+    let parsed = Arguments::parse(Vec::<String>::new()).expect("no arguments");
+    assert!(!parsed.headless);
+    assert!(!parsed.spectator);
+    assert_eq!(parsed.num_bots, 0);
+    assert_eq!(parsed.ticks, None);
+    assert_eq!(parsed.load, None);
+    assert_eq!(parsed.record, None);
+    assert_eq!(parsed.state, None);
+    assert_eq!(parsed.seat, PlayerId(0));
+    assert_eq!(parsed.listen, None);
+    assert_eq!(parsed.connect, None);
+}
+
+/// Every flag but one, and the one is below: `--bots` cannot share a command
+/// line with `--connect`, which is the refusal the test after next is about, so
+/// a line naming every flag at once is a line this runtime does not have.
+#[test]
+fn every_flag_is_read() {
     let parsed = Arguments::parse([
         "--headless",
+        "--spectator",
         "--ticks",
-        "42",
-        "--capture",
-        "out/run",
-        "--retain",
-        "64",
+        "90",
+        "--record",
+        "out/session",
+        "--state",
+        "here/",
+        "--seat",
+        "1",
+        "--listen",
+        "9000",
+        "--connect",
+        "host:9001",
     ])
-    .expect("every one of these is an argument this runtime has");
+    .expect("every flag");
 
     assert!(parsed.headless);
-    assert_eq!(parsed.ticks, Some(42));
-    assert_eq!(parsed.capture, Some(PathBuf::from("out/run")));
-    assert_eq!(parsed.retain, Some(Retention::Recent { ticks: 64 }));
+    assert!(parsed.spectator);
+    assert_eq!(parsed.num_bots, 0);
+    assert_eq!(parsed.ticks, Some(Ticks(90)));
+    assert_eq!(parsed.record.as_deref(), Some(Path::new("out/session")));
+    assert_eq!(parsed.state.as_deref(), Some(Path::new("here/")));
+    assert_eq!(parsed.seat, PlayerId(1));
+    assert_eq!(parsed.listen, Some(9000));
+    assert_eq!(parsed.connect.as_deref(), Some("host:9001"));
+
+    let botted = Arguments::parse(["--bots", "3"]).expect("the flag the line above cannot have");
+    assert_eq!(botted.num_bots, 3);
 }
 
 #[test]
-fn a_value_may_be_attached_or_may_follow() {
-    let attached = Arguments::parse(["--ticks=42", "--capture=out/run", "--retain=all"])
-        .expect("the attached spelling is the same argument");
-    let following = Arguments::parse(["--ticks", "42", "--capture", "out/run", "--retain", "all"])
-        .expect("the following spelling is the same argument");
-
-    assert_eq!(attached, following);
-    assert_eq!(attached.retain, Some(Retention::Everything));
-
-    // The split is on the first `=`, so a path with one in it survives.
-    let odd = Arguments::parse(["--capture=out/a=b"]).expect("a path may contain an equals sign");
-    assert_eq!(odd.capture, Some(PathBuf::from("out/a=b")));
+fn the_attached_spelling_is_the_same_argument() {
+    let parsed = Arguments::parse(["--ticks=90", "--bots=2"]).expect("attached values");
+    assert_eq!(parsed.ticks, Some(Ticks(90)));
+    assert_eq!(parsed.num_bots, 2);
 }
 
 #[test]
-fn nothing_said_is_nothing_changed() {
-    let empty: [&str; 0] = [];
+fn each_way_of_opening_lands_in_the_one_field() {
     assert_eq!(
-        Arguments::parse(empty).expect("no arguments is a legal command line"),
-        Arguments::default(),
+        Arguments::parse(["--load", "3"]).expect("a slot").load,
+        Some(Load::Save(SaveSlot(3)))
+    );
+    assert_eq!(
+        Arguments::parse(["--demo", "run/session"])
+            .expect("a recording")
+            .load,
+        Some(Load::Demo("run/session".into()))
+    );
+    assert_eq!(
+        Arguments::parse(["--level", "\"Court\""])
+            .expect("a level")
+            .load,
+        Some(Load::Level("\"Court\"".to_owned()))
     );
 }
 
 #[test]
-fn every_way_a_command_line_is_refused() {
+fn two_ways_of_opening_is_a_refusal_naming_both() {
+    let why = Arguments::parse(["--load", "3", "--demo", "run/session"])
+        .expect_err("two ways of opening");
     assert_eq!(
-        Arguments::parse(["--tickss", "3"]),
-        Err(Argument::Unknown {
-            argument: "--tickss".to_owned(),
-        }),
+        why,
+        Argument::Conflicting {
+            flags: ["--load", "--demo"]
+        }
     );
-    assert_eq!(
-        Arguments::parse(["--ticks"]),
-        Err(Argument::Missing { flag: "--ticks" }),
-    );
-    assert_eq!(
-        Arguments::parse(["--ticks", "soon"]),
-        Err(Argument::NotANumber {
-            flag: "--ticks",
-            value: "soon".to_owned(),
-        }),
-    );
-    assert_eq!(
-        Arguments::parse(["--retain", "some"]),
-        Err(Argument::NotANumber {
-            flag: "--retain",
-            value: "some".to_owned(),
-        }),
-    );
-    // The case that would otherwise turn a window off by turning it on: a value
-    // attached to a flag that takes none.
-    assert_eq!(
-        Arguments::parse(["--headless=false"]),
-        Err(Argument::Unexpected { flag: "--headless" }),
-    );
-    assert_eq!(Arguments::parse(["--help"]), Err(Argument::Help));
-    assert_eq!(Arguments::parse(["-h"]), Err(Argument::Help));
+}
 
-    // Asking for the usage reports the usage, which is the whole of why help is
-    // an error here: this crate may not print, so the text has to travel as a
-    // value somebody's `main` can put where it wants.
-    assert_eq!(Argument::Help.to_string(), Arguments::USAGE);
-    assert!(
+#[test]
+fn bots_and_a_peer_is_a_refusal() {
+    let why =
+        Arguments::parse(["--bots", "1", "--connect", "host:9001"]).expect_err("bots and a peer");
+    assert_eq!(
+        why,
+        Argument::Conflicting {
+            flags: ["--bots", "--connect"]
+        }
+    );
+}
+
+#[test]
+fn a_flag_that_takes_a_value_and_is_given_none_is_missing() {
+    assert_eq!(
+        Arguments::parse(["--ticks"]).expect_err("no value"),
         Argument::Missing { flag: "--ticks" }
-            .to_string()
-            .contains(Arguments::USAGE),
-        "a refusal says what the runtime does accept",
     );
+}
+
+#[test]
+fn a_value_on_a_flag_that_takes_none_is_refused() {
+    assert_eq!(
+        Arguments::parse(["--headless=false"]).expect_err("a value"),
+        Argument::Unexpected { flag: "--headless" }
+    );
+}
+
+#[test]
+fn a_count_that_is_not_a_number_is_refused() {
+    assert!(matches!(
+        Arguments::parse(["--bots", "many"]).expect_err("not a number"),
+        Argument::NotANumber { flag: "--bots", .. }
+    ));
+}
+
+#[test]
+fn asking_for_the_usage_is_reported_rather_than_printed() {
+    assert_eq!(Arguments::parse(["-h"]).expect_err("help"), Argument::Help);
+    assert_eq!(
+        Arguments::parse(["--help"]).expect_err("help"),
+        Argument::Help
+    );
+}
+
+/// The two refusals name themselves in the order the operator wrote them, which
+/// is what makes a message about two flags a message about *this* command line.
+#[test]
+fn a_refusal_names_the_two_flags_in_the_order_they_were_given() {
+    assert_eq!(
+        Arguments::parse(["--demo", "run/session", "--load", "3"]).expect_err("two openings"),
+        Argument::Conflicting {
+            flags: ["--demo", "--load"]
+        }
+    );
+    assert_eq!(
+        Arguments::parse(["--connect", "host:9001", "--bots", "1"]).expect_err("a peer and bots"),
+        Argument::Conflicting {
+            flags: ["--connect", "--bots"]
+        }
+    );
+}
+
+/// A flag not this runtime's, and a level that is not JSON, are both refused
+/// with the usage attached — because what an operator who typed one of those
+/// wants next is the list of what there is.
+#[test]
+fn every_refusal_says_what_the_runtime_does_accept() {
+    assert_eq!(
+        Arguments::parse(["--tickss", "3"]).expect_err("no such flag"),
+        Argument::Unknown {
+            argument: "--tickss".to_owned(),
+        },
+    );
+    assert_eq!(Argument::Help.to_string(), Arguments::USAGE);
+    for why in [
+        Argument::Missing { flag: "--ticks" },
+        Argument::Conflicting {
+            flags: ["--load", "--demo"],
+        },
+    ] {
+        assert!(why.to_string().contains(Arguments::USAGE), "{why}");
+    }
+}
+
+/// Zero bots is no bots, so it is not the half of a conflict: a script that
+/// passes `--bots $N` with `N` unset should reach the other machine rather than
+/// be refused for asking for nothing.
+#[test]
+fn no_bots_and_a_peer_is_not_a_conflict() {
+    let parsed = Arguments::parse(["--bots", "0", "--connect", "host:9001"])
+        .expect("no bots is not bots and a peer");
+    assert_eq!(parsed.num_bots, 0);
 }
 
 #[test]
@@ -165,48 +263,67 @@ fn an_argument_beats_the_builder_and_silence_does_not() {
 
 #[test]
 fn the_arguments_do_what_the_builder_calls_do() {
-    let pad = Scratchpad::new("arguments-capture");
-    let path = pad.path().to_string_lossy().into_owned();
+    let pad = Scratchpad::new("arguments-record");
+    let file = pad.path().join("session");
+    let named = file.to_string_lossy().into_owned();
     let long = 700;
 
     let run = App::<Counting>::new()
         .opening(opening::<Tally>(Rules::quiet()))
         .arguments(
-            Arguments::parse(["--headless", &format!("--ticks={long}"), "--capture", &path])
+            Arguments::parse(["--headless", &format!("--ticks={long}"), "--record", &named])
                 .expect("every one of these is an argument this runtime has"),
         )
         .run()
         .expect("a headless run of a quiet game cannot fail");
 
     assert_eq!(run.session.last(), Tick(long));
-    assert!(
-        pad.path().join("session").is_file(),
-        "the capture was written"
-    );
+    assert!(file.is_file(), "the session was written");
     assert_eq!(
         run.session.log.ticks(),
         long,
-        "a capture asked for on the command line keeps the run, exactly as one \
+        "a recording asked for on the command line keeps the run, exactly as one \
          asked for in the builder does",
     );
 
-    // And `--retain` overrides that, which is the one interaction between two
-    // of these flags.
-    let pad = Scratchpad::new("arguments-capture-bounded");
-    let path = pad.path().to_string_lossy().into_owned();
-    let bounded = App::<Counting>::new()
+    // And the file is one `--demo` opens: the second run carries the first on
+    // from where it stopped.
+    let carried = App::<Counting>::new()
         .opening(opening::<Tally>(Rules::quiet()))
         .arguments(
-            Arguments::parse([
-                "--headless",
-                &format!("--ticks={long}"),
-                "--capture",
-                &path,
-                "--retain=32",
-            ])
-            .expect("every one of these is an argument this runtime has"),
+            Arguments::parse(["--headless", "--ticks=10", "--demo", &named])
+                .expect("a recording is a way of opening"),
+        )
+        .run()
+        .expect("a run carrying a recording on");
+    assert_eq!(carried.session.last(), Tick(long + 10));
+}
+
+/// `--state DIR` is the one directory a game keeps anything in, so a run told
+/// where it is writes its save under it and nowhere else.
+#[test]
+fn the_state_directory_is_where_a_save_lands() {
+    let pad = Scratchpad::new("arguments-state");
+    let named = pad.path().to_string_lossy().into_owned();
+
+    let run = App::<Counting>::new()
+        .opening(opening::<Tally>(Rules {
+            save_at: Some(Tick(2)),
+            ..Rules::quiet()
+        }))
+        .arguments(
+            Arguments::parse(["--headless", "--ticks=6", "--state", &named])
+                .expect("a directory is an argument this runtime has"),
         )
         .run()
         .expect("a headless run of a quiet game cannot fail");
-    assert!(bounded.session.log.ticks() <= 64);
+
+    assert_eq!(run.session.last(), Tick(6));
+    assert!(
+        pad.path()
+            .join("saves")
+            .join(format!("{}.corvid", common::SLOT.0))
+            .is_file(),
+        "the slot is under the state directory's own saves/",
+    );
 }

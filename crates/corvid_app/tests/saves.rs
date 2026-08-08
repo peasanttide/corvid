@@ -14,7 +14,10 @@
 
 mod common;
 
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use common::{Counting, FAREWELL, Rules, SLOT, Scratchpad, Tally, opening, schema};
 use corvid_app::Command;
@@ -48,7 +51,16 @@ struct Written {
     state: Vec<u8>,
 }
 
-/// Makes every write to [`SLOT`] under `saves` fail, and leaves whatever is
+/// Where the slots are, under a game's own directory.
+///
+/// `--state DIR` names the directory a game keeps everything in, and the slots
+/// are one of the three things under it — so a test that looks at a slot file
+/// joins the same leaf the runtime does.
+fn slots(state: &Path) -> PathBuf {
+    state.join("saves")
+}
+
+/// Makes every write to [`SLOT`] under `state` fail, and leaves whatever is
 /// already in the slot alone.
 ///
 /// The bytes of a save go to a file beside the slot and are renamed over it, so
@@ -56,16 +68,16 @@ struct Written {
 /// cannot touch the slot on its way to not succeeding — which is exactly the
 /// failure the atomic write exists for, arranged without a full disk or a
 /// process killed halfway through.
-fn make_saving_fail(saves: &Path) {
-    fs::create_dir_all(saves.join(format!("{}.corvid.new", SLOT.0))).unwrap();
+fn make_saving_fail(state: &Path) {
+    fs::create_dir_all(slots(state).join(format!("{}.corvid.new", SLOT.0))).unwrap();
 }
 
-/// A run of the game with the rules given, with its slots under `saves`.
-fn play(saves: &Path, rules: Rules, ticks: u64) -> corvid_app::Outcome<Counting> {
+/// A run of the game with the rules given, keeping its files under `state`.
+fn play(state: &Path, rules: Rules, ticks: u64) -> corvid_app::Outcome<Counting> {
     App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(rules))
-        .saves(saves)
+        .state(state)
         .for_ticks(ticks)
         .run()
         .unwrap()
@@ -74,12 +86,12 @@ fn play(saves: &Path, rules: Rules, ticks: u64) -> corvid_app::Outcome<Counting>
 #[test]
 fn a_run_that_loads_what_another_run_saved_reaches_the_same_state() {
     let scratchpad = Scratchpad::new("saves");
-    let saves = scratchpad.path();
+    let state = scratchpad.path();
 
     // The first run saves at tick four and plays on to twelve. This is the run
     // a player had going.
     let recorded = play(
-        saves,
+        state,
         Rules {
             save_at: Some(SAVED_AT),
             ..Rules::quiet()
@@ -99,7 +111,7 @@ fn a_run_that_loads_what_another_run_saved_reaches_the_same_state() {
     let resumed = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .saves(saves)
+        .state(state)
         .load(SLOT)
         .for_ticks(TICKS - opened_at.0)
         .run()
@@ -155,6 +167,40 @@ fn a_run_can_open_on_the_session_a_capture_recorded() {
     assert_eq!(digest(&resumed.state), digest(&recorded.state));
 }
 
+/// The other way of writing that file, and the claim that it is the same file:
+/// `--record` writes what `--demo` opens, without a capture directory around
+/// it.
+#[test]
+fn a_recorded_session_is_one_a_demo_opens() {
+    let pad = Scratchpad::new("recorded");
+    let file = pad.path().join("session");
+
+    let first = App::<Counting>::new()
+        .headless()
+        .opening(opening::<Tally>(Rules::quiet()))
+        .for_ticks(20)
+        .record(&file)
+        .run()
+        .expect("a recorded run");
+
+    let second = App::<Counting>::new()
+        .headless()
+        .opening(opening::<Tally>(Rules::quiet()))
+        .replay(&file)
+        .for_ticks(10)
+        .run()
+        .expect("a run carrying it on");
+
+    assert_eq!(second.session.first(), first.session.first());
+    assert_eq!(second.session.last().0, first.session.last().0 + 10);
+    // The trace joins up: the tick the first run stopped at has the same mark
+    // in both sessions.
+    assert_eq!(
+        second.session.marks.get(first.session.last()),
+        first.session.marks.get(first.session.last())
+    );
+}
+
 #[test]
 fn a_save_lands_in_the_slot_it_named_and_nowhere_else() {
     let scratchpad = Scratchpad::new("slots");
@@ -189,19 +235,23 @@ fn a_save_lands_in_the_slot_it_named_and_nowhere_else() {
 
     // One file, named for the slot. A slot nothing wrote is not there, which is
     // what `Answer::Empty` and `Error::Empty` are about.
-    assert!(directory.join(format!("{}.corvid", SLOT.0)).is_file());
-    assert!(!directory.join("0.corvid").exists());
+    assert!(
+        slots(directory)
+            .join(format!("{}.corvid", SLOT.0))
+            .is_file()
+    );
+    assert!(!slots(directory).join("0.corvid").exists());
 }
 
 #[test]
 fn a_save_that_cannot_be_written_leaves_the_one_it_was_replacing_readable() {
     let scratchpad = Scratchpad::new("torn");
-    let saves = scratchpad.path();
+    let state = scratchpad.path();
 
     // The run somebody had going, saved at tick four. This is the hour that a
     // truncate-then-write would put at risk.
     let recorded = play(
-        saves,
+        state,
         Rules {
             save_at: Some(SAVED_AT),
             ..Rules::quiet()
@@ -209,13 +259,13 @@ fn a_save_that_cannot_be_written_leaves_the_one_it_was_replacing_readable() {
         TICKS,
     );
 
-    make_saving_fail(saves);
+    make_saving_fail(state);
 
     // A second run of a game whose tally moves by a different amount, so the
     // save it wants to write is not the save that is there and the two are
     // distinguishable. It asks to save into the same slot and cannot.
     let refused = play(
-        saves,
+        state,
         Rules {
             save_at: Some(SAVED_AT),
             step: 11,
@@ -233,7 +283,7 @@ fn a_save_that_cannot_be_written_leaves_the_one_it_was_replacing_readable() {
     let resumed = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .saves(saves)
+        .state(state)
         .load(SLOT)
         .for_ticks(TICKS - opened_at.0)
         .run()
@@ -248,9 +298,9 @@ fn a_run_whose_save_fails_keeps_its_capture_and_says_the_save_failed() {
     // The three things a failing save may not cost the run: the commands after
     // it in the same tick, the capture, and any word of what went wrong.
     let scratchpad = Scratchpad::new("unsaved");
-    let saves = scratchpad.path().join("slots");
+    let state = scratchpad.path().join("slots");
     let capture = scratchpad.path().join("capture");
-    make_saving_fail(&saves);
+    make_saving_fail(&state);
 
     // One tick both asks to save and asks to quit, in that order — which is the
     // arrangement that would lose the quit if the failing save aborted the
@@ -262,7 +312,7 @@ fn a_run_whose_save_fails_keeps_its_capture_and_says_the_save_failed() {
             quit_at: Some(SAVED_AT),
             ..Rules::quiet()
         }))
-        .saves(&saves)
+        .state(&state)
         .capture(&capture)
         .for_ticks(TICKS)
         .run()
@@ -305,9 +355,9 @@ fn a_save_whose_recorded_state_is_not_what_its_own_log_replays_to_is_refused() {
     // the answer against the state written beside it, and this is the arm where
     // the two disagree.
     let scratchpad = Scratchpad::new("diverged");
-    let saves = scratchpad.path();
+    let state = scratchpad.path();
     play(
-        saves,
+        state,
         Rules {
             save_at: Some(SAVED_AT),
             ..Rules::quiet()
@@ -317,7 +367,7 @@ fn a_save_whose_recorded_state_is_not_what_its_own_log_replays_to_is_refused() {
 
     // Move one column of the recorded state and put the file back. The session
     // beside it is untouched, so its log still replays to what it always did.
-    let path = saves.join(format!("{}.corvid", SLOT.0));
+    let path = slots(state).join(format!("{}.corvid", SLOT.0));
     let mut written: Written = corvid_wire::decode(&fs::read(&path).unwrap()).unwrap();
     let mut recorded: Tally = corvid_wire::decode(&written.state).unwrap();
     recorded.count += 1;
@@ -327,7 +377,7 @@ fn a_save_whose_recorded_state_is_not_what_its_own_log_replays_to_is_refused() {
     let why = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .saves(saves)
+        .state(state)
         .load(SLOT)
         .for_ticks(0)
         .run()
@@ -350,7 +400,7 @@ fn opening_a_slot_nothing_has_written_is_refused_rather_than_started_over() {
     let why = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
-        .saves(scratchpad.path())
+        .state(scratchpad.path())
         .load(SaveSlot(9))
         .for_ticks(1)
         .run()
@@ -388,12 +438,12 @@ fn a_tick_that_reads_a_slot_nothing_wrote_is_told_so_and_the_run_carries_on() {
 #[test]
 fn a_read_finds_what_an_earlier_run_wrote_and_leaves_this_run_where_it_was() {
     let scratchpad = Scratchpad::new("rereads");
-    let saves = scratchpad.path();
+    let state = scratchpad.path();
 
     // One run writes the slot. A second, playing its own game, asks whether
     // there is anything in it.
     play(
-        saves,
+        state,
         Rules {
             save_at: Some(SAVED_AT),
             ..Rules::quiet()
@@ -401,7 +451,7 @@ fn a_read_finds_what_an_earlier_run_wrote_and_leaves_this_run_where_it_was() {
         TICKS,
     );
     let run = play(
-        saves,
+        state,
         Rules {
             read_at: Some(Tick(2)),
             ..Rules::quiet()

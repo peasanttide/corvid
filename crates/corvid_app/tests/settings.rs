@@ -1,13 +1,13 @@
 //! The settings file: where it is, what it holds, and that it survives being
 //! written down.
 //!
-//! What is **not** here is a test that reads or writes the real path. That
-//! function is a pure function of `$XDG_CONFIG_HOME`, `%APPDATA%` and `$HOME`,
-//! and a test that moved any of them would be a test moving the environment of
-//! every other test in the process — `std::env::set_var` is `unsafe`, which this
-//! workspace forbids rather than merely denies. So this pins the parts that can
-//! be pinned without one: where the path lands relative to a home, what the
-//! document holds, and that it round-trips.
+//! What is **not** here is a test that reads or writes the real path. Where a
+//! game's directory lands is a pure function of `$XDG_DATA_HOME`, `%APPDATA%`
+//! and `$HOME`, and a test that moved any of them would be a test moving the
+//! environment of every other test in the process — `std::env::set_var` is
+//! `unsafe`, which this workspace forbids rather than merely denies. So this
+//! pins the parts that can be pinned without one: where the file lands under a
+//! directory it is given, what the document holds, and that it round-trips.
 
 #![allow(
     clippy::expect_used,
@@ -16,6 +16,8 @@
 )]
 
 mod common;
+
+use std::path::Path;
 
 use common::{Bare, Counting, Holding};
 use corvid_app::Settings;
@@ -33,17 +35,13 @@ type Plain = Settings<Bare>;
 type Furnished = Settings<Counting>;
 
 #[test]
-fn the_file_is_named_for_the_game_and_ends_in_setting_json() {
-    // `None` only where the environment names no home at all, which is not the
-    // case on any machine this runs on.
-    let path = Plain::path("counter").expect("a test machine has a home directory");
-
-    assert!(path.ends_with("counter/setting.json"), "{}", path.display());
-    // Absolute, because every one of the three sources is required to be — a
-    // relative one is ignored by the resolver rather than joined onto the
-    // working directory, which would put a player's settings wherever the game
-    // happened to be started from.
-    assert!(path.is_absolute(), "{}", path.display());
+fn the_file_sits_in_the_directory_it_is_given_and_is_called_setting_json() {
+    // A join rather than a lookup: the game's own directory is resolved once
+    // for a whole run — `--state DIR` or the user's data home — and the
+    // settings file, the binding file and `saves/` are all under it. So there
+    // is one answer to "where does this game write" and a test can name it.
+    let root = Path::new("/somewhere/counter");
+    assert_eq!(Plain::path(root), root.join("setting.json"));
 }
 
 #[test]

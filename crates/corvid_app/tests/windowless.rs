@@ -163,14 +163,14 @@ fn a_run_with_a_renderer_is_still_a_run_that_asks_the_platform_for_things() {
         let dark = App::<Counting>::new()
             .headless()
             .opening(opening::<Tally>(rules.clone()))
-            .saves(scratchpad.path())
+            .state(scratchpad.path())
             .run()
             .unwrap();
 
         let drawn = match App::<Counting>::new()
             .offscreen(SIZE)
             .opening(opening::<Tally>(rules))
-            .saves(scratchpad.path())
+            .state(scratchpad.path())
             .run()
         {
             Ok(outcome) => outcome,

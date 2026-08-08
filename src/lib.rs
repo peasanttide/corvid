@@ -137,7 +137,7 @@ pub use corvid_app::*;
 // The deterministic contract, and the digest a mark is.
 pub use corvid_behavior::{
     self as behavior, Command, Data, Discard, ExitCode, Extract, Extracting, Level, Loading,
-    Player, PlayerId, Presence, ProfileId, Scope, State, Time,
+    Player, PlayerId, Presence, ProfileId, SaveSlot, Scope, State, Time,
 };
 // The filesystem a level is read through, named here rather than forwarded by
 // `corvid_behavior`. `Source` is in `Level::load`'s signature and `Malformed`
@@ -166,7 +166,7 @@ pub use corvid_replay::{
     self as replay, Opening, Opens, Profile, Schema, Seed, Session, Snapshots,
 };
 pub use corvid_signal::{self as signal, Emitter, Watch, channel};
-pub use corvid_time::{self as time, Clock, Duration, Elapsed, Tick, TickSpan};
+pub use corvid_time::{self as time, Clock, Duration, Elapsed, Tick, TickSpan, Ticks};
 
 // The maths stack, from the bits up. A game writing a position, an angle or a
 // colour names one crate for all of it.

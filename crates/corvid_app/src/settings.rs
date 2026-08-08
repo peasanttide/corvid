@@ -9,39 +9,13 @@ use crate::{
     game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig},
 };
 
-/// Where a game's settings file lives under the config home.
-const FILE: &str = "setting.json";
-
-/// The directory that holds the file, when nobody named one.
+/// What the file is called, inside a game's own state directory.
 ///
-/// The same shape a save directory resolves under, one
-/// environment variable over: settings are configuration and saves are data, and
-/// the specification keeps those apart on purpose — a backup that takes
-/// `$XDG_DATA_HOME` and leaves `$XDG_CONFIG_HOME` is a backup of the saves and
-/// not of the key bindings.
-fn config_home() -> Option<PathBuf> {
-    // "If $XDG_CONFIG_HOME is either not set or empty, a default equal to
-    // $HOME/.config should be used." The spec also requires the value to be an
-    // absolute path and says relative ones are to be ignored.
-    if let Some(set) = std::env::var_os("XDG_CONFIG_HOME") {
-        let path = PathBuf::from(set);
-        if path.is_absolute() {
-            return Some(path);
-        }
-    }
-    // Read before `HOME` rather than after it, for the reason `data_home` gives:
-    // a Windows shell that has both means the Unix one for its own programs and
-    // `%APPDATA%` for everything else.
-    #[cfg(windows)]
-    if let Some(appdata) = std::env::var_os("APPDATA") {
-        let path = PathBuf::from(appdata);
-        if path.is_absolute() {
-            return Some(path);
-        }
-    }
-    let home = PathBuf::from(std::env::var_os("HOME")?);
-    home.is_absolute().then(|| home.join(".config"))
-}
+/// Beside `saves/` and the binding file, which is what
+/// [`root`](crate::saves::root) resolves and what `--state DIR` redirects:
+/// everything one game keeps between runs is one directory, so a player copies
+/// one path and a test redirects one flag.
+const FILE: &str = "setting.json";
 
 /// Everything the player has set, as one document.
 ///
@@ -138,16 +112,16 @@ where
 }
 
 impl<G: Game> Settings<G> {
-    /// Where this game's settings file is, or [`None`] where the environment
-    /// names no home at all.
+    /// Where this game's settings file is, given the directory it keeps its
+    /// files in.
     ///
-    /// [`None`] rather than a path beside the working directory, which is where
-    /// the save directory falls back to: a save nobody can write is a lost game
-    /// and worth falling back for, and a setting nobody can write is a run with
-    /// the defaults, which is what a fresh install is anyway.
+    /// The root is what `--state DIR` names and what
+    /// [`App`](crate::App) resolves for a run that did not — so this is a join
+    /// rather than a lookup, and there is one answer to "where does this game
+    /// write" rather than one per kind of file.
     #[must_use]
-    pub fn path(name: &str) -> Option<PathBuf> {
-        Some(config_home()?.join(name).join(FILE))
+    pub fn path(root: &Path) -> PathBuf {
+        root.join(FILE)
     }
 
     /// Reads the file, or answers the defaults where there is none.
@@ -167,16 +141,14 @@ impl<G: Game> Settings<G> {
     ///
     /// [`Error::Read`] if the file is there and could not be read, and
     /// [`Error::Setting`] if it is there and is not this game's settings.
-    pub fn load(name: &str) -> Result<Self, Error>
+    pub fn load(root: &Path) -> Result<Self, Error>
     where
         ControllerConfig<G>: Default,
         BotConfig<G>: Default,
         RenderConfig<G>: Default,
         AuralizerConfig<G>: Default,
     {
-        let Some(path) = Self::path(name) else {
-            return Ok(Self::default());
-        };
+        let path = Self::path(root);
         let text = match std::fs::read_to_string(&path) {
             Ok(text) => text,
             Err(why) if why.kind() == std::io::ErrorKind::NotFound => {
@@ -194,10 +166,8 @@ impl<G: Game> Settings<G> {
     /// [`Error::Wrote`] if the directory could not be made or the file could not
     /// be written, and [`Error::Encoded`] if the settings could not be written
     /// down at all.
-    pub fn save(&self, name: &str) -> Result<(), Error> {
-        let Some(path) = Self::path(name) else {
-            return Ok(());
-        };
+    pub fn save(&self, root: &Path) -> Result<(), Error> {
+        let path = Self::path(root);
         let text = serde_json::to_string_pretty(self).map_err(|why| Error::Setting {
             path: path.clone(),
             why,

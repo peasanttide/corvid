@@ -50,7 +50,7 @@ fn play(rules: Rules) -> corvid_app::Outcome<Counting> {
     App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(rules))
-        .saves(scratchpad.path())
+        .state(scratchpad.path())
         .for_ticks(TICKS)
         .run()
         .unwrap()

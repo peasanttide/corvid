@@ -10,7 +10,8 @@
 mod common;
 
 use common::{Attending, Bare, Counting, Rules, Tally, attendance, opening};
-use corvid_app::App;
+use corvid_app::{App, Arguments};
+use corvid_behavior::PlayerId;
 
 /// How far the runs below play.
 const TICKS: u64 = 30;
@@ -75,6 +76,42 @@ fn a_spectator_does_not_play_the_seat_it_watches() {
 
     assert_eq!(watched.state.count, 0, "a spectator moved the tally");
     assert_ne!(played.state.count, 0, "the played run never bumped");
+}
+
+/// A spectator watches the seat it was told to, and `--spectator` is the same
+/// two calls the builder makes.
+///
+/// The roster here has one seat, so watching the second is
+/// [`Error::Seat`](corvid_app::Error::Seat) — which is the observation: a
+/// `spectating` that always watched the roster's first seat would start this
+/// run happily, and an operator who asked to watch the other player would be
+/// watching themselves.
+#[test]
+fn a_spectator_watches_the_seat_it_named() {
+    let why = App::<Bare>::new()
+        .headless()
+        .opening(opening::<Tally>(Rules::quiet()))
+        .for_ticks(1)
+        .seat(PlayerId(1))
+        .spectating()
+        .run()
+        .expect_err("a one-seat roster has no second seat to watch");
+    assert!(
+        matches!(why, corvid_app::Error::Seat { seat, .. } if seat == PlayerId(1)),
+        "{why:?}",
+    );
+
+    let told = App::<Bare>::new()
+        .headless()
+        .opening(opening::<Tally>(Rules::quiet()))
+        .for_ticks(1)
+        .arguments(Arguments::parse(["--spectator", "--seat", "1"]).expect("two flags"))
+        .run()
+        .expect_err("the command line says the same thing");
+    assert!(
+        matches!(told, corvid_app::Error::Seat { seat, .. } if seat == PlayerId(1)),
+        "{told:?}",
+    );
 }
 
 /// A roster with nobody in it is refused before the seat is looked at, because

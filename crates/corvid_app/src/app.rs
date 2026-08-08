@@ -6,7 +6,11 @@ use corvid_control::Controller;
 #[cfg(feature = "render")]
 use corvid_render::Render;
 use corvid_sound::Auralizer;
-use std::{fmt, io, path::PathBuf, sync::Arc};
+use std::{
+    fmt, io,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use corvid_behavior::{ExitCode, PlayerId, SaveSlot, State};
 use corvid_hash::Digest;
@@ -18,7 +22,7 @@ use corvid_time::{Clock, Elapsed, Step, Tick, TickSpan};
 use crate::{
     Arguments, Requests, Retention,
     capture::Capture,
-    cli::Argument,
+    cli::{Argument, Load},
     game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig},
     headless::Headless,
     runtime::{Plan, Runtime},
@@ -226,15 +230,18 @@ pub struct App<G: Game> {
     /// a player. See [`inputs`](Self::inputs).
     /// Where to write the run down, if anywhere.
     capture: Option<PathBuf>,
+    /// Where to write the session by itself, if anywhere. See
+    /// [`record`](Self::record).
+    record: Option<PathBuf>,
     /// How much of the session to keep, or [`None`] to let
-    /// [`run`](Self::run) decide from whether there is a capture.
+    /// [`run`](Self::run) decide from whether the run is being written down.
     retention: Option<Retention>,
     /// What the operator asked for, applied by [`run`](Self::run) rather than
     /// when it was given. See [`arguments`](Self::arguments) for why.
     arguments: Option<Arguments>,
-    /// Where the save slots live, or [`None`] for the default under the game's
-    /// [`NAME`](State::NAME).
-    saves: Option<PathBuf>,
+    /// Where this game's own directory is, or [`None`] for the default under
+    /// the game's [`NAME`](State::NAME).
+    state: Option<PathBuf>,
     /// The slot to open on, if the run is resuming one.
     load: Option<SaveSlot>,
     /// The recorded session to open on, if the run is carrying one on.
@@ -298,9 +305,10 @@ where
             budget: corvid_lockstep::Budget::DEFAULT,
             input: Input::new(&[]),
             capture: None,
+            record: None,
             retention: None,
             arguments: None,
-            saves: None,
+            state: None,
             load: None,
             replay: None,
             stop: None,
@@ -404,20 +412,41 @@ where
         self
     }
 
-    /// Where the save slots live.
+    /// Where this game keeps everything it keeps between runs.
     ///
-    /// The default is `$XDG_DATA_HOME/NAME/saves/`, from the game's
-    /// [`NAME`](State::NAME) — so `~/.local/share/NAME/saves/` on a machine
-    /// that has not set it, and `%APPDATA%\NAME\saves\` on Windows. A
-    /// player's saves belong with the rest of their data rather than beside
-    /// whatever directory the game was launched from.
+    /// Under it are `saves/`, the settings file and — for a windowed run — the
+    /// binding file. **One directory rather than three**: a player who copies a
+    /// game to another machine copies one path, and a test that must not touch
+    /// theirs redirects one call.
     ///
-    /// An environment that names no home at all falls back to `./saves/NAME/`,
-    /// which is where every run used to write. A test points this at a
-    /// scratch directory rather than relying on either.
+    /// The default is `$XDG_DATA_HOME/NAME/`, from the game's
+    /// [`NAME`](State::NAME) — so `~/.local/share/NAME/` on a machine that has
+    /// not set it, and `%APPDATA%\NAME\` on Windows. A player's files belong
+    /// with the rest of their data rather than beside whatever directory the
+    /// game was launched from. An environment that names no home at all falls
+    /// back to `./NAME/`.
     #[must_use]
-    pub fn saves(mut self, directory: impl Into<PathBuf>) -> Self {
-        self.saves = Some(directory.into());
+    pub fn state(mut self, directory: impl Into<PathBuf>) -> Self {
+        self.state = Some(directory.into());
+        self
+    }
+
+    /// Writes the session to `path` as the run plays.
+    ///
+    /// The file is what [`replay`](Self::replay) and `--demo` open, and it is
+    /// the same bytes a [`capture`](Self::capture)'s `session` file holds — so
+    /// a run recorded either way is a run either can carry on.
+    ///
+    /// It is written once, when the run ends, because a session is a whole
+    /// thing rather than a stream: what a run holds at the end is what a replay
+    /// of it needs. Like a capture, it implies [`Retention::Everything`] unless
+    /// [`retain`](Self::retain) says otherwise, since a recording of the last
+    /// few seconds of an hour is not the recording anybody asked for.
+    ///
+    /// The directory above the file is created if it is not there.
+    #[must_use]
+    pub fn record(mut self, path: impl Into<PathBuf>) -> Self {
+        self.record = Some(path.into());
         self
     }
 
@@ -458,10 +487,10 @@ where
     /// down, and this is the one setting in this builder where that is true. A
     /// run nobody is recording gets [`Retention::RECENT`], because a game left
     /// running for an hour accumulates 54 000 rows of actions and 54 000 digests
-    /// that nothing has asked for. A run with a [`capture`](Self::capture) gets
-    /// [`Retention::Everything`], because a capture is a request to write the
-    /// run down and a recording of the last few seconds of an hour is not the
-    /// thing that was asked for.
+    /// that nothing has asked for. A run with a [`capture`](Self::capture) or a
+    /// [`record`](Self::record) gets [`Retention::Everything`], because either
+    /// is a request to write the run down and a recording of the last few
+    /// seconds of an hour is not the thing that was asked for.
     ///
     /// Saying it here overrides both, in either direction and whatever order the
     /// two calls are made in: an unrecorded run can be told to keep everything,
@@ -541,11 +570,10 @@ where
 
     /// How many unclaimed seats the game's [`Bot`](crate::Game::Bot) plays.
     ///
-    /// Bots take roster seats in order, skipping the seat this client is
-    /// [`Playing`](crate::Seating::Playing). A spectator skips nothing: it
-    /// watches a seat it does not play, so [`spectating`](Self::spectating)
-    /// with `bots(2)` fills both seats of a two-seat game and the run is one
-    /// this client only watches.
+    /// Bots take roster seats in order, skipping the seat this client plays. A
+    /// spectator plays none, so it skips nothing:
+    /// [`spectating`](Self::spectating) with `bots(2)` fills both seats of a
+    /// two-seat game and the run is one this client only watches.
     ///
     /// Asking for more bots than there are seats fills the seats there are,
     /// because the number a caller wants and the number a roster has are two
@@ -580,17 +608,18 @@ where
     /// run that plays nobody — so a spectator costs the run the whole of what
     /// deciding an action costs rather than only the write.
     ///
-    /// The seat watched is the roster's first. It is written here as
-    /// [`PlayerId(0)`](PlayerId) and checked against the roster when the run
-    /// opens, because that is when the roster is known: a `--load` or a
-    /// [`replay`](Self::replay) plays the roster it resumed rather than the one
-    /// the builder was handed.
+    /// The seat watched is whichever [`seat`](Self::seat) named, and the
+    /// roster's first for a run that named none — so `--spectator --seat 1`
+    /// watches the second seat without playing it. The two are one setting read
+    /// twice: `seat` says *which*, and this says *whether*. Writing `seat`
+    /// after this undoes it, because naming a seat to play is a claim on it.
     ///
-    /// Undoes [`seat`](Self::seat), and is undone by it, whichever is written
-    /// second — the two are one setting.
+    /// The seat is checked against the roster when the run opens, because that
+    /// is when the roster is known: a `--load` or a [`replay`](Self::replay)
+    /// plays the roster it resumed rather than the one the builder was handed.
     #[must_use]
     pub const fn spectating(mut self) -> Self {
-        self.seating = Seating::Watching(PlayerId(0));
+        self.seating = Seating::Watching(self.seating.watched());
         self
     }
 
@@ -775,29 +804,87 @@ where
 
     /// The builder calls [`arguments`](Self::arguments) stands for, made at the
     /// last possible moment.
-    fn apply(mut self, arguments: Arguments) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Argument`] carrying [`Argument::NotALevel`] for a `--level`
+    /// whose JSON is not this game's level reference, and [`Error::Unopened`]
+    /// for a `--level` on an app that has no opening to name a level in.
+    fn apply(mut self, arguments: Arguments) -> Result<Self, Error> {
         if arguments.headless {
             self = self.headless();
         }
         if let Some(ticks) = arguments.ticks {
-            self = self.for_ticks(ticks);
+            self = self.for_ticks(ticks.0);
         }
-        if let Some(directory) = arguments.capture {
-            self = self.capture(directory);
+        if let Some(path) = arguments.record {
+            self = self.record(path);
         }
-        if let Some(retention) = arguments.retain {
-            self = self.retain(retention);
+        if let Some(directory) = arguments.state {
+            self = self.state(directory);
         }
-        if let Some(directory) = arguments.saves {
-            self = self.saves(directory);
+        // The seat first, so that `--spectator --seat 1` watches the seat it
+        // was told to. `--seat 0` and a command line that says nothing are the
+        // same value, so a builder that chose a seat keeps it either way —
+        // seat zero is what both sides default to, and there is nothing in the
+        // parsed arguments that could tell the two apart.
+        if arguments.seat != PlayerId(0) {
+            self = self.seat(arguments.seat);
         }
-        if let Some(slot) = arguments.load {
-            self = self.load(slot);
+        if arguments.spectator {
+            self = self.spectating();
         }
-        if let Some(path) = arguments.replay {
-            self = self.replay(path);
+        if arguments.num_bots > 0 {
+            self = self.bots(arguments.num_bots);
         }
-        self
+        match arguments.load {
+            Some(Load::Save(slot)) => self = self.load(slot),
+            Some(Load::Demo(path)) => self = self.replay(path),
+            Some(Load::Level(json)) => self = self.open_on(&json)?,
+            None => {}
+        }
+        Ok(self)
+    }
+
+    /// Opens on the level `json` names rather than on the one the game's
+    /// opening does.
+    ///
+    /// What it replaces is the opening's
+    /// [`level`](corvid_replay::Opening::level): the reference the session
+    /// records, that a recording carries and that a peer's own opening is read
+    /// beside.
+    ///
+    /// **It does not reload the level's
+    /// [`content`](corvid_replay::Opening::content)**, and cannot from here:
+    /// reading a level from a reference is
+    /// [`Level::load`](corvid_behavior::Level::load), which is handed the
+    /// game's own file source, and this crate has none of a game's files to
+    /// hand it. So what a game with more than one level's worth of content
+    /// needs is for its [`Opens::opening`](corvid_replay::Opens::opening) to
+    /// choose; what this decides is which level the session is on record as
+    /// being.
+    ///
+    /// The value is JSON of the game's own
+    /// [`Reference`](corvid_behavior::Level::Reference) rather than the
+    /// [`FromStr`](core::str::FromStr) that type also has, because a
+    /// `FromStr::Err` has no [`Display`](fmt::Display) bound on it and a
+    /// refusal nobody can print is not a refusal.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Argument`] carrying [`Argument::NotALevel`] if the JSON is not
+    /// this game's reference, and [`Error::Unopened`] if there is no opening to
+    /// name a level in.
+    fn open_on(mut self, json: &str) -> Result<Self, Error> {
+        let level: LevelRef<G::State> = serde_json::from_str(json).map_err(|why| {
+            Error::Argument(Argument::NotALevel {
+                value: json.to_owned(),
+                why: why.to_string(),
+            })
+        })?;
+        let opening = self.opening.as_mut().ok_or(Error::Unopened)?;
+        opening.level = level;
+        Ok(self)
     }
 
     /// Reads the standard arguments and plays the game.
@@ -898,7 +985,7 @@ where
         // rather than read, so that `apply`'s own builder calls cannot see it
         // and loop.
         if let Some(arguments) = self.arguments.take() {
-            self = self.apply(arguments);
+            self = self.apply(arguments)?;
         }
 
         // Read before `prepare` below takes the transport, because it decides
@@ -912,14 +999,20 @@ where
         if networked && self.bots > 0 {
             return Err(Error::BotsAndPeers { bots: self.bots });
         }
+        // The one directory this game keeps anything in, resolved once and
+        // handed to everything that writes: the slots, the settings file and —
+        // on the windowed path — the binding file. Three lookups would be three
+        // answers to "where does this game write", and a `--state` that moved
+        // some of them.
+        let root = crate::saves::root(self.state.take(), <G::State as State>::NAME);
         // Either what a caller overrode or what the player has set. Read here
         // rather than in the builder, because reading a file is something a run
         // does and not something a `new` does.
         let settings = match self.settings.take() {
             Some(settings) => settings,
-            None => Settings::load(<G::State as State>::NAME)?,
+            None => Settings::load(&root)?,
         };
-        let (plan, capture) = self.prepare()?;
+        let (plan, capture) = self.prepare(&root)?;
 
         #[cfg(feature = "window")]
         if self.windowed {
@@ -961,14 +1054,14 @@ where
     /// [`Error::Unopened`], [`Error::Shape`], [`Error::NoSeats`],
     /// [`Error::Seat`], and whatever opening a capture directory or reading a
     /// save reported.
-    fn prepare(&mut self) -> Result<(Plan<G::State>, Option<Capture>), Error> {
+    fn prepare(&mut self, root: &Path) -> Result<(Plan<G::State>, Option<Capture>), Error> {
         let opening = self.opening.take().ok_or(Error::Unopened)?;
-        let saves = Saves::resolve(self.saves.take(), <G::State as State>::NAME);
+        let saves = Saves::under(root);
 
         let (session, resumed) = self.open(opening, &saves)?;
 
         // Against the roster that is actually in force, which on a `--load` or
-        // a `--replay` is the resumed session's and not the fresh opening's —
+        // a `--demo` is the resumed session's and not the fresh opening's —
         // the fresh one was thrown away by `open` above. Checking the discarded
         // roster would pass a seat of three into a two-seat save and fail a tick
         // later as `Error::Log`, at the write, with nothing saying which seat
@@ -1001,6 +1094,7 @@ where
             .collect();
 
         let capture = self.capture.take().map(Capture::open).transpose()?;
+        let record = self.record.take();
 
         // Counted from where the run opened, which is the opening's first tick
         // for a fresh session and the tick a save was written at for a resumed
@@ -1015,7 +1109,7 @@ where
         // a capture of the last few seconds of an hour is not the recording
         // anybody asked for. `retain` overrides both.
         let retention = self.retention.unwrap_or_else(|| {
-            if capture.is_some() {
+            if capture.is_some() || record.is_some() {
                 Retention::Everything
             } else {
                 Retention::default()
@@ -1035,6 +1129,8 @@ where
             progress: self.progress.take(),
             retention,
             saves,
+            root: root.to_path_buf(),
+            record,
             resumed,
         };
         Ok((plan, capture))
@@ -1106,7 +1202,7 @@ where
             .bindings
             .take()
             .unwrap_or_else(|| corvid_input::platform::Bindings::placeholder(declaration));
-        let bindings = crate::controls::resolve(plan.saves.root(), declaration, shipped)?;
+        let bindings = crate::controls::resolve(&plan.root, declaration, shipped)?;
         let config = corvid_window::Config::new(<G::State as State>::NAME, declaration)
             .icon(None)
             .bindings(bindings)
@@ -1385,6 +1481,25 @@ pub enum Error {
          the same state, which is a tick that is not a pure function of what it was handed"
     )]
     Diverged(#[source] Box<corvid_lockstep::Desync>),
+    /// The socket a `--listen`/`--connect` asked for could not be opened.
+    ///
+    /// A fact about the machine and the network rather than about the session:
+    /// a port something else is already on, an address that resolves to
+    /// nothing, a name no resolver knows. It is one variant naming which of the
+    /// two halves failed, because "this port could not be bound" and "that
+    /// address could not be reached" are the same kind of answer and the
+    /// address is what a reader needs either way.
+    #[cfg(feature = "net")]
+    #[error("this run could not {what} {address}: {why}")]
+    Socket {
+        /// Which half: `bind` for the port here, `reach` for the machine there.
+        what: &'static str,
+        /// The address it was about, as it was written.
+        address: String,
+        /// Why not.
+        #[source]
+        why: io::Error,
+    },
     /// A peer could not carry on for a reason that is not a divergence.
     ///
     /// A datagram naming a tick past the horizon — the denial-of-service arm,

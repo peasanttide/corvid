@@ -237,6 +237,12 @@ diffing one build's marks against another's is the common operation and it
 should not mean decoding a whole session — which carries the level, the rules
 and the opening state — to reach a column of digests.
 
+[`App::record`] writes the last of those four and nothing else: the same bytes
+as `session`, at a path of its own rather than in a directory. That is what
+`--demo` opens and what [`App::replay`] reads, so a run recorded either way is a
+run either can carry on — and a run that wants a session to hand somebody does
+not have to write a directory of pictures to get one.
+
 A frame is named for the tick its `current` state is at, so a run displaying
 several frames between two ticks leaves the last one under that tick's name. The
 directory is created if it is not there and written into if it is; nothing here
@@ -290,9 +296,9 @@ so the default is bounded and keeping everything is something a run asks for.
 | `retain(Retention::Recent { ticks })` | at least `ticks`, never more than twice | the same, per window |
 | either of those, run for fewer than `ticks` ticks | every tick it played, which is all there was | nothing: nothing has been forgotten yet |
 | `retain(Retention::Everything)` | every tick from the opening | memory that grows with the run |
-| `capture(directory)` | every tick, unless `retain` says otherwise | the same |
+| `capture(directory)` or `record(file)` | every tick, unless `retain` says otherwise | the same |
 
-A capture keeps everything because a capture is a request to write the run
+Either of those keeps everything because either is a request to write the run
 down, and a recording of the last seventeen seconds of an hour is not the
 recording anybody asked for. `retain` beats that in either direction and
 whichever order the two calls are written in, so a soak test that wants a
@@ -364,56 +370,81 @@ fn main() -> corvid_app::Result {
 a bot, a renderer and an ear — and how long its tick lasts. Naming one names all
 five, which is what lets the line above be the whole of a `main`.
 
-A window, a headless run, a capture, a replay and a save slot are all the same
-program: `main` reads the process's arguments and decides. **A game never asks
-for determinism**, because a game that had to call `.headless()` would have a
-mode that is deterministic and a mode that is not, and only one of them would be
-tested.
+A window, a headless run, a recording, a save slot, a bot and another machine
+are all the same program: `main` reads the process's arguments and decides. **A
+game never asks for determinism**, because a game that had to call
+`.headless()` would have a mode that is deterministic and a mode that is not,
+and only one of them would be tested.
 
 | | |
 |---|---|
 | `--headless` | play with no window, no adapter and no audio device |
+| `--spectator` | claim no seat: submit nothing, and watch the seat this client would have played |
+| `--bots N` | let the game's bot play `N` seats nobody is in |
 | `--ticks N` | stop once `N` ticks have run, counted from where the run opened |
-| `--capture DIR` | write the run down under `DIR` |
-| `--retain N` \| `--retain all` | keep at least `N` ticks of the session, or all of it |
-| `--replay FILE` | open on the session recorded in `FILE` |
+| `--level JSON` | open on this level rather than on the game's own |
 | `--load N` | open on save slot `N` |
-| `--saves DIR` | put the save slots under `DIR` rather than under `$XDG_DATA_HOME/NAME/saves/` |
+| `--demo FILE` | open on the session in `FILE`, and carry it on |
+| `--record FILE` | write the session to `FILE` as the run plays |
+| `--state DIR` | put this game's saves, settings and bindings under `DIR` |
+| `--seat N` | which seat this machine plays |
+| `--listen PORT`, `--connect HOST:PORT` | the socket the other machine is behind |
 | `--help`, `-h` | the usage |
 
 Every one of those is a thing the *operator* decides: whether this machine has a
-display, how long to run for, whether to record it, how much to keep, which
-recorded run to open on. A setting only the game can know — its opening, its
-rules, its passes — is not here and should not be, because a flag for it would
-be a flag whose legal values only the game could list. `--ticks 100` and
-`--ticks=100` are the same argument, and a flag that takes a value and is given
-none is refused rather than defaulted, because "zero ticks" and "as long as you
-like" are both things somebody might have meant.
+display, who is at the controls, how long to run for, what to open on, where the
+run's files live, and who else is in the session. A setting only the game can
+know — its rules, its passes, its opening — is not here and should not be,
+because a flag for it would be a flag whose legal values only the game could
+list. `--level` is the near miss, and the reason it works is that what it
+carries is the game's *own* reference type as JSON: the parser holds a string,
+and `App::run` is what reads it into a `LevelRef`.
+
+`--ticks 100` and `--ticks=100` are the same argument, and a flag that takes a
+value and is given none is refused rather than defaulted, because "zero ticks"
+and "as long as you like" are both things somebody might have meant. The three
+ways of opening are one field and naming two of them is refused, as is `--bots`
+alongside `--connect`: a seat filled locally is a seat every other machine in
+the session would have to fill identically, and a controller is no part of what
+a session records.
 
 `main` is one function with one bound, `G: Game`, and there is no configuration
 in which it is weaker: a game that reaches it has a renderer and an ear whether
 it draws or sounds or not. A game that draws nothing writes `type Render = ();`
-and satisfies it, and the run opens no adapter. [`App`] is still here for a
-harness driving a run by hand, and [`App::launch`] is the same reading of the
+and satisfies it, and the run opens no adapter. What `main` says that no flag
+can is the three things only the game knows: `Opens::opening`,
+`Controller::SETS` and `Controller::bindings`. [`App`] is still here for a
+harness driving a run by hand — a clock it chose, an [`App::offscreen`] target,
+a [`App::capture`] directory — and [`App::launch`] is the same reading of the
 command line for one.
 
 ## Save and load, without a game asking
 
 `Command::Save` and `Command::Read` are in the closed vocabulary already, and
-the runtime is what acts on them. A slot is resolved against `--saves DIR` if
-the operator named one and `$XDG_DATA_HOME/NAME/saves/` otherwise, from
-[`State::NAME`](corvid_behavior::State::NAME); what goes in it is the
-session and the state, through `corvid_wire`; and reading one back is
+the runtime is what acts on them. A slot lives in `saves/` under the one
+directory this game keeps everything in; what goes in it is the session and the
+state, through `corvid_wire`; and reading one back is
 [`Session::seek`](corvid_replay::Session::seek) — the same call rollback and
 time-walk are, so a save that cannot be replayed is refused at the load rather
 than a hundred ticks later. **A game implements nothing for this.** Its `State`
 is `Data`, and that is the whole requirement.
 
+That directory is `--state DIR` if the operator named one and
+`$XDG_DATA_HOME/NAME/` otherwise, from
+[`State::NAME`](corvid_behavior::State::NAME) — and under it are `saves/`, the
+settings file and the binding file. **One directory rather than three**: a
+player who moves a game to another machine copies one path, and a test that must
+not touch theirs redirects one flag. The specification does keep configuration
+and data apart, and that split is real for a program whose configuration is
+edited by something else; here all three files are written by the game and read
+by the same game, and separating them would mean a `--state` that moved some of
+what a run writes.
+
 The default follows the XDG Base Directory specification: an absolute
 `XDG_DATA_HOME` if the environment sets one, `$HOME/.local/share` if it does
 not, and `%APPDATA%` on Windows. Written out rather than taken from a crate,
 because the rule is those three lines. An environment that names no home at all
-falls back to `./saves/NAME/`, which is where every run used to write.
+falls back to `./NAME/`, beside wherever the game was launched from.
 
 The operator's word beats the builder's, whichever order the two are written in,
 and an argument nobody gave changes nothing — so a game keeps every default it
@@ -514,21 +545,22 @@ digests, and nothing here runs two processes.
 
 ## The seat a client watches, and the seat it plays
 
-Two questions, and [`Seating`] is one value that answers both. A client always
+Two questions, and one value inside the runtime answers both. A client always
 watches a seat — the camera is somebody's, and so are the renderer and the ears
-that follow it — so [`Seating::watched`] is a `PlayerId` and not an `Option`,
-and it is what `update`, `look`, `draw` and `hear` are handed. Whether the same
-client also submits an action is the other question, and [`Seating::playing`]
-is the `Option`.
+that follow it — so the watched seat is a `PlayerId` and not an `Option`, and it
+is what `update`, `look`, `draw` and `hear` are handed. Whether the same client
+also submits an action is the other question, and *that* is the `Option`.
 
 [`App::seat`] answers both with one seat, which is a person playing a game.
 [`App::spectating`] answers the first and declines the second: the run looks
-through the roster's first seat and submits nothing for it, so the column is
-filled by whatever else fills it — a peer on another machine, or the idle
-action a row nobody wrote already holds. The controller is not asked for an
-action at all, which is worth stating because it is more than skipping the
-write: a game's decision code does not run on a client that has decided
-nothing.
+through the seat it was going to play — the roster's first, unless `seat` named
+another — and submits nothing for it, so the column is filled by whatever else
+fills it: a peer on another machine, or the idle action a row nobody wrote
+already holds. The controller is not asked for an action at all, which is worth
+stating because it is more than skipping the write: a game's decision code does
+not run on a client that has decided nothing. The pair is one type and it is
+this crate's own, because those two calls are the whole of what a caller can say
+about seating.
 
 [`App::bots`] is what fills the rest. The game's [`Game::Bot`] — a second
 `Controller`, one instance for the whole run — is asked for an action once per

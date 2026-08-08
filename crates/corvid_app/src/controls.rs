@@ -22,12 +22,13 @@ use corvid_input::platform::{Bindings, Table, Unknown};
 
 use crate::app::Error;
 
-/// What the file is called, inside the directory the save slots are in.
+/// What the file is called, inside a game's own state directory.
 ///
-/// Beside the saves rather than somewhere of its own, because that directory is
-/// already this game's own, already created when it is needed, and already
-/// redirectable with `--saves` — which is what lets a test point this at a
-/// temporary directory using an argument that already exists.
+/// Beside `saves/` and the settings file rather than somewhere of its own,
+/// because that directory is already this game's own, already created when it
+/// is needed, and already redirectable with `--state` — which is what lets a
+/// test point this at a temporary directory using an argument that already
+/// exists.
 pub(crate) const FILE: &str = "bindings.json";
 
 /// Two spaces high, which is enough to see the shape of a line without the file

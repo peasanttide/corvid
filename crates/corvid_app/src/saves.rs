@@ -22,10 +22,10 @@ use crate::Error;
 /// The leaf a game's slots sit in, under its own directory in the user's data
 /// home.
 ///
-/// A leaf rather than the whole path, because the data home is
+/// A leaf rather than the whole path, because the state root is
 /// `$XDG_DATA_HOME/<name>/` and saves are one kind of thing a game keeps
-/// there — a capture and a binding file are others, and they want to be
-/// siblings rather than to be mixed in among the slots.
+/// there — the settings file and the binding file are the others, and they want
+/// to be siblings rather than to be mixed in among the slots.
 const SAVES: &str = "saves";
 
 /// Where a user's own data lives, per the XDG Base Directory specification.
@@ -66,6 +66,32 @@ fn data_home() -> Option<PathBuf> {
         .then(|| home.join(".local").join("share"))
 }
 
+/// Everything one game keeps between runs, in one directory.
+///
+/// `--state DIR` if the operator named one, and `$XDG_DATA_HOME/NAME/`
+/// otherwise — so `~/.local/share/NAME/` on a machine that has not set it, and
+/// `%APPDATA%\NAME\` on Windows. Under it are `saves/`, the settings file and
+/// the binding file.
+///
+/// **One directory rather than three**, and that is the whole of why this
+/// function exists: a player who wants to move a game to another machine, back
+/// it up, or throw it away copies one path, and a test that wants a run to
+/// touch nothing of theirs redirects one flag. The specification does keep
+/// configuration and data apart, and the split is real for a program whose
+/// configuration is edited by something other than the program; here the
+/// settings file, the binding file and the slots are all written by the game
+/// and read by the same game, and separating them would mean a `--state` that
+/// redirected some of what a run writes.
+///
+/// A relative path is what an environment naming no home at all falls back to:
+/// a directory named for the game, beside wherever it was launched from.
+/// Nothing that runs a game ordinarily hits it — it is a login shell with no
+/// `HOME`, or a service account — and a run refusing to start over an unusual
+/// environment would be the worse answer.
+pub(crate) fn root(named: Option<PathBuf>, name: &str) -> PathBuf {
+    named.unwrap_or_else(|| data_home().map_or_else(|| PathBuf::from(name), |home| home.join(name)))
+}
+
 /// What one slot's file is called.
 const EXTENSION: &str = "corvid";
 
@@ -102,37 +128,17 @@ pub(crate) struct Saves {
 }
 
 impl Saves {
-    /// `--saves DIR` if the operator named one, and the user's own data
-    /// directory otherwise.
+    /// The `saves/` directory under a game's [`root`], which is where the slot
+    /// files go.
     ///
-    /// That is `$XDG_DATA_HOME/NAME/saves/` — so `~/.local/share/NAME/saves/`
-    /// on a machine that has not set it, and `%APPDATA%\NAME\saves\` on
-    /// Windows. A game's saves belong with the user's other data rather than
-    /// beside whatever directory it happened to be launched from, which is
-    /// where they used to land.
-    ///
-    /// The old relative `./saves/NAME/` survives as the fallback for an
-    /// environment that names no home at all. Nothing that runs a game
-    /// ordinarily hits it, and a run refusing to start because a service
-    /// account has no `HOME` would be the worse answer.
-    pub(crate) fn resolve(named: Option<PathBuf>, name: &str) -> Self {
-        let root = named.unwrap_or_else(|| {
-            data_home().map_or_else(
-                || Path::new(SAVES).join(name),
-                |home| home.join(name).join(SAVES),
-            )
-        });
-        Self { root }
-    }
-
-    /// The directory itself.
-    ///
-    /// The binding file lives in it, beside the slots: it is already this
-    /// game's own directory, already redirectable with `--saves`, and already
-    /// created when something is written into it.
-    #[cfg(feature = "window")]
-    pub(crate) fn root(&self) -> &Path {
-        &self.root
+    /// A leaf of the state root rather than a path of its own, so that
+    /// `--state DIR` moves the slots along with the settings and the bindings:
+    /// one directory is what a player copies to another machine, and a flag
+    /// that moved two of the three would be a flag that half worked.
+    pub(crate) fn under(root: &Path) -> Self {
+        Self {
+            root: root.join(SAVES),
+        }
     }
 
     /// Where slot `slot` is written.
@@ -304,11 +310,12 @@ fn open<S: State>(bytes: &[u8], schema: Digest) -> Result<Resumed<S>, NotASave> 
     Ok((session, state))
 }
 
-/// Reads the session a `--capture` wrote and the state it ends at.
+/// Reads the session a `--record` wrote and the state it ends at.
 ///
-/// The file is the `session` a capture directory holds, which is a bare
-/// [`Session`] rather than a slot's two blobs — so this is the same seek with
-/// no recorded state to compare against.
+/// The file is what [`record::write`](crate::record::write) put there, which is
+/// the same bytes a capture directory's `session` holds: a bare [`Session`]
+/// rather than a slot's two blobs, so this is the same seek with no recorded
+/// state to compare against.
 ///
 /// # Errors
 ///

@@ -6,7 +6,7 @@ use corvid_behavior::Extract;
 use corvid_control::{Acting, Controller, Updating};
 use corvid_replay::LevelRef;
 use corvid_sound::{Auralizer, Hearing};
-use std::{mem, sync::Arc};
+use std::{mem, path::PathBuf, sync::Arc};
 
 use corvid_behavior::{ExitCode, Extracting, Player, PlayerId, SaveSlot, Time};
 use corvid_fixed::Factor16;
@@ -73,6 +73,12 @@ pub(crate) struct Plan<S: State> {
     /// Where a [`Save`](Command::Save) writes and a [`Read`](Command::Read)
     /// looks.
     pub(crate) saves: Saves,
+    /// The one directory this game keeps anything in: the slots are under it,
+    /// and so are the settings file and the binding file.
+    pub(crate) root: PathBuf,
+    /// Where to write the session when the run ends, if anywhere. See
+    /// [`App::record`](crate::App::record).
+    pub(crate) record: Option<PathBuf>,
     /// What the devices say, frame by frame, for a run whose caller is
     /// standing in for a player.
     /// The tick the run opens at and the state there, for a run that was handed
@@ -80,7 +86,7 @@ pub(crate) struct Plan<S: State> {
     ///
     /// [`None`] is a fresh session, which opens at
     /// [`Session::first`](corvid_replay::Session::first) on the opening's own
-    /// origin state. A `--load` or a `--replay` fills this in, because the
+    /// origin state. A `--load` or a `--demo` fills this in, because the
     /// session it hands over has already been played and the state at its last
     /// tick is what the run carries on from.
     pub(crate) resumed: Option<StateAt<S>>,
@@ -248,6 +254,11 @@ pub(crate) struct Runtime<G: Game, B> {
     sink: Sink<LevelRef<G::State>>,
     /// Where a save is written and read.
     saves: Saves,
+    /// The directory the settings file is written into, which is the one this
+    /// game keeps everything else in too.
+    root: PathBuf,
+    /// Where the session is written when the run ends, if anywhere.
+    record: Option<PathBuf>,
     /// When to stop, if the caller said.
     stop: Option<Stop<G::State>>,
     /// The tick to stop *before*, if the caller asked for a fixed number of
@@ -278,7 +289,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// # Errors
     ///
     /// Only a linked run has one: [`Error::Halted`] if the state a `--load` or
-    /// a `--replay` resumed at is one the peer will not adopt, which is a tick
+    /// a `--demo` resumed at is one the peer will not adopt, which is a tick
     /// outside the session it was handed.
     /// Writes the settings file when the controller says its config has moved.
     ///
@@ -302,7 +313,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             return;
         }
         self.settings.controls = config;
-        if let Err(why) = self.settings.save(<G::State as State>::NAME) {
+        if let Err(why) = self.settings.save(&self.root) {
             tracing::warn!(
                 name: "corvid_app.unsaved",
                 %why,
@@ -382,6 +393,8 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             backend,
             sink: Sink::default(),
             saves: plan.saves,
+            root: plan.root,
+            record: plan.record,
             stop: plan.stop,
             deadline: plan.deadline,
             progress: plan.progress,
@@ -1084,7 +1097,13 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         }
     }
 
-    /// Writes the capture's last two files and hands the run back.
+    /// Writes down what the run is asked to leave behind, and hands it back.
+    ///
+    /// The capture's last two files and the `--record` file are written here
+    /// and not before, because both hold the *whole* session and a session is
+    /// only whole once the last tick has run. A run asked for both writes the
+    /// same bytes twice, into a capture's `session` and into the named file, so
+    /// either is a file a `--demo` opens.
     fn finish(self, exit: ExitCode) -> Result<Outcome<G>, Error> {
         #[cfg(feature = "net")]
         let traffic = match &self.play {
@@ -1098,6 +1117,9 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 why,
             })?;
             capture.close(&bytes, &session.marks)?;
+        }
+        if let Some(path) = &self.record {
+            crate::record::write(path, &session)?;
         }
         Ok(Outcome {
             session,

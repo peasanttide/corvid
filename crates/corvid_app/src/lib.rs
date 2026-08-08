@@ -21,6 +21,7 @@ mod game;
 mod headless;
 #[cfg(feature = "net")]
 mod net;
+mod record;
 mod retention;
 mod runtime;
 mod saves;
@@ -33,7 +34,7 @@ mod settings;
 mod windowed;
 
 pub use app::{App, Error, Outcome, Progress};
-pub use cli::{Argument, Arguments, main, watch};
+pub use cli::{Argument, Arguments, Load, main, watch};
 pub use commands::{Answer, Command, Request, Requests};
 #[cfg(feature = "window")]
 pub use controls::Misbound;
@@ -42,7 +43,6 @@ pub use game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig}
 pub use net::{Departures, TickTraffic, Traffic, seat_of};
 pub use retention::Retention;
 pub use saves::NotASave;
-pub use seating::Seating;
 pub use settings::Settings;
 
 /// What a run answers with: nothing, or why it could not play.

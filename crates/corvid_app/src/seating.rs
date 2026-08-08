@@ -4,6 +4,13 @@ use corvid_behavior::PlayerId;
 
 /// Where this client sits.
 ///
+/// Not public, and that is a decision rather than an oversight: no signature a
+/// caller can write mentions one. [`seat`](crate::App::seat) says which seat
+/// and that this client plays it, [`spectating`](crate::App::spectating) says
+/// it plays none, and between them they are the whole of what anybody outside
+/// this crate can say about seating — so a public enum here would be a type
+/// every reader meets and nobody can use.
+///
 /// A client always watches a seat: the camera, the renderer and the ears belong
 /// to somebody, and a run with nobody to look through has nothing to draw.
 /// Whether it also submits an action for a seat is the other half, and it is
@@ -18,7 +25,7 @@ use corvid_behavior::PlayerId;
 /// unrepresentable and the first deliberate: the seat is written once, and
 /// [`playing`](Self::playing) is the only thing the two arms differ about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Seating {
+pub(crate) enum Seating {
     /// Submits for this seat, and watches it.
     Playing(PlayerId),
     /// Submits for nobody, and watches this seat.
@@ -34,7 +41,7 @@ impl Seating {
     /// [`Option`]. A run that could not answer this would be a run with nothing
     /// to draw and nowhere to draw it from.
     #[must_use]
-    pub const fn watched(self) -> PlayerId {
+    pub(crate) const fn watched(self) -> PlayerId {
         match self {
             Self::Playing(seat) | Self::Watching(seat) => seat,
         }
@@ -47,7 +54,7 @@ impl Seating {
     /// column the watched seat has is filled by whatever else fills it — a peer
     /// on another machine, a bot, or the idle action a row nobody wrote holds.
     #[must_use]
-    pub const fn playing(self) -> Option<PlayerId> {
+    pub(crate) const fn playing(self) -> Option<PlayerId> {
         match self {
             Self::Playing(seat) => Some(seat),
             Self::Watching(_) => None,

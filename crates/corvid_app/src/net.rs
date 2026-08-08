@@ -1067,6 +1067,52 @@ pub const fn seat_of(peer: PeerId) -> PlayerId {
     PlayerId(peer.0)
 }
 
+/// The socket `--listen PORT --connect HOST:PORT` asks for.
+///
+/// Every address on this machine, on `port`, announcing this machine as the
+/// [`PeerId`] of its own seat — which is what [`seat_of`] reads back on the
+/// other end, and is why two processes started by one command line need nothing
+/// else told to them. `peer` is the other machine, as `HOST:PORT`.
+///
+/// The seat it announces is **this machine's own seat number**, so the two
+/// halves of a two-machine session are `--seat 0 --listen A --connect B` and
+/// `--seat 1 --listen B --connect A`. The peer it connects to is the other one
+/// of the two, which is the same arithmetic: a session with more machines than
+/// that is assembled by a lobby over
+/// [`Channel::Control`](corvid_net::Channel) rather than by a command line.
+///
+/// # Errors
+///
+/// [`Error::Socket`](crate::Error::Socket) if the port will not bind or the
+/// other machine's address will not resolve. Both are facts about the machine
+/// and the network rather than about the session, which is why they are one
+/// variant naming which of the two it was.
+pub(crate) fn udp(
+    port: u16,
+    seat: PlayerId,
+    peer: &str,
+) -> Result<Box<dyn Transport>, crate::Error> {
+    let here = ("0.0.0.0", port);
+    let socket = corvid_net::udp::UdpNet::bind(here, PeerId(seat.0)).map_err(|why| {
+        crate::Error::Socket {
+            what: "bind",
+            address: format!("0.0.0.0:{port}"),
+            why,
+        }
+    })?;
+    // One other machine, and the seat it is in is the one this machine is not.
+    // A third would be a session somebody arranged rather than one two command
+    // lines agreed on.
+    socket
+        .connect(PeerId(1_u16.wrapping_sub(seat.0)), peer)
+        .map_err(|why| crate::Error::Socket {
+            what: "reach",
+            address: peer.to_owned(),
+            why,
+        })?;
+    Ok(Box::new(socket))
+}
+
 /// The log refusing this machine's own action.
 const fn refused(why: Refused) -> crate::Error {
     crate::Error::Log(why)

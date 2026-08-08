@@ -10,17 +10,42 @@
 
 use std::{fmt, path::PathBuf};
 
-use corvid_behavior::SaveSlot;
-use corvid_hash::digest;
+use corvid_behavior::{PlayerId, SaveSlot};
+use corvid_control::Controller;
 use corvid_replay::Opens;
+use corvid_time::{Tick, Ticks};
 
 use crate::{
-    App, Error, Outcome, Retention,
+    App, Error, Outcome,
     game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig},
 };
 // `crate::Result` is spelled in full at each use below rather than imported:
 // this file also parses into `Result<_, Argument>`, and one `Result` in scope
 // standing for a one-parameter alias would shadow the other.
+
+/// What the run opens on.
+///
+/// Three ways of naming a starting point and one field to hold whichever was
+/// given, because they are one decision: a run opens on a level, on a slot or
+/// on a recording, and a command line that named two of them named two runs.
+/// [`Argument::Conflicting`] is what that is.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Load {
+    /// A level reference, as the JSON of
+    /// [`LevelRef`](corvid_replay::LevelRef) — the type a game's own
+    /// [`Level::Reference`](corvid_behavior::Level::Reference) is.
+    ///
+    /// Kept as text rather than parsed here, because what it parses *into* is
+    /// the game's own type and this parser knows no game. [`App::run`] is what
+    /// reads it, and a string that is not that game's level reference is
+    /// [`Argument::NotALevel`] there.
+    Level(String),
+    /// A save slot.
+    Save(SaveSlot),
+    /// A recorded session, which is what `--record` wrote.
+    Demo(PathBuf),
+}
 
 /// What every Corvid game answers to.
 ///
@@ -37,20 +62,26 @@ use crate::{
 /// | | |
 /// |---|---|
 /// | `--headless` | play with no window, no adapter and no audio device |
+/// | `--spectator` | claim no seat: submit nothing, and watch the one this client would have played |
+/// | `--bots N` | let the game's bot play `N` seats nobody is in |
 /// | `--ticks N` | stop once `N` ticks have run, counted from where the run opened |
-/// | `--capture DIR` | write the run down under `DIR` |
-/// | `--retain N` \| `--retain all` | keep at least `N` ticks of the session, or all of it |
-/// | `--replay FILE` | open on the session recorded in `FILE` |
+/// | `--level JSON` | open on this level rather than on the game's own |
 /// | `--load N` | open on save slot `N` |
-/// | `--saves DIR` | put the save slots under `DIR` rather than under `$XDG_DATA_HOME/NAME/saves/` |
-/// | `--help`, `-h` | write this table to stdout and stop, successfully |
+/// | `--demo FILE` | open on the session in `FILE`, and carry it on |
+/// | `--record FILE` | write the session to `FILE` as the run plays |
+/// | `--state DIR` | put this game's saves, settings and bindings under `DIR` |
+/// | `--seat N` | which seat this machine plays |
+/// | `--listen PORT` \| `--connect HOST:PORT` | the socket the other machine is behind |
+/// | `--help`, `-h` | write the usage to stdout and stop, successfully |
 ///
 /// Every one of them is a thing the *operator* decides rather than the game:
-/// whether this machine has a display, how long to run for, whether to record
-/// it, how much to keep, and which recorded run to open on. A setting only the
-/// game can know — its opening, its rules, its passes — is not here and should
-/// not be, because a flag for it would be a flag whose legal values only the
-/// game could list.
+/// whether this machine has a display, who is at the controls, how long to run
+/// for, where the run's files live, what to open on and who else is in it. A
+/// setting only the game can know — its rules, its passes, its opening — is not
+/// here and should not be, because a flag for it would be a flag whose legal
+/// values only the game could list. `--level` is the near miss and the reason
+/// it works: what it carries is the game's own reference type, as JSON, so this
+/// parser holds a string and the game is what reads it.
 ///
 /// `--ticks 100` and `--ticks=100` are the same argument. A flag that takes a
 /// value and is given none is [`Argument::Missing`] rather than a default,
@@ -59,47 +90,55 @@ use crate::{
 ///
 /// # Why no argument-parsing library
 ///
-/// Seven flags, no subcommands, no completion, and a workspace habit of owning
+/// Eleven flags, no subcommands, no completion, and a workspace habit of owning
 /// small things. The whole of the parser below is shorter than the manifest
 /// entry and the feature audit a dependency would cost, and it is what the
 /// crate's public error type has to describe anyway.
 ///
 /// ```
-/// use corvid_app::{Arguments, Retention};
+/// use corvid_app::{Arguments, Load};
+/// use corvid_behavior::{PlayerId, SaveSlot};
+/// use corvid_time::Ticks;
 ///
 /// let arguments = Arguments::parse(["--headless", "--ticks=90"])?;
 /// assert!(arguments.headless);
-/// assert_eq!(arguments.ticks, Some(90));
-/// assert_eq!(arguments.capture, None);
+/// assert_eq!(arguments.ticks, Some(Ticks(90)));
+/// assert_eq!(arguments.record, None);
 ///
-/// // The two spellings are the same argument, and `all` is the word for
-/// // keeping the whole session.
-/// let recorded = Arguments::parse(["--capture", "out/", "--retain", "all"])?;
-/// assert_eq!(recorded.retain, Some(Retention::Everything));
+/// // The three ways of opening are one field, because they are one decision.
+/// let resumed = Arguments::parse(["--load", "3", "--state", "here/"])?;
+/// assert_eq!(resumed.load, Some(Load::Save(SaveSlot(3))));
+/// assert_eq!(resumed.state.as_deref(), Some(std::path::Path::new("here/")));
 ///
-/// // A slot is a number, and where to look for it is a path.
-/// let resumed = Arguments::parse(["--load", "3", "--saves", "slots/"])?;
-/// assert_eq!(resumed.load.map(|slot| slot.0), Some(3));
-/// assert_eq!(resumed.saves.as_deref(), Some(std::path::Path::new("slots/")));
+/// // And a command line that named two of them named two runs.
+/// assert!(Arguments::parse(["--load", "3", "--demo", "run/session"]).is_err());
 /// # Ok::<(), corvid_app::Argument>(())
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Arguments {
-    /// Whether the run was told to open nothing.
+    /// Open no window, no adapter and no audio device.
     pub headless: bool,
-    /// How many ticks to run for, if a number was given.
-    pub ticks: Option<u64>,
-    /// Where to write the run down, if anywhere.
-    pub capture: Option<PathBuf>,
-    /// How much of the session to keep, if the operator said.
-    pub retain: Option<Retention>,
-    /// The recorded session to open on, if one was named.
-    pub replay: Option<PathBuf>,
-    /// The save slot to open on, if one was named.
-    pub load: Option<SaveSlot>,
-    /// Where the save slots live, if the operator said.
-    pub saves: Option<PathBuf>,
+    /// Claim no seat: submit nothing, and watch the seat
+    /// [`seat`](Self::seat) names, which is the first one unless it says
+    /// otherwise.
+    pub spectator: bool,
+    /// How many unclaimed seats the game's bot plays.
+    pub num_bots: u16,
+    /// Stop once this many ticks have run, counted from where the run opened.
+    pub ticks: Option<Ticks>,
+    /// What to open on, rather than the game's own opening.
+    pub load: Option<Load>,
+    /// Where to write the session, so that `--demo` can open it again.
+    pub record: Option<PathBuf>,
+    /// Where this game's files live, rather than the user data dir.
+    pub state: Option<PathBuf>,
+    /// Which seat this machine plays.
+    pub seat: PlayerId,
+    /// The UDP port to bind.
+    pub listen: Option<u16>,
+    /// Where the other machine is, as `HOST:PORT`.
+    pub connect: Option<String>,
 }
 
 /// What a game is told it accepts.
@@ -114,21 +153,26 @@ pub struct Arguments {
 /// that may not print and a `main` that may are two different jobs, and only one
 /// of them is allowed the stream.
 const USAGE: &str = "\
-corvid: [--headless] [--ticks N] [--capture DIR] [--retain N|all]
-        [--replay FILE] [--load N] [--saves DIR]
+corvid: [--headless] [--spectator] [--bots N] [--ticks N]
+        [--level JSON | --load N | --demo FILE] [--record FILE] [--state DIR]
+        [--seat N] [--listen PORT] [--connect HOST:PORT]
 
   --headless        play with no window, no adapter and no audio device
+  --spectator       claim no seat: submit nothing, and watch the seat this
+                    machine would have played
+  --bots N          let the game's bot play N seats nobody is in
   --ticks N         stop once N ticks have run, counted from where the run
                     opened
-  --capture DIR     write the run down under DIR: one audio frame per displayed
-                    frame and a picture of it where there is an adapter to draw
-                    one, plus the hash trace and the session
-  --retain N|all    keep at least N ticks of the session in memory, or all of
-                    it; a capture keeps all of it unless this says otherwise
-  --replay FILE     open on the session recorded in FILE, which is the session
-                    file a --capture wrote, and carry it on
-  --load N          open on save slot N rather than on the game's own opening
-  --saves DIR       put the save slots under DIR rather than the user data dir
+  --level JSON      open on this level rather than the game's own
+  --load N          open on save slot N
+  --demo FILE       open on the session in FILE, which is what --record wrote,
+                    and carry it on
+  --record FILE     write the session to FILE as the run plays
+  --state DIR       put this game's saves, settings and bindings under DIR
+                    rather than the user data dir
+  --seat N          which seat this machine plays
+  --listen PORT     bind this UDP port
+  --connect ADDR    the other machine, as HOST:PORT
   --help, -h        this";
 
 impl Arguments {
@@ -159,8 +203,9 @@ impl Arguments {
     /// writes [`USAGE`](Self::USAGE) to stdout for it and exits zero;
     /// [`Argument::Unknown`] for a flag this does not have,
     /// [`Argument::Missing`] for one whose value is absent,
-    /// [`Argument::Unexpected`] for a value on a flag that takes none, and
-    /// [`Argument::NotANumber`] for a count that is not one.
+    /// [`Argument::Unexpected`] for a value on a flag that takes none,
+    /// [`Argument::NotANumber`] for a count that is not one, and
+    /// [`Argument::Conflicting`] for two flags that cannot both be acted on.
     pub fn parse<I, S>(arguments: I) -> Result<Self, Argument>
     where
         I: IntoIterator<Item = S>,
@@ -169,10 +214,21 @@ impl Arguments {
         let mut parsed = Self::default();
         let mut arguments = arguments.into_iter().map(Into::into);
 
+        // Which of the three ways of opening was written, so that a second one
+        // is refused naming both rather than quietly winning.
+        let mut opened: Option<&'static str> = None;
+        // Where `--bots` and `--connect` were written, for the same refusal:
+        // the two are checked at the end, because either order is a command
+        // line somebody typed and the message names them in the order they
+        // typed them.
+        let (mut botted, mut peered) = (None, None);
+        let mut position = 0_usize;
+
         while let Some(argument) = arguments.next() {
+            position += 1;
             // `--flag=value` and `--flag value` are the same argument. The split
             // is on the first `=` so that a path with one in it survives being
-            // passed as `--capture=a=b`.
+            // passed as `--record=a=b`.
             let (flag, attached) = match argument.split_once('=') {
                 Some((flag, value)) => (flag.to_owned(), Some(value.to_owned())),
                 None => (argument, None),
@@ -199,42 +255,59 @@ impl Arguments {
                 };
             }
 
+            /// A number, or the flag that was not given one.
+            macro_rules! number {
+                ($name:literal) => {{
+                    let value = value!($name);
+                    value
+                        .parse()
+                        .map_err(|_| Argument::NotANumber { flag: $name, value })?
+                }};
+            }
+
+            /// The one opening field, refusing a second way of filling it.
+            ///
+            /// The same flag twice is the ordinary "the later one wins" every
+            /// other flag here has: two `--load`s are one command line that
+            /// changed its mind, where a `--load` and a `--demo` are two
+            /// different runs and neither of them is the one that was asked
+            /// for.
+            macro_rules! open {
+                ($name:literal, $what:expr) => {{
+                    if let Some(first) = opened.filter(|first| *first != $name) {
+                        return Err(Argument::Conflicting {
+                            flags: [first, $name],
+                        });
+                    }
+                    opened = Some($name);
+                    parsed.load = Some($what);
+                }};
+            }
+
             match flag.as_str() {
                 "--headless" => {
                     bare!("--headless");
                     parsed.headless = true;
                 }
-                "--ticks" => {
-                    let value = value!("--ticks");
-                    parsed.ticks = Some(value.parse().map_err(|_| Argument::NotANumber {
-                        flag: "--ticks",
-                        value,
-                    })?);
+                "--spectator" => {
+                    bare!("--spectator");
+                    parsed.spectator = true;
                 }
-                "--capture" => parsed.capture = Some(PathBuf::from(value!("--capture"))),
-                "--replay" => parsed.replay = Some(PathBuf::from(value!("--replay"))),
-                "--saves" => parsed.saves = Some(PathBuf::from(value!("--saves"))),
-                "--load" => {
-                    let value = value!("--load");
-                    parsed.load = Some(SaveSlot(value.parse().map_err(|_| {
-                        Argument::NotANumber {
-                            flag: "--load",
-                            value,
-                        }
-                    })?));
+                "--bots" => {
+                    parsed.num_bots = number!("--bots");
+                    botted = Some(position);
                 }
-                "--retain" => {
-                    let value = value!("--retain");
-                    parsed.retain = Some(if value == "all" {
-                        Retention::Everything
-                    } else {
-                        Retention::Recent {
-                            ticks: value.parse().map_err(|_| Argument::NotANumber {
-                                flag: "--retain",
-                                value,
-                            })?,
-                        }
-                    });
+                "--ticks" => parsed.ticks = Some(Ticks(number!("--ticks"))),
+                "--level" => open!("--level", Load::Level(value!("--level"))),
+                "--load" => open!("--load", Load::Save(SaveSlot(number!("--load")))),
+                "--demo" => open!("--demo", Load::Demo(PathBuf::from(value!("--demo")))),
+                "--record" => parsed.record = Some(PathBuf::from(value!("--record"))),
+                "--state" => parsed.state = Some(PathBuf::from(value!("--state"))),
+                "--seat" => parsed.seat = PlayerId(number!("--seat")),
+                "--listen" => parsed.listen = Some(number!("--listen")),
+                "--connect" => {
+                    parsed.connect = Some(value!("--connect"));
+                    peered = Some(position);
                 }
                 // `-h` alongside the long spelling, because it is what
                 // somebody types first and a runtime that answered
@@ -245,6 +318,27 @@ impl Arguments {
                 "--help" | "-h" => return Err(Argument::Help),
                 _ => return Err(Argument::Unknown { argument: flag }),
             }
+        }
+
+        // A bot is a controller, and a controller is no part of what a session
+        // records — so a run that filled a seat locally and had a peer in the
+        // same session would be writing a column every other machine writes
+        // differently. `App::run` refuses the pair as well, for the run a
+        // harness builds by hand; this is the half an operator is told about
+        // before anything opens.
+        //
+        // `--bots 0` is not the half of anything: it asks for no bots, which is
+        // what a run without the flag has.
+        if parsed.num_bots > 0
+            && let (Some(bots), Some(connect)) = (botted, peered)
+        {
+            return Err(Argument::Conflicting {
+                flags: if bots < connect {
+                    ["--bots", "--connect"]
+                } else {
+                    ["--connect", "--bots"]
+                },
+            });
         }
 
         Ok(parsed)
@@ -285,6 +379,23 @@ pub enum Argument {
         /// What was passed for it.
         value: String,
     },
+    /// Two flags that cannot both be acted on.
+    Conflicting {
+        /// Which two, in the order they were written.
+        flags: [&'static str; 2],
+    },
+    /// A `--level` that is not JSON this game's level reference deserializes
+    /// from.
+    ///
+    /// The reason it carries a [`String`] rather than the error that produced
+    /// it: this type is [`PartialEq`], which a `serde_json::Error` is not, and
+    /// what a reader wants out of it is the sentence anyway.
+    NotALevel {
+        /// What was passed.
+        value: String,
+        /// Why it could not be read.
+        why: String,
+    },
 }
 
 impl fmt::Display for Argument {
@@ -306,22 +417,22 @@ impl fmt::Display for Argument {
             Self::NotANumber { flag, value } => {
                 write!(f, "{flag} takes a number and was given {value}\n\n{USAGE}")
             }
+            Self::Conflicting { flags } => {
+                let [first, second] = flags;
+                write!(f, "{first} and {second} cannot both be given\n\n{USAGE}")
+            }
+            Self::NotALevel { value, why } => {
+                write!(
+                    f,
+                    "--level was given {value}, which is not a level this game has: {why}\n\n\
+                     {USAGE}"
+                )
+            }
         }
     }
 }
 
 impl std::error::Error for Argument {}
-
-/// How big a run with a device and no window draws.
-///
-/// A run like that has nowhere to show a frame, so the only thing the size
-/// decides is what a `--capture` writes. Seven hundred and twenty rows is what
-/// a picture is expected to be when nobody said; a run that wants another size
-/// builds its own [`App`] and calls
-/// [`offscreen`](App::offscreen).
-#[cfg(not(feature = "window"))]
-#[cfg(feature = "render")]
-const OFFSCREEN: corvid_render::Extent = corvid_render::Extent::new(1280, 720);
 
 /// Installs the subscriber that makes this framework's own events visible.
 ///
@@ -408,21 +519,32 @@ pub fn watch() {
 /// }
 /// ```
 ///
-/// A window, a headless run, a capture, a replay and a save slot are all the
-/// same program: this reads the process's arguments and decides. **A game never
-/// asks for determinism**, because a game that had to call `.headless()` would
-/// have a mode that is deterministic and a mode that is not, and only one of
-/// them would be tested. [`Arguments`] is the list of what an operator may say.
+/// A window, a headless run, a recording, a save slot, a bot and another
+/// machine are all the same program: this reads the process's arguments and
+/// decides. **A game never asks for determinism**, because a game that had to
+/// call `.headless()` would have a mode that is deterministic and a mode that
+/// is not, and only one of them would be tested. [`Arguments`] is the list of
+/// what an operator may say.
+///
+/// # What it does with each of them
+///
+/// The opening is the game's own [`Opens::opening`], the input declaration is
+/// [`Controller::SETS`] and the binding table is
+/// [`Controller::bindings`] — the three things only the game can state.
+/// Everything else on the [`App`] comes from the command line, through
+/// [`App::arguments`], so an operator's flag beats a default whichever order
+/// they were written in.
 ///
 /// # Which backend this picks
 ///
 /// `--headless` is no window, no adapter and no audio device. Without it, a
-/// build with the `window` feature opens a window; a build without one draws
-/// into a texture if there is a `--capture` to write the pictures into, and
-/// plays headless otherwise, because a device drawing frames nothing will look
-/// at or keep is a device doing nothing. Every build can open a device, so
-/// `--headless` means the same thing in all of them — which is what lets a
-/// script pass it without knowing which build it is talking to.
+/// build with the `window` feature opens a window and a build without one plays
+/// headless, because a device drawing frames nothing will look at is a device
+/// doing nothing. Every build can play headless, so `--headless` means the same
+/// thing in all of them — which is what lets a script pass it without knowing
+/// which build it is talking to. A harness that wants an adapter and no window
+/// builds its own [`App`] and calls
+/// [`offscreen`](App::offscreen).
 ///
 /// # The bound, and the game that has nothing to draw
 ///
@@ -453,7 +575,7 @@ pub fn watch() {
 /// is not [`SUCCESS`](corvid_behavior::ExitCode::SUCCESS) leaves the process
 /// with that number rather than with the `1` that any `Err` from a `main`
 /// collapses to. Everything a run writes down has been written by then: a
-/// capture is closed and a save is on disk before the run hands its outcome
+/// recording is closed and a save is on disk before the run hands its outcome
 /// back.
 ///
 /// # Errors
@@ -474,44 +596,40 @@ where
         return Ok(());
     };
     // Whether the operator asked for a run with no devices, which is the one
-    // thing that decides whether the ending tick and digest go to stdout.
+    // thing that decides whether the digest goes to stdout. Read here because
+    // the arguments are handed to the app below.
     let headless = arguments.headless;
-    // The declaration, and then the table written against it. Neither of these
-    // was here once, and a game played through this `main` therefore ran with
-    // an empty declaration — which binds no key and no axis and answers
-    // `RELEASED` to every query for the length of the run. `Present::SETS` is
-    // what closed it, and it is required rather than defaulted so that the
-    // same hole cannot be dug again.
+
+    // The three things the game states and no flag can: where a session starts,
+    // which actions exist, and which control raises which. `Controller::SETS`
+    // is required rather than defaulted because a run with an empty
+    // declaration binds no key and no axis and answers `RELEASED` to every
+    // query for the length of the run.
     let app = App::<G>::new()
         .opening(<G::State as Opens>::opening())
-        .input(corvid_input::Input::new(&[]));
-    // The table is a windowed run's business alone: `App::bindings` holds a
-    // `corvid_window::Bindings` and a run with no window reads no device.
+        .input(corvid_input::Input::new(G::Controller::SETS));
+
+    #[cfg(feature = "net")]
+    let app = match (arguments.listen, arguments.connect.as_deref()) {
+        (Some(port), Some(peer)) => app.transport(crate::net::udp(port, arguments.seat, peer)?),
+        // A `--listen` with nobody to reach, or a `--connect` with no socket to
+        // reach it from, is half a link: the run plays alone, which is what it
+        // would have done with neither.
+        _ => app,
+    };
+
+    // The table is a windowed run's business alone: a run with no window reads
+    // no device, and `App::bindings` holds a table it would have nothing to
+    // resolve against.
     #[cfg(feature = "window")]
-    let app = app;
-    let app = if arguments.headless {
+    let app = if headless {
         app
     } else {
-        #[cfg(feature = "window")]
-        {
-            app.window()
-        }
-        // No window, and a capture asked for: draw into a texture instead, so
-        // that a build machine still gets a picture. A build with no graphics
-        // stack at all has no third case — it writes the audio, the trace and
-        // the session, and says nothing about pixels.
-        #[cfg(all(not(feature = "window"), feature = "render"))]
-        if arguments.capture.is_some() {
-            app.offscreen(OFFSCREEN)
-        } else {
-            app
-        }
-        #[cfg(all(not(feature = "window"), not(feature = "render")))]
-        {
-            app
-        }
+        app.window().bindings(G::Controller::bindings())
     };
-    finish::<G>(&app.arguments(arguments).run()?, headless);
+
+    let outcome = app.arguments(arguments).run()?;
+    finish::<G>(&outcome, headless);
     Ok(())
 }
 
@@ -541,44 +659,79 @@ fn command_line() -> crate::Result<Option<Arguments>> {
     }
 }
 
+/// How far back a reported digest is taken from.
+///
+/// Past a [`Budget::DEFAULT`](corvid_lockstep::Budget)'s eight ticks ahead and
+/// two of delay, with room. The newest few ticks of a peer's state were
+/// simulated partly from predictions of what another machine did, so two
+/// processes that stopped a second apart report different numbers for the same
+/// session — which is prediction working rather than anything disagreeing. A
+/// state this far back was computed from actions every seat really submitted,
+/// so it is the number two peers can be held to.
+#[cfg(feature = "net")]
+const SETTLED: u64 = 20;
+/// A run with nobody else in it predicts nothing, so its last tick is settled.
+#[cfg(not(feature = "net"))]
+const SETTLED: u64 = 0;
+
 /// Reports where the run got to, and leaves the process with the status a
 /// [`quit`](corvid_behavior::Command::quit) named.
 ///
 /// The report is a `tracing` event, so a game that wants it structured installs
-/// a subscriber. A **headless** run also writes the ending tick and digest to
-/// stdout, because that is what an operator asked for by passing `--headless`
-/// and a `main` of three lines has nowhere to install a subscriber. A windowed
-/// run prints nothing: the digest is not what somebody watching a window came
-/// for.
+/// a subscriber — [`watch`] is what a `main` calls to get one. A **headless**
+/// run also writes the settled digest to stdout, alone on the line: that is
+/// what an operator asked for by passing `--headless`, and it is the one thing
+/// here a script wants, so a score or a counter beside it would be something
+/// every consumer has to parse past. A windowed run prints nothing, because the
+/// digest is not what somebody watching a window came for.
 ///
 /// The stdout line is a `println!` under a named exception rather than a write
 /// to a handle. Both reach the same stream; only one of them says so where a
 /// reader looking for the workspace's printing rule will find it.
 fn finish<G: Game>(outcome: &Outcome<G>, headless: bool) {
-    if headless {
-        #[allow(
-            clippy::print_stdout,
-            reason = "this crate's `main` is a program rather than a library: an operator who passed `--headless` asked for this line on stdout, and a `main` of three lines has nowhere to install a subscriber. Writing to an `io::stdout()` handle instead would pass the lint while doing the identical thing, which is worse — the exception belongs where a reader can see it"
-        )]
-        {
-            println!(
-                "tick {} mark {}",
-                outcome.session.last(),
-                digest(&outcome.state)
-            );
-        }
-    }
+    let last = outcome.session.last();
+    let settled = Tick(last.0.saturating_sub(SETTLED));
+    let mark = outcome.session.marks.get(settled).map_or_else(
+        || "unknown".to_owned(),
+        |mark| format!("{:#018x}", mark.to_u64()),
+    );
+
     tracing::info!(
         name: "corvid_app.finished",
-        tick = %outcome.session.last(),
-        mark = %digest(&outcome.state),
+        tick = %last,
+        settled = settled.0,
+        digest = %mark,
         requests = outcome.requests.len(),
         "the run ended",
     );
+    #[cfg(feature = "net")]
+    if outcome.traffic.heard != 0 || outcome.traffic.sent != 0 {
+        tracing::info!(
+            name: "corvid_app.netcode",
+            heard = outcome.traffic.heard,
+            sent = outcome.traffic.sent,
+            rollbacks = outcome.traffic.rollbacks,
+            resimulated = outcome.traffic.resimulated,
+            deepest = outcome.traffic.deepest,
+            stalls = outcome.traffic.stalls,
+            "what the link cost",
+        );
+    }
+
+    if headless {
+        #[allow(
+            clippy::print_stdout,
+            reason = "this crate's `main` is a program rather than a library: an operator who passed `--headless` asked for this line on stdout, and a `main` of one line has nowhere to install a subscriber. Writing to an `io::stdout()` handle instead would pass the lint while doing the identical thing, which is worse — the exception belongs where a reader can see it"
+        )]
+        {
+            println!("{mark}");
+        }
+    }
+
     if outcome.exit != corvid_behavior::ExitCode::SUCCESS {
         // The run is over and everything it writes down is written: `App::run`
-        // closes a capture before it hands an outcome back. What is left to do
-        // is hand the operating system the number the game asked for, and a
+        // closes a recording before it hands an outcome back. What is left to
+        // do is hand the operating system the number the game asked for, and a
         // `main` returning `Result` cannot — every `Err` from one is status 1.
         std::process::exit(i32::from(outcome.exit.0));
     }
