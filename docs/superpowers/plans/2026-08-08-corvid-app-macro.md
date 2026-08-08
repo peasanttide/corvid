@@ -1098,18 +1098,6 @@ fn a_spectator_submits_nothing() {
 }
 
 #[test]
-fn a_spectator_watches_the_first_seat() {
-    let outcome = App::<Counting>::new()
-        .opening(opening())
-        .for_ticks(1)
-        .spectating()
-        .run()
-        .expect("a spectating run");
-
-    assert_eq!(outcome.session.opening.roster.len() > 0, true);
-}
-
-#[test]
 fn a_roster_with_no_seats_has_nothing_to_watch() {
     let empty = {
         let mut opening = opening();
@@ -1183,6 +1171,37 @@ impl Seating {
 impl Default for Seating {
     fn default() -> Self {
         Self::Playing(PlayerId(0))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed assertion in a test is a failed test, which is what a test is for"
+    )]
+
+    use super::Seating;
+    use corvid_behavior::PlayerId;
+
+    #[test]
+    fn a_player_watches_the_seat_it_plays() {
+        let seated = Seating::Playing(PlayerId(2));
+        assert_eq!(seated.watched(), PlayerId(2));
+        assert_eq!(seated.playing(), Some(PlayerId(2)));
+    }
+
+    #[test]
+    fn a_spectator_watches_a_seat_it_does_not_play() {
+        let seated = Seating::Watching(PlayerId(1));
+        assert_eq!(seated.watched(), PlayerId(1));
+        assert_eq!(seated.playing(), None);
+    }
+
+    #[test]
+    fn the_default_plays_the_first_seat() {
+        assert_eq!(Seating::default(), Seating::Playing(PlayerId(0)));
     }
 }
 ```
