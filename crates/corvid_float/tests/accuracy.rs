@@ -330,8 +330,12 @@ fn a_reciprocal_of_zero_is_an_infinity_rather_than_a_panic() {
 /// not because three ulps is a thing worth promising.
 #[test]
 fn integer_powers_are_within_a_chain_s_worth_of_the_exact_answer() {
-    /// How far a chain of `|n|` multiplications may carry this crate's answer
+    /// How far the roundings in a chain for `n` may carry this crate's answer
     /// from the true one.
+    ///
+    /// About `log2(|n|)` of them, not `|n|`: binary exponentiation squares its
+    /// way up rather than multiplying `|n|` times, which is why the bound
+    /// doubles with the exponent instead of growing with it.
     fn allowed(n: i32) -> i64 {
         1 + i64::from(n.unsigned_abs().max(1).ilog2())
     }
