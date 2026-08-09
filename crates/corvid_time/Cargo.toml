@@ -1,0 +1,47 @@
+[package]
+name = "corvid_time"
+description = "Deterministic simulation time: ticks, tick rates, and a fixed step that drops rather than banks."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["tick", "fixed-timestep", "deterministic", "no-std", "gamedev"]
+categories = ["game-development", "no-std::no-alloc"]
+
+[dependencies]
+corvid_fixed = { version = "0.1.0", path = "../corvid_fixed" }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+# The workspace's one encoding, so this crate's byte goldens are recorded in the
+# format a capture is written in. A tick is what every recorded thing is stamped
+# with, and the width of that counter is the one change nothing else here can
+# see.
+corvid_wire = { version = "0.1.0", path = "../corvid_wire" }
+# The digest the tests here check a tick's encoding against. Nothing in the
+# source names it: a tick's `Hash` is derived, and what the tests pin is what
+# that emission comes to under this workspace's one hasher.
+corvid_hash = { version = "0.1.0", path = "../corvid_hash" }
+# A self-describing format, for the shape `corvid_wire` cannot show.
+# `tests/tick.rs` pins that a tick is written as the one integer it is rather
+# than as a struct around one, which a varint table would read the same either
+# way.
+serde_json = "1"
+
+[features]
+default = []
+# Forwarded to `corvid_fixed`, so a downstream that names one crate gets the
+# whole stack rather than discovering halfway through a state definition that
+# its `Factor16`s are the one thing it cannot serialize.
+serde = ["dep:serde", "corvid_fixed/serde"]
+# The only feature that adds API: `Clock::wall`, which is the one thing here
+# that has to ask the operating system what time it is.
+std = ["corvid_fixed/std", "serde?/std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
