@@ -21,12 +21,9 @@ corvid_macros = { workspace = true }
 # `#[serde(transparent)]`.
 serde = { workspace = true, features = ["derive"], optional = true }
 # `Display` and `Error` for `SendError`, written on the variants rather than in
-# a `match` a new variant can be added without touching. Spelled out rather
-# than `workspace = true`, because the workspace entry carries default features
-# and a member cannot turn those off; this crate is `no_std`, so it takes
-# `core::error::Error` instead of the `std` one. It is also the only crate here
-# that names `thiserror` at all.
-thiserror = { version = "2", default-features = false }
+# a `match` a new variant can be added without touching. `core::error::Error`,
+# since the workspace entry leaves the `std` default off.
+thiserror = { workspace = true }
 
 [features]
 # One, and it adds nothing to the contract: `serde` puts an encoding on the

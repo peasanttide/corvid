@@ -47,7 +47,11 @@ corvid_macros = { version = "0.1.0", path = "crates/corvid_macros" }
 corvid_net = { version = "0.1.0", path = "crates/corvid_net" }
 corvid_signal = { version = "0.1.0", path = "crates/corvid_signal" }
 
-thiserror = "2"
+# `default-features = false` for the reason `serde` below has it: a crate here
+# starts `#![no_std]`, and the default feature is what pulls in the `std`
+# `Error` rather than `core`'s. A member that wants the `std` half turns it on
+# for itself.
+thiserror = { version = "2", default-features = false }
 serde = { version = "1", default-features = false, features = ["derive"] }
 bytemuck = { version = "1", features = ["derive"] }
 arbitrary = { version = "1", features = ["derive"] }
