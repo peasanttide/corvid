@@ -2,19 +2,14 @@
 
 Corvid is a deterministic multiplayer game framework: small `corvid_*`
 crates under one facade crate, `corvid`. This document is the contract for
-changes. It is enforced three ways: the workspace lints in `Cargo.toml`, CI
-in `.github/workflows/rust.yml`, and the `.claude/skills/contributing` skill
-that Claude Code loads when working here. The skill's `scripts/check.sh`
-runs the whole gate below in one command, for humans too.
-
-Parts of the existing code predate these rules. For anything you touch, the
-rules win; bringing old code into line is its own scoped PR or an issue, not
-a side effect of an unrelated change.
+changes to it. The workspace lints in `Cargo.toml` hold the parts of it a
+lint can express, the `.claude/skills/contributing` skill holds the rest,
+and that skill's `scripts/check.sh` runs both in one command.
 
 ## Every commit passes the gate
 
-Format, lint, test, and build the docs before each commit, not once before
-pushing, so that history bisects.
+Format, lint, test, and build the docs before each commit rather than once
+before pushing, so that the history bisects.
 
 ```sh
 cargo fmt --all
@@ -23,13 +18,9 @@ cargo test --workspace --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features
 ```
 
-CI also runs release-profile tests, a bare-metal target for the `no_std`
-crates, a 32-bit target, and the `rust-version` floor; a commit that passes
-locally and fails one of those arms is still yours to fix.
-
 ## Commits and pull requests
 
-Write commit messages and PR titles as Conventional Commits:
+Write commit messages and pull request titles as Conventional Commits:
 
 ```
 type(scope): summary in the imperative, lower case, no trailing period
@@ -41,83 +32,106 @@ is the crate name minus the `corvid_` prefix, as in `feat(fixed): add
 rsqrt`; omit it when a change is workspace-wide. Put the why in the body
 when the summary cannot carry it.
 
-Keep a PR to one concern and under 10,000 changed lines. Anything worth
-doing that you notice along the way becomes an issue, not a commit.
+The workspace is pre-1.0, so `!` is a label rather than a burden. Change
+the API, fix every caller in the same commit, and leave behind no
+deprecation, no compatibility shim, and no second way to do the thing.
+
+Keep a pull request to one concern and under 10,000 changed lines. Answer
+every review comment, and answer it with the hash of the commit that
+resolves it, so the thread says where the fix is instead of leaving a
+reader to find it in the diff.
 
 ## Safety
 
 `unsafe_code = "forbid"` is a workspace lint, and FFI is the only
-exception. An FFI boundary lives in its own dedicated crate, overrides the
-lint there as narrowly as possible with a stated `reason`, carries a
-`// SAFETY:` comment on every block, and wraps everything in a safe API
-before any other crate touches it.
+exception. An FFI boundary lives in a crate of its own, overrides the lint
+there as narrowly as it can with a stated `reason`, carries a `// SAFETY:`
+comment on every block, and is wrapped in a safe API before any other crate
+touches it.
 
 Lint overrides in general stay that narrow: never `#![allow(...)]` across a
 crate without an extremely good reason, stated in the attribute and in the
-PR. Prefer an item-level `#[allow(..., reason = "...")]`.
+pull request. Prefer an item-level `#[allow(..., reason = "...")]`.
 
 ## Code
 
 Write idiomatic, modern Rust. `rust-version` in the workspace manifest is
-the toolchain we develop against, not an old floor we preserve; using a new
-stable feature is welcome, with the bump in the same PR.
+the toolchain we develop against rather than an old floor we preserve;
+reaching for a new stable feature is welcome, with the bump in the same
+change.
 
 Do not reinvent what `core`, `alloc` or `std` already provides, and derive
 what can be derived: a hand-written `Debug` or `PartialEq` is a claim that
-the derived one is wrong, and needs to say how. Errors are `thiserror`
-enums; serialization is `serde`. Nothing prints to stdout or stderr; emit
-`tracing` events and let the binary choose a subscriber. When the same
-shape repeats, fold it into a macro, declarative first and `corvid_macros`
-when it takes a proc macro.
+the derived one is wrong, and has to say how. Errors are `thiserror` enums,
+serialization is `serde`. Nothing prints to stdout or stderr; emit
+`tracing` events and let the binary choose a subscriber. When a shape
+repeats, fold it into a macro, declarative first and `corvid_macros` when
+it takes a proc macro.
 
-Comments state what the code cannot: the constraint, the invariant, the
-tradeoff. They do not narrate history, restate the next line, or promise
-future work; git and the issue tracker hold those.
+Comments carry what the code cannot: the constraint, the invariant, the
+tradeoff. They do not restate the line below them, and they do not record
+what the code used to be, why it changed, or what it will become. Git and
+the pull request hold the history, and a comment that repeats it is a lie
+as soon as anyone edits around it.
 
 ## Crates and files
 
-`lib.rs` declares modules and exports the public surface; implementation
-lives in files named for what they contain. A source file stays under 400
-lines and 20 KB. When it gets there, split it along the seams that were
-already forming.
+`lib.rs` declares the modules and the public surface; the implementation
+lives in files named for what they hold. A source file stays under 400
+lines and 20 KB, and splits along the seams that were already forming once
+it reaches either.
 
-Start every crate `#![no_std]` and put `std` behind a feature when an
-integration wants it; only a crate whose job is the operating system gets
-`std` unconditionally. Code that two crates need lives in a shared crate,
-never in two copies. Only the facade crate `corvid` re-exports other
-workspace crates; a member that needs a sibling depends on it privately.
+Every crate starts `#![no_std]`, with `std` behind a feature when an
+integration needs it; only a crate whose job is the operating system takes
+`std` unconditionally. Code that two crates need lives in a shared crate
+rather than in two copies. Only the facade crate `corvid` re-exports
+workspace crates; a member that needs a sibling depends on it directly.
 
 ## Dependencies and features
+
+`[workspace.dependencies]` holds every crate in this workspace and nothing
+else, so a member names a sibling as `corvid_fixed = { workspace = true }`
+and the version and path are written once.
+
+An external dependency is named by exactly one crate. The moment a second
+crate wants it, it earns a crate of its own: one member takes the
+dependency and re-exports the parts the workspace uses, and everything else
+depends on that member. Versioning it, gating it, and one day replacing it
+then happen in a single file. Test-only dependencies are the exception,
+since they reach no downstream; name one wherever a test needs it.
 
 If a crate exists that does exactly what you need and nothing else, use it.
 If it does ten other things too, it costs more than it saves: build time
 and cache hits are a feature of this workspace, and every dependency and
-feature flag is weighed against them.
+every feature flag is weighed against them.
 
-An external dependency is declared by exactly one workspace crate. The
-moment a second crate wants it, route it through one internal crate that
-re-exports what the workspace uses, so there is a single place to version,
-gate, and eventually replace it; the version itself is pinned once in
-`[workspace.dependencies]`. Dev-dependencies are exempt from the
-single-declaration rule but inherit the same pins.
-
-Ecosystem integrations (`serde`, `bytemuck`, `mint`, `nalgebra`,
-`arbitrary`; `ecosystem.md` tracks the roster) sit behind feature flags,
-and `default = []` in every crate except the facade, which is the one place
-features may be on by default.
+An ecosystem integration (`serde`, `bytemuck`, `mint`, `nalgebra`,
+`arbitrary`; `ecosystem.md` tracks the roster) sits behind a feature flag
+on the crate that offers it, gating a dependency that follows the rule
+above. Features are `default = []` everywhere except the facade, which is
+the one crate where a default feature belongs.
 
 ## Tests, examples, benchmarks
 
 Code documents itself through its tests and examples: write the test you
-would want to read as the explanation of the behavior. Keep the suite fast;
-a test earns its runtime, and a slow one has to buy something no fast one
+would want to read as the explanation of the behavior. Keep the suite fast.
+A test earns its runtime, and a slow one has to buy something no fast one
 can. Performance-critical code carries Criterion benchmarks in `benches/`,
 because a claim about speed without a benchmark is a guess.
 
 ## Documentation
 
-A crate README is a tagline saying what the crate does, the basic technical
-details, and the scope it will and will not cover, in that order and
-concise. Write rustdoc and READMEs as prose rather than lists of things.
-Use only plain typeable ASCII in docs and comments, and reach for a Mermaid
-diagram when a picture says it better than a paragraph.
+A crate README is a tagline saying what the crate does, then the basic
+technical details, then the scope it will and will not cover, in that order
+and concise. Write rustdoc and READMEs as prose rather than as lists of
+things. Use only plain typeable ASCII, and reach for a Mermaid diagram when
+a picture says it better than a paragraph.
+
+Name code so that the doc build checks the name. An item mentioned in
+rustdoc is an intra-doc link, ``[`Angle16::from_degrees`]`` rather than the
+same text in prose, so that renaming it fails `cargo doc` instead of
+leaving a document that lies. `#![doc = include_str!("../README.md")]`
+makes a README the crate's front page and holds it to the same rule: its
+links resolve as intra-doc links and its examples compile and run as
+doctests, so state a claim about the API as an example rather than as prose
+that nothing checks.
