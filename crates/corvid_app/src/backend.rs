@@ -81,7 +81,7 @@ pub(crate) trait Backend<G: Game> {
     ///
     /// This is the one thing that crosses back out of a backend besides an
     /// error, and it is not a value a tick can read: the loop writes it into
-    /// the input snapshot, which `look` reads and `intend` is handed. A run
+    /// the input snapshot, which `look` reads and `action` is handed. A run
     /// with no target answers [`None`] rather than a made-up size, because a
     /// headless run genuinely has no viewport and a game that was told
     /// otherwise would lay its interface out for a display nobody has.

@@ -35,7 +35,7 @@ use corvid_vector::FinePoint;
 ///
 /// Integer arithmetic throughout — a widen to `i64`, a multiply, a rounded
 /// divide by 32767 — so the answer is the same on every target. That matters
-/// even though an axis is client-local: what an `intend` builds out of one is
+/// even though an axis is client-local: what an `action` builds out of one is
 /// an `Action`, and an action is hashed by every peer.
 ///
 /// ```

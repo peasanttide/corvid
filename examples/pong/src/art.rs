@@ -21,9 +21,9 @@ use crate::{
 
 /// A frame's alpha as the [`Factor32`] every `lerp` in the maths stack takes.
 ///
-/// It used to live in `corvid_present`, which is gone; this is its one
-/// remaining caller. Interpolation is the GPU's now for a game that has a
-/// shader to do it in, and this one builds its vertices on the CPU.
+/// It lives here rather than in the framework because this is its one caller:
+/// interpolation belongs to the GPU for a game that has a shader to do it in,
+/// and this one builds its vertices on the CPU.
 ///
 /// # Why the multiply and not a shift
 ///

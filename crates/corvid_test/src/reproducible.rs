@@ -60,7 +60,7 @@ impl<S: State + Opens, C: corvid_control::Controller<S>> Game for Twice<S, C> {
 /// | | What it catches |
 /// |---|---|
 /// | the marks, over the ticks both reached | two states that are not the same state, which is what a divergence usually is |
-/// | the actions, over the same ticks | an `intend` that read something it should not have, on a tick where reading it did not move the state |
+/// | the actions, over the same ticks | an `action` that read something it should not have, on a tick where reading it did not move the state |
 /// | how far each run reached | a [`quit`](corvid_behavior::Command::quit) asked for on different ticks |
 /// | what the ticks asked the platform for | a save to a different slot, a screenshot on a different tick — a request that differs while the state does not |
 /// | the two final states by [`Eq`] | the field a game's `Hash` does not absorb and its `Eq` does |

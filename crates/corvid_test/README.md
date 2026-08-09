@@ -125,7 +125,7 @@ corvid_test::replays_to_itself(&run)?;
 
 Each bounds on the game and never on a configuration of it. [`is_reproducible`]
 asks for `Present`, which is the whole client-local half — `Present` is built on
-`Render`, so one bound says the runtime may call `intend`, `look`, `hear`,
+`Render`, so one bound says the runtime may call `action`, `look`, `hear`,
 `setup` and `draw`, where this crate used to need a second bound written beside
 the first to say it. The two scratch-and-replay checks ask for `Simulate` alone,
 and [`matches_goldens`] is handed two directories and asks for nothing.

@@ -79,7 +79,7 @@ pub(crate) enum Habit {
     /// The tick reports a process-global to the platform and leaves the state
     /// alone.
     Chatty,
-    /// `intend` reads a process-global to choose between two actions the tick
+    /// `action` reads a process-global to choose between two actions the tick
     /// treats identically.
     Fickle,
     /// The tick asks to quit once a process-global reaches the threshold.
@@ -433,7 +433,7 @@ impl corvid_app::Game for Climbing {
 }
 
 /// The input every run here plays with: nothing held, because this game's
-/// `intend` does not read one.
+/// `action` does not read one.
 #[must_use]
 pub(crate) fn idle() -> Input {
     Input::new(&[])

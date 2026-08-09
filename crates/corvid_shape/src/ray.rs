@@ -7,7 +7,7 @@ use corvid_vector::{Direction, GlobalPoint};
 
 /// A half-line: an origin and a unit direction.
 ///
-/// The thing a cursor is. `Present::look` builds one from the camera and the
+/// The thing a cursor is. `Controller::look` builds one from the camera and the
 /// pointer, casts it at whatever the game can be pointed at, and puts the
 /// answer in its `View` — all of which is client-ring, none of which is hashed,
 /// and all of which happens on the display's frame rather than the

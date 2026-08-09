@@ -2,7 +2,7 @@
 
 /// Whether the pointer is visible, and whether it may leave the window.
 ///
-/// A game asks for one of these through `Present::cursor`, once per displayed
+/// A game asks for one of these through `Controller::cursor`, once per displayed
 /// frame; the platform applies it and reports back through
 /// [`Input::cursor`](crate::Input::cursor). It is **client-local in the strong
 /// sense**: it never enters a tick, never goes on the wire and never reaches a

@@ -299,7 +299,7 @@ impl Input {
     /// What the pointer is actually doing.
     ///
     /// **What happened, not what was asked for.** A game requests a mode
-    /// through `Present::cursor` and the platform may decline — pointer locking
+    /// through `Controller::cursor` and the platform may decline — pointer locking
     /// is a permission in a browser, a protocol extension on Wayland, and a
     /// compositor's choice elsewhere — so this is where a game finds out. The
     /// runtime falls back down [`Cursor::fallback`] rather than failing, so

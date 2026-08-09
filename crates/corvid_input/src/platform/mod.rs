@@ -4,11 +4,9 @@
 //! [`Input`]: crate::Input
 //!
 //! The default half of this crate is what a game reads. This half is what fills
-//! it in, and the two are separated because [`Present::intend`] must stay in
-//! the client ring: a game turning a snapshot into an action may not need an
+//! it in, and the two are separated because a controller's `action` must stay
+//! in the client ring: a game turning a snapshot into an action may not need an
 //! operating system, and the code reading a keyboard obviously does.
-//!
-//! [`Present::intend`]: https://docs.rs/corvid_present
 //!
 //! # What is here, and what is not
 //!
@@ -26,12 +24,10 @@
 //! screen can ask which control the player just pressed without turning on the
 //! half that reads a keyboard.
 //!
-//! [`Bindings`] itself is named by [`Present`], which is why this feature is on
-//! unconditionally for `corvid_present`: a game *authoring* a table is stating
-//! data, and no part of it reads a device. [`Devices`], which does, is named by
-//! `corvid_window` and by nothing in the client ring.
-//!
-//! [`Present`]: https://docs.rs/corvid_present
+//! [`Bindings`] itself is named by `corvid_control`'s `Controller`, which is
+//! why this feature is on unconditionally for that crate: a game *authoring* a
+//! table is stating data, and no part of it reads a device. [`Devices`], which
+//! does, is named by `corvid_window` and by nothing in the client ring.
 //!
 //! Not here: hot-plug, glyph lookup, rumble, a rebinding screen, gamepads, and
 //! any per-device default table. [`Bindings::placeholder`] stands in for the

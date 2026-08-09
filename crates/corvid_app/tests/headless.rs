@@ -148,7 +148,7 @@ fn the_trace_of_a_fixed_run_is_frozen() {
 
 #[test]
 fn a_headless_run_does_not_read_the_wall_clock() {
-    // `Tally::intend` folds in the whole simulated seconds `look` has been
+    // `Tally::action` folds in the whole simulated seconds `look` has been
     // handed. Under the app's fake clock, fifteen ticks at fifteen hertz are
     // one such second, so from tick sixteen on the action sequence is shifted
     // by one against what the tick number alone would give.
@@ -197,9 +197,9 @@ fn a_headless_run_is_not_paced_by_the_time_it_simulates() {
 }
 
 #[test]
-fn the_input_the_app_was_given_reaches_intend() {
-    // The one thing a caller can say to `intend` when nothing refills the
-    // snapshot. `Tally::intend` returns `Idle` while the rest button is held, so a
+fn the_input_the_app_was_given_reaches_action() {
+    // The one thing a caller can say to `action` when nothing refills the
+    // snapshot. `Tally::action` returns `Idle` while the rest button is held, so a
     // run given this snapshot never bumps and the tally never moves.
     let run = App::<Counting>::new()
         .headless()
@@ -447,7 +447,7 @@ fn this_client_submits_for_the_seat_it_was_given_and_for_no_other() {
         .run()
         .unwrap();
 
-    // What the *tick* saw: one column carries an action `intend` built, and it
+    // What the *tick* saw: one column carries an action `action` built, and it
     // is the column this client was given.
     for (offset, roll) in run.state.rolls.iter().enumerate() {
         let mine: Vec<u16> = roll
@@ -479,19 +479,17 @@ fn this_client_submits_for_the_seat_it_was_given_and_for_no_other() {
 
 #[test]
 fn the_clock_decides_how_many_ticks_a_reading_owes() {
-    // This test used to be `the_alpha_intend_is_handed_is_the_one_the_display_is_at`,
-    // and what it asserted no longer exists: `intend` was handed a `Frame` with
-    // an alpha in it, and a `Controller::action` is handed neither.
+    // There is deliberately nothing here about the interpolation weight, which
+    // is the thing a test of the clock most obviously reaches for.
+    // `Controller::action` is handed no alpha and no frame: interpolation is
+    // the renderer's and happens in a shader, so the weight between two states
+    // reaches `Render::draw` and nowhere else. An action that read one would be
+    // an action that depended on this machine's frame rate, which is exactly
+    // what must never cross into a tick.
     //
-    // That is the design rather than an oversight. Interpolation is the
-    // renderer's and happens in a shader, so the weight between two states
-    // reaches `Render::draw` and nowhere else — and an action that read one
-    // would be an action that depended on this machine's frame rate, which is
-    // exactly what must never cross into a tick.
-    //
-    // What survives is the half that was never about alpha: a clock stepping
-    // one and a half periods owes one tick on its first reading and two on its
-    // second, so four ticks arrive over three readings.
+    // What this asserts instead is the half that is about the clock: a clock
+    // stepping one and a half periods owes one tick on its first reading and
+    // two on its second, so four ticks arrive over three readings.
     let rate = TickSpan::from_hz(NonZeroU32::new(20).unwrap());
     let run = App::<Attending>::new()
         .headless()

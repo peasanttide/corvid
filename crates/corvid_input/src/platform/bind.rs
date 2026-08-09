@@ -304,13 +304,13 @@ impl Bindings {
     /// What it is for is the one thing it is honestly good for: a game with a
     /// window opens and something happens when a key is pressed, before its
     /// author has written a table. It is what
-    /// [`Present::bindings`] defaults to, and a game with a
+    /// [`Controller::bindings`] defaults to, and a game with a
     /// player in front of it overrides that with a table of its own, written
     /// out with [`button`](Self::button) and [`axis`](Self::axis) — where each
     /// control means what a hundred other games have taught that player it
     /// means. `corvid_app` then reads the player's own file over the top.
     ///
-    /// [`Present::bindings`]: https://docs.rs/corvid_present
+    /// [`Controller::bindings`]: https://docs.rs/corvid_control
     ///
     /// Actions past the end of either list are left unbound rather than wrapped
     /// around, because a key that means two things is worse than a key that

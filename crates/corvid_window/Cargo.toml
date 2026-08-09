@@ -21,7 +21,7 @@ corvid_input = { workspace = true, features = ["platform", "std"] }
 # event — the latest size is the only one that matters — so it is published into
 # a cell instead of handed to a callback that reaches into the game.
 corvid_signal = { workspace = true }
-# The client ring's one platform-facing datum: `Present::icon` answers an
+# The client ring's one platform-facing datum: `Render::icon` answers an
 # `Icon`, and this crate is what puts it in a title bar. Naming the contract
 # here rather than defining a second icon type is what keeps a headless build
 # able to build one at all.

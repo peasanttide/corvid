@@ -127,7 +127,7 @@ pub(crate) struct Level {
 /// asks the platform for something on.
 ///
 /// The requests are keyed to ticks rather than to actions because a headless
-/// run has no device layer: an action comes from `intend`, and `intend`
+/// run has no device layer: an action comes from `action`, and `action`
 /// is handed an input snapshot nothing refills. A tick that knows its own
 /// number can ask for a save on tick seven without anybody pressing anything.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -159,7 +159,7 @@ pub(crate) struct Rules {
     /// The tick the client-local half stops the clock on.
     ///
     /// A pause is not a request and does not go through `Command`: it is
-    /// `Present::simulating`, which the runtime asks the *view* about. So this
+    /// `Controller::simulating`, which the runtime asks the *view* about. So this
     /// is read by `look` rather than by the tick, and what it moves is a field
     /// of the view. It is a rule only because a headless run has no device
     /// layer to press a key on, which is the reason every other setting here is
@@ -239,7 +239,7 @@ pub(crate) struct Odometer {
 pub(crate) struct View {
     /// How much wall-clock time `look` has been handed.
     ///
-    /// [`Tally::intend`] reads it, which `corvid_present` warns is a display
+    /// [`Tally::action`] reads it, which `corvid_control` warns is a display
     /// -rate quantity reaching an action. It is deliberate here: it is the one
     /// route by which a clock the app was not given could reach the session,
     /// and `tests/headless.rs` is what walks it.
@@ -249,7 +249,7 @@ pub(crate) struct View {
     /// How many displayed frames have happened since the pause began.
     pub(crate) held: u64,
     /// Whether the simulation is stopped, which is what
-    /// [`Present::simulating`] answers with.
+    /// [`Controller::simulating`] answers with.
     pub(crate) paused: bool,
 }
 
@@ -640,13 +640,13 @@ pub(crate) struct Attendance {
     pub(crate) rolls: Vec<Roll>,
 }
 
-/// One player's intent: a record of what `intend` was handed.
+/// One player's intent: a record of what `action` was handed.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) struct Mark {
-    /// True only for an action `intend` built, so a seat holding
+    /// True only for an action `action` built, so a seat holding
     /// [`Default`] is distinguishable from one this client submitted for.
     pub(crate) mine: bool,
-    /// The bits of the frame's alpha at the moment `intend` ran.
+    /// The bits of the frame's alpha at the moment `action` ran.
     pub(crate) alpha: u16,
 }
 
@@ -750,7 +750,7 @@ where
 }
 
 /// An input snapshot with the rest button held, which is the one thing a test
-/// can say to `intend` when nothing refills the snapshot.
+/// can say to `action` when nothing refills the snapshot.
 pub(crate) fn resting() -> Input {
     let mut input = Input::new(action::SETS);
     input.set_digital(action::REST, Digital::HELD);
@@ -928,7 +928,7 @@ corvid_app::game! {
 
 /// The controller for [`Attendance`]: it marks every action as its own.
 ///
-/// The old fixture also recorded the alpha its `intend` was handed, and there
+/// The old fixture also recorded the alpha its `action` was handed, and there
 /// is no alpha to record any more — a controller's `action` runs once per tick
 /// and never sees an interpolation weight, because interpolation is the
 /// renderer's and happens in a shader. So the column is written as zero and the

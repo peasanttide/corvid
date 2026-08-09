@@ -24,7 +24,7 @@ corvid_app = { workspace = true }
 # trajectory here.
 corvid_behavior = { workspace = true, features = ["std"] }
 # `Present`, because a run needs the client-local half: the runtime calls
-# `intend` every tick and `draw` every frame, and a check that skipped them
+# `action` every tick and `draw` every frame, and a check that skipped them
 # would be checking a smaller game than the one that ships. One bound covers
 # both now — `Present` is built on `Render` — so this is the only client-ring
 # entry a check's signature needs. No `std` feature: `corvid_control` is not a

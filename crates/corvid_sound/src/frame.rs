@@ -77,7 +77,7 @@ impl Default for Listener {
 /// [`listener.pose`](Listener::pose) is in world space; every [`Source`] and
 /// [`Cue`] position is an **offset in the listener's own frame**, and there is
 /// no world-space position on either of them. So an extractor —
-/// `corvid_present::hear` — is given the ears *and* the sounds, and does the
+/// `Auralizer::hear` — is given the ears *and* the sounds, and does the
 /// subtraction and the rotation itself. A `hear` written as though a source
 /// carried a world
 /// position would compile against these types and be wrong everywhere but the

@@ -44,13 +44,10 @@ enforced, and it took four paragraphs to say so.
 
 ## Nothing here compiles a graphics stack
 
-This crate was `corvid_present`, and it extended `corvid_render`. That put the
-*camera* on the far side of a `wgpu` dependency from the code that moves it, so
-a game with no renderer at all still compiled a device in order to say where its
-eye was.
-
 A `Controller` names a `Camera`, an `Input` and a `State`. None of those knows a
-device exists.
+device exists, and that is deliberate: putting the *camera* on the far side of a
+`wgpu` dependency from the code that moves it would make a game with no renderer
+at all compile a device in order to say where its eye was.
 
 ## What goes on the wire is the action, not what it read
 

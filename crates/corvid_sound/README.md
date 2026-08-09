@@ -15,7 +15,7 @@ writes bit-identical WAV. The honest consequence is that a WAV golden validates
 the frame and the reference mixer and never the production audio path.
 
 What is here is the frame a runtime, a capture and a backend are each handed,
-and the parts of it a mixer's behaviour is built on. `corvid_present::hear` is
+and the parts of it a mixer's behaviour is built on. `Auralizer::hear` is
 what fills one, `corvid_app` keeps one for the life of a run and writes it into
 every captured frame, and `corvid_audio` is the mixer that turns one into
 samples.
@@ -26,7 +26,7 @@ This is the one thing to know before writing anything that fills a frame.
 [`Listener::pose`] is in world space; every [`Source`] and [`Cue`] position is an
 **offset in the listener's own frame**, in the workspace's right-handed
 **+X right, +Y forward, +Z up** convention, and neither type carries a
-world-space position at all. So an extractor — `corvid_present::hear` — is
+world-space position at all. So an extractor — `Auralizer::hear` — is
 handed the ears *and* the sounds, and does the subtraction and the rotation
 itself. A `hear` written as though a source carried a world position compiles
 against these types and is wrong everywhere except the origin, which is exactly

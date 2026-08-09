@@ -1,6 +1,6 @@
 //! What the platform actually does when a game asks for the pointer.
 //!
-//! `Present::cursor` is a *request*, and the whole design rests on the runtime
+//! `Controller::cursor` is a *request*, and the whole design rests on the runtime
 //! reporting back what took rather than assuming it was granted. That reporting
 //! is the thing nothing checked: every other test in this workspace that
 //! touches the cursor asserts what the *game* asked for, which is one side of a

@@ -13,7 +13,7 @@ behind the `platform` feature: a device-neutral control vocabulary, a binding
 table, and the accumulator that works out the edges. Hot-plug, glyph lookup and
 rumble are not there.
 
-What consumes an [`Input`] is `corvid_present`, whose `intend` turns a snapshot
+What consumes an [`Input`] is `corvid_control`, whose `action` turns a snapshot
 into one player's action for one tick. This crate stays `no_std` and device-free
 so that it sits in the client ring without dragging an operating system in behind
 it.

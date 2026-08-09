@@ -129,7 +129,7 @@ fn clearing_keeps_the_pointer_where_the_platform_put_it() {
     );
 
     // And it is still a value the platform owns: a game changes it by asking
-    // through `Present::cursor` and reading the answer here, never by writing.
+    // through `Controller::cursor` and reading the answer here, never by writing.
     input.set_cursor(Cursor::Free);
     input.clear();
     assert_eq!(input.cursor(), Cursor::Free);

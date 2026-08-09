@@ -162,7 +162,7 @@ thing a snapshot cannot know about itself. A run with no target answers
 
 | Per owed tick | |
 |---|---|
-| 1 | `intend` builds this client's action from the view, the frame and the input |
+| 1 | `action` builds this client's action from the view, the frame and the input |
 | 2 | the action goes into the [`ActionLog`], at this tick, against this client's seat |
 | 3 | `tick` runs against the roster the session says was seated, read back out of that log |
 | 4 | the new state is digested into the [`HashTrace`] |
@@ -210,7 +210,7 @@ processor manages, and produces the same session every time.
 runs agreeing with each other only says the loop is a function of *something*,
 so a frozen table of digests says which function; and because a wall clock
 reaching `look` would move the actions this client submits — the fixture game
-folds the simulated seconds it has been handed into its own `intend`, which
+folds the simulated seconds it has been handed into its own `action`, which
 `corvid_control` warns is a display-rate quantity reaching an action — a run that
 read a real clock records a different action at two named ticks. The timing claim
 is checked as a bound rather than as a number: three hundred ticks of a
@@ -591,7 +591,7 @@ nothing to draw.
 What the **caller owes**: everything `corvid_behavior` and `corvid_control` say
 they owe, and this is the call site that makes all of it load-bearing. A `Clone`
 that is not a copy, a `look` that writes a `State` through interior mutability,
-an `intend` whose action names a screen pixel — none of those is refused here,
+an `action` whose action names a screen pixel — none of those is refused here,
 and each of them is a run that does not replay to what it ran. A `static` with interior mutability survives every check in this workspace;
 what would find one is two peers that are genuinely two processes comparing
 digests, and nothing here runs two processes.
@@ -688,7 +688,7 @@ is a harness that wants a run with no device whatever the machine has.
 
 ## What this crate does not do
 
-There is no device layer on a headless run, so the [`Input`] handed to `intend`
+There is no device layer on a headless run, so the [`Input`] handed to `action`
 and `look` is the one the app was given and nothing refills it.
 There is no audio backend, so a windowed run is silent: `hear` still fills an
 [`AudioFrame`] and a capture still records it, and nothing turns it into

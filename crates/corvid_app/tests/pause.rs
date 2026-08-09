@@ -1,7 +1,7 @@
 //! The client-local pause: what stops, what carries on, and what the clock
 //! does with the time nobody simulated.
 //!
-//! [`Present::simulating`](corvid_control::Controller::simulating) is asked once per
+//! [`Controller::simulating`](corvid_control::Controller::simulating) is asked once per
 //! reading of the clock, before the ticks that reading owes, and the game here
 //! answers it out of a field its `look` writes — which is the whole shape of
 //! the feature: a pause is a property of what one player is looking at, so it
@@ -96,7 +96,7 @@ impl Elapsed for Stalling {
 
 /// A snapshot with the rest key held for the whole run.
 ///
-/// [`Tally::intend`](common::Tally) otherwise mixes the wall time `look` has
+/// [`Tally::action`](common::Tally) otherwise mixes the wall time `look` has
 /// been handed into its action, deliberately, so that a clock the app was not
 /// given has a route into the log — which `tests/headless.rs` is what walks.
 /// Here that route is exactly the thing in the way: a paused run displays more

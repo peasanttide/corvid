@@ -1290,7 +1290,7 @@ where
             );
         }
         // The table this run is bound by, in the order the three sources
-        // beat each other: the game's own `Present::bindings` is the
+        // beat each other: the game's own `Controller::bindings` is the
         // author's answer, `App::bindings` is a harness overriding it for
         // one run, and the player's file beats both — which is what makes
         // it a rebinding rather than a suggestion.

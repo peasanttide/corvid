@@ -233,7 +233,7 @@ pub(crate) struct Runtime<G: Game, B> {
     /// and `look` is what reads it.
     input: Input,
     /// What no tick has spent yet: every edge and every displacement since the
-    /// last tick, folded together. `intend` is what reads it.
+    /// last tick, folded together. `action` is what reads it.
     ///
     /// [`None`] for a run nobody refills, where the snapshot is whatever
     /// [`App::input`](crate::App::input) was given and is deliberately the same
@@ -504,12 +504,12 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// Reads this frame's devices, and notes how big the target is.
     ///
     /// Two things a snapshot cannot know about itself, done in one place
-    /// because both have to happen before `intend` and `look` see the frame:
+    /// because both have to happen before `action` and `look` see the frame:
     /// what a caller standing in for a player is holding down, and the
     /// rectangle its pointer was reported against.
     ///
     /// The viewport is written into both snapshots, because both are read: the
-    /// frame's own by `look`, and the unspent one by `intend`. It is a level
+    /// frame's own by `look`, and the unspent one by `action`. It is a level
     /// rather than an edge, so writing the current value over each of them is
     /// the whole of keeping them in step.
     fn read_devices(&mut self) {
@@ -530,7 +530,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     ///
     /// Two snapshots come out of one reading, because the frame and the tick
     /// are not the same interval. `look` runs once per reading and wants this
-    /// reading, edges and all; `intend` runs zero or more times per reading and
+    /// reading, edges and all; `action` runs zero or more times per reading and
     /// wants every edge exactly once, which is what
     /// [`absorb`](Input::absorb) and [`settle`](Input::settle) between them
     /// arrange.
@@ -542,7 +542,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             .absorb(input);
     }
 
-    /// What `intend` reads: the unspent snapshot where a caller is refilling
+    /// What `action` reads: the unspent snapshot where a caller is refilling
     /// one, and the run's own otherwise.
     const fn acting(&self) -> &Input {
         match &self.unspent {
@@ -591,7 +591,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// # No alpha
     ///
     /// This used to be handed the display's interpolation weight, because
-    /// `intend` was given a `Frame` that carried one. A `Controller::action` is
+    /// `action` was given a `Frame` that carried one. A `Controller::action` is
     /// given neither: interpolation is the renderer's and happens in a shader,
     /// so a tick's action cannot depend on where the display happens to sit.
     fn advance(&mut self) -> Result<Flow, Error> {
