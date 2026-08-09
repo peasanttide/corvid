@@ -294,7 +294,9 @@ cargo test -p corvid_wire --all-features
 
 | File | Covers |
 |---|---|
-| `tests/golden.rs` | The encoding itself, frozen as literals: every integer width and both sides of the marker, `bool`, `Option`, sequences, fixed-size arrays, strings, structs, enums, and nesting -- with the two shapes it writes alike |
+| `tests/golden.rs` | The scalars, frozen as literals: every integer width and both sides of the marker, the floats at their declared widths, `bool` and `char` |
+| `tests/containers.rs` | The containers: where a length prefix goes, a count past 250 taking a marker like any other number, maps in key order, the fixed-size array that writes no count, `Option`, and nesting |
+| `tests/shapes.rs` | Structs and enums, which write no name and an index -- with the two shapes this format writes alike |
 | `tests/visible.rs` | Which recorded table sees each of the four changes: a reordered field, a renumbered variant and an added field in the bytes, a widened integer in the digest and not in the bytes, and a traded width in neither |
 | `tests/blind.rs` | The two the table above qualifies: same-typed fields holding one value swapping unseen, and a field that writes nothing being added unseen -- with what JSON writes for both |
 | `tests/trailing.rs` | That a longer and a shorter byte string are each refused and named differently, that a hostile count fails as a short one does, and that a capture larger than any ceiling worth setting still reads |
