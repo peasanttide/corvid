@@ -182,6 +182,22 @@ name = "corvid"
 version = "0.1.0"
 
 [[package]]
+name = "corvid_behavior"
+version = "0.1.0"
+dependencies = [
+ "corvid_files",
+ "corvid_fixed",
+ "corvid_hash",
+ "corvid_macros",
+ "corvid_time",
+ "corvid_transform",
+ "corvid_wire",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "corvid_bits"
 version = "0.1.0"
 
