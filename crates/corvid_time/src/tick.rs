@@ -7,9 +7,9 @@ use core::fmt;
 /// A tick is an index rather than a moment. It says which step of the
 /// simulation a state, an action, or a digest belongs to, and it means the same
 /// thing on every peer replaying the same session — which is what lets a
-/// rollback name the tick it is rolling back to. The wall-clock time that tick
-/// happened to run at is not recorded anywhere, because nothing deterministic
-/// may depend on it.
+/// rollback name the tick it is rolling back to and a recorded trace name the
+/// tick it disagrees on. The wall-clock time that tick happened to run at is
+/// not recorded anywhere, because nothing deterministic may depend on it.
 ///
 /// The field is public because a tick is a number and pretending otherwise
 /// would cost every caller an accessor. The methods here exist for the
@@ -87,7 +87,6 @@ impl Tick {
     }
 }
 
-/// A tick from the number it is.
 impl From<u64> for Tick {
     #[inline]
     fn from(ticks: u64) -> Self {
@@ -95,7 +94,6 @@ impl From<u64> for Tick {
     }
 }
 
-/// The number a tick is.
 impl From<Tick> for u64 {
     #[inline]
     fn from(tick: Tick) -> Self {

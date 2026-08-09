@@ -3,9 +3,9 @@
 //! Two properties carry this file. Advancing by exactly one period, a thousand
 //! times, must produce exactly a thousand ticks — an accumulator that rounded
 //! anywhere would lose or gain one and a replay would stop matching. And a
-//! process that stalls must *drop* the ticks it could not deliver, because a
-//! loop that tries to work off a backlog takes longer than the backlog took to
-//! form and turns a stall into a permanent one.
+//! process that stalls must *drop* the ticks it could not deliver rather than
+//! bank them — `Step::advance` is where that argument is written down, and what
+//! is checked here is that the code does it.
 
 use core::num::NonZeroU32;
 use core::time::Duration;
@@ -29,7 +29,10 @@ fn exact_multiples_do_not_drift() {
     for _ in 0..1000 {
         total += step.advance(Duration::from_nanos(66_666_666));
     }
-    assert!((999..=1000).contains(&total), "drifted to {total}");
+    // Exactly, and the exactness is the whole claim: a tolerance of one here
+    // would pass for the off-by-one accumulator this test is named after, which
+    // is a replay one tick short of the run it recorded.
+    assert_eq!(total, 1000, "drifted to {total}");
 }
 
 #[test]
@@ -81,7 +84,7 @@ fn ragged_advances_deliver_the_whole_elapsed_time() {
         elapsed += nanos;
         total += u64::from(step.advance(Duration::from_nanos(nanos)));
     }
-    assert_eq!(total, elapsed / rate.nanos());
+    assert_eq!(total, elapsed / u64::from(rate.nanos()));
     assert_eq!(step.dropped(), 0);
 }
 
@@ -90,18 +93,16 @@ fn a_stalled_process_drops_ticks_rather_than_banking_them() {
     let mut step = Step::new(TickSpan::CRADLE).with_catchup(4);
     assert_eq!(step.advance(Duration::from_secs(10)), 4);
     assert_eq!(step.advance(Duration::from_millis(1)), 0);
-    assert!(
-        step.dropped() >= 146,
-        "banked {} owed ticks",
-        step.dropped()
-    );
+    // Exactly 146: ten seconds is 150 periods at fifteen hertz and four were
+    // delivered. A `>=` would have passed for a step that dropped the four it
+    // handed back as well.
+    assert_eq!(step.dropped(), 146);
 }
 
 #[test]
 fn the_second_after_a_stall_is_an_ordinary_second() {
-    // This is the whole reason for dropping. If the backlog were banked, the
-    // fifteen seconds after a ten-second stall would each owe more than they
-    // could deliver and the stall would never end.
+    // What dropping is for, checked rather than argued: the fifteen periods
+    // after a ten-second stall deliver fifteen ticks and nothing more.
     let rate = TickSpan::CRADLE;
     let mut step = Step::new(rate).with_catchup(4);
     step.advance(Duration::from_secs(10));
@@ -263,7 +264,7 @@ fn alpha_tracks_an_independent_accumulator_across_ragged_frames() {
     // file owns, which is what makes it a check on the step's bookkeeping and
     // not just on its arithmetic.
     let rate = TickSpan::CRADLE;
-    let period = rate.nanos();
+    let period = u64::from(rate.nanos());
     let scale = u64::from(Factor16::ONE.to_bits());
     let mut step = Step::new(rate).with_catchup(64);
     let mut expected = 0u64;
@@ -344,10 +345,6 @@ fn a_stalled_advance_cannot_overflow_the_accumulator() {
     // second saturates it back there, and 2^64 - 1 ns is 276 701 163 872 whole
     // cradle periods with 43 660 863 ns left over. Scaled onto the factor's
     // 65 535 steps and rounded, 43 660 863 * 65 535 / 66 666 666 is 42 920.
-    //
-    // Not `alpha() <= ONE`: `ONE` is `u16::MAX`, so that bound holds for every
-    // `u16` a step could possibly hand back — an alpha stuck at zero and an
-    // alpha handing back the wrong end of the interval both satisfy it.
     let rate = TickSpan::CRADLE;
     let mut step = Step::new(rate).with_catchup(3);
     assert_eq!(step.advance(Duration::MAX), 3);
@@ -402,22 +399,43 @@ fn a_step_remembers_the_rate_it_was_built_from() {
     assert_eq!(step.span().nanos(), 6_944_444);
 }
 
-/// Nothing in this crate may compute on a floating-point value, `alpha` least of
-/// all: it is the one quantity that looks like a fraction and is therefore the
-/// one somebody would reach for a `double` to express. A ratio of two integers
-/// rounded onto a [`Factor16`] is exact on every target; a fraction computed in
-/// binary floating point is exact on the ones that happen to agree. This test
-/// reads the crate's own source rather than its behaviour, because a division
-/// that rounds the same way on this machine is not evidence of anything.
+/// Nothing in `src/` may compute on a floating-point value, `alpha` least of
+/// all — `Step::alpha` is where that is argued. This test reads the crate's own
+/// source rather than its behaviour, because a division that rounds the same
+/// way on this machine is not evidence of anything.
 #[test]
 fn no_floating_point_anywhere_in_the_crate() {
-    const SOURCES: [(&str, &str); 5] = [
+    // Every module in `src/`. A hand-written list is the failure mode this test
+    // has by construction — it is the one test whose job is to be exhaustive,
+    // and a module nobody added to the list is a module it silently skips —
+    // so the count is asserted against the directory rather than trusted.
+    const SOURCES: [(&str, &str); 6] = [
         ("src/lib.rs", include_str!("../src/lib.rs")),
         ("src/tick.rs", include_str!("../src/tick.rs")),
+        ("src/ticks.rs", include_str!("../src/ticks.rs")),
         ("src/span.rs", include_str!("../src/span.rs")),
         ("src/step.rs", include_str!("../src/step.rs")),
         ("src/clock.rs", include_str!("../src/clock.rs")),
     ];
+
+    // `into_iter().flatten()` rather than an `unwrap`, which this file spells
+    // nowhere: a directory that could not be read counts zero modules and fails
+    // the assertion below, which is the right answer either way.
+    let modules = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src"))
+        .into_iter()
+        .flatten()
+        .filter(|entry| {
+            entry
+                .as_ref()
+                .is_ok_and(|entry| entry.path().extension().is_some_and(|ext| ext == "rs"))
+        })
+        .count();
+    assert_eq!(
+        modules,
+        SOURCES.len(),
+        "src/ has {modules} modules and this test lists {}",
+        SOURCES.len(),
+    );
 
     for (name, source) in SOURCES {
         for forbidden in ["f32", "f64"] {

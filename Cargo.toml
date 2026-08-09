@@ -119,10 +119,17 @@ edition = "2024"
 # The toolchain this workspace is developed and tested against, rather than the
 # oldest one the code happens to compile on. A bit-exactness workspace pins its
 # compiler for the same reason it pins its arithmetic: the lints, the const
-# evaluator, and the overflow behaviour that CI checks are the ones this version
+# evaluator and the overflow behaviour that CI checks are the ones this version
 # implements, and a downstream on an older toolchain should get a version error
-# rather than a subtly different build. The floor the source alone would need is
-# 1.87, set by `u32::is_multiple_of` in `corvid_fixed`'s `rsqrt`.
+# rather than a subtly different build.
+#
+# The floor the source alone would need is 1.88, set by let-chains in
+# `corvid_signal`'s `tests/tracing.rs`, with `u32::is_multiple_of` (1.87) in
+# `corvid_fixed`'s `rsqrt` and edition 2024 (1.85) below that.
+#
+# The `msrv` job is what makes this a promise rather than a note: every other
+# job runs on whatever stable the runner has, so nothing else here would notice
+# the day a crate reaches past it.
 rust-version = "1.97.1"
 repository = "https://github.com/peasanttide/corvid"
 publish = true

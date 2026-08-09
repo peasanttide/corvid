@@ -6,7 +6,9 @@ use corvid_fixed::Factor16;
 
 use crate::TickSpan;
 
-/// How many ticks one [`advance`](Step::advance) delivers unless told otherwise.
+/// The most ticks one [`advance`](Step::advance) may return unless told
+/// otherwise. A ceiling and not a quota: an advance that owes fewer delivers
+/// fewer, and an advance of nothing delivers nothing.
 ///
 /// Eight is half a second at fifteen hertz. A frame that overruns its budget
 /// overruns it by a frame or two, and eight is generous room to make that back;
@@ -38,13 +40,16 @@ const DEFAULT_CATCHUP: u32 = 8;
 /// assert_eq!(step.dropped(), 0);
 /// ```
 ///
-/// Deliberately not `Copy`: a step is an accumulator, and a copy that gets
-/// advanced is time the original never hears about.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// Deliberately not `Copy`, for the reason [`Clock`](crate::Clock) sets out: a
+/// step is an accumulator, and a copy that gets advanced is time the original
+/// never hears about.
+// No `Hash`, for the reason `Clock` has none: what a step holds is how far
+// behind this machine is, and `corvid_hash::digest` would have taken it.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Step {
-    /// The rate this step was built from, kept so the runtime can ask.
+    /// The span this step was built from, kept so the caller can ask.
     span: TickSpan,
-    /// `rate.nanos()`, cached because it is a divisor on every advance.
+    /// `span.nanos()`, cached because it is a divisor on every advance.
     /// Never zero, which is what makes the division total.
     period_nanos: u64,
     /// Real time seen but not yet spent on a tick. Always below `period_nanos`
@@ -57,13 +62,13 @@ pub struct Step {
 }
 
 impl Step {
-    /// A step at `rate`, with the default catch-up ceiling of eight ticks.
+    /// A step at `span`, with the default catch-up ceiling of eight ticks.
     #[must_use]
     #[inline]
     pub const fn new(span: TickSpan) -> Self {
         Self {
             span,
-            period_nanos: span.nanos(),
+            period_nanos: span.nanos() as u64,
             accumulated_nanos: 0,
             catchup: DEFAULT_CATCHUP,
             dropped: 0,
@@ -81,7 +86,7 @@ impl Step {
         self
     }
 
-    /// The rate this step runs at.
+    /// The span this step runs at.
     #[must_use]
     #[inline]
     pub const fn span(&self) -> TickSpan {
@@ -128,17 +133,17 @@ impl Step {
     /// Where the display sits between the last tick and the next.
     ///
     /// Zero immediately after a tick, and climbing toward one as the next comes
-    /// due. An extractor interpolates the two states it was handed by this
-    /// much, which is what lets a fifteen-hertz simulation drive a
+    /// due. A renderer interpolates the two states it was handed by this much,
+    /// which is what lets a fifteen-hertz simulation drive a
     /// hundred-and-forty-four-hertz display without the picture stepping.
     ///
     /// It is a ratio of two integers — nanoseconds accumulated over nanoseconds
     /// in a period — rounded once onto a [`Factor16`], and never a fraction
     /// computed in binary floating point. Interpolation is not hashed, so the
     /// determinism argument does not apply here; the argument that does is that
-    /// a sixteen-bit factor is what the extractors and the vertex formats
-    /// already carry, and computing it any other way would only add a
-    /// conversion at each end.
+    /// a sixteen-bit factor is what a renderer already carries at both ends, so
+    /// computing the fraction any other way would only add a conversion to each
+    /// of them and a rounding on the way through.
     ///
     /// The rounding means alpha reaches one within half of a factor's step of
     /// the next tick rather than only at it. At fifteen hertz that is the last
@@ -150,11 +155,21 @@ impl Step {
         let scale = u64::from(Factor16::ONE.to_bits());
         // Round half up, matching how the rest of `corvid_fixed` rounds, with
         // the doubling done inside the numerator so the whole thing stays in
-        // integers. The accumulator is below one period and a period is below a
-        // second, so the numerator is at most 2 * 10^9 * 65535 — five orders of
-        // magnitude short of overflowing a u64.
+        // integers.
+        //
+        // It stays in a `u64`, and `TickSpan` is what makes that true rather
+        // than an assumption about how anyone configures a game. A span is a
+        // `u32` of nanoseconds and `advance` leaves the accumulator below one
+        // span, so the numerator is under two times `u32::MAX` times 65 535 —
+        // five hundred and sixty-three trillion against a ceiling of eighteen
+        // quintillion, four orders of magnitude of room. The bound is in the
+        // type, so neither a caller nor a save file can get underneath it.
         let numerator = 2 * self.accumulated_nanos * scale + self.period_nanos;
         let bits = numerator / (2 * self.period_nanos);
+        // Exact by the same argument: the accumulator below one period makes
+        // the quotient at most `scale`, which is `u16::MAX`. `unwrap_or` rather
+        // than an unreachable branch, because a panic here would be a panic on
+        // the interpolation path.
         Factor16::from_bits(u16::try_from(bits).unwrap_or(u16::MAX))
     }
 

@@ -17,6 +17,15 @@ const fn rate(hz: u32) -> TickSpan {
     }
 }
 
+/// A span straight from nanoseconds, spelled without an `unwrap` for the reason
+/// the module doc gives: nothing in this file may panic.
+const fn span(nanos: u32) -> TickSpan {
+    match NonZeroU32::new(nanos) {
+        Some(nanos) => TickSpan::from_nanos(nanos),
+        None => TickSpan::CRADLE,
+    }
+}
+
 #[test]
 fn a_tick_counts_from_zero() {
     assert_eq!(Tick::ZERO, Tick(0));
@@ -64,8 +73,8 @@ fn the_cradle_rate_is_fifteen_hertz() {
 fn a_period_is_a_whole_number_of_nanoseconds() {
     for hz in [1u32, 10, 15, 20, 24, 30, 50, 60, 64, 90, 120, 144, 240] {
         let rate = rate(hz);
-        assert_eq!(rate.period(), Duration::from_nanos(rate.nanos()));
-        assert_eq!(rate.nanos(), 1_000_000_000 / u64::from(hz));
+        assert_eq!(rate.period(), Duration::from_nanos(u64::from(rate.nanos())));
+        assert_eq!(rate.nanos(), 1_000_000_000 / hz);
     }
 }
 
@@ -76,8 +85,8 @@ fn the_residual_of_a_period_is_one_nanosecond_per_second_per_leftover() {
     // down as a test is what keeps the README's table honest.
     for hz in [10u32, 15, 30, 60, 64, 144] {
         let rate = rate(hz);
-        let per_second = 1_000_000_000 - u64::from(hz) * rate.nanos();
-        assert_eq!(per_second, u64::from(1_000_000_000 % hz));
+        let per_second = 1_000_000_000 - hz * rate.nanos();
+        assert_eq!(per_second, 1_000_000_000 % hz);
     }
 }
 
@@ -103,7 +112,7 @@ fn a_tick_is_a_number_on_the_wire() {
 #[cfg(feature = "serde")]
 #[test]
 fn a_span_is_a_number_of_nanoseconds_on_the_wire_and_zero_is_refused() {
-    // Nanoseconds, not hertz. In 0.1 this read `15`.
+    // Nanoseconds, not hertz.
     assert_eq!(
         serde_json::to_string(&TickSpan::CRADLE).ok(),
         Some("66666666".to_owned())
@@ -132,15 +141,20 @@ fn adjacent_ticks_digest_differently() {
 fn a_span_digests_as_its_nanoseconds() {
     use corvid_hash::digest;
 
-    // The nanoseconds and nothing else, at the width the field is stored at —
-    // a `u64` since 0.2, where this was a `u32` of hertz.
-    assert_eq!(digest(&TickSpan::CRADLE), digest(&66_666_666u64));
+    // The nanoseconds and nothing else, at the width the field is stored at.
+    assert_eq!(digest(&TickSpan::CRADLE), digest(&66_666_666u32));
     assert_ne!(digest(&TickSpan::CRADLE), digest(&rate(30)));
 
-    // Two rates that truncate to the same span are the same simulation and
-    // digest alike, which they could not do while hertz was what was stored.
-    // 62 500 001 through 66 666 666 nanoseconds are all "fifteen hertz"; these
-    // two rates land on the same span and so on the same digest.
-    assert_eq!(rate(15), rate(15));
+    // What a peer agrees on is the span, and `hz()` is not enough to name one:
+    // every span from 62 500 001 to 66 666 666 nanoseconds reports fifteen
+    // hertz, and two of them are two different simulations with two different
+    // digests. A handshake that compared rates rather than spans would call
+    // these a match.
+    let coarse = span(62_500_001);
+    assert_eq!(coarse.hz(), 15);
+    assert_eq!(TickSpan::CRADLE.hz(), 15);
+    assert_ne!(coarse, TickSpan::CRADLE);
+    assert_ne!(digest(&coarse), digest(&TickSpan::CRADLE));
+
     assert_ne!(digest(&rate(15)), digest(&rate(16)));
 }

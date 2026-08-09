@@ -11,13 +11,14 @@ keywords = ["tick", "fixed-timestep", "deterministic", "no-std", "gamedev"]
 categories = ["game-development", "no-std::no-alloc"]
 
 [dependencies]
-corvid_fixed = { version = "0.2.0", path = "../corvid_fixed" }
+corvid_fixed = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 # The workspace's one encoding, so this crate's byte goldens are recorded in the
-# format a capture is written in. A position is most of what a snapshot holds,
-# and a component's width is the one change nothing else here can see.
+# format a capture is written in. A tick is what every recorded thing is stamped
+# with, and the width of that counter is the one change nothing else here can
+# see.
 corvid_wire = { workspace = true }
 # The digest the tests here check a tick's encoding against. Nothing in the
 # source names it: a tick's `Hash` is derived, and what the tests pin is what
@@ -35,14 +36,12 @@ default = []
 # whole stack rather than discovering halfway through a state definition that
 # its `Factor16`s are the one thing it cannot serialize.
 serde = ["dep:serde", "corvid_fixed/serde"]
-# The only feature that adds API: `Wall`, which is the one thing here that has
-# to ask the operating system what time it is.
+# The only feature that adds API: `Clock::wall`, which is the one thing here
+# that has to ask the operating system what time it is.
 std = ["corvid_fixed/std", "serde?/std"]
 
 [lints]
 workspace = true
 
-# Every optional integration is off by default, so a plain build documents none
-# of them — including `Wall`, which only exists under `std`.
 [package.metadata.docs.rs]
 all-features = true

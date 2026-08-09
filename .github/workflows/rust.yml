@@ -8,11 +8,11 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # `sccache` in front of rustc, with GitHub's own action cache behind it. Four
+  # `sccache` in front of rustc, with GitHub's own action cache behind it. Five
   # jobs compile overlapping halves of the same thirty-six packages — `check`
-  # and `features` share everything below the runtime, and `cross` and
-  # `determinism` share the simulation ring with both — so the object a second
-  # job needs has usually already been built by a first.
+  # and `msrv` share everything, and `cross` and `determinism` share the
+  # simulation ring with both — so the object a second job needs has usually
+  # already been built by a first.
   SCCACHE_GHA_ENABLED: "true"
   RUSTC_WRAPPER: "sccache"
 
@@ -65,11 +65,9 @@ jobs:
         RUSTDOCFLAGS: -D warnings
       run: cargo doc --workspace --no-deps --all-features
 
-    # Every optional integration is off by default, so a plain `cargo test`
-    # compiles out the serde, bytemuck, mint and nalgebra tests entirely — the
-    # wire format and the layout assertions among them. Both arms are needed.
-    - name: Tests, default features
-      run: cargo test --workspace
+    # Only `--all-features`. Every optional integration is off by default, so a
+    # plain `cargo test` compiles the wire format and the layout assertions out
+    # entirely, which makes the all-features run a superset of it.
     - name: Tests, all features
       run: cargo test --workspace --all-features
     # Overflow checks are on in dev and off in release, so the two profiles
@@ -82,33 +80,34 @@ jobs:
     # quietly reached for `std` fails here rather than being discovered by
     # whoever first builds a dedicated server or a console port.
     #
-    # Four crates rather than the whole simulation ring, and the ceiling is not
-    # this workspace's: `corvid_float` depends on `const_soft_float`, which does
-    # not declare `#![no_std]`, so everything above `corvid_float` — which is
-    # `corvid_fixed` and therefore all of the arithmetic — has no bare-metal
-    # build to check. These four sit below or beside it. The workflow used to
-    # claim the whole ring built here, which had not been true since
-    # `corvid_float` was added; the wider portability claim is the `cross` job,
-    # where it is checked on targets that do have an operating system.
+    # Not the whole simulation ring, and the ceiling is not this workspace's:
+    # `corvid_float` depends on `const_soft_float`, which does not declare
+    # `#![no_std]`, so nothing above `corvid_float` has a bare-metal build to
+    # check. `corvid_fixed` is *not* above it — it names `corvid_bits` and
+    # nothing else — so the fixed-point arithmetic and `corvid_time` on top of it
+    # are both here. The wider portability claim is the `cross` job, where it is
+    # checked on targets that do have an operating system.
     - name: Build for a target with no operating system
       run: |
         set -eu
         rustup target add thumbv7em-none-eabi
-        for crate in corvid_bits corvid_hash corvid_wire corvid_files corvid_macros; do
+        for crate in corvid_bits corvid_hash corvid_wire corvid_files \
+                     corvid_macros corvid_fixed corvid_time; do
           echo "== $crate"
           cargo build -p "$crate" --no-default-features --target thumbv7em-none-eabi
         done
 
-  # Neither arm above compiles a feature *on its own*. A feature that forgets to
-  # forward one of its dependency's own features builds fine under
-  # `--all-features`, where something else turns it on, and fails for the first
-  # downstream that asks for exactly it.
+  # `rust-version` is a promise to a downstream, and every other job here runs
+  # on whatever stable the runner has — so a crate reaching past the declared
+  # floor compiles green here and breaks the first person who believed the
+  # manifest. This is the only arm that would notice.
   #
-  # This used to be two hundred lines of hand-written loops over crates and
-  # feature names, which meant a new crate was covered only if somebody
-  # remembered to add it. `cargo hack` reads the manifests instead, so it is
-  # both shorter and strictly more thorough.
-  features:
+  # `--all-targets`, because a test target is where it slips in: nothing a
+  # downstream compiles, and nothing any other arm holds to the floor.
+  #
+  # The version is read out of the manifest rather than written here twice,
+  # since two copies of a number are one copy and one stale copy.
+  msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -117,30 +116,18 @@ jobs:
     - uses: mozilla-actions/sccache-action@v0.0.9
     - uses: Swatinem/rust-cache@v2
       with:
-        # `sccache` holds the object files now. This one stays for the registry
-        # index and the git checkouts, which it caches and `sccache` does not —
-        # caching the target directory as well would be two copies of the same
-        # build, restored twice.
         cache-targets: false
-    - uses: taiki-e/install-action@cargo-hack
-    # As in `check`, and for a sharper reason: this job's whole point is to
-    # compile each feature *on its own*, so `corvid_audio/device` and
-    # `corvid_window/gamepad` are each reached by a configuration of their own
-    # rather than only under `--all-features`.
+    # `--all-targets` reaches the device halves, which probe with `pkg-config`.
     - name: System libraries the device halves link against
       run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
-    # 154 configurations across the workspace as this is written.
-    #
-    # `examples/pong` is excluded because its feature declarations do not
-    # currently hold up: `src/play.rs` names `corvid::platform`, which is gated
-    # behind `corvid/window`, so the crate needs `window` — while `src/lib.rs`
-    # carries a `#[cfg(not(feature = "render"))]` implementation for a build
-    # that cannot happen, and `render = ["dep:bytemuck"]` never turns on
-    # `corvid/render`. The example builds and passes under the features it
-    # actually ships with, which is what `check` runs it under. This exclusion
-    # is a note that the manifest is wrong, not that the sweep is optional.
-    - name: Every feature on its own, and none of them
-      run: cargo hack check --workspace --exclude pong --each-feature --no-dev-deps
+    - name: The oldest toolchain the manifest promises
+      run: |
+        set -eu
+        floor=$(cargo metadata --format-version 1 --no-deps \
+          | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["rust_version"])')
+        echo "rust-version is $floor"
+        rustup toolchain install "$floor" --profile minimal
+        cargo "+$floor" check --workspace --all-targets --all-features
 
   # The claim the whole design rests on is that a simulation computes the same
   # bits on every machine. This job is the half that says the code *compiles*
