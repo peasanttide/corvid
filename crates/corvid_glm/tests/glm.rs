@@ -1,6 +1,6 @@
 //! The aliases, their storage order, and the one `const`.
 //!
-//! There is no arithmetic in this crate to test — nalgebra's own suite covers
+//! There is no arithmetic in this crate to test -- nalgebra's own suite covers
 //! that, and duplicating it here would only assert that nalgebra is nalgebra.
 //! What is worth pinning is what this crate *claims*: that a matrix is stored
 //! down its columns, which is the whole reason the README can promise no
@@ -18,7 +18,7 @@ use corvid_glm::{IDENTITY, Mat3, Mat4, Vec2, Vec3, Vec4};
 
 /// A matrix whose sixteen entries are all distinct, written across the way
 /// `Matrix4::new` takes them. A permutation this shape is the only kind of
-/// input that can tell a column-major dump from a row-major one — an identity
+/// input that can tell a column-major dump from a row-major one -- an identity
 /// or a symmetric matrix reads the same either way, which is how a transpose
 /// survives a test suite.
 const COUNTING: Mat4 = Mat4::new(
@@ -61,7 +61,7 @@ fn every_alias_is_its_components_and_nothing_else() {
 
 #[test]
 fn a_matrix_is_stored_down_its_columns() {
-    // `as_slice` is the flat storage — what a `memcpy` into a mapped buffer
+    // `as_slice` is the flat storage -- what a `memcpy` into a mapped buffer
     // would copy. Written across, it has to come back out down.
     assert_eq!(
         COUNTING.as_slice(),
@@ -132,7 +132,7 @@ fn identity_is_the_matrix_the_function_builds() {
 fn a_vector_can_be_normalized_without_std() {
     // The assertion behind the `libm` in the manifest. The workspace pins
     // nalgebra at `default-features = false`, and without a float backend `f32`
-    // has no `SimdComplexField` impl, so `normalize` is not merely wrong here —
+    // has no `SimdComplexField` impl, so `normalize` is not merely wrong here --
     // it does not compile. A square root is the one piece of the standard
     // library the aliases actually need, and this is it reached without std.
     let v = Vec3::new(3.0, 4.0, 0.0);
@@ -149,7 +149,7 @@ fn a_vector_can_be_normalized_without_std() {
 fn the_re_exported_nalgebra_is_the_one_the_aliases_are_made_of() {
     // The compile is the assertion. A downstream that reaches nalgebra through
     // this re-export and one that names its own copy would produce two
-    // distinct `Vector3<f32>` types, and this annotation would not typecheck —
+    // distinct `Vector3<f32>` types, and this annotation would not typecheck --
     // which is the failure the re-export exists to prevent.
     let v: corvid_glm::nalgebra::Vector3<f32> = Vec3::new(1.0, 2.0, 3.0);
     assert_eq!(v, Vec3::new(1.0, 2.0, 3.0));

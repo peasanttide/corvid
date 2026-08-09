@@ -158,9 +158,9 @@ pub fn random_basis(rng: &mut Rng) -> Basis {
 }
 
 /// The angle between two quaternions in degrees, by the **chord form**
-/// `4 · asin(chord / 2)`.
+/// `4 * asin(chord / 2)`.
 ///
-/// Never `2 · acos(|q1 · q2|)`: that form has an `f32` noise floor near 0.05
+/// Never `2 * acos(|q1 * q2|)`: that form has an `f32` noise floor near 0.05
 /// degrees and loses precision near zero even in `f64`, which is the
 /// measurement pitfall the source paper documents.
 pub fn angle_degrees(a: [f64; 4], b: [f64; 4]) -> f64 {

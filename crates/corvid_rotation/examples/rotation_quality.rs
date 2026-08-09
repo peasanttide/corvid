@@ -6,7 +6,7 @@
 //!
 //! The spec's table came from a GPU harness measuring in `f32`. This one
 //! measures what this crate actually computes, against an `f64` reference, by
-//! the chord form `4·asin(chord/2)` — never `2·acos(|q1·q2|)`, whose noise
+//! the chord form `4*asin(chord/2)` -- never `2*acos(|q1*q2|)`, whose noise
 //! floor sits above `FineRotation`'s whole error budget.
 //!
 //! The rejected alternatives are implemented here as private functions rather
@@ -101,7 +101,7 @@ fn fine_quaternion(q: [f64; 4]) -> [f64; 4] {
 /// The smallest-three baseline at 2+10+10+10, for comparison only.
 ///
 /// Drops the largest component and stores the other three directly rather than
-/// dividing by it. Cheaper still to decode, and it misses the 1/5° budget —
+/// dividing by it. Cheaper still to decode, and it misses the 1/5 deg budget --
 /// which is the whole reason the Gibbs form is the one that ships.
 fn smallest_three(q: [f64; 4]) -> [f64; 4] {
     let mut chart = 0;
@@ -137,7 +137,7 @@ fn smallest_three(q: [f64; 4]) -> [f64; 4] {
 /// The BCC-lattice Gibbs variant at 2+1+29, for comparison only.
 ///
 /// Slightly better error than the shipped codec, at the price of two integer
-/// divisions and two modulos by `N = 812` in the decode — on top of the same
+/// divisions and two modulos by `N = 812` in the decode -- on top of the same
 /// normalize. That is the trade the crate declines.
 fn gibbs_bcc_linear(q: [f64; 4]) -> [f64; 4] {
     const N: i64 = 812;

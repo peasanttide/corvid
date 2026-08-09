@@ -6,7 +6,7 @@
 //!
 //! **Both widen to `I48F16` internally.** `Transform`'s own position is a
 //! [`GlobalPoint`], so a naive implementation would subtract in `i32` and need
-//! a separate code path with its own overflow story — two `GlobalPoint`s can
+//! a separate code path with its own overflow story -- two `GlobalPoint`s can
 //! differ by more than `GlobalPoint` holds. Widening the operands to `I48F16`
 //! first is an exact `<< 8`, makes the subtraction total, and lets both tiers
 //! share one macro body. The shift is free next to the rotation that follows.
@@ -73,11 +73,11 @@ macro_rules! define_transform {
 
             /// The rotation as a matrix, decoded.
             ///
-            /// **Hoist this out of hot loops.** Every world↔local conversion on
+            /// **Hoist this out of hot loops.** Every world<->local conversion on
             /// this type decodes the packed rotation on the way in, and that
             /// decode is the dominant cost. A loop over thousands of points
             /// should call `basis` once and use [`Basis`]'s own rotate and
-            /// unrotate; `examples/earth_scale_vr.rs` measures the difference.
+            /// unrotate; `benches/earth_scale_vr.rs` measures the difference.
             #[must_use]
             #[inline]
             pub const fn basis(self) -> Basis {
@@ -177,7 +177,7 @@ macro_rules! define_transform {
             ///
             /// The inverse rotation is the transpose, so it is exact up to the
             /// packed codec's own re-quantization. The inverse *position* is
-            /// `-R⁻¹t`, whose length equals `|t|` — so it **saturates** for a
+            /// `-R^-1t`, whose length equals `|t|` -- so it **saturates** for a
             /// transform whose position is longer than the position type holds
             /// along the rotated axis, even though the original was
             /// representable.
@@ -185,16 +185,16 @@ macro_rules! define_transform {
             /// # Accuracy far from the origin
             ///
             /// The stored rotation is quantized, so `t.inverse().compose(t)`
-            /// leaves a position residual of roughly `|t| × quantum`. For
-            /// [`Transform`], whose 0.186° is 3.2e-3 radians, that is tens of
+            /// leaves a position residual of roughly `|t| x quantum`. For
+            /// [`Transform`], whose 0.186 deg is 3.2e-3 radians, that is tens of
             /// kilometres at 8000 km out. This is why the camera is a
-            /// [`FineTransform`]: its quantum is 55× smaller *and* its position
-            /// resolution 256× finer.
+            /// [`FineTransform`]: its quantum is 55x smaller *and* its position
+            /// resolution 256x finer.
             #[must_use]
             #[inline]
             pub const fn inverse(self) -> Self {
                 // For a unit versor the inverse is the conjugate, and the
-                // matrix of the conjugate is exactly the transpose — so one
+                // matrix of the conjugate is exactly the transpose -- so one
                 // decode serves both, and the result never round-trips back
                 // through a matrix.
                 let q = self.rotation.to_versor();
@@ -214,16 +214,16 @@ define_transform! {
     ///
     /// | | |
     /// |---|---|
-    /// | Position | ±8388 km at 3.9 mm |
-    /// | Rotation | 0.1856° worst case |
+    /// | Position | +/-8388 km at 3.9 mm |
+    /// | Rotation | 0.1856 deg worst case |
     ///
     /// This is what ordinary objects use. The camera and any VR tracked pose
     /// want [`FineTransform`] instead.
     ///
     /// # A zeroed `Transform` is not the identity
     ///
-    /// Every `u32` names a rotation, and the all-zero one names a 120° turn
-    /// about `(-1, 1, 1)` — the chart-`x` Gibbs vector `(-1, -1, -1)`. So
+    /// Every `u32` names a rotation, and the all-zero one names a 120 deg turn
+    /// about `(-1, 1, 1)` -- the chart-`x` Gibbs vector `(-1, -1, -1)`. So
     /// `bytemuck::zeroed()`, a calloc'd scene buffer, or a zero-filled network
     /// packet gives an object that is *rotated*, where the same idiom on a
     /// [`FineTransform`] gives the identity. Use
@@ -241,10 +241,10 @@ define_transform! {
     ///
     /// | | |
     /// |---|---|
-    /// | Position | ±1.407e14 m at 15.26 µm |
-    /// | Rotation | 0.0033° worst case |
+    /// | Position | +/-1.407e14 m at 15.26 um |
+    /// | Rotation | 0.0033 deg worst case |
     ///
-    /// The extra width is what lets a camera sit 6.37e6 m — or 1e13 m — from
+    /// The extra width is what lets a camera sit 6.37e6 m -- or 1e13 m -- from
     /// the origin while near-field geometry still resolves to the last bit.
     FineTransform {
         position: GlobalFinePoint,

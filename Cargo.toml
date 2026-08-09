@@ -37,7 +37,34 @@ publish = true
 license = "GPL-2.0-or-later"
 
 [workspace.dependencies]
+# The workspace's own crates, so that a member names a sibling as
+# `corvid_fixed = { workspace = true }` and the version and the path are
+# written here once. The facade is absent on purpose: it is the crate that
+# re-exports these, so nothing in the workspace depends on it.
+corvid_bits = { version = "0.1.0", path = "crates/corvid_bits" }
+corvid_files = { version = "0.1.0", path = "crates/corvid_files" }
+corvid_fixed = { version = "0.1.0", path = "crates/corvid_fixed" }
+corvid_float = { version = "0.1.0", path = "crates/corvid_float" }
+corvid_glm = { version = "0.1.0", path = "crates/corvid_glm" }
+corvid_hash = { version = "0.1.0", path = "crates/corvid_hash" }
+corvid_macros = { version = "0.1.0", path = "crates/corvid_macros" }
+corvid_rotation = { version = "0.1.0", path = "crates/corvid_rotation" }
+corvid_signal = { version = "0.1.0", path = "crates/corvid_signal" }
+corvid_time = { version = "0.1.0", path = "crates/corvid_time" }
+corvid_transform = { version = "0.1.0", path = "crates/corvid_transform" }
+corvid_vector = { version = "0.1.0", path = "crates/corvid_vector" }
+corvid_wire = { version = "0.1.0", path = "crates/corvid_wire" }
+
 thiserror = "2"
+
+# The benchmark harness. A dev-dependency of three members, so the version is
+# written here once: a benchmark that reported against a different Criterion
+# than the row beside it would not be a comparison. `default-features = false`
+# drops the plotting and the rayon it pulls in; the numbers are read from the
+# terminal.
+criterion = { version = "0.8", default-features = false, features = [
+    "cargo_bench_support",
+] }
 serde = { version = "1", default-features = false, features = ["derive"] }
 bytemuck = { version = "1", features = ["derive"] }
 arbitrary = { version = "1", features = ["derive"] }

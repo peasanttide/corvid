@@ -34,7 +34,7 @@ use tracing::{
 /// One span or one event, as a subscriber saw it.
 #[derive(Clone, Debug, Default)]
 struct Recorded {
-    /// The callsite's name — `corvid_signal.set` and its neighbours.
+    /// The callsite's name -- `corvid_signal.set` and its neighbours.
     name: String,
     /// The callsite's level, as `tracing` prints it: `DEBUG` on a publication's
     /// span and `TRACE` on an observation's event.

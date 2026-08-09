@@ -3,13 +3,13 @@
 //!
 //! `tests/visible.rs` is the case for this encoding: reordering two fields of
 //! different types, renumbering a variant and adding a field each move the
-//! bytes, and a widened integer does not — the digest is what catches that one.
+//! bytes, and a widened integer does not -- the digest is what catches that one.
 //! This file is the other side of the same statement, and it exists so that the
 //! comparison table in the README is a measurement rather than a claim. A format
 //! that carries no names cannot see a change that is only in the names.
 //!
 //! Both cases below are narrow. Neither is a reason to prefer a self-describing
-//! encoding for a capture — a capture is sent compactly and it has to be — but
+//! encoding for a capture -- a capture is sent compactly and it has to be -- but
 //! both are reasons for a crate whose types go into a snapshot to keep a table
 //! of its JSON beside its table of bytes, which is the convention this
 //! workspace follows. The two tables see different halves of one encoding, and a
@@ -65,7 +65,7 @@ fn two_fields_of_the_same_type_that_hold_the_same_value_can_swap_unseen() {
 
     // With the same value in both, there is nothing left for the bytes to
     // differ by, because the names were never written down. A row recorded from
-    // a fixture like this one is the same row after the swap — so a fixture
+    // a fixture like this one is the same row after the swap -- so a fixture
     // where two same-typed fields hold the same number is a fixture that has
     // stopped covering their order.
     assert_eq!(
@@ -75,7 +75,7 @@ fn two_fields_of_the_same_type_that_hold_the_same_value_can_swap_unseen() {
     assert_eq!(hex(&encode(&Xy { x: 1, y: 1 }).unwrap()), "0101");
 
     // And the column the README's table gives to a self-describing format. It
-    // writes the names, so it sees the swap whatever the values are — which is
+    // writes the names, so it sees the swap whatever the values are -- which is
     // the one thing JSON does that this encoding cannot.
     assert_eq!(
         serde_json::to_string(&Xy { x: 1, y: 1 }).unwrap(),

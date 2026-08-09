@@ -36,7 +36,7 @@ const fn hash_word(word: u64) -> u64 {
 
 /// Samples per cell. Each cell is a count of successes in this many Bernoulli
 /// trials, so under a fair coin it has mean `SAMPLES / 2` and standard
-/// deviation `sqrt(SAMPLES) / 2` — here 8192 and 64.
+/// deviation `sqrt(SAMPLES) / 2` -- here 8192 and 64.
 const SAMPLES: u64 = 16_384;
 
 /// How far a cell may sit from half before the mixer is called broken: six
@@ -50,8 +50,8 @@ const SAMPLES: u64 = 16_384;
 /// constant, or cut to one round, fails by the whole sample count.
 ///
 /// Sweeping a uniform shift distance across the whole word says where the bound
-/// actually sits. It is red at 16 and below — sixteen throughout strays 16.3,
-/// which pins nothing but is still nowhere near six — green from 17 to 54, red
+/// actually sits. It is red at 16 and below -- sixteen throughout strays 16.3,
+/// which pins nothing but is still nowhere near six -- green from 17 to 54, red
 /// at 55, green again at 56, and red from 57 up. So what this catches is a
 /// distance at or below a quarter of a word, or one within a hair of the word
 /// width, and what it lets through is the whole middle: 48 measures 3.62, which
@@ -115,13 +115,13 @@ fn an_absorbed_bit_reaches_every_output_bit() {
 fn multi_word_inputs_do_not_collide() {
     use std::collections::HashSet;
 
-    // Single words cannot collide — the chain is a composition of bijections
+    // Single words cannot collide -- the chain is a composition of bijections
     // in one word, so it is injective by construction and finding no
     // collisions among them proves nothing. Two words are where 128 bits of
     // input are squeezed into 64 of state and the map is genuinely
     // many-to-one, so this is the first place a collision could be found. A
-    // mixer that folded pairs together — the identity does, since it makes the
-    // chain absorb `w0 ^ w1` and forget which was which — collides here on the
+    // mixer that folded pairs together -- the identity does, since it makes the
+    // chain absorb `w0 ^ w1` and forget which was which -- collides here on the
     // first transposed pair.
     const SIDE: u64 = 320;
     const PAIRS: usize = 320 * 320;

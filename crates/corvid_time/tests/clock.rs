@@ -40,7 +40,7 @@ fn a_clock_is_not_copy_because_reading_one_consumes_it() {
     // A `const` block because the answer is known at compile time and a runtime
     // assertion on a constant is a lint. It means a clock that grew a `Copy`
     // back fails the build rather than the run, which is if anything the louder
-    // of the two. The wall mode carries an `Instant` — a `Copy` field, which is
+    // of the two. The wall mode carries an `Instant` -- a `Copy` field, which is
     // exactly how a `Copy` could be derived back onto this by accident.
     const {
         assert!(
@@ -55,7 +55,7 @@ fn a_clock_is_not_copy_because_reading_one_consumes_it() {
 
 #[test]
 fn cloning_a_clock_duplicates_the_time_it_is_holding() {
-    // `Clone` is kept, so this is not a bug — it is the hazard `Copy` would
+    // `Clone` is kept, so this is not a bug -- it is the hazard `Copy` would
     // have made implicit, written out. Both halves hand back the same thirty
     // milliseconds, and the `clone` is where a reader can see why.
     let mut clock = Clock::still();
@@ -243,8 +243,8 @@ fn a_wall_clock_never_hands_a_step_more_time_than_actually_passed() {
 
     let rate = KILOHERTZ;
     let mut clock = Clock::wall();
-    // The ceiling must not be what bounds this test — the elapsed time must
-    // be — so it is set where it can never bind, even if this thread loses the
+    // The ceiling must not be what bounds this test -- the elapsed time must
+    // be -- so it is set where it can never bind, even if this thread loses the
     // processor for seconds between the sleep and the reads.
     let mut step = Step::new(rate).with_catchup(u32::MAX);
     let started = std::time::Instant::now();
@@ -252,8 +252,8 @@ fn a_wall_clock_never_hands_a_step_more_time_than_actually_passed() {
     clock.elapsed();
     // Opened *after* the clock's first reading and closed *before* its last, so
     // this window lies strictly inside the one the clock measured. That is what
-    // the lower bound needs: a window containing the clock's — which is what
-    // `started` gives — grows whenever this thread is descheduled after the
+    // the lower bound needs: a window containing the clock's -- which is what
+    // `started` gives -- grows whenever this thread is descheduled after the
     // final reading, and would fail the crate for the scheduler's behaviour.
     let inside = std::time::Instant::now();
     std::thread::sleep(Duration::from_millis(50));
@@ -268,7 +268,7 @@ fn a_wall_clock_never_hands_a_step_more_time_than_actually_passed() {
     // The accumulator started empty and every interval the clock reported lies
     // between the first read and the last, both of which happen inside
     // `truth`. So the step was told about at most `truth` nanoseconds and can
-    // have delivered at most the whole periods that fit in them — no slack is
+    // have delivered at most the whole periods that fit in them -- no slack is
     // owed, and none is given.
     let affordable = u64::try_from(truth.as_nanos() / u128::from(rate.nanos())).unwrap_or(u64::MAX);
     assert!(
@@ -282,7 +282,7 @@ fn a_wall_clock_never_hands_a_step_more_time_than_actually_passed() {
     //
     // The first is exact rather than slack. `sleep` never returns early, so the
     // measured window contains fifty whole periods, the accumulator started
-    // empty, and the ceiling cannot bind — so fifty ticks were owed and fifty
+    // empty, and the ceiling cannot bind -- so fifty ticks were owed and fifty
     // were delivered. Asking for fewer would let a clock that under-reports by
     // a tenth through.
     assert!(

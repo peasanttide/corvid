@@ -28,9 +28,9 @@ use corvid_rotation::{Basis, Rotation, Versor};
 
 /// The stated budget for this tier.
 ///
-/// Measured max is 0.1856°, so this leaves 7% of headroom. If the fixed-point
+/// Measured max is 0.1856 deg, so this leaves 7% of headroom. If the fixed-point
 /// decode's rounding eats into it, the fix is widening the decode's
-/// intermediate precision — **not** loosening this number. 1/5° is the budget,
+/// intermediate precision -- **not** loosening this number. 1/5 deg is the budget,
 /// and a test that moves to accommodate the implementation has stopped testing
 /// anything.
 const BUDGET_DEGREES: f64 = 0.2;
@@ -95,15 +95,15 @@ fn all_four_charts_are_reachable() {
 
 #[test]
 fn repacking_is_stable_and_bounded() {
-    // `pack ∘ unpack` is the identity on almost every pattern, and where it is
+    // `pack(unpack(bits))` is the identity on almost every pattern, and where it is
     // not, it moves the rotation by less than the codec's own quantum.
     //
     // The exception is a chart tie: when two quaternion components are equal in
-    // magnitude, a Gibbs field lands on exactly ±1 and *either* component is a
+    // magnitude, a Gibbs field lands on exactly +/-1 and *either* component is a
     // valid chart. Re-encoding then picks the lower-indexed one and re-
     // quantizes in the new chart. Both encodings name the same rotation to
     // within a fraction of a quantum, so this is a property of the codec rather
-    // than a defect — but it is a property worth stating, not one to discover
+    // than a defect -- but it is a property worth stating, not one to discover
     // in production.
     let mut rng = Rng::new(0x3200_0004);
     const SAMPLES: u32 = 100_000;
@@ -135,7 +135,7 @@ fn repacking_is_stable_and_bounded() {
 #[test]
 fn an_arbitrary_bit_pattern_names_a_stable_rotation() {
     // Every `u32` is a valid rotation, and decoding, re-encoding and decoding
-    // again lands within the codec's quantum of where it started — including
+    // again lands within the codec's quantum of where it started -- including
     // the patterns no encoder emits.
     let mut rng = Rng::new(0x3200_0006);
     for _ in 0..100_000 {

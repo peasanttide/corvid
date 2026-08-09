@@ -7,7 +7,7 @@
 /// The field is public, because an identifier is a number and hiding it behind
 /// an accessor would cost every caller a line and buy nothing. What the newtype
 /// buys is that one kind of identifier cannot be passed where another was
-/// meant — a mistake that would otherwise compile and then send the wrong
+/// meant -- a mistake that would otherwise compile and then send the wrong
 /// person an invitation.
 ///
 /// The type itself is `pub` too, and that is not a parameter. A `$vis:vis`
@@ -24,7 +24,7 @@
 /// does, and two identifiers *of the same width* holding the same number digest
 /// alike; that is fine, because nothing ever hashes one out of context. Two of
 /// different widths feed the hasher *different bytes*, because [`Hash`] for an
-/// integer writes its own width — but that is a statement about what goes in
+/// integer writes its own width -- but that is a statement about what goes in
 /// rather than a promise about what comes out, and no [`Hasher`] undertakes to
 /// keep two inputs apart. It is not a distinction to lean on in either case:
 /// widen one of the two reprs and even the input is the same again.

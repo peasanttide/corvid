@@ -3,7 +3,7 @@
 //! Three backstops, and nothing in these tests may wait on anything without one
 //! of them. Every property in this crate that is worth checking is a property
 //! about a thread not waiting, and the failure mode of all of them is a test
-//! binary that never returns — a red build with no message, or a CI job killed
+//! binary that never returns -- a red build with no message, or a CI job killed
 //! by a timeout an hour later. That is not hypothetical: a `threads` binary from
 //! an earlier run of this suite was found still wedged nine and a half hours
 //! later, and the agent that started it had reported the run clean.
@@ -24,7 +24,7 @@
 )]
 #![allow(
     clippy::redundant_pub_crate,
-    reason = "this module is private to each test binary, so pub(crate) and pub are equivalent — pub(crate) is the one rustc's unreachable_pub asks for, and the two lints cannot both be satisfied"
+    reason = "this module is private to each test binary, so pub(crate) and pub are equivalent -- pub(crate) is the one rustc's unreachable_pub asks for, and the two lints cannot both be satisfied"
 )]
 
 use std::{
@@ -56,7 +56,7 @@ pub(crate) const SIEGE: Duration = Duration::from_secs(30);
 /// `what` is what the failure says was blocked.
 ///
 /// The thread is abandoned rather than joined when it times out, because
-/// joining it is exactly the hang this exists to avoid — the test process
+/// joining it is exactly the hang this exists to avoid -- the test process
 /// carries a parked thread to the end of the run and the assertion that already
 /// failed is what gets reported.
 pub(crate) fn within<T: Send + 'static>(
@@ -70,7 +70,7 @@ pub(crate) fn within<T: Send + 'static>(
 ///
 /// The one thing this is for is a guard around a whole session that has named
 /// guards inside it. Both would otherwise be counting the same ten seconds, and
-/// the outer one — which started first and knows least — would be the one to
+/// the outer one -- which started first and knows least -- would be the one to
 /// report. Giving the outer guard more rope is what makes the message name the
 /// thread that is stuck rather than the session it is stuck in.
 pub(crate) fn within_for<T: Send + 'static>(
@@ -104,8 +104,8 @@ pub(crate) fn within_for<T: Send + 'static>(
 /// How often a backstop that has to poll looks again.
 ///
 /// Short enough that nothing here measures the sleep instead of the thing it is
-/// waiting for — the shortest interval any of these tests cares about is a
-/// fifty-millisecond publication delay — and long enough that a wait of ten
+/// waiting for -- the shortest interval any of these tests cares about is a
+/// fifty-millisecond publication delay -- and long enough that a wait of ten
 /// seconds is ten thousand wakeups rather than a core held flat.
 const GLANCE: Duration = Duration::from_millis(1);
 

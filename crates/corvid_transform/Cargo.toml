@@ -13,12 +13,13 @@ categories = ["game-development", "mathematics", "no-std::no-alloc"]
 [dependencies]
 arbitrary = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
-corvid_fixed = { version = "0.1.0", path = "../corvid_fixed" }
-corvid_rotation = { version = "0.1.0", path = "../corvid_rotation" }
-corvid_vector = { version = "0.1.0", path = "../corvid_vector" }
+corvid_fixed = { workspace = true }
+corvid_rotation = { workspace = true }
+corvid_vector = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 serde_json = "1"
 
 [features]
@@ -37,6 +38,11 @@ std = [
     "corvid_vector/std",
     "corvid_fixed/std",
 ]
+
+# Criterion supplies its own `main`, so the built-in harness is off.
+[[bench]]
+name = "earth_scale_vr"
+harness = false
 
 [lints]
 workspace = true

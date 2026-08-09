@@ -57,7 +57,7 @@ fn inverse_composed_with_the_original_is_the_identity() {
 
         // The residual position error is not a constant: a transform stores a
         // *quantized* rotation, so inverting one whose position is `d` from the
-        // origin leaves up to `d * quantum` of position error — 0.186 degrees
+        // origin leaves up to `d * quantum` of position error -- 0.186 degrees
         // is 3.2e-3 radians, which at 8000 km is tens of kilometres. That is a
         // property of the coarse tier, not a defect, and `Transform::inverse`
         // documents it.
@@ -252,7 +252,7 @@ fn to_fine_transform_is_total_and_says_what_it_costs() {
         // And it round-trips back to the same position and the same rotation.
         // Not necessarily the same *bits*: a rotation whose two largest
         // quaternion components tie in magnitude has two equally valid charts,
-        // and re-encoding is free to pick either — see `corvid_rotation`'s
+        // and re-encoding is free to pick either -- see `corvid_rotation`'s
         // `repacking_is_stable_and_bounded`.
         let back = fine
             .to_coarse_transform()

@@ -5,19 +5,19 @@
 //! of different types, renumbering an enum variant, and adding a field. All
 //! three compile, so nothing but a recorded table can notice them.
 //!
-//! The fourth — widening an integer — does **not** move the bytes, and that is
+//! The fourth -- widening an integer -- does **not** move the bytes, and that is
 //! the cost of a varint stated as a test rather than as a paragraph. A number
 //! below 251 is one byte whatever width it was declared at, so `u16(1)` and
 //! `u32(1)` are the same byte and a byte golden is blind to the change. What
 //! sees it is the digest, because `corvid_hash` injects the count of bytes it
-//! absorbed and a wider integer absorbs more of them — so a peer comparing
+//! absorbed and a wider integer absorbs more of them -- so a peer comparing
 //! digests catches what these bytes cannot. Both halves are measured below over
 //! one fixture.
 //!
 //! One shape escapes both, and it is the last case here: trading width between
 //! two fields, where one integer widens and another narrows to pay for it. The
 //! varint writes the same bytes and the hasher absorbs the same words and the
-//! same total count, so neither table moves. A declared schema is what is left —
+//! same total count, so neither table moves. A declared schema is what is left --
 //! a build that describes `"i64"` where another describes `"i128"` refuses the
 //! other's captures at load. That is a description a person maintains rather
 //! than a measurement, and it is the only thing standing here.
@@ -36,8 +36,8 @@ use corvid_wire::golden::hex;
 use serde::Serialize;
 
 /// The value every twin below holds, so that nothing but the declaration
-/// differs. Both numbers are small — a number below 251 is where a varint hides
-/// a width, which is the subject of half this file — and they are different from
+/// differs. Both numbers are small -- a number below 251 is where a varint hides
+/// a width, which is the subject of half this file -- and they are different from
 /// each other, so a reordering has somewhere to show.
 const FIRST: u16 = 1;
 const SECOND: u32 = 2;
@@ -152,7 +152,7 @@ fn widening_an_integer_does_not_move_the_bytes_and_does_move_the_digest() {
         second: SECOND,
     };
 
-    // The byte table is blind to this, exactly. Not "differs by a length" —
+    // The byte table is blind to this, exactly. Not "differs by a length" --
     // identical, byte for byte, so no recorded row anywhere in the workspace
     // moves when a field of this shape is widened.
     assert_eq!(hex(&encode(&base()).unwrap()), "0102");
@@ -160,7 +160,7 @@ fn widening_an_integer_does_not_move_the_bytes_and_does_move_the_digest() {
 
     // And the digest table is not. The hasher absorbs `first` as two bytes on
     // one side and four on the other, injects the total count at the end, and
-    // answers differently — which is what a peer compares every tick.
+    // answers differently -- which is what a peer compares every tick.
     assert_eq!(digest(&base()).to_u64(), 0x0dbe_2df1_4a0d_0c8c);
     assert_eq!(digest(&widened).to_u64(), 0x0fc6_cbb3_9747_e543);
 }
@@ -168,8 +168,8 @@ fn widening_an_integer_does_not_move_the_bytes_and_does_move_the_digest() {
 /// The same two bytes and the same digest, one field widened and the other
 /// narrowed to pay for it.
 ///
-/// A plausible edit — the identifier that ran out of room borrows from the one
-/// that never needed it — and the one shape in this file that no recorded table
+/// A plausible edit -- the identifier that ran out of room borrows from the one
+/// that never needed it -- and the one shape in this file that no recorded table
 /// in the workspace can see.
 #[derive(Hash, Serialize)]
 struct Traded {
@@ -189,7 +189,7 @@ fn trading_width_between_two_fields_moves_nothing_a_table_records() {
     assert_eq!(hex(&encode(&traded).unwrap()), "0102");
 
     // The digest, because the hasher absorbs `1` and `2` as the same two words
-    // either way and the counts it injects — two plus four, four plus two —
+    // either way and the counts it injects -- two plus four, four plus two --
     // come to the same six.
     assert_eq!(digest(&base()).to_u64(), 0x0dbe_2df1_4a0d_0c8c);
     assert_eq!(digest(&traded).to_u64(), 0x0dbe_2df1_4a0d_0c8c);
@@ -229,7 +229,7 @@ fn the_digest_sees_every_change_these_bytes_do_and_no_name() {
     );
 
     // An added field: visible, and unlike the byte table it is visible even for
-    // a field that writes no bytes — `Hash` reaches every field whatever it
+    // a field that writes no bytes -- `Hash` reaches every field whatever it
     // encodes to. `tests/blind.rs` is the other half of that comparison.
     assert_ne!(
         digest(&Added {

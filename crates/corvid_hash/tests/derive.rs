@@ -7,7 +7,7 @@
 //!
 //! Declaration order being the encoding is the sharp edge. Exchanging two
 //! same-typed fields compiles, changes every digest of that type, and is a
-//! desync rather than a test failure unless something freezes the numbers —
+//! desync rather than a test failure unless something freezes the numbers --
 //! which is what `tests/golden.rs` and the golden tables across the workspace
 //! are for.
 //!
@@ -91,8 +91,8 @@ fn a_variant_index_precedes_its_payload() {
 ///
 /// The derive hashes `discriminant_value(self)`, and that value's type is
 /// whatever the enum declares: `isize` by default, and the named integer under a
-/// `repr`. So a `repr` reached for on layout grounds — packing a state enum into
-/// a byte, or matching a C header — narrows the variant index from eight bytes
+/// `repr`. So a `repr` reached for on layout grounds -- packing a state enum into
+/// a byte, or matching a C header -- narrows the variant index from eight bytes
 /// to one and moves every digest of the type. It is the same sharp edge as
 /// exchanging two same-typed fields, arriving through an attribute that looks
 /// like it is only about memory, so it belongs in the same file as that one.
@@ -132,7 +132,7 @@ fn a_variant_payload_is_absorbed() {
 
 #[test]
 fn a_unit_struct_still_hashes() {
-    // It absorbs no word, so its digest is the empty one — which is not zero.
+    // It absorbs no word, so its digest is the empty one -- which is not zero.
     assert_ne!(digest(&Unit), Digest::ZERO);
     assert_eq!(digest(&Unit), digest(&()));
 }
@@ -195,7 +195,7 @@ impl<T> Id<T> {
 }
 
 /// What an `Id` can point at. A marker type absorbs nothing, so deriving on it
-/// costs no word — it is only there to satisfy the bound the derive writes for
+/// costs no word -- it is only there to satisfy the bound the derive writes for
 /// every type parameter.
 #[derive(Hash)]
 struct Ship;
@@ -239,8 +239,8 @@ fn a_derived_type_nests_inside_another() {
 }
 
 /// Nothing is imported in here, on purpose. `Hash` is in the prelude and the
-/// hasher is named by its full path, so a module — or a crate, or a `no_std`
-/// target — that has never named this crate's traits still hashes through it.
+/// hasher is named by its full path, so a module -- or a crate, or a `no_std`
+/// target -- that has never named this crate's traits still hashes through it.
 mod with_nothing_in_scope {
     #[derive(Hash)]
     struct Hidden {

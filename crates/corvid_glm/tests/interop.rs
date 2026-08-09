@@ -4,7 +4,7 @@
 //! passes with any subset enabled. Run with `--all-features` to exercise all of
 //! it.
 //!
-//! Neither integration is written in this crate — both are nalgebra's, switched
+//! Neither integration is written in this crate -- both are nalgebra's, switched
 //! on through a forwarding feature. What is being tested is therefore the
 //! wiring rather than the impls: that enabling the feature here really does
 //! reach the impl, and that a matrix crossing either boundary keeps the
@@ -100,7 +100,7 @@ fn a_matrix_crosses_to_mint_as_columns() {
     // mint distinguishes the two conventions in the type name, so this is the
     // one place the crate's column-major choice is written down in something
     // other than prose: `ColumnMatrix4`, and its `w` member is the fourth
-    // *column* — the translation — rather than the fourth row.
+    // *column* -- the translation -- rather than the fourth row.
     let out: mint::ColumnMatrix4<f32> = MOVED.into();
     assert_eq!((out.w.x, out.w.y, out.w.z, out.w.w), (5.0, 6.0, 7.0, 1.0));
     assert_eq!(Mat4::from(out), MOVED);

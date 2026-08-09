@@ -13,7 +13,7 @@ use crate::Error;
 /// A ceiling is here because the decoder allocates a container before it reads
 /// one: `bincode` sizes a `String` or a `Vec` from its length prefix up front,
 /// and with no limit configured its own guard against that is compiled out. Nine
-/// bytes a peer wrote can then ask for sixteen exabytes, and asking is enough —
+/// bytes a peer wrote can then ask for sixteen exabytes, and asking is enough --
 /// the allocation is attempted before the slice is consulted, so a ten-byte
 /// packet aborts the process rather than returning an error. `tests/hostile.rs`
 /// is the measurement.
@@ -29,7 +29,7 @@ use crate::Error;
 /// read back is a value that will not be written down.
 ///
 /// Two hundred and fifty-six mebibytes, against the roughly one and a quarter
-/// that fifty thousand entities come to — two hundred times the largest snapshot
+/// that fifty thousand entities come to -- two hundred times the largest snapshot
 /// this workspace is designed for. A capture that reaches it is a bug in the
 /// caller rather than a limit worth raising.
 pub const CEILING: usize = 256 * 1024 * 1024;
@@ -44,7 +44,7 @@ pub const CEILING: usize = 256 * 1024 * 1024;
 /// own bytes above that, so it is shorter than a declared width for the small
 /// numbers that dominate this format's traffic and longer for a number that
 /// uses its bits. What it costs is that the width a number was declared at is no
-/// longer in the bytes — `u16(1)` and `u32(1)` are the same single byte — so a
+/// longer in the bytes -- `u16(1)` and `u32(1)` are the same single byte -- so a
 /// byte golden cannot see a field widen, and a digest table is what tells two
 /// builds apart instead. The README's table is the whole of that argument and
 /// `tests/visible.rs` is the check.
@@ -64,7 +64,7 @@ const WIRE: Configuration<LittleEndian, Varint, Limit<CEILING>> =
 /// ```
 /// # fn main() -> Result<(), corvid_wire::Error> {
 /// // A small number is one byte whatever it was declared as, so the two lines
-/// // below are the same byte — the width is not in the bytes.
+/// // below are the same byte -- the width is not in the bytes.
 /// assert_eq!(corvid_wire::encode(&1_u16)?, [0x01]);
 /// assert_eq!(corvid_wire::encode(&1_u32)?, [0x01]);
 ///
@@ -80,7 +80,7 @@ const WIRE: Configuration<LittleEndian, Varint, Limit<CEILING>> =
 /// this format cannot write. The shape that reaches this in practice is
 /// `#[serde(flatten)]`, which serializes its fields as a map of unknown length
 /// and is refused as `Serde(SequenceMustHaveLength)`. A type whose *reader*
-/// needs the names — an untagged enum — writes down perfectly well and fails in
+/// needs the names -- an untagged enum -- writes down perfectly well and fails in
 /// [`decode`] instead.
 ///
 /// [`Error::TooLarge`] if the value came to more than [`CEILING`] bytes, which
@@ -90,7 +90,7 @@ pub fn encode<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, Error> {
     let written = bincode::serde::encode_to_vec(value, WIRE).map_err(|why| Error::wrote(&why))?;
     // Checked after the fact rather than during, because `bincode` applies a
     // configured limit to the read path only. The bytes exist by now and are
-    // dropped, which costs the memory once for a value the caller already held —
+    // dropped, which costs the memory once for a value the caller already held --
     // where the same length arriving from a peer would have cost it before
     // anything had been read.
     if written.len() > CEILING {
@@ -128,14 +128,14 @@ pub fn encode<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, Error> {
 /// A count a peer wrote is checked against [`CEILING`] before it is acted on,
 /// not against the length of `bytes`. The slice bounds what can be *read* and
 /// not what can be *claimed*, and a container is sized from its count before a
-/// byte of it is read — so ten bytes asking for sixteen exabytes has to be
+/// byte of it is read -- so ten bytes asking for sixteen exabytes has to be
 /// refused on the strength of the number alone.
 ///
 /// # Errors
 ///
 /// [`Error::Read`] if the bytes do not decode as `T`. That covers a capture
-/// that ran out — including one whose length prefix claims more than the slice
-/// holds, which is refused as `UnexpectedEnd` — and a type whose reader needs
+/// that ran out -- including one whose length prefix claims more than the slice
+/// holds, which is refused as `UnexpectedEnd` -- and a type whose reader needs
 /// field names, such as an untagged enum, which is refused as
 /// `Serde(AnyNotSupported)`.
 ///

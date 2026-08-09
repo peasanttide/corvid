@@ -2,7 +2,7 @@
 #![no_std]
 #![allow(
     clippy::redundant_pub_crate,
-    reason = "these modules are private, so pub(crate) and pub are equivalent — pub(crate) is the one that says what is meant, and keeps the helpers from looking like API if a module is ever made public"
+    reason = "these modules are private, so pub(crate) and pub are equivalent -- pub(crate) is the one that says what is meant, and keeps the helpers from looking like API if a module is ever made public"
 )]
 
 // A digest is only canonical where the target is little-endian, and this is
@@ -11,7 +11,7 @@
 // `Hasher` overrides every `write_*` so an integer absorbs little-endian at its
 // declared width. What it cannot override is `Hash::hash_slice`, which `core`
 // implements for every primitive integer by reinterpreting the whole slice as
-// bytes and calling `write` once — so a `Vec<u32>` in a hashed state absorbs the
+// bytes and calling `write` once -- so a `Vec<u32>` in a hashed state absorbs the
 // target's own byte order, past every override, with nothing at the call site to
 // see. Two peers of opposite endianness would compute identical states and
 // exchange different marks on the first tick.
@@ -23,8 +23,8 @@
 //
 // What the refusal closes is the byte-order half of that hole and only that
 // half. The same specialisation covers `usize` and `isize`, and what it hands
-// to `write` there is `size_of_val`'s bytes — four per element on `wasm32` and
-// eight on a native server — so a `Vec<usize>` in hashed state still parts two
+// to `write` there is `size_of_val`'s bytes -- four per element on `wasm32` and
+// eight on a native server -- so a `Vec<usize>` in hashed state still parts two
 // peers that agree about endianness perfectly well. Refusing to build is not
 // available as an answer to that one, because a 32-bit target is precisely the
 // target this crate exists to keep in agreement. What closes it is hashed state
