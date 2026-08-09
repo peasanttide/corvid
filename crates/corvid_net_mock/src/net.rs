@@ -8,7 +8,6 @@ use std::{fmt, mem};
 use corvid_net::{
     Channel, DATAGRAM_LIMIT, Delivery, Link, Lost, PeerId, PeerSet, SendError, Transport,
 };
-use corvid_signal::{Watch, channel};
 
 use crate::engine::{Inner, Shared};
 use crate::queue::Queue;
@@ -97,11 +96,6 @@ impl MockNet {
             inboxes[seat] = Inbox::opening((1..=peers).filter(|&it| it != me).map(PeerId));
         }
 
-        let (emitters, watches) = rosters
-            .iter()
-            .map(|roster: &PeerSet| channel("peers", roster.clone()))
-            .unzip();
-
         Self {
             shared: Arc::new(Shared {
                 inner: Mutex::new(Inner {
@@ -114,8 +108,6 @@ impl MockNet {
                     rosters,
                     tally: Tally::default(),
                 }),
-                emitters,
-                watches,
             }),
         }
     }
@@ -127,7 +119,7 @@ impl MockNet {
     /// not count.
     #[must_use]
     pub fn peers(&self) -> u16 {
-        u16::try_from(self.shared.watches.len().saturating_sub(1)).unwrap_or(u16::MAX)
+        u16::try_from(self.shared.lock().rosters.len().saturating_sub(1)).unwrap_or(u16::MAX)
     }
 
     /// One peer's handle. Hand it to whatever is playing that seat; it
@@ -138,17 +130,9 @@ impl MockNet {
     /// answers [`SendError::Unknown`].
     #[must_use]
     pub fn endpoint(&self, peer: PeerId) -> Endpoint {
-        let peers = self
-            .shared
-            .watches
-            .get(usize::from(peer.to_u16()))
-            .cloned()
-            .unwrap_or_else(|| channel("peers", PeerSet::new()).1);
-
         Endpoint {
             net: Arc::clone(&self.shared),
             me: peer,
-            peers,
         }
     }
 
@@ -200,29 +184,24 @@ impl MockNet {
     ///
     /// A link already severed is left alone, so a second cut delivers nothing.
     pub fn cut(&self, from: PeerId, to: PeerId, because: Lost) {
-        {
-            let mut inner = self.shared.lock();
-            let forward = inner
-                .rosters
-                .get_mut(usize::from(from.to_u16()))
-                .is_some_and(|roster| roster.remove(to));
-            let back = inner
-                .rosters
-                .get_mut(usize::from(to.to_u16()))
-                .is_some_and(|roster| roster.remove(from));
-            if !forward && !back {
-                return;
-            }
-
-            let lost = inner.discard(Link::new(from, to)) + inner.discard(Link::new(to, from));
-            inner.tally.in_flight = inner.tally.in_flight.saturating_sub(lost);
-
-            inner.post(from, to, Arrival::Lost(because));
-            inner.post(to, from, Arrival::Lost(because));
+        let mut inner = self.shared.lock();
+        let forward = inner
+            .rosters
+            .get_mut(usize::from(from.to_u16()))
+            .is_some_and(|roster| roster.remove(to));
+        let back = inner
+            .rosters
+            .get_mut(usize::from(to.to_u16()))
+            .is_some_and(|roster| roster.remove(from));
+        if !forward && !back {
+            return;
         }
 
-        self.shared.publish(from);
-        self.shared.publish(to);
+        let lost = inner.discard(Link::new(from, to)) + inner.discard(Link::new(to, from));
+        inner.tally.in_flight = inner.tally.in_flight.saturating_sub(lost);
+
+        inner.post(from, to, Arrival::Lost(because));
+        inner.post(to, from, Arrival::Lost(because));
     }
 
     /// What has happened.
@@ -270,7 +249,6 @@ pub const QUEUED: usize = 256;
 pub struct Endpoint {
     net: Arc<Shared>,
     me: PeerId,
-    peers: Watch<PeerSet>,
 }
 
 // Written rather than derived, because [`Transport`] asks an implementation for
@@ -278,11 +256,14 @@ pub struct Endpoint {
 // here reaches `Shared` and prints every peer's inbox -- payloads included --
 // every roster and the whole delivery queue. On a lab with six hundred seats
 // that is a multi-megabyte log line carrying the game's own traffic.
+//
+// The seat and nothing else. The roster would mean taking the lock, and a
+// `Debug` that blocks is one a caller cannot reach for while debugging the
+// thing that holds it; `peers` is a call away for anyone who wants it.
 impl fmt::Debug for Endpoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Endpoint")
             .field("me", &self.me)
-            .field("peers", &self.peers.get().len())
             .finish_non_exhaustive()
     }
 }
@@ -336,7 +317,12 @@ impl Transport for Endpoint {
         }
     }
 
-    fn peers(&self) -> &Watch<PeerSet> {
-        &self.peers
+    fn peers(&self) -> PeerSet {
+        self.net
+            .lock()
+            .rosters
+            .get(usize::from(self.me.to_u16()))
+            .cloned()
+            .unwrap_or_default()
     }
 }

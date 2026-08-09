@@ -1,21 +1,6 @@
 //! The transport that is not one.
 
-use std::sync::LazyLock;
-
-use corvid_signal::{Watch, channel};
-
 use crate::{Channel, Delivery, PeerId, PeerSet, SendError, Transport};
-
-/// The roster nobody is in. Built once and never published to, because nothing
-/// can join a network that does not exist.
-///
-/// Labelled `"peers"` like every other roster signal in the workspace, and not
-/// after this backend: a subscriber filtering a trace on the name the state has
-/// in the program should find a single-player run in the same place it finds
-/// every other.
-// The `Emitter` is dropped here on purpose: a set that can never change is the
-// whole of what this transport has to say about who is out there.
-static NOBODY: LazyLock<Watch<PeerSet>> = LazyLock::new(|| channel("peers", PeerSet::new()).1);
 
 /// A single machine, talking to nobody.
 ///
@@ -33,10 +18,10 @@ static NOBODY: LazyLock<Watch<PeerSet>> = LazyLock::new(|| channel("peers", Peer
 /// use corvid_net::{Offline, PeerId, SendError, Transport};
 ///
 /// fn play(link: &dyn Transport) -> usize {
-///     for peer in &*link.peers().get() {
+///     for peer in &link.peers() {
 ///         let _ = link.send_datagram(peer, b"my action for tick 41");
 ///     }
-///     link.peers().get().len()
+///     link.peers().len()
 /// }
 ///
 /// assert_eq!(play(&Offline), 0);
@@ -61,7 +46,7 @@ static NOBODY: LazyLock<Watch<PeerSet>> = LazyLock::new(|| channel("peers", Peer
 /// use corvid_net::Transport;
 ///
 /// fn run<T: Transport>(link: T) -> usize {
-///     link.peers().get().len()
+///     link.peers().len()
 /// }
 ///
 /// // `()` is not a transport, so a call that returns nothing is refused here
@@ -79,9 +64,9 @@ static NOBODY: LazyLock<Watch<PeerSet>> = LazyLock::new(|| channel("peers", Peer
 /// to be empty refuses the same way, which is what makes this substitutable
 /// for one.
 ///
-/// [`Transport::peers`] says a backend need never publish again, and this is
-/// the backend that never does -- so a thread here cannot park on
-/// [`Watch::blocking_wait`] and expect to be woken.
+/// The roster is empty and stays empty, so the snapshot
+/// [`Transport::peers`] answers with is the same one every time and nothing
+/// ever arrives through [`poll`](Transport::poll) to change it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Offline;
 
@@ -96,7 +81,7 @@ impl Transport for Offline {
 
     fn poll(&self, _sink: &mut dyn FnMut(PeerId, Delivery<'_>)) {}
 
-    fn peers(&self) -> &Watch<PeerSet> {
-        &NOBODY
+    fn peers(&self) -> PeerSet {
+        PeerSet::new()
     }
 }

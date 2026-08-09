@@ -1,7 +1,6 @@
 //! `Offline`: the contract answered by a program with no network.
 
 use corvid_net::{Channel, Offline, PeerId, PeerSet, SendError, Transport};
-use corvid_signal::Seen;
 
 #[test]
 fn a_send_to_any_peer_at_all_is_unknown() {
@@ -39,27 +38,16 @@ fn nothing_is_ever_polled() {
 }
 
 #[test]
-fn the_roster_is_empty_and_stays_that_way() {
-    assert_eq!(*Offline.peers().get(), PeerSet::new());
-
-    // The empty set is a change to a cursor that has seen nothing -- the same
-    // first read every backend owes -- and there is never a second.
-    let mut seen = Seen::default();
-    assert_eq!(
-        Offline.peers().changed_since(&mut seen).as_deref(),
-        Some(&PeerSet::new())
-    );
-    assert!(Offline.peers().changed_since(&mut seen).is_none());
-}
-
-#[test]
-fn one_watch_is_shared_by_every_offline() {
-    // `Offline` is a value, not a handle, so two of them are the same
-    // transport. The watch is a process-wide static rather than one per call,
-    // which is what lets a caller hold `link.peers()` across calls at all.
-    let here = Offline;
-    let there = Offline;
-    assert!(std::ptr::eq(here.peers(), there.peers()));
+fn the_roster_is_empty_and_nothing_arrives_to_change_it() {
+    // The snapshot is empty, and polling is what would change it on a backend
+    // that had peers, so a poll between two reads is the strongest way to say
+    // this one never does.
+    assert_eq!(Offline.peers(), PeerSet::new());
+    let mut arrivals = 0_u32;
+    Offline.poll(&mut |_, _| arrivals += 1);
+    assert_eq!(arrivals, 0);
+    assert_eq!(Offline.peers(), PeerSet::new());
+    assert!(Offline.peers().is_empty());
 }
 
 #[test]
@@ -69,7 +57,7 @@ fn it_is_a_transport_behind_a_pointer_like_any_other() {
     // code path. `Transport` requires `Send + Debug`, and `Offline` is both --
     // and its `Debug` prints a name, which `()` could not.
     fn count_peers(link: &dyn Transport) -> usize {
-        link.peers().get().len()
+        link.peers().len()
     }
 
     let boxed: Box<dyn Transport> = Box::new(Offline);
@@ -88,7 +76,7 @@ fn offline_is_a_type_of_its_own_and_not_a_name_for_unit() {
     // `compile_fail` doctest on `Offline`, since a test cannot assert what
     // does not compile.
     fn takes_transport<T: Transport>(link: &T) -> usize {
-        link.peers().get().len()
+        link.peers().len()
     }
 
     assert_eq!(takes_transport(&Offline), 0);

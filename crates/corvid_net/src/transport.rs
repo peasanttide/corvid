@@ -2,7 +2,6 @@
 //! the two ways to send.
 
 use corvid_macros::named_enum;
-use corvid_signal::Watch;
 use thiserror::Error;
 
 use crate::peer::{PeerId, PeerSet};
@@ -189,16 +188,20 @@ pub trait Transport: Send + core::fmt::Debug {
     /// peer that wants to answer a packet inside the loop could not.
     fn poll(&self, sink: &mut dyn FnMut(PeerId, Delivery<'_>));
 
-    /// Who is here, published rather than returned -- a consumer that missed
-    /// three changes sees the current set rather than three stale ones.
+    /// Who is here, as of now.
     ///
-    /// A transport may publish to this once and never again, so nothing may
-    /// depend on a further publication to make progress. In particular a
-    /// thread that must be able to exit cannot park on
-    /// [`Watch::blocking_wait`] and rely on a roster change to wake it:
-    /// [`Offline`](crate::Offline) never has one, and a backend whose last
-    /// peer has already gone may not either.
-    fn peers(&self) -> &Watch<PeerSet>;
+    /// Owned rather than borrowed, because a backend keeps its roster behind
+    /// whatever interior mutability it uses and cannot hand out a reference
+    /// into it. The clone is a sorted `Vec` of numbers, which is cheap, but it
+    /// is a clone: a caller that wants the roster every tick should keep its
+    /// own and let [`poll`](Self::poll) maintain it.
+    ///
+    /// That is the more reliable reading of the two, and the one to reach for.
+    /// [`Delivery::Joined`] and [`Delivery::Lost`] report every change in
+    /// order and are never dropped, so a set built from them misses nothing;
+    /// this is a snapshot, and two calls either side of a `poll` can differ
+    /// without saying what happened in between.
+    fn peers(&self) -> PeerSet;
 
     /// The largest datagram this transport will carry.
     fn datagram_limit(&self) -> usize {

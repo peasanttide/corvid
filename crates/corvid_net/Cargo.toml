@@ -14,24 +14,28 @@ categories = ["network-programming", "game-development"]
 # `id_type!` for `PeerId` and `named_enum!` for `Channel` and `Lost` -- the
 # newtype, the `ALL`, the names and both `Display`s. A `macro_rules!` crate
 # with no dependencies of its own, so it adds a path entry and nothing to the
-# build below it. What it does add is `serde`, which `id_type!`'s expansion
-# names.
+# build below it.
 corvid_macros = { workspace = true }
-# The only dependency a backend inherits by speaking this vocabulary, which is
-# the point of the crate being this small. `Watch` is in `Transport::peers`'s
-# signature, so it is a public dependency.
-corvid_signal = { workspace = true }
-# Named by `id_type!`'s expansion rather than used directly here: `PeerId`
-# encodes as the bare number under `#[serde(transparent)]`.
-serde = { workspace = true, features = ["derive"] }
+# Named by `id_type!`'s expansion rather than used directly here, and only
+# when the feature below is on: `PeerId` then encodes as the bare number under
+# `#[serde(transparent)]`.
+serde = { workspace = true, features = ["derive"], optional = true }
 # `Display` and `Error` for `SendError`, written on the variants rather than in
-# a `match` a new variant can be added without touching.
-thiserror.workspace = true
+# a `match` a new variant can be added without touching. Spelled out rather
+# than `workspace = true`, because the workspace entry carries default features
+# and a member cannot turn those off; this crate is `no_std`, so it takes
+# `core::error::Error` instead of the `std` one. It is also the only crate here
+# that names `thiserror` at all.
+thiserror = { version = "2", default-features = false }
 
 [features]
-# There are none. A contract with a feature flag is two contracts, and a caller
-# generic over `Transport` would have to know which one its backend compiled.
+# One, and it adds nothing to the contract: `serde` puts an encoding on the
+# value types and leaves `Transport` alone, so a caller generic over the trait
+# never has to know which way a backend compiled it.
 default = []
+# `PeerId` encodes as the bare number it is. The other value types are a
+# backend's business to send, not this crate's to encode.
+serde = ["dep:serde"]
 
 [lints]
 workspace = true

@@ -1,7 +1,7 @@
 # `corvid_net`
 
 The transport contract for [Corvid](https://github.com/peasanttide/corvid), and
-nothing else: bytes to a peer, bytes from a peer, and a published roster.
+nothing else: bytes to a peer, bytes from a peer, and who is out there.
 [`Transport`] is the whole of the vocabulary, and there is no socket in this
 crate.
 

@@ -9,7 +9,6 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use corvid_net::{Channel, Link, PeerId, PeerSet, SendError};
-use corvid_signal::{Emitter, Watch};
 
 use crate::net::{INBOX, QUEUED};
 use crate::queue::{Queue, Wait};
@@ -43,11 +42,6 @@ pub(crate) struct Inner {
 #[derive(Debug)]
 pub(crate) struct Shared {
     pub(crate) inner: Mutex<Inner>,
-    /// Per peer, the published roster.
-    pub(crate) emitters: Vec<Emitter<PeerSet>>,
-    /// Per peer, the handle an endpoint hands back from
-    /// [`Transport::peers`].
-    pub(crate) watches: Vec<Watch<PeerSet>>,
 }
 
 impl Shared {
@@ -59,24 +53,6 @@ impl Shared {
     /// touched this state.
     pub(crate) fn lock(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// Publishes one peer's roster, under the lock the change was made under.
-    ///
-    /// Reading the roster and then releasing the lock before setting the watch
-    /// lets two changes interleave read-read-set-set, which leaves the watch
-    /// advertising the older of the two for ever while `Inner` holds the
-    /// newer. Holding it means the order rosters are published in is the order
-    /// they were written in. Nothing takes these two locks the other way round.
-    pub(crate) fn publish(&self, peer: PeerId) {
-        let inner = self.lock();
-        if let (Some(roster), Some(emitter)) = (
-            inner.rosters.get(usize::from(peer.to_u16())),
-            self.emitters.get(usize::from(peer.to_u16())),
-        ) {
-            emitter.set(roster.clone());
-        }
-        drop(inner);
     }
 }
 

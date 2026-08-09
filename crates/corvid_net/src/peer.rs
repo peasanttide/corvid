@@ -2,6 +2,8 @@
 
 use core::fmt;
 
+use alloc::vec::Vec;
+
 use corvid_macros::id_type;
 
 id_type! {

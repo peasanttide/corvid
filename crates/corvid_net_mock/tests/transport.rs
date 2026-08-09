@@ -13,7 +13,6 @@ use corvid_fixed::Factor16;
 use corvid_net::{Channel, DATAGRAM_LIMIT, Delivery, Lost, PeerId, SendError, Transport};
 use corvid_net_mock::{MockNet, Schedule};
 
-use corvid_signal::Seen;
 /// One delivery, owned, so a test can compare a whole sequence at once.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum Heard {
@@ -181,25 +180,34 @@ fn a_join_precedes_and_a_loss_follows() {
 }
 
 #[test]
-fn a_roster_is_published_once_per_change() {
+fn the_roster_tracks_a_cut_and_poll_says_the_same_thing() {
     let net = MockNet::new(3, 1);
     let alice = net.endpoint(PeerId(1));
-    let mut seen = Seen::default();
 
-    // The set that is already there is a change to a cursor that has seen
-    // nothing, so a peer starting up mid-session is told who is here.
-    let roster = alice.peers().changed_since(&mut seen).unwrap();
-    assert_eq!(roster.as_slice(), [PeerId(2), PeerId(3)]);
-    assert!(alice.peers().changed_since(&mut seen).is_none());
+    // What a peer sees before it has polled anything: a snapshot needs no
+    // cursor and no first read to be current.
+    assert_eq!(alice.peers().as_slice(), [PeerId(2), PeerId(3)]);
 
     net.cut(PeerId(1), PeerId(3), Lost::Closed);
-    let roster = alice.peers().changed_since(&mut seen).unwrap();
-    assert_eq!(roster.as_slice(), [PeerId(2)]);
-    assert!(alice.peers().changed_since(&mut seen).is_none());
+    assert_eq!(alice.peers().as_slice(), [PeerId(2)]);
 
-    // A link already severed publishes nothing.
+    // The same departure arrives through `poll`, which is the reading a caller
+    // keeps its own roster from. The two agree, and that is the point: the
+    // snapshot is a convenience over what the deliveries already say.
+    let mut lost = Vec::new();
+    alice.poll(&mut |from, what| {
+        if let Delivery::Lost { because } = what {
+            lost.push((from, because));
+        }
+    });
+    assert_eq!(lost, [(PeerId(3), Lost::Closed)]);
+
+    // A link already severed moves neither of them.
     net.cut(PeerId(1), PeerId(3), Lost::Closed);
-    assert!(alice.peers().changed_since(&mut seen).is_none());
+    assert_eq!(alice.peers().as_slice(), [PeerId(2)]);
+    alice.poll(&mut |_, what| {
+        assert!(!matches!(what, Delivery::Lost { .. }), "a second cut spoke");
+    });
 }
 
 #[test]
@@ -207,7 +215,7 @@ fn an_endpoint_for_a_peer_that_is_not_there_reaches_nobody() {
     let net = MockNet::new(2, 1);
     let nobody = net.endpoint(PeerId::NONE);
 
-    assert!(nobody.peers().get().is_empty());
+    assert!(nobody.peers().is_empty());
     assert_eq!(
         nobody.send_datagram(PeerId(1), b"hello"),
         Err(SendError::Unknown(PeerId(1)))

@@ -13,8 +13,6 @@ categories = ["network-programming", "game-development", "simulation"]
 [dependencies]
 # The vocabulary this crate implements.
 corvid_net = { workspace = true }
-# The roster is published rather than returned, as `Transport` asks.
-corvid_signal = { workspace = true }
 # `Factor16` is what a loss curve is written in: a share of one, exact at both
 # ends, and the same type a game already tunes with. It is in `Schedule`'s
 # public fields, so it is a public dependency.
