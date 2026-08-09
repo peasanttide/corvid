@@ -116,7 +116,34 @@ jobs:
           echo "== $crate"
           cargo build -p "$crate" --no-default-features --target thumbv7em-none-eabi
         done
-    # `corvid_hash` overrides `write_usize` and `write_isize` so a `Vec`'s
+    # `rust-version` is a promise to a downstream, and every other job here runs
+  # on whatever stable the runner has — so an API stabilised last month compiles
+  # green and breaks the first person who believed the manifest. Reached for
+  # `Duration::from_mins` in a test, which needs 1.92 and is a hard error on the
+  # declared floor.
+  #
+  # `--all-targets`, because a test target is where this slips in: nothing a
+  # downstream compiles, and nothing any other arm holds to the floor.
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: mozilla-actions/sccache-action@v0.0.9
+    - uses: Swatinem/rust-cache@v2
+      with:
+        cache-targets: false
+    - name: The oldest toolchain the manifest promises
+      run: |
+        set -eu
+        floor=$(cargo metadata --format-version 1 --no-deps \
+          | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["rust_version"])')
+        echo "rust-version is $floor"
+        rustup toolchain install "$floor" --profile minimal
+        cargo "+$floor" check --workspace --all-targets --all-features
+
+  # `corvid_hash` overrides `write_usize` and `write_isize` so a `Vec`'s
     # length prefix is eight bytes on every target rather than the pointer
     # width, which is the one thing standing between a `wasm32` browser peer and
     # a native server agreeing on a digest. Every arm above runs on the 64-bit

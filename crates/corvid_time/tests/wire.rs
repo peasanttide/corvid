@@ -40,7 +40,14 @@ use core::num::{NonZeroU32, NonZeroU64};
 use corvid_time::{Tick, TickSpan};
 use corvid_wire::golden::{DigestRow, Row, check, check_digests};
 
-/// The tick counter: eight bytes, least significant first.
+/// The tick counter: a `u64` field, written as a varint.
+///
+/// The declared width and the encoded length are different numbers here, which
+/// is the whole reason this table is worth freezing. `Tick(1)` is one byte, not
+/// eight — the encoding spells the value and never the width it was declared
+/// at, so nothing in these rows would move if the field narrowed to a `u32`
+/// until a value arrived that a `u32` could not hold. The digest table below is
+/// what sees the width.
 ///
 /// The last two rows are the ones a narrowing runs into. A tick of
 /// `0x1234_5678_9abc_def0` is a number a `u32` cannot hold, so the row is a

@@ -17,11 +17,16 @@ members = ["crates/*"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-# Set by `u32::is_multiple_of` (1.87) in `corvid_fixed`'s `rsqrt`; `u64::isqrt`
-# in a `const` context (1.84) and edition 2024 (1.85) are the next two floors
-# down. Declared so a downstream on an older toolchain gets a version error
-# rather than a wall of missing-method errors.
-rust-version = "1.87"
+# Set by let-chains (1.88) in `corvid_signal`'s `tests/tracing.rs`;
+# `u32::is_multiple_of` (1.87) in `corvid_fixed`'s `rsqrt`, edition 2024 (1.85)
+# and `u64::isqrt` in a `const` context (1.84) are the floors below it.
+# Declared so a downstream on an older toolchain gets a version error rather
+# than a wall of missing-method errors.
+#
+# The `msrv` job is what makes this a measurement rather than a note. It read
+# 1.87 while the workspace had not compiled on 1.87 since the let-chains landed,
+# because every other job runs on whatever stable the runner has.
+rust-version = "1.88"
 repository = "https://github.com/peasanttide/corvid"
 publish = true
 license = "GPL-2.0-or-later"

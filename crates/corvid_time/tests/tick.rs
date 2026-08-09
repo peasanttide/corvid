@@ -5,7 +5,7 @@
 //! machine. Nothing here may panic, because a tick arriving from a save file or
 //! a peer is untrusted input and arithmetic on it happens inside `tick`.
 
-use core::num::NonZeroU32;
+use core::num::{NonZeroU32, NonZeroU64};
 use core::time::Duration;
 
 use corvid_time::{Tick, TickSpan};
@@ -13,6 +13,15 @@ use corvid_time::{Tick, TickSpan};
 const fn rate(hz: u32) -> TickSpan {
     match NonZeroU32::new(hz) {
         Some(hz) => TickSpan::from_hz(hz),
+        None => TickSpan::CRADLE,
+    }
+}
+
+/// A span straight from nanoseconds, spelled without an `unwrap` for the reason
+/// the module doc gives: nothing in this file may panic.
+const fn span(nanos: u64) -> TickSpan {
+    match NonZeroU64::new(nanos) {
+        Some(nanos) => TickSpan::from_nanos(nanos),
         None => TickSpan::CRADLE,
     }
 }
@@ -136,9 +145,16 @@ fn a_span_digests_as_its_nanoseconds() {
     assert_eq!(digest(&TickSpan::CRADLE), digest(&66_666_666u64));
     assert_ne!(digest(&TickSpan::CRADLE), digest(&rate(30)));
 
-    // Two rates that truncate to the same span are the same simulation and
-    // digest alike. 62 500 001 through 66 666 666 nanoseconds are all "fifteen
-    // hertz"; these two rates land on the same span and so on the same digest.
-    assert_eq!(rate(15), rate(15));
+    // What a peer agrees on is the span, and `hz()` is not enough to name one:
+    // every span from 62 500 001 to 66 666 666 nanoseconds reports fifteen
+    // hertz, and two of them are two different simulations with two different
+    // digests. A handshake that compared rates rather than spans would call
+    // these a match.
+    let coarse = span(62_500_001);
+    assert_eq!(coarse.hz(), 15);
+    assert_eq!(TickSpan::CRADLE.hz(), 15);
+    assert_ne!(coarse, TickSpan::CRADLE);
+    assert_ne!(digest(&coarse), digest(&TickSpan::CRADLE));
+
     assert_ne!(digest(&rate(15)), digest(&rate(16)));
 }

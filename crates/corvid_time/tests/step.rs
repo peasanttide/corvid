@@ -154,7 +154,7 @@ fn the_remainder_below_a_period_survives_a_stall() {
 fn the_catchup_ceiling_is_what_bounds_one_advance() {
     for ceiling in [1u32, 2, 8, 64] {
         let mut step = Step::new(TickSpan::CRADLE).with_catchup(ceiling);
-        assert_eq!(step.advance(Duration::from_mins(1)), ceiling);
+        assert_eq!(step.advance(Duration::from_secs(60)), ceiling);
     }
 }
 

@@ -128,20 +128,24 @@ fn a_clock_can_be_held_as_a_trait_object() {
 fn a_wall_clock_measures_forward_only() {
     use corvid_time::Clock;
 
+    // Bounded against a window measured here rather than against a fixed
+    // deadline. A `Duration` is unsigned, so "never negative" is not observable;
+    // what is observable is that consecutive readings *partition* the span they
+    // were taken across, so their sum cannot exceed it however long this thread
+    // loses the processor for. A clock reporting a timestamp, or the time since
+    // its own construction, sums to a large multiple of the span instead.
+    let outside = std::time::Instant::now();
     let mut clock = Clock::wall();
-    let first = clock.elapsed();
     let mut total = Duration::ZERO;
     for _ in 0..100 {
         total = total.saturating_add(clock.elapsed());
     }
-    // A `Duration` is unsigned, so "never negative" is not observable and this
-    // test cannot claim it. What it does claim is that a hundred readings are
-    // each an *interval* and not a timestamp: a clock returning time-since-epoch
-    // would blow the bound on the first call, and one returning the time since
-    // construction would blow it by accumulating the same growing figure a
-    // hundred times.
-    assert!(first < Duration::from_millis(100), "{first:?}");
-    assert!(total < Duration::from_millis(100), "{total:?}");
+    let span = outside.elapsed();
+
+    assert!(
+        total <= span,
+        "a hundred readings summed to {total:?} across a window of {span:?}",
+    );
 }
 
 #[cfg(feature = "std")]
@@ -173,28 +177,41 @@ fn a_wall_clock_reports_the_interval_since_the_last_call_not_since_it_was_built(
     let mut clock = Clock::wall();
     clock.elapsed();
     std::thread::sleep(Duration::from_millis(20));
+    let bracket = std::time::Instant::now();
     let slept = clock.elapsed();
     let immediately_after = clock.elapsed();
+    // Opened before the reading that starts the interval and closed after the
+    // one that ends it, so the clock's window is contained in this one whatever
+    // the scheduler does between the lines.
+    let between = bracket.elapsed();
 
     assert!(slept >= Duration::from_millis(15), "measured {slept:?}");
-    // A generous ceiling, because this runs on shared CI hardware where a
-    // thread can lose the processor for a while between two adjacent lines.
-    // Even so it is an order of magnitude under the sleep it must not repeat.
+    // The second reading is bounded by a window measured around it rather than
+    // by a deadline: whatever the scheduler does, an interval clock cannot
+    // report more than the time that actually passed between the two reads. A
+    // clock reporting a timestamp repeats the twenty milliseconds it just
+    // measured, which no window around two adjacent lines can contain.
     assert!(
-        immediately_after < Duration::from_millis(10),
-        "two consecutive reads with nothing between them measured \
-         {immediately_after:?}; the clock is reporting a timestamp, not an interval"
+        immediately_after <= between,
+        "two consecutive reads spanning {between:?} measured {immediately_after:?}; \
+         the clock is reporting a timestamp, not an interval"
     );
 
-    // And it keeps doing so: a hundred back-to-back reads of an interval clock
-    // sum to about the time the loop took, not to a hundred times the sleep.
+    // And it keeps doing so: a hundred back-to-back readings partition the
+    // window they are taken across, rather than each repeating the sleep.
+    let outside = std::time::Instant::now();
+    // Discarded, and that is what makes the bound hold: it closes the interval
+    // that began before this window opened, so every reading summed below lies
+    // inside it.
+    clock.elapsed();
     let mut total = Duration::ZERO;
     for _ in 0..100 {
         total = total.saturating_add(clock.elapsed());
     }
+    let span = outside.elapsed();
     assert!(
-        total < Duration::from_millis(100),
-        "a hundred immediate reads summed to {total:?}"
+        total <= span,
+        "a hundred immediate reads summed to {total:?} across {span:?}",
     );
 }
 
@@ -233,11 +250,19 @@ fn a_wall_clock_never_hands_a_step_more_time_than_actually_passed() {
     let started = std::time::Instant::now();
 
     clock.elapsed();
+    // Opened *after* the clock's first reading and closed *before* its last, so
+    // this window lies strictly inside the one the clock measured. That is what
+    // the lower bound needs: a window containing the clock's — which is what
+    // `started` gives — grows whenever this thread is descheduled after the
+    // final reading, and would fail the crate for the scheduler's behaviour.
+    let inside = std::time::Instant::now();
     std::thread::sleep(Duration::from_millis(50));
     let mut ticks = 0u64;
-    for _ in 0..20 {
+    for _ in 0..19 {
         ticks += u64::from(step.advance(clock.elapsed()));
     }
+    let measured = inside.elapsed();
+    ticks += u64::from(step.advance(clock.elapsed()));
     let truth = started.elapsed();
 
     // The accumulator started empty and every interval the clock reported lies
@@ -265,22 +290,15 @@ fn a_wall_clock_never_hands_a_step_more_time_than_actually_passed() {
         "a fifty millisecond sleep yielded {ticks} ticks of a one millisecond period"
     );
 
-    // The first bound loosens on a loaded machine, where the sleep overshoots
-    // and the extra periods pay for the shortfall — with the processor
-    // oversubscribed four to one this loop has been seen to deliver sixty-six
-    // ticks, and a clock reporting nineteen twentieths of sixty-six still
-    // clears fifty. So the second bound is relative, comparing what the step
-    // was told against what an independent `Instant` says really passed.
-    //
-    // One period of slack and no more. The reported window sits strictly inside
-    // `truth` — it starts one `Instant::now()` later and ends one earlier — so
-    // the two can straddle a period boundary and differ by one for that reason
-    // alone. They cannot differ by two without a whole millisecond vanishing
-    // into a gap that is a hundred nanoseconds wide, while a clock reporting
-    // nineteen twentieths of the truth differs by two or three.
+    // The other direction, against `measured` rather than `truth`, because that
+    // window is a subset of what the clock saw: every period that fits inside it
+    // was reported to the step. One period of slack, because the two ends can
+    // each straddle a boundary; a clock under-reporting by even a twentieth of
+    // fifty periods misses by more than that.
+    let owed = u64::try_from(measured.as_nanos() / u128::from(rate.nanos())).unwrap_or(0);
     assert!(
-        ticks + 1 >= affordable,
-        "the step was told about {ticks} periods of the {affordable} that really passed"
+        ticks + 1 >= owed,
+        "the step was told about {ticks} periods of the {owed} that really passed"
     );
 }
 
@@ -304,12 +322,14 @@ fn a_wall_clock_says_so_and_cannot_be_nudged() {
 
     let mut clock = Clock::wall();
     assert!(clock.is_wall());
-    // A wall clock has no queue to add to, and `advance` is documented as a
-    // no-op rather than a panic so that one loop can drive either clock.
     assert_eq!(clock.step(), Duration::ZERO);
+
+    // A wall clock has no queue to add to, and `advance` is documented as a
+    // no-op rather than a panic so that one loop can drive either clock. Checked
+    // as state rather than as a later reading: a `Clock` is `Clone` and `Eq`, so
+    // "the nudge changed nothing" is exact, where any bound on what `elapsed`
+    // says afterwards is a guess about the scheduler.
+    let untouched = clock.clone();
     clock.advance(Duration::from_secs(100));
-    assert!(
-        clock.elapsed() < Duration::from_millis(100),
-        "the nudge reached a wall clock",
-    );
+    assert_eq!(clock, untouched, "the nudge reached a wall clock");
 }
