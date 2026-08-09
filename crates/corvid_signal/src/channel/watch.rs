@@ -33,7 +33,7 @@ impl<T> Clone for Watch<T> {
     }
 }
 
-/// Prints the label and not the value, for the reason [`Emitter`]'s does.
+/// Prints the label and not the value, for the reason [`Emitter`](crate::Emitter)'s does.
 impl<T> fmt::Debug for Watch<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Watch")
@@ -58,8 +58,8 @@ impl<T> Watch<T> {
     ///
     /// It waits for the lock and for nothing else, and what waiting for the
     /// lock is worth depends on who has it. Behind another reader or a
-    /// [`set`](Emitter::set) it is a reference-count bump; behind a
-    /// [`modify`](Emitter::modify) that has to copy it is a whole `T::clone`,
+    /// [`set`](crate::Emitter::set) it is a reference-count bump; behind a
+    /// [`modify`](crate::Emitter::modify) that has to copy it is a whole `T::clone`,
     /// because that is the one call in this crate that runs a `T`'s own code
     /// while holding the lock a reader takes.
     #[must_use]
@@ -87,7 +87,7 @@ impl<T> Watch<T> {
     ///
     /// Emits a `TRACE` event called `corvid_signal.observed` when it returns
     /// `Some`, carrying the signal's label and the sequence number. That is the
-    /// far end of the handoff whose near end is [`set`](Emitter::set)'s span, so
+    /// far end of the handoff whose near end is [`set`](crate::Emitter::set)'s span, so
     /// a trace that records timestamps shows the interval between a publication
     /// and a consumer noticing it. Nothing here measures that interval; the two
     /// timestamps are what a trace is read for.
@@ -136,7 +136,7 @@ impl<T> Watch<T> {
     /// instead. Nothing here can tell which thread it is on and nothing here
     /// enforces this.
     ///
-    /// When every [`Emitter`] for this signal has been dropped, this parks
+    /// When every [`Emitter`](crate::Emitter) for this signal has been dropped, this parks
     /// forever: the signature returns a value and there is none to invent, so
     /// there is nothing it could return instead. A thread that must be able to
     /// exit needs a way out that does not come through this call -- its own

@@ -153,8 +153,8 @@ impl<T: Clone> Emitter<T> {
     ///
     /// `f` runs with the lock held, and so does the clone `Arc::make_mut` may
     /// take first, so everything waiting on this signal -- every other
-    /// publication, every [`get`](Watch::get), every
-    /// [`changed_since`](Watch::changed_since) -- waits for both. Keep `f` to the
+    /// publication, every [`get`](crate::Watch::get), every
+    /// [`changed_since`](crate::Watch::changed_since) -- waits for both. Keep `f` to the
     /// edit. Touching this signal from inside `f`, by any handle, deadlocks.
     ///
     /// One more thing can run under that lock, and no caller chooses when.
@@ -175,8 +175,8 @@ impl<T: Clone> Emitter<T> {
     ///
     /// If `f` panics, the edit it had made so far stays in the cell and is
     /// **not** published -- the sequence number is bumped after `f` returns, so
-    /// consumers polling [`changed_since`](Watch::changed_since) are not told,
-    /// while [`get`](Watch::get) returns the half-edited value. A consumer that
+    /// consumers polling [`changed_since`](crate::Watch::changed_since) are not told,
+    /// while [`get`](crate::Watch::get) returns the half-edited value. A consumer that
     /// was holding the previous value still holds the previous value, because
     /// the copy-on-write step ran before `f` did. A `T` whose intermediate
     /// states are not values the rest of the program can read should be edited
