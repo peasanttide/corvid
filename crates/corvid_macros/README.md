@@ -1,102 +1,78 @@
 # `corvid_macros`
 
-The declarative macros [Corvid](https://github.com/peasanttide/corvid)'s crates
-share.
+The declarative macros Corvid's crates share: [`id_type!`], which declares a
+numbered identifier, and [`named_enum!`], which declares an enumeration whose
+variants each have a name a person reads.
 
 ```rust
-use corvid_macros::id_type;
+use corvid_macros::{id_type, named_enum};
 
 id_type! {
     /// Which seat, in a session's roster.
     SeatId, u16, "The position in the roster."
 }
 
-// A number, with the field public, because an identifier is a number.
+// A number, with the field public, because an identifier is a number. The
+// display names the type, since which kind of identifier a number is is the
+// thing the newtype exists to keep straight.
 let seat = SeatId(3);
 assert_eq!(seat.0, 3);
-
-// The display names the type, because which kind of identifier a number is
-// is the thing the newtype exists to keep straight.
 assert_eq!(seat.to_string(), "SeatId(3)");
 
-// And behind the calling crate's `serde` feature it encodes as one, because
-// `#[serde(transparent)]` is part of what `id_type!` declares there. Nothing
-// on the wire records that the number was wrapped.
+// Behind the calling crate's `serde` feature it encodes as the bare number,
+// because `#[serde(transparent)]` is part of what the macro declares there.
 #[cfg(feature = "serde")]
 {
     let json = serde_json::to_string(&seat).expect("a u16 has a json encoding");
     assert_eq!(json, "3");
-    assert_eq!(serde_json::from_str::<SeatId>(&json).expect("it reads back"), seat);
 }
 
-// And it is not the other kind of identifier.
+// It is not the other kind of identifier: `takes(seat)` would not compile.
 id_type! {
     /// Which account.
     AccountId, u64, "The identifier the platform handed out."
 }
-// `takes(seat)` would not compile.
 fn takes(_: AccountId) {}
 takes(AccountId(3));
+
+named_enum! {
+    /// Why a peer went away.
+    Parting {
+        /// The other end said goodbye.
+        Closed = "closed",
+        /// It stopped answering.
+        TimedOut = "timed out",
+    }
+}
+
+// The names are literals rather than the identifiers lowercased, because what
+// they are for is a report a person reads.
+assert_eq!(Parting::TimedOut.to_string(), "timed out");
+assert_eq!(Parting::ALL, [Parting::Closed, Parting::TimedOut]);
 ```
 
-## Why a crate rather than a module
+`id_type!` declares the newtype, its field, its `Display` and its serde
+attributes from one line, which is why it is a macro to invoke rather than a
+derive to attach: a derive is handed a type that already exists. `named_enum!`
+is a macro for a sharper reason. It generates `ALL` from the same list the
+variants come from, and nothing in Rust makes a hand-written array grow when a
+variant is added, so the two lists cannot fall out of step here the way they
+would if both were written by hand.
 
-Because a macro only one crate can reach is a pattern the next crate
-reimplements slightly differently. This workspace has already had to unpick one
-round of that -- the same type reachable by four paths, with nothing to say which
-was meant -- and two spellings of "a numbered identifier" is the same shape of
-problem one size down.
-
-## Why `macro_rules!` rather than a proc macro
-
-`id_type!` declares a type. A derive cannot: a derive is handed a type that
-already exists, and what is wanted here is the newtype, its field, its
-`Display` and its serde attributes from one line. A proc-macro crate would also
-have brought `syn`, `quote` and a separate compilation stage into every build
-below the simulation ring, to produce a newtype and a `Display`.
-
-## No dependencies at all
-
-A macro emits tokens; the crate that *expands* them is the one that has to be
-able to name what they mention. So every path in an expansion that leaves the
-prelude is absolute -- `::core::fmt::Display`, `::serde::Serialize` -- and it
-is a caller of `id_type!` that depends on `serde`, while this crate depends on
-nothing.
-
-A `cfg` is read the same way, where the expansion lands rather than where it
-was written, so `id_type!`'s encoding sits behind a `serde` feature belonging
-to the caller. A crate calling it declares that flag and takes the real
-dependency behind it; with the flag off the expansion names `serde` nowhere.
-The `serde` feature on *this* crate carries no dependency and exists so the
-tests here can expand the encoding half at all.
-The nine built-in derives are left bare, as they are in the newtype macros in
-`corvid_fixed` and `corvid_vector`, because a prelude name needs no help: they
-resolve even inside a module marked `#![no_implicit_prelude]`, which the tests
-pin.
-
-`serde` and `serde_json` do appear under `[dev-dependencies]`, and that is the
-same rule read from the other side rather than an exception to it: the doctest
-above and every test in `tests/` is itself a crate that expands `id_type!`, so
-each has to supply the serde the expansion names. Nothing downstream of this
-crate inherits them.
-
-That is what lets the whole simulation ring use it: `corvid_behavior` is
-`no_std`, and so is this.
-
-## The `Hash` is the integer and no tag
+The crate has no dependencies, and a caller supplies them instead. Every path
+in an expansion that leaves the prelude is absolute -- `::core::fmt::Display`,
+`::serde::Serialize` -- so the crate that expands a macro is the one that has
+to have serde in scope. A `cfg` is read the same way, where the expansion lands
+rather than where it was written, so `id_type!`'s encoding sits behind a
+`serde` feature belonging to the caller. The `serde` feature on this crate
+carries no dependency of its own and exists so that the tests here can expand
+that half at all.
 
 The derived `Hash` absorbs the number and nothing else, which is the convention
 the rest of the workspace hashes under: what establishes that two peers are
-reading the same field is the opening's schema, not a tag on every value. An
-identifier therefore digests exactly as the bare integer inside it does, and two
-identifiers of the same width holding the same number digest alike; that is
-fine, because nothing ever hashes one out of context.
+reading the same field is the opening's schema, not a tag on every value.
 
-Two of *different* widths feed the hasher different bytes, and the pair in the
-example above is exactly that case: `Hash for u16` writes two where `Hash for
-u64` writes eight. That is a claim about the input and not about the digest --
-a `Hasher` is free to collide on any two inputs and none of them promises
-otherwise, so "these two cannot come out alike" is not something this crate or
-`Hash` will tell you. Read the difference in what is written as an accident of
-the reprs rather than as the type tag returning: widen the `u16` and even the
-input is the same again. Nothing should be built on it either way.
+## Scope
+
+Two macros today. Not a proc-macro crate, and not a general newtype toolkit:
+each declares one shape this workspace kept writing out by hand.

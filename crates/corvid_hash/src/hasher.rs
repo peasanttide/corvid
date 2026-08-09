@@ -104,7 +104,7 @@ impl fmt::Debug for Digest {
 ///
 /// **A fixed width for every write.** The default methods on
 /// [`core::hash::Hasher`] forward to [`write`](core::hash::Hasher::write) in
-/// *native* endian, and `write_usize` is as wide as the target's pointer — so a
+/// *native* endian, and `write_usize` is as wide as the target's pointer -- so a
 /// `Vec`'s length prefix absorbs four bytes on `wasm32` and eight on `x86_64`,
 /// and a browser peer desyncs from a native one on the first tick. Every
 /// `write_*` here is overridden: integers absorb little-endian at their declared
@@ -128,13 +128,13 @@ impl fmt::Debug for Digest {
 /// assert_eq!(corvid_hash::digest(&[1_u16, 2][..]), raw.digest());
 /// ```
 ///
-/// There is no fix here — `write` is handed bytes and is not told what they
-/// were — so the crate does not build for a big-endian target. `lib.rs` carries
+/// There is no fix here -- `write` is handed bytes and is not told what they
+/// were -- so the crate does not build for a big-endian target. `lib.rs` carries
 /// that refusal and says why.
 ///
 /// Byte order is not the whole of what leaks through. The same specialisation
 /// covers `usize` and `isize`, and the bytes it hands over are the ones
-/// `size_of_val` counts — four per element in a browser and eight on a native
+/// `size_of_val` counts -- four per element in a browser and eight on a native
 /// server. So a `Vec<usize>` or an `[isize; 4]` in hashed state desyncs a
 /// `wasm32` peer from a native one in exactly the way the overridden
 /// [`write_usize`](core::hash::Hasher::write_usize) below exists to prevent, and
@@ -215,8 +215,8 @@ impl Hasher {
     /// three-byte [`write`](core::hash::Hasher::write) and an eight-byte one of
     /// the same zero-extended word absorb the identical word and leave the state
     /// identical, and the length is the only thing about them that differs.
-    /// Trailing zero *words* are already not free without it — each one is
-    /// another application of the mixer — so the count is not what separates
+    /// Trailing zero *words* are already not free without it -- each one is
+    /// another application of the mixer -- so the count is not what separates
     /// those, and claiming it were would be claiming more than it does. The
     /// final mix is so the last word absorbed is diffused as thoroughly as the
     /// first, rather than sitting one round shallower than everything before it.
@@ -254,7 +254,7 @@ impl core::hash::Hasher for Hasher {
     ///
     /// The example is written against `write` rather than against two slices,
     /// deliberately. Handing `&[1_u8]` and `&[1_u8, 0]` to [`digest`] would
-    /// separate them too, but for a different reason — `Hash for [T]` absorbs a
+    /// separate them too, but for a different reason -- `Hash for [T]` absorbs a
     /// length prefix first, so those two differ on their *first* word and would
     /// still differ with the byte count taken out. That would witness the length
     /// prefix, not this.

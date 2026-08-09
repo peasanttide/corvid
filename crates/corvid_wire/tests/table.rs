@@ -1,7 +1,7 @@
 //! The golden helper: what it accepts, what it refuses, and what it says.
 //!
 //! A table helper is read once, when it is written, and then only ever seen
-//! through its failures — which is when the person reading it is already
+//! through its failures -- which is when the person reading it is already
 //! annoyed and is about to decide whether the red row is a real break or a test
 //! to regenerate. So what it reports is as much of its job as what it checks,
 //! and both are pinned here.
@@ -130,7 +130,7 @@ fn a_row_that_no_longer_reads_back_is_reported_even_though_it_still_encodes() {
     .unwrap();
 
     // The same row against a value that does. It encodes to the recorded bytes,
-    // so nothing has changed about what a capture holds — and reading that
+    // so nothing has changed about what a capture holds -- and reading that
     // capture gives a different value, which is the worst thing that can happen
     // to one: it loads, and it is wrong.
     let lost = check(
@@ -156,7 +156,7 @@ struct Inner {
 /// `#[serde(flatten)]` asks for a map whose length is not known until its
 /// contents are, and a format that writes a count first cannot begin one. What
 /// it is doing in a file about the *helper* is that it is the only way a row
-/// fails before there are any bytes to compare — `tests/named.rs` is where the
+/// fails before there are any bytes to compare -- `tests/named.rs` is where the
 /// refusal itself is pinned.
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 struct Flattened {
@@ -170,7 +170,7 @@ struct Flattened {
 /// An untagged enum's writer emits the chosen variant's payload and nothing
 /// else, and its reader then asks the bytes which variant that was. It is here
 /// because it is the one shape whose recorded row is perfectly good bytes that
-/// no longer come back — the failure that only the second direction of a check
+/// no longer come back -- the failure that only the second direction of a check
 /// can see, arriving on its own rather than alongside a moved row.
 #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(untagged)]
@@ -206,7 +206,7 @@ fn a_value_that_will_not_encode_is_said_to_have_been_refused() {
 fn a_recorded_row_that_no_longer_decodes_says_which_half_failed() {
     // The encoding half of this row passes: the value writes exactly the bytes
     // that were recorded. Only the reading half fails, so the report has to name
-    // that half — a capture full of these loads as nothing at all, and the reason
+    // that half -- a capture full of these loads as nothing at all, and the reason
     // is not in its bytes.
     let table: &[Row<'_>] = &[("the two-field variant", "0709")];
     let stuck = check("Untagged", table, &[Untagged::Two { a: 7, b: 9 }]).unwrap_err();

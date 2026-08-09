@@ -98,8 +98,8 @@ impl_interop_in!(FinePoint, I16F16);
 ///
 /// A `Direction` denotes a unit direction, so the component-wise
 /// `Signed32::from_f64` the position types use is wrong here: it clamps each
-/// axis independently, and `(3, 4, 0)` — an ordinary unnormalized direction
-/// from an engine boundary — would arrive as `(1, 1, 0)`, 8° off. Only the
+/// axis independently, and `(3, 4, 0)` -- an ordinary unnormalized direction
+/// from an engine boundary -- would arrive as `(1, 1, 0)`, 8 deg off. Only the
 /// ratios matter, so the vector is rescaled onto the `Signed32` range first
 /// and the crate's own integer normalize finishes the job.
 ///

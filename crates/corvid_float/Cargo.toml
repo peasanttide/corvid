@@ -13,7 +13,7 @@ categories = ["game-development", "mathematics", "no-std::no-alloc"]
 [dependencies]
 # The reason every function here can be `const`. `f32::sqrt` and its neighbours
 # are intrinsics, and an intrinsic cannot be called in a const context at any
-# optimization level — so a const square root has to be a software one. This
+# optimization level -- so a const square root has to be a software one. This
 # crate is that, on stable, through a wrapper type rather than operator
 # overloading: the `const_trait_impl` and `const_mut_refs` features it offers
 # are nightly, and neither of them is turned on here.
@@ -21,7 +21,7 @@ categories = ["game-development", "mathematics", "no-std::no-alloc"]
 # The `no_std` feature is not optional despite the name reading like one.
 # `const_soft_float` spells its crate attribute
 # `#![cfg_attr(feature = "no_std", no_std)]`, so with the feature off it pulls
-# in `std` — and a dependency that links `std` makes our own `#![no_std]` a
+# in `std` -- and a dependency that links `std` makes our own `#![no_std]` a
 # comment rather than a constraint, which only shows up as a wall of `can't
 # find crate for std` the first time somebody builds for a bare-metal target.
 # The feature gates nothing but that attribute; the source touches `core` only.
@@ -43,7 +43,7 @@ workspace = true
 # feature adds no API, so the rendered page is identical with it and without.
 # Kept anyway, because the alternative is a crate that is the only one in the
 # workspace without this stanza and a reader who has to work out whether that
-# was a decision — and because the day `std` does start gating something, the
+# was a decision -- and because the day `std` does start gating something, the
 # page should show it without anyone remembering to come back here.
 [package.metadata.docs.rs]
 all-features = true

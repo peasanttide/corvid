@@ -89,16 +89,20 @@ workspace crates; a member that needs a sibling depends on it directly.
 
 ## Dependencies and features
 
-`[workspace.dependencies]` holds every crate in this workspace and nothing
-else, so a member names a sibling as `corvid_fixed = { workspace = true }`
-and the version and path are written once.
+`[workspace.dependencies]` holds every crate in this workspace and every
+external dependency more than one member names, so a member spells a
+sibling as `corvid_fixed = { workspace = true }` and the version, the path
+and the feature set are written once. Two members resolving different
+versions of a library whose types cross between them is the failure this
+prevents: the `From` impls stop lining up and the error names the same type
+twice.
 
-An external dependency is named by exactly one crate. The moment a second
-crate wants it, it earns a crate of its own: one member takes the
-dependency and re-exports the parts the workspace uses, and everything else
-depends on that member. Versioning it, gating it, and one day replacing it
-then happen in a single file. Test-only dependencies are the exception,
-since they reach no downstream; name one wherever a test needs it.
+A crate may spell a dependency in its own manifest instead: one nobody else
+names, or one it needs a different feature set of. Both cases carry a
+comment saying why it is written there rather than above, because the next
+person to add a second user of it has to know which they are looking at.
+Test-only dependencies reach no downstream at all; name one wherever a test
+needs it.
 
 If a crate exists that does exactly what you need and nothing else, use it.
 If it does ten other things too, it costs more than it saves: build time

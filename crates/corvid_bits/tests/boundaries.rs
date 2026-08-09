@@ -1,6 +1,6 @@
 //! The edges, which are the whole reason this crate exists.
 //!
-//! Every one of these was previously covered — a little differently — by
+//! Every one of these was previously covered -- a little differently -- by
 //! whichever crate had written the helper out for itself. Pinning them once is
 //! what makes the fourteen copies safe to delete.
 
@@ -69,7 +69,7 @@ fn the_most_negative_value_needs_the_whole_word() {
     // bit narrower. Pinning the step is what makes the three answers above a
     // property of `MIN` alone rather than of every negative value: an
     // implementation that special-cases the sign instead of taking the
-    // magnitude — answering `BITS` whenever the value is below zero — agrees
+    // magnitude -- answering `BITS` whenever the value is below zero -- agrees
     // with this test at `MIN` and is wrong one step later.
     assert_eq!(magnitude_bits_i32(i32::MIN + 1), 31);
     assert_eq!(magnitude_bits_i64(i64::MIN + 1), 63);
@@ -124,7 +124,7 @@ fn narrowing_is_exact_inside_the_range() {
 }
 
 /// One step past each end, which is the boundary the saturating and the checked
-/// answers disagree about — and the only place they do.
+/// answers disagree about -- and the only place they do.
 #[test]
 fn the_two_answers_differ_exactly_one_step_out() {
     let above = i64::from(i32::MAX) + 1;
@@ -159,7 +159,7 @@ fn the_widest_intermediates_clamp_rather_than_wrap() {
 /// All ten are named, not a representative few: constness is a property of each
 /// body separately, so pinning a subset pins only that subset. The values are
 /// asserted rather than merely evaluated, which makes each line also a check
-/// that const evaluation and the runtime path agree — the two answers come from
+/// that const evaluation and the runtime path agree -- the two answers come from
 /// the same body, but only the assertion says so.
 #[test]
 fn everything_is_usable_in_a_const() {

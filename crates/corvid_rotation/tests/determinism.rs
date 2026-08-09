@@ -131,7 +131,7 @@ fn the_same_inputs_give_the_same_bits_every_run() {
     };
     // Pinned rather than compared to a rerun of itself: a rerun proves only
     // that the function is a function. A change that moves every result
-    // alike — a rounding rule, a normalize retune — fails here.
+    // alike -- a rounding rule, a normalize retune -- fails here.
     assert_eq!(
         checksum(0xDE7_E4A1),
         3_157_927_899_308_932_402,

@@ -101,7 +101,7 @@ fn the_length_prefix_is_what_separates_a_split_from_a_join() {
 /// The one place a pointer-sized value is *not* pinned to sixty-four bits.
 ///
 /// `core`'s `hash_slice` specialisation covers `usize` and `isize` alongside the
-/// fixed-width integers, and what it hands to `write` is `size_of_val`'s bytes —
+/// fixed-width integers, and what it hands to `write` is `size_of_val`'s bytes --
 /// four per element on `wasm32` and eight here. So the very desync
 /// [`core::hash::Hasher::write_usize`] is overridden to prevent comes straight
 /// back through the *elements* of a `Vec<usize>`, and no `Hasher` can intercept
@@ -111,8 +111,8 @@ fn the_length_prefix_is_what_separates_a_split_from_a_join() {
 /// The assertions are against `size_of::<usize>()` rather than against eight, so
 /// they state the dependence instead of hiding behind a 64-bit host: this test
 /// passes on either target and means something different on each. There is no
-/// fix in this crate — the answer is that hashed state names a fixed-width
-/// integer type — so what the test defends is that the hazard stays documented.
+/// fix in this crate -- the answer is that hashed state names a fixed-width
+/// integer type -- so what the test defends is that the hazard stays documented.
 #[test]
 fn a_slice_of_pointer_sized_integers_is_not_pinned_to_sixty_four_bits() {
     let elements = [1usize, 2];

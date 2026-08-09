@@ -1,8 +1,9 @@
-//! The rotation family against an `f64` reference, and the axis conventions.
+//! `look_to`, the arcs, axis-angle and the step, against an `f64` reference.
 //!
-//! These are the tests that pin the coordinate convention down: **+X right,
-//! +Y forward, +Z up**, yaw about +Z, pitch about +X, roll about +Y, ZXY
-//! intrinsic, `right = forward × up`.
+//! What each of these owes is an axis convention and a bound, and both are
+//! checked against a reference worked out in `f64` rather than against another
+//! call into the crate. The Euler family is in `tests/euler.rs` and the fast
+//! renormalization in `tests/renormalize.rs`.
 
 #![allow(
     clippy::expect_used,
@@ -34,167 +35,6 @@ const Z: Direction = Direction::new(Signed32::ZERO, Signed32::ZERO, Signed32::MA
 
 /// Component tolerance for a direction that has been through a rotation.
 const AXIS_TOLERANCE: f64 = 1e-4;
-
-#[test]
-fn yaw_turns_about_z_pitch_about_x_roll_about_y() {
-    // A quarter turn of yaw takes forward (+Y) onto left (-X).
-    let yaw = Basis::from_yaw_pitch_roll(Angle32::from_degrees(90.0), Pitch32::ZERO, Angle32::ZERO);
-    assert!(
-        common::direction_within(yaw.forward(), common::neg(X), AXIS_TOLERANCE),
-        "yaw forward is {:?}",
-        yaw.forward()
-    );
-    assert!(common::direction_within(yaw.up(), Z, AXIS_TOLERANCE));
-    assert!(common::direction_within(yaw.right(), Y, AXIS_TOLERANCE));
-
-    // A quarter turn of pitch takes forward (+Y) onto up (+Z), leaving right
-    // alone, because pitch is about +X.
-    let pitch =
-        Basis::from_yaw_pitch_roll(Angle32::ZERO, Pitch32::from_degrees(90.0), Angle32::ZERO);
-    assert!(
-        common::direction_within(pitch.forward(), Z, AXIS_TOLERANCE),
-        "pitch forward is {:?}",
-        pitch.forward()
-    );
-    assert!(common::direction_within(pitch.right(), X, AXIS_TOLERANCE));
-
-    // A quarter turn of roll takes right (+X) onto down (-Z), leaving forward
-    // alone, because roll is about +Y.
-    let roll =
-        Basis::from_yaw_pitch_roll(Angle32::ZERO, Pitch32::ZERO, Angle32::from_degrees(90.0));
-    assert!(
-        common::direction_within(roll.forward(), Y, AXIS_TOLERANCE),
-        "roll forward is {:?}",
-        roll.forward()
-    );
-    assert!(
-        common::direction_within(roll.right(), common::neg(Z), AXIS_TOLERANCE),
-        "roll right is {:?}",
-        roll.right()
-    );
-}
-
-#[test]
-fn all_three_angles_zero_is_the_identity() {
-    assert_eq!(
-        Basis::from_yaw_pitch_roll(Angle32::ZERO, Pitch32::ZERO, Angle32::ZERO),
-        Basis::IDENTITY
-    );
-}
-
-#[test]
-fn euler_composition_is_zxy_intrinsic() {
-    // R = Rz(yaw) . Rx(pitch) . Ry(roll), spelled out as three composes.
-    let mut rng = Rng::new(0x2A40_0001);
-    for _ in 0..5_000 {
-        let yaw = Angle32::from_bits(rng.next_u32());
-        let pitch = Pitch32::from_degrees(rng.next_unit() * 89.0);
-        let roll = Angle32::from_bits(rng.next_u32());
-
-        let combined = Basis::from_yaw_pitch_roll(yaw, pitch, roll);
-        let separate = Basis::from_yaw_pitch_roll(yaw, Pitch32::ZERO, Angle32::ZERO)
-            .compose(Basis::from_yaw_pitch_roll(
-                Angle32::ZERO,
-                pitch,
-                Angle32::ZERO,
-            ))
-            .compose(Basis::from_yaw_pitch_roll(
-                Angle32::ZERO,
-                Pitch32::ZERO,
-                roll,
-            ));
-
-        assert!(
-            combined.abs_diff_eq(separate, I2F30::from_bits(1 << 14)),
-            "ZXY composition disagrees:\n  {combined:?}\n  {separate:?}"
-        );
-    }
-}
-
-#[test]
-fn yaw_pitch_roll_round_trips() {
-    let mut rng = Rng::new(0x0B50_0001);
-    for _ in 0..20_000 {
-        let yaw = Angle32::from_bits(rng.next_u32());
-        // Stay off the gimbal-lock poles, where yaw and roll are degenerate.
-        let pitch = Pitch32::from_degrees(rng.next_unit() * 85.0);
-        let roll = Angle32::from_bits(rng.next_u32());
-
-        let m = Basis::from_yaw_pitch_roll(yaw, pitch, roll);
-        let (y2, p2, r2) = m.to_yaw_pitch_roll();
-        let back = Basis::from_yaw_pitch_roll(y2, p2, r2);
-        assert!(
-            m.abs_diff_eq(back, I2F30::from_bits(1 << 16)),
-            "round trip lost the rotation:\n  {m:?}\n  {back:?}"
-        );
-    }
-}
-
-/// The band just short of the pole, which the round-trip test above skips.
-///
-/// The degenerate branch throws roll away, so it must not fire while roll is
-/// still determined. It used to fire from 89.84°, where `cos(pitch)` is
-/// `2.8e-3` and the discarded roll cost 0.30° of round-trip error — 60× the
-/// 0.005° the codec itself carries — right where a head-tracked pose looking
-/// nearly straight up lives.
-#[test]
-fn near_the_poles_roll_is_still_recovered() {
-    for &pitch_degrees in &[89.0, 89.5, 89.83, 89.85, 89.9, 89.95] {
-        for yi in 0..17 {
-            for ri in 0..17 {
-                let yaw = Angle32::from_degrees(-180.0 + 360.0 * f64::from(yi) / 17.0);
-                let roll = Angle32::from_degrees(-180.0 + 360.0 * f64::from(ri) / 17.0);
-                let pitch = Pitch32::from_degrees(pitch_degrees);
-
-                let m = Basis::from_yaw_pitch_roll(yaw, pitch, roll);
-                let (y2, p2, r2) = m.to_yaw_pitch_roll();
-                let back = Basis::from_yaw_pitch_roll(y2, p2, r2);
-                let error = m.angle_to(back).to_degrees();
-                assert!(
-                    error < 0.01,
-                    "pitch {pitch_degrees}, yaw {yaw:?}, roll {roll:?}: lost {error}°"
-                );
-            }
-        }
-    }
-}
-
-#[test]
-fn at_the_poles_roll_is_folded_into_yaw() {
-    // Pitch at a quarter turn leaves only yaw + roll determined; the whole turn
-    // is attributed to yaw and roll comes back zero. The rotation still round-
-    // trips, which is what actually matters.
-    let straight_up = Basis::from_yaw_pitch_roll(
-        Angle32::from_degrees(30.0),
-        Pitch32::MAX,
-        Angle32::from_degrees(40.0),
-    );
-    let (_, pitch, roll) = straight_up.to_yaw_pitch_roll();
-    assert_eq!(roll, Angle32::ZERO);
-    assert!((pitch.to_degrees() - 90.0).abs() < 0.01);
-
-    let (y, p, r) = straight_up.to_yaw_pitch_roll();
-    assert!(straight_up.abs_diff_eq(
-        Basis::from_yaw_pitch_roll(y, p, r),
-        I2F30::from_bits(1 << 16)
-    ));
-
-    // The other pole, where the free parameter is yaw - roll rather than
-    // yaw + roll and the recovered sine comes back negated.
-    let straight_down = Basis::from_yaw_pitch_roll(
-        Angle32::from_degrees(30.0),
-        Pitch32::MIN,
-        Angle32::from_degrees(40.0),
-    );
-    let (y, p, r) = straight_down.to_yaw_pitch_roll();
-    assert_eq!(r, Angle32::ZERO);
-    assert!((p.to_degrees() + 90.0).abs() < 0.01);
-    assert!(straight_down.abs_diff_eq(
-        Basis::from_yaw_pitch_roll(y, p, r),
-        I2F30::from_bits(1 << 16)
-    ));
-}
-
 #[test]
 fn look_to_produces_the_documented_axes() {
     // Looking along +Y with +Z up is the identity.
@@ -234,8 +74,8 @@ fn look_to_orthonormalizes_an_up_that_was_not_perpendicular() {
 
 /// `up` longer than one, which is what an engine boundary hands over.
 ///
-/// `Direction` permits a length of up to `√3`, and `cross` rounds each term
-/// onto `Signed32`'s `±1` — so a cross product longer than one comes back
+/// `Direction` permits a length of up to `sqrt(3)`, and `cross` rounds each term
+/// onto `Signed32`'s `+/-1` -- so a cross product longer than one comes back
 /// clamped per axis, which changes its *direction*. The tilted case above uses
 /// a unit `up` and does not reach it.
 #[test]
@@ -247,7 +87,7 @@ fn look_to_orthonormalizes_an_up_that_was_not_unit_length() {
             Signed32::from_f64(rng.next_unit()),
             Signed32::from_f64(rng.next_unit()),
         );
-        // Deliberately not normalized: lengths run past 1 up to √3.
+        // Deliberately not normalized: lengths run past 1 up to sqrt(3).
         let up = Direction::new(
             Signed32::from_f64(rng.next_unit()),
             Signed32::from_f64(rng.next_unit()),
@@ -303,7 +143,7 @@ fn from_rotation_arc_is_total_at_the_degenerate_cases() {
         "{same:?}"
     );
 
-    // Antipodal inputs give some half turn about a perpendicular axis — the
+    // Antipodal inputs give some half turn about a perpendicular axis -- the
     // honest answer when the shortest arc is not unique.
     for axis in [X, Y, Z] {
         let flip = Basis::from_rotation_arc(axis, common::neg(axis));
@@ -326,7 +166,7 @@ fn axis_angle_round_trips() {
         let (recovered_axis, recovered_angle) = q.to_axis_angle();
 
         // Rebuilding from what came back must give the same rotation, which is
-        // the claim that matters — the axis may come back negated with the
+        // the claim that matters -- the axis may come back negated with the
         // angle measured the other way.
         let rebuilt = Versor::from_axis_angle(recovered_axis, recovered_angle);
         assert!(
@@ -410,127 +250,6 @@ fn the_operation_family_is_available_in_const_context() {
     );
 }
 
-// --- renormalize_fast ------------------------------------------------------
-
-#[test]
-fn renormalize_fast_names_the_same_rotation_as_renormalize() {
-    let mut rng = Rng::new(0xF457_0002);
-    let mut worst = 0.0f64;
-    for _ in 0..20_000 {
-        let versor = common::random_versor(&mut rng);
-        let exact = common::to_f64_quaternion(versor.renormalize());
-        let fast = common::to_f64_quaternion(versor.renormalize_fast());
-        worst = worst.max(common::angle_degrees(exact, fast));
-    }
-    // Four decimal digits of a quaternion is well under a thousandth of a
-    // degree — below what any renderer or physics step resolves.
-    assert!(worst < 1e-3, "worst disagreement {worst} degrees");
-}
-
-#[test]
-fn renormalize_fast_is_exact_on_the_axis_aligned_rotations() {
-    // The reduction's `0.25` case is taken by hand before either `rsqrt`, so
-    // the identity and the quarter turns cost the approximation nothing.
-    assert_eq!(Versor::IDENTITY.renormalize_fast(), Versor::IDENTITY);
-    for versor in [
-        Versor::from_axis_angle(X, Angle32::from_degrees(90.0)),
-        Versor::from_axis_angle(Y, Angle32::from_degrees(180.0)),
-        Versor::from_axis_angle(Z, Angle32::from_degrees(270.0)),
-    ] {
-        assert_eq!(versor.renormalize_fast(), versor.renormalize());
-    }
-}
-
-#[test]
-fn renormalize_fast_bounds_composition_drift_with_a_deadband() {
-    // The documented characteristic, and the one that is easy to get wrong: the
-    // approximate tier does *not* diverge under repeated use — it bounds the
-    // drift — but it bounds it at the edge of its own `2^-15` deadband rather
-    // than at a last bit, because drift finer than that is invisible to it.
-    let axis = Direction::new(
-        Signed32::from_f64(0.3),
-        Signed32::from_f64(0.5),
-        Signed32::from_f64(0.81),
-    )
-    .normalize()
-    .expect("a nonzero axis has a direction");
-    let step = Versor::from_axis_angle(axis, Angle32::from_degrees(37.0));
-
-    let norm_error = |q: Versor| {
-        let [x, y, z, w] = common::to_f64_quaternion(q);
-        (x * x + y * y + z * z + w * w - 1.0).abs()
-    };
-
-    let mut bare = Versor::IDENTITY;
-    let mut fast = Versor::IDENTITY;
-    let mut exact = Versor::IDENTITY;
-    let (mut worst_fast, mut worst_exact) = (0.0f64, 0.0f64);
-    // Long enough for the unrenormalized random walk to pull clear of the
-    // deadband; at 20,000 the two are still the same size.
-    for _ in 0..200_000 {
-        bare = bare.compose(step);
-        fast = fast.compose(step).renormalize_fast();
-        exact = exact.compose(step).renormalize();
-        worst_fast = worst_fast.max(norm_error(fast));
-        worst_exact = worst_exact.max(norm_error(exact));
-    }
-
-    // It bounds the drift: an order of magnitude better than leaving it alone.
-    assert!(
-        worst_fast < norm_error(bare) / 10.0,
-        "fast held {worst_fast} against an unrenormalized {}",
-        norm_error(bare)
-    );
-    // At its deadband, which is `2^-16` in the squared norm.
-    assert!(
-        (1e-6..3e-5).contains(&worst_fast),
-        "fast settled at {worst_fast}, not at its deadband"
-    );
-    // And three orders of magnitude looser than the exact tier, which is the
-    // whole of what choosing it costs.
-    assert!(
-        worst_exact < 1e-8 && worst_fast > worst_exact * 1_000.0,
-        "exact held {worst_exact} against fast's {worst_fast}"
-    );
-}
-
-#[test]
-fn renormalize_fast_can_leave_a_versor_that_from_xyzw_rejects() {
-    // The consequence of that deadband, pinned because it is a real trap: the
-    // level `renormalize_fast` settles at sits right on `from_xyzw`'s unit
-    // tolerance, so a long-composed versor eventually stops round-tripping.
-    let axis = Direction::new(
-        Signed32::from_f64(0.3),
-        Signed32::from_f64(0.5),
-        Signed32::from_f64(0.81),
-    )
-    .normalize()
-    .expect("a nonzero axis has a direction");
-    let step = Versor::from_axis_angle(axis, Angle32::from_degrees(37.0));
-
-    let round_trips = |q: Versor| {
-        let [x, y, z, w] = q.to_xyzw();
-        Versor::from_xyzw(x, y, z, w).is_some()
-    };
-
-    let mut fast = Versor::IDENTITY;
-    let mut exact = Versor::IDENTITY;
-    let mut fast_rejected = 0u32;
-    for _ in 0..20_000 {
-        fast = fast.compose(step).renormalize_fast();
-        exact = exact.compose(step).renormalize();
-        if !round_trips(fast) {
-            fast_rejected += 1;
-        }
-        // The exact tier never does this, which is what makes it the default.
-        assert!(round_trips(exact), "renormalize left a non-unit versor");
-    }
-    assert!(
-        fast_rejected > 0,
-        "renormalize_fast round-tripped every time, so its documented trap is gone"
-    );
-}
-
 /// A unit direction from three `f64` components.
 fn unit(x: f64, y: f64, z: f64) -> Direction {
     let norm = (x * x + y * y + z * z).sqrt();
@@ -553,7 +272,7 @@ fn from_rotation_arc_survives_near_antipodal_input() {
     // The degenerate case has to be recognized from the *dot product* alone.
     // Testing the cross product for exact zero as well narrows the branch to
     // exactly opposite inputs, and everything between there and opposite falls
-    // through to a formula whose two terms have both underflowed to noise —
+    // through to a formula whose two terms have both underflowed to noise --
     // which came back a rotation missing `to` by up to a hundred degrees.
     let mut rng = Rng::new(0x4152_4300_0000_0001);
     for _ in 0..50_000 {
@@ -588,7 +307,7 @@ fn look_to_stays_orthonormal_when_forward_and_up_nearly_coincide() {
     // `Direction::cross` divides its `i64` terms back onto the unit scale, so
     // for nearly parallel operands almost nothing survives and the normalize
     // that follows amplifies the rounding. `look_to` must not build its frame
-    // that way: it reported `Some` for a matrix skewed by as much as 30°, which
+    // that way: it reported `Some` for a matrix skewed by as much as 30 deg, which
     // `from_rows` rejects and which is not a rotation at all.
     let mut rng = Rng::new(0x4C4F_4F4B_0000_0001);
     let mut built = 0u32;

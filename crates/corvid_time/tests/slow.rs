@@ -2,7 +2,7 @@
 //! to its ceiling.
 //!
 //! `alpha` multiplies the accumulator by 65 535 in a `u64`. That is safe because
-//! a span is a `u32` of nanoseconds and the accumulator is below one span — a
+//! a span is a `u32` of nanoseconds and the accumulator is below one span -- a
 //! bound in the type rather than a habit of callers, which matters because the
 //! `serde` feature makes a span `transparent` over that integer, so a save file
 //! or a peer supplies one directly and no constructor is in the way.

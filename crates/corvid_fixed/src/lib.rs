@@ -9,8 +9,8 @@
     reason = "narrowing is this crate's subject matter; every cast is preceded by a range check, a saturating conversion, or a mask, and the exhaustive tests cover the boundaries"
 )]
 
-// `arbitrary`'s derive macro emits `::std` paths, so that feature — and only
-// that feature — pulls in std. Nothing else here reaches past `core`.
+// `arbitrary`'s derive macro emits `::std` paths, so that feature -- and only
+// that feature -- pulls in std. Nothing else here reaches past `core`.
 #[cfg(feature = "arbitrary")]
 extern crate std;
 

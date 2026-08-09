@@ -3,15 +3,15 @@
 //!
 //! A tick is what every recorded thing in this workspace is stamped with. A
 //! replay is a tick and a list of actions, a snapshot is a tick and a state, a
-//! desync report is two peers naming a tick — so if the eight bytes below became
+//! desync report is two peers naming a tick -- so if the eight bytes below became
 //! four, every one of those files would still load, and would load at the wrong
 //! moment or not at all.
 //!
 //! Eight bytes rather than four is a real decision and not the default. `Tick`
 //! is a `u64` because the crate's own documentation promises saturation is
 //! thirty-nine billion years away at fifteen ticks a second, and a `u32` would
-//! bring that to nine years. A change of width here is a handful of lines — the
-//! field and the signatures that name it — and once it compiles, every
+//! bring that to nine years. A change of width here is a handful of lines -- the
+//! field and the signatures that name it -- and once it compiles, every
 //! round trip in the workspace stays green, because the writer and the reader
 //! would have moved together, and every JSON row stays green, because JSON
 //! spells a number the same at every width. This table is what that edit runs
@@ -20,7 +20,7 @@
 //! Three views, then, and each blind where the others see. The byte table is a
 //! varint, so it spells a value and never a declared width. The crate's JSON
 //! tests write `4` for a `u32` and for a `u64` alike, and so cannot see a width
-//! either, but they are the only thing that sees a field renamed — this encoding
+//! either, but they are the only thing that sees a field renamed -- this encoding
 //! writes no names. And the digest table at the bottom of this file is where a
 //! width shows, because `corvid_hash` absorbs an integer as its declared bytes
 //! and injects the count.
@@ -44,7 +44,7 @@ use corvid_wire::golden::{DigestRow, Row, check, check_digests};
 ///
 /// The declared width and the encoded length are different numbers here, which
 /// is the whole reason this table is worth freezing. `Tick(1)` is one byte, not
-/// eight — the encoding spells the value and never the width it was declared
+/// eight -- the encoding spells the value and never the width it was declared
 /// at, so nothing in these rows would move if the field narrowed to a `u32`
 /// until a value arrived that a `u32` could not hold. The digest table below is
 /// what sees the width.
@@ -117,7 +117,7 @@ fn the_tick_span_encodes_as_it_was_recorded() {
 #[test]
 fn a_tick_and_a_span_are_their_numbers_and_nothing_else() {
     // Both are transparent: the bytes of a tick are the bytes of the number in
-    // it, with no wrapper and — for the span — no non-zero tag.
+    // it, with no wrapper and -- for the span -- no non-zero tag.
     assert_eq!(
         corvid_wire::encode(&Tick(1)).unwrap(),
         corvid_wire::encode(&1_u64).unwrap(),
@@ -129,7 +129,7 @@ fn a_tick_and_a_span_are_their_numbers_and_nothing_else() {
 
     // And a number this small is one byte at either width, which is the shape
     // the early ticks of every capture have. A `Tick` narrowed to a `u32` would
-    // write these same bytes and pass every round trip in the crate — what it
+    // write these same bytes and pass every round trip in the crate -- what it
     // would move is the digest, and `GOLDEN_MARKS` below is that table.
     assert_eq!(corvid_wire::encode(&Tick(1)).unwrap(), [0x01]);
     // A one-nanosecond span writes the same one byte, because a varint spells a
@@ -164,8 +164,8 @@ fn a_tick_beyond_a_narrower_counter_is_in_the_table() {
 /// the byte table on their own.
 ///
 /// The two span rows are digests of a `u32`, which is what a span is. Their
-/// bytes above are unchanged from when it was a `u64` — a varint spells the
-/// value and never the width — so these two rows are the only record in the
+/// bytes above are unchanged from when it was a `u64` -- a varint spells the
+/// value and never the width -- so these two rows are the only record in the
 /// crate that the field ever narrowed. That is the argument for keeping this
 /// table, made by the table.
 const GOLDEN_MARKS: &[DigestRow<'_>] = &[
@@ -207,7 +207,7 @@ fn narrowing_the_counter_would_move_every_mark_and_no_byte() {
 /// It has a wire format whether or not anything writes one down today, and an
 /// encoding nobody froze is one that moves without saying so. `Ticks(30)` and
 /// `Tick(30)` are the same bytes and the same digest, because the two are the
-/// same integer — the distinction they exist to draw is in the type and never on
+/// same integer -- the distinction they exist to draw is in the type and never on
 /// the wire, which is exactly the sort of thing worth having written down.
 const GOLDEN_COUNTS: &[Row<'_>] = &[
     ("Ticks::NONE", "00"),

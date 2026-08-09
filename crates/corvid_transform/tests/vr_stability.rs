@@ -161,7 +161,7 @@ fn the_same_sweep_at_the_coarse_tier_shows_why_there_are_two_tiers() {
         2.0 * FINE_QUANTUM_DEGREES
     );
 
-    // The coarse tier misses the bound the fine tier holds, by a wide margin —
+    // The coarse tier misses the bound the fine tier holds, by a wide margin --
     // which is the evidence for carrying two tiers.
     assert!(
         worst > 2.0 * FINE_QUANTUM_DEGREES,
@@ -180,8 +180,8 @@ fn the_same_sweep_at_the_coarse_tier_shows_why_there_are_two_tiers() {
 /// cannot answer this: it is an unsigned magnitude.
 fn signed_yaw_step(from: Versor, to: Versor) -> f64 {
     let relative = from.inverse().compose(to);
-    // For a yaw about +Z the relative versor is `(0, 0, sin(θ/2), cos(θ/2))`,
-    // so `z · w` carries the sign of θ over a half turn either way.
+    // For a yaw about +Z the relative versor is `(0, 0, sin(theta/2), cos(theta/2))`,
+    // so `z * w` carries the sign of theta over a half turn either way.
     let q = relative.to_xyzw();
     let signed = q[2].to_f64() * q[3].to_f64();
     if signed >= 0.0 {
@@ -200,8 +200,8 @@ const fn yaw(degrees: f64) -> Versor {
     )
 }
 
-/// Sweeps the head at 200°/s sampled at 90 Hz through `codec`, and returns the
-/// worst deviation of a frame-to-frame step from the ideal 2.22°, along with
+/// Sweeps the head at 200 deg/s sampled at 90 Hz through `codec`, and returns the
+/// worst deviation of a frame-to-frame step from the ideal 2.22 deg, along with
 /// the number of frames where the motion reversed.
 fn sweep_deviation(mut codec: impl FnMut(Versor) -> Versor) -> (f64, u32) {
     let mut worst = 0.0f64;
@@ -213,7 +213,7 @@ fn sweep_deviation(mut codec: impl FnMut(Versor) -> Versor) -> (f64, u32) {
         if let Some(prev) = previous {
             let step = prev.angle_to(decoded).to_degrees();
             worst = worst.max((step - STEP_DEGREES).abs());
-            // `angle_to` is `2·acos(|dot|)` and so never negative — testing it
+            // `angle_to` is `2*acos(|dot|)` and so never negative -- testing it
             // against zero could not detect a reversal. The sweep is a yaw, so
             // the sign of the step is the sign of the relative rotation's `z`
             // component, which is what actually says which way the head turned.

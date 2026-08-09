@@ -105,7 +105,7 @@ fn an_empty_source_lists_nothing_rather_than_failing() {
 /// The listing is sorted, and that is load-bearing rather than incidental.
 ///
 /// A level built out of whatever `list` answered would otherwise be a level
-/// whose contents depend on a map's iteration order — and a peer that walked
+/// whose contents depend on a map's iteration order -- and a peer that walked
 /// its props in a different order is a peer that hashes a different level. The
 /// paths go in unsorted on purpose, so an implementation that merely handed
 /// back its own iteration order would fail here.
@@ -126,7 +126,7 @@ fn listing_is_ordered_so_two_peers_walk_a_level_the_same_way() {
 ///
 /// `level.` sorts before `level/` and `level0` after it. A caller narrowing to
 /// `level/` gets a contiguous run for exactly that reason, so the property the
-/// old prefix walk relied on is still here — it has moved to the caller.
+/// old prefix walk relied on is still here -- it has moved to the caller.
 #[test]
 fn the_order_is_by_byte_so_a_caller_can_narrow_by_prefix_itself() {
     let mut files = Memory::new();

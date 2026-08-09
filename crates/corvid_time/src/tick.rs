@@ -6,7 +6,7 @@ use core::fmt;
 ///
 /// A tick is an index rather than a moment. It says which step of the
 /// simulation a state, an action, or a digest belongs to, and it means the same
-/// thing on every peer replaying the same session — which is what lets a
+/// thing on every peer replaying the same session -- which is what lets a
 /// rollback name the tick it is rolling back to and a recorded trace name the
 /// tick it disagrees on. The wall-clock time that tick happened to run at is
 /// not recorded anywhere, because nothing deterministic may depend on it.

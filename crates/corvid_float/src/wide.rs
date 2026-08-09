@@ -1,7 +1,7 @@
 //! The `f64` half, which is where a value is computed before it is bound.
 //!
 //! A separate module rather than a suffix on every name, so that a caller
-//! working a word wider says so once — `use corvid_float::wide` — and then
+//! working a word wider says so once -- `use corvid_float::wide` -- and then
 //! spells `wide::sqrt` the way it would spell `sqrt`.
 
 use const_soft_float::soft_f64::SoftF64;
@@ -23,7 +23,7 @@ pub const fn sqrt(x: f64) -> f64 {
     SoftF64(x).sqrt().to_f64()
 }
 
-/// The sine, in radians. Not the workspace's trigonometry — see
+/// The sine, in radians. Not the workspace's trigonometry -- see
 /// [`corvid_float::sin`](crate::sin).
 #[must_use]
 #[inline]
@@ -31,7 +31,7 @@ pub const fn sin(x: f64) -> f64 {
     SoftF64(x).sin().to_f64()
 }
 
-/// The cosine, in radians. Not the workspace's trigonometry — see
+/// The cosine, in radians. Not the workspace's trigonometry -- see
 /// [`corvid_float::sin`](crate::sin).
 #[must_use]
 #[inline]
@@ -55,10 +55,10 @@ pub const fn recip(x: f64) -> f64 {
     SoftF64(1.0).div(SoftF64(x)).to_f64()
 }
 
-/// The length of the hypotenuse: `sqrt(x² + y²)`, composed naively.
+/// The length of the hypotenuse: `sqrt(x^2 + y^2)`, composed naively.
 ///
 /// Naively in [`corvid_float::hypot`](crate::hypot)'s sense, and with the same
-/// two failures at the ends of the range — but a word wider those ends are at
+/// two failures at the ends of the range -- but a word wider those ends are at
 /// about `1.3e154` and `1.5e-154` rather than at `1.8e19` and `1.1e-19`, which
 /// is far enough out that no caller of this module will find them.
 #[must_use]
@@ -93,7 +93,7 @@ pub const fn ceil(x: f64) -> f64 {
 ///
 /// A true round, which is worth saying because the obvious `const` spelling is
 /// not one. `corvid_fixed`'s `from_f64` conversions want the same rule and
-/// reach it without this crate — they add a half and let the cast to an integer
+/// reach it without this crate -- they add a half and let the cast to an integer
 /// truncate, which is `const` because a cast is. The two agree everywhere
 /// except just below a half, where adding the half rounds up into one and the
 /// truncation then keeps it: `0.499_999_999_999_999_94` is zero here and one
@@ -137,7 +137,7 @@ pub const fn abs(x: f64) -> f64 {
 }
 
 /// `x` held between `low` and `high`, without a panic when they cross. The
-/// upper bound is tested first and `NaN` gives `low` — see
+/// upper bound is tested first and `NaN` gives `low` -- see
 /// [`corvid_float::clamp`](crate::clamp).
 #[must_use]
 #[inline]

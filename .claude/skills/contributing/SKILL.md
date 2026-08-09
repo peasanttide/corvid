@@ -24,11 +24,11 @@ at review instead:
   a crate that does exactly the job and nothing else before writing a
   module. Fold repetition into a macro; move code two crates need into a
   shared crate rather than copying it.
-- `[workspace.dependencies]` lists the workspace's own crates and nothing
-  else; a member names a sibling as `corvid_x = { workspace = true }`. An
-  external dependency is named by exactly one crate, and the second crate
-  that wants it gets one instead: a member that takes the dependency and
-  re-exports what the workspace uses. Test-only dependencies are exempt.
+- `[workspace.dependencies]` lists the workspace's own crates and every
+  external dependency more than one member names; a member spells either as
+  `corvid_x = { workspace = true }`. A dependency only one crate needs may
+  be named in that crate's manifest, with a comment saying why. Test-only
+  dependencies are exempt.
 - New crates start `#![no_std]` with `default = []` and
   `[lints] workspace = true`, and a README of tagline, technical details,
   then scope. Only the facade crate `corvid` re-exports workspace crates,

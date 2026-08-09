@@ -58,7 +58,7 @@ fn a_capture_that_was_cut_short_is_refused_too() {
     assert!(matches!(decode::<(u16, u32)>(&[]), Err(Error::Read(_))));
 }
 
-/// A hostile count and an honest one that was cut short are the same failure —
+/// A hostile count and an honest one that was cut short are the same failure --
 /// for the one shape where the slice really does settle it.
 ///
 /// A `Vec<u32>` is read through `serde`'s sequence path, which reserves against
@@ -88,15 +88,15 @@ fn a_length_no_capture_could_hold_fails_exactly_as_a_short_one_does() {
     assert_eq!(decode::<Vec<u32>>(&modest).unwrap(), vec![1, 2, 3]);
 }
 
-/// Whatever `encode` writes, `decode` reads — which is what the ceiling being on
+/// Whatever `encode` writes, `decode` reads -- which is what the ceiling being on
 /// both paths buys.
 ///
 /// A limit on the read path alone is the worse of the two bugs: it writes a
 /// capture without complaint and refuses to read it back, so a save file is lost
 /// at the moment somebody needs it. `bincode` applies a configured limit to
 /// reading only, so `encode` carries the check itself. The capture below is over
-/// sixty-four mebibytes — past where such a bound usually gets set, and well
-/// under this crate's — and it survives the round trip.
+/// sixty-four mebibytes -- past where such a bound usually gets set, and well
+/// under this crate's -- and it survives the round trip.
 #[test]
 fn a_capture_larger_than_a_bound_usually_set_still_makes_the_round_trip() {
     // Large values, so that each costs its marker and its eight bytes rather
@@ -121,7 +121,7 @@ fn what_went_wrong_is_readable() {
 /// A `Trailing` a caller built by hand, with the fields the wrong way round.
 ///
 /// The variant's fields are `pub`, and `#[non_exhaustive]` stops exhaustive
-/// matching rather than construction — so `used > len` is reachable from outside
+/// matching rather than construction -- so `used > len` is reachable from outside
 /// this crate, and the subtraction in `Display` is the one place a `Display`
 /// could have panicked. It is saturating, and this is what says so.
 #[test]
