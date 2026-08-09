@@ -83,6 +83,15 @@ jobs:
           echo "== corvid_wire --features $feature"
           cargo build -p corvid_wire --no-default-features --features "$feature"
         done
+        # `corvid_time`'s two both forward into `corvid_fixed`, and `std` is the
+        # only feature in this loop that adds API rather than only plumbing —
+        # `Clock::wall` does not exist without it. A `serde` that forgot
+        # `corvid_fixed/serde` is the exact shape this job exists to catch: it
+        # compiles under `--all-features`, where `std` turns the same thing on.
+        for feature in serde std; do
+          echo "== corvid_time --features $feature"
+          cargo build -p corvid_time --no-default-features --features "$feature"
+        done
     # A target with no operating system is the check with teeth. Five crates here
     # declare `#![no_std]`, and nothing so far has held them to it: every arm
     # above builds for the host, where a crate that quietly reached for `std`
@@ -92,15 +101,18 @@ jobs:
     # `no_std` only while `alloc` is on and `std` is off, which is a property of
     # this crate's manifest rather than of its source.
     #
-    # These five and not the whole workspace, and the ceiling is not this
-    # workspace's: `corvid_float` depends on `const_soft_float`, which does not
-    # declare `#![no_std]`, so `corvid_fixed` and therefore all of the fixed
-    # point arithmetic above it has no bare-metal build to check.
+    # Not the whole workspace, and the ceiling is not this workspace's:
+    # `corvid_float` depends on `const_soft_float`, which does not declare
+    # `#![no_std]`, so nothing above `corvid_float` has a bare-metal build to
+    # check. `corvid_fixed` is *not* above it — it names `corvid_bits` and
+    # nothing else — so the fixed-point arithmetic and `corvid_time` on top of
+    # it are both here.
     - name: Build for a target with no operating system
       run: |
         set -eu
         rustup target add thumbv7em-none-eabi
-        for crate in corvid_bits corvid_hash corvid_wire corvid_files corvid_macros; do
+        for crate in corvid_bits corvid_hash corvid_wire corvid_files \
+                     corvid_macros corvid_fixed corvid_time; do
           echo "== $crate"
           cargo build -p "$crate" --no-default-features --target thumbv7em-none-eabi
         done

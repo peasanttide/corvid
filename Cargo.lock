@@ -136,6 +136,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_time"
+version = "0.1.0"
+dependencies = [
+ "corvid_fixed",
+ "corvid_hash",
+ "corvid_wire",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "corvid_transform"
 version = "0.1.0"
 dependencies = [
