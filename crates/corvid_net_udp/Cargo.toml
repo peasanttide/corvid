@@ -13,10 +13,6 @@ categories = ["network-programming", "game-development"]
 [dependencies]
 # The vocabulary this crate implements.
 corvid_net = { workspace = true }
-# The published roster. `Transport::peers` answers a snapshot, and this is what
-# holds the one this backend keeps as greetings and timeouts move peers in and
-# out of it.
-corvid_signal = { workspace = true }
 
 [features]
 # There are none. A socket is this crate's whole job, so `std` is

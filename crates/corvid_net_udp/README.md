@@ -17,21 +17,21 @@ use corvid_net::{Delivery, PeerId, Transport as _};
 use corvid_net_udp::UdpNet;
 
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
-let here = UdpNet::bind(("127.0.0.1", 0), PeerId(0))?;
-let there = UdpNet::bind(("127.0.0.1", 0), PeerId(1))?;
-here.connect(PeerId(1), there.local()?)?;
-there.connect(PeerId(0), here.local()?)?;
+let here = UdpNet::bind(("127.0.0.1", 0), PeerId(1))?;
+let there = UdpNet::bind(("127.0.0.1", 0), PeerId(2))?;
+here.connect(PeerId(2), there.local()?)?;
+there.connect(PeerId(1), here.local()?)?;
 
 // Greetings are exchanged by polling, so both ends poll until each has the
 // other on its roster.
 let deadline = Instant::now() + Duration::from_secs(5);
-while !(here.peers().contains(PeerId(1)) && there.peers().contains(PeerId(0))) {
+while !(here.peers().contains(PeerId(2)) && there.peers().contains(PeerId(1))) {
     assert!(Instant::now() < deadline, "the pair never greeted");
     here.poll(&mut |_, _| {});
     there.poll(&mut |_, _| {});
 }
 
-here.send_datagram(PeerId(1), b"pong")?;
+here.send_datagram(PeerId(2), b"pong")?;
 
 let mut heard = Vec::new();
 let deadline = Instant::now() + Duration::from_secs(5);

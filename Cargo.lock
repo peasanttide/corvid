@@ -254,7 +254,6 @@ name = "corvid_net_udp"
 version = "0.1.0"
 dependencies = [
  "corvid_net",
- "corvid_signal",
 ]
 
 [[package]]

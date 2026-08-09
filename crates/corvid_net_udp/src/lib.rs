@@ -5,6 +5,7 @@
 )]
 
 mod peer;
+mod receive;
 pub mod reliable;
 mod wire;
 
@@ -16,12 +17,24 @@ use std::{
     time::{Duration, Instant},
 };
 
-use corvid_net::{Channel, DATAGRAM_LIMIT, Delivery, Lost, PeerId, PeerSet, SendError, Transport};
+use corvid_net::{Channel, DATAGRAM_LIMIT, Delivery, PeerId, PeerSet, SendError, Transport};
 
 use crate::peer::{Inner, Known, Ready};
-use crate::wire::{
-    HEADER, MAGIC, Parsed, VERSION, channel_code, channel_of, kind, parse, piece_body,
-};
+use crate::wire::{HEADER, MAGIC, VERSION, channel_code, kind, piece_body};
+
+/// How many packets one [`poll`](Transport::poll) will read before leaving the
+/// rest for the next.
+///
+/// A sender faster than this end can drain is a sender that would otherwise
+/// keep `recv_from` answering for as long as it kept sending, so the one call
+/// that also sends acknowledgements, retransmits and reports timeouts would
+/// never reach any of them. A cap turns that into latency instead of a stall:
+/// the backlog waits in the socket's own buffer, which is where the operating
+/// system already decides what to drop.
+///
+/// A thousand is far above a lockstep tick's traffic -- a peer sends a handful
+/// of packets per tick -- and far below the number needed to spend a tick.
+const PER_POLL: usize = 1_000;
 
 /// How often a peer that has not answered is greeted again.
 const GREET: Duration = Duration::from_millis(250);
@@ -44,11 +57,11 @@ pub const PATIENCE: Duration = Duration::from_secs(10);
 /// use corvid_net_udp::UdpNet;
 ///
 /// // One process binds a port and is told where the other is.
-/// let here = UdpNet::bind(("0.0.0.0", 9000), PeerId(0))?;
-/// here.connect(PeerId(1), "127.0.0.1:9001")?;
+/// let here = UdpNet::bind(("0.0.0.0", 9000), PeerId(1))?;
+/// here.connect(PeerId(2), "127.0.0.1:9001")?;
 ///
 /// // From there it is the same trait every other backend implements.
-/// here.send_datagram(PeerId(1), b"tick 41")?;
+/// here.send_datagram(PeerId(2), b"tick 41")?;
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Debug)]
@@ -69,9 +82,18 @@ impl UdpNet {
     ///
     /// # Errors
     ///
-    /// Whatever the operating system says about binding that address, and about
-    /// putting the socket into non-blocking mode.
+    /// [`InvalidInput`](io::ErrorKind::InvalidInput) for [`PeerId::NONE`],
+    /// which is the contract's word for nobody rather than a machine that can
+    /// hold a socket. Otherwise whatever the operating system says about
+    /// binding that address, and about putting the socket into non-blocking
+    /// mode.
     pub fn bind(address: impl ToSocketAddrs, me: PeerId) -> io::Result<Self> {
+        if me.is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "PeerId::NONE is nobody, so it cannot be the identity this socket announces",
+            ));
+        }
         let socket = UdpSocket::bind(address)?;
         socket.set_nonblocking(true)?;
         Ok(Self {
@@ -104,10 +126,18 @@ impl UdpNet {
     ///
     /// # Errors
     ///
-    /// Whatever resolving the address says, and
+    /// Whatever resolving the address says,
     /// [`AddrNotAvailable`](io::ErrorKind::AddrNotAvailable) for a name that
-    /// resolves to nothing.
+    /// resolves to nothing, and
+    /// [`InvalidInput`](io::ErrorKind::InvalidInput) for [`PeerId::NONE`],
+    /// which no address belongs to.
     pub fn connect(&self, peer: PeerId, address: impl ToSocketAddrs) -> io::Result<()> {
+        if peer.is_none() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "PeerId::NONE is nobody, so there is no address to reach it at",
+            ));
+        }
         let Some(address) = address.to_socket_addrs()?.next() else {
             return Err(io::Error::new(
                 io::ErrorKind::AddrNotAvailable,
@@ -115,18 +145,49 @@ impl UdpNet {
             ));
         };
         let now = Instant::now();
-        {
+        let moved = {
             let mut inner = self.lock();
-            inner.peers.insert(
-                peer,
-                Known {
-                    address,
-                    reachable: false,
-                    greeted: now,
-                    heard: now,
-                    channels: BTreeMap::new(),
-                },
-            );
+            match inner.peers.get_mut(&peer) {
+                // Told again where a peer already is. Resetting here would
+                // drop it out of `reachable` while leaving the roster saying
+                // otherwise, so the two disagree until a welcome arrives and
+                // the peer then joins a second time without having left.
+                Some(known) if known.address == address => {
+                    known.greeted = now;
+                    false
+                }
+                // A different address is a different far end, so the channel
+                // state that belonged to the old one goes with it.
+                Some(known) => {
+                    let was = known.reachable;
+                    *known = Known {
+                        address,
+                        reachable: false,
+                        greeted: now,
+                        heard: now,
+                        channels: BTreeMap::new(),
+                    };
+                    was
+                }
+                None => {
+                    inner.peers.insert(
+                        peer,
+                        Known {
+                            address,
+                            reachable: false,
+                            greeted: now,
+                            heard: now,
+                            channels: BTreeMap::new(),
+                        },
+                    );
+                    false
+                }
+            }
+        };
+        // Only when a reachable peer stopped being one, so the roster never
+        // advertises a peer both send methods are refusing.
+        if moved {
+            self.republish();
         }
         // Outside the lock, because sending takes the socket and not the table.
         self.post(address, kind::HELLO, &[]);
@@ -134,7 +195,7 @@ impl UdpNet {
     }
 
     /// Tells every peer this end is going, so the far end reports
-    /// [`Lost::Closed`] rather than waiting out [`PATIENCE`].
+    /// [`Lost::Closed`](corvid_net::Lost::Closed) rather than waiting out [`PATIENCE`].
     ///
     /// Called by [`Drop`], and public because a caller that wants the goodbye
     /// to have gone before it does something else needs to be able to ask.
@@ -190,7 +251,7 @@ impl UdpNet {
 
 impl Drop for UdpNet {
     /// Says goodbye. A peer told that its opponent has gone reports
-    /// [`Lost::Closed`] on its next poll instead of playing on against a seat
+    /// [`Lost::Closed`](corvid_net::Lost::Closed) on its next poll instead of playing on against a seat
     /// that will never speak again until [`PATIENCE`] runs out.
     fn drop(&mut self) {
         self.goodbye();
@@ -266,97 +327,7 @@ impl Transport for UdpNet {
         let mut outgoing: Vec<(SocketAddr, u8, Vec<u8>)> = Vec::new();
         let mut roster_moved = false;
 
-        let mut buffer = [0_u8; 2048];
-        loop {
-            let (read, from_address) = match self.socket.recv_from(&mut buffer) {
-                Ok(read) => read,
-                // Nothing more to read, which is what a non-blocking socket
-                // says when it is empty.
-                Err(why) if why.kind() == io::ErrorKind::WouldBlock => break,
-                // On Windows a datagram larger than the buffer, and on any
-                // platform an ICMP answer to an earlier send, arrive as errors
-                // on `recv_from`. Neither says anything about the packets
-                // behind them, so the loop carries on rather than stopping and
-                // leaving them queued.
-                Err(_) => continue,
-            };
-            let Some(packet) = buffer.get(..read) else {
-                continue;
-            };
-            let Some((from, what)) = parse(packet) else {
-                continue;
-            };
-
-            let mut inner = self.lock();
-            if from == inner.me {
-                // This process's own packet, looped back. Nothing sends to
-                // itself deliberately, and a session where two peers claimed
-                // one identity would be a session where each rolled back
-                // against its own actions.
-                continue;
-            }
-            let known = inner.peers.entry(from).or_insert_with(|| Known {
-                address: from_address,
-                reachable: false,
-                greeted: now,
-                heard: now,
-                channels: BTreeMap::new(),
-            });
-            // The address a peer is actually speaking from wins over the one
-            // this end was told, which is what makes a peer behind a router
-            // reachable once it has spoken first.
-            known.address = from_address;
-            known.heard = now;
-
-            match what {
-                Parsed::Greeting { welcome } => {
-                    if !known.reachable {
-                        known.reachable = true;
-                        roster_moved = true;
-                        ready.push(Ready::Joined(from));
-                    }
-                    if !welcome {
-                        // Answered every time rather than once: a welcome may
-                        // be the packet that is lost, and the far end greets
-                        // again until something arrives.
-                        outgoing.push((known.address, kind::WELCOME, Vec::new()));
-                    }
-                }
-                Parsed::Datagram(bytes) => {
-                    if known.reachable {
-                        ready.push(Ready::Datagram(from, bytes.to_vec()));
-                    }
-                }
-                Parsed::Piece { code, piece } => {
-                    let address = known.address;
-                    let (_, receiver) = known.channels.entry(code).or_default();
-                    let frames = receiver.accept(piece);
-                    let mut acknowledgement = Vec::with_capacity(5);
-                    acknowledgement.push(code);
-                    acknowledgement.extend_from_slice(&receiver.expected().to_le_bytes());
-                    outgoing.push((address, kind::ACK, acknowledgement));
-                    if let Some(channel) = channel_of(code) {
-                        ready.extend(
-                            frames
-                                .into_iter()
-                                .map(|bytes| Ready::Frame(from, channel, bytes)),
-                        );
-                    }
-                }
-                Parsed::Ack { code, through } => {
-                    let (sender, _) = known.channels.entry(code).or_default();
-                    sender.acknowledged(through);
-                }
-                Parsed::Bye => {
-                    if known.reachable {
-                        known.reachable = false;
-                        roster_moved = true;
-                        ready.push(Ready::Lost(from, Lost::Closed));
-                    }
-                }
-            }
-            drop(inner);
-        }
+        roster_moved |= self.receive(now, &mut ready, &mut outgoing);
 
         roster_moved |= self.upkeep(now, &mut ready, &mut outgoing);
 

@@ -33,10 +33,10 @@ const PATIENCE: Duration = Duration::from_secs(5);
 
 /// Two sockets on loopback, each told where the other is.
 fn pair() -> Fallible2 {
-    let here = UdpNet::bind(("127.0.0.1", 0), PeerId(0))?;
-    let there = UdpNet::bind(("127.0.0.1", 0), PeerId(1))?;
-    here.connect(PeerId(1), there.local()?)?;
-    there.connect(PeerId(0), here.local()?)?;
+    let here = UdpNet::bind(("127.0.0.1", 0), PeerId(1))?;
+    let there = UdpNet::bind(("127.0.0.1", 0), PeerId(2))?;
+    here.connect(PeerId(2), there.local()?)?;
+    there.connect(PeerId(1), here.local()?)?;
     Ok((here, there))
 }
 
@@ -101,8 +101,8 @@ fn two_sockets_find_each_other() -> Fallible {
 
     assert!(met, "two sockets on loopback did not find each other");
     assert!(greetings >= 2, "only {greetings} joins were reported");
-    assert!(here.peers().contains(PeerId(1)));
-    assert!(there.peers().contains(PeerId(0)));
+    assert!(here.peers().contains(PeerId(2)));
+    assert!(there.peers().contains(PeerId(1)));
     Ok(())
 }
 
@@ -111,7 +111,7 @@ fn a_datagram_crosses_a_real_socket() -> Fallible {
     let (here, there) = pair()?;
     assert!(joined(&here, &there), "the two sockets did not meet");
 
-    here.send_datagram(PeerId(1), b"tick 41")?;
+    here.send_datagram(PeerId(2), b"tick 41")?;
 
     let mut heard: Vec<(PeerId, Vec<u8>)> = Vec::new();
     let arrived = until(&here, &there, |round| match round {
@@ -124,7 +124,7 @@ fn a_datagram_crosses_a_real_socket() -> Fallible {
     });
 
     assert!(arrived, "a datagram sent over loopback never arrived");
-    assert_eq!(heard.first(), Some(&(PeerId(0), b"tick 41".to_vec())));
+    assert_eq!(heard.first(), Some(&(PeerId(1), b"tick 41".to_vec())));
     Ok(())
 }
 
@@ -134,7 +134,7 @@ fn a_datagram_past_the_limit_is_refused_rather_than_sent() -> Fallible {
     assert!(joined(&here, &there), "the two sockets did not meet");
 
     let big = vec![0_u8; corvid_net::DATAGRAM_LIMIT + 1];
-    let refused = here.send_datagram(PeerId(1), &big);
+    let refused = here.send_datagram(PeerId(2), &big);
     assert!(
         matches!(refused, Err(corvid_net::SendError::TooLarge { .. })),
         "{refused:?}",
@@ -144,13 +144,13 @@ fn a_datagram_past_the_limit_is_refused_rather_than_sent() -> Fallible {
 
 #[test]
 fn a_peer_nobody_has_heard_from_is_not_reachable() -> Fallible {
-    let here = UdpNet::bind(("127.0.0.1", 0), PeerId(0))?;
+    let here = UdpNet::bind(("127.0.0.1", 0), PeerId(1))?;
     // An address on the discard port, which nothing is listening on.
-    here.connect(PeerId(1), "127.0.0.1:9")?;
+    here.connect(PeerId(2), "127.0.0.1:9")?;
 
-    let refused = here.send_datagram(PeerId(1), b"anyone there");
+    let refused = here.send_datagram(PeerId(2), b"anyone there");
     assert!(
-        matches!(refused, Err(corvid_net::SendError::Unknown(PeerId(1)))),
+        matches!(refused, Err(corvid_net::SendError::Unknown(PeerId(2)))),
         "a peer that has never answered was treated as reachable: {refused:?}",
     );
     assert!(here.peers().is_empty());
@@ -168,9 +168,9 @@ fn a_reliable_frame_crosses_in_order_and_whole() -> Fallible {
         .map(|at| u8::try_from(at % 251).unwrap_or(0))
         .collect();
     for index in 0..20_u8 {
-        here.send_stream(PeerId(1), Channel::Control, &[index])?;
+        here.send_stream(PeerId(2), Channel::Control, &[index])?;
     }
-    here.send_stream(PeerId(1), Channel::Transfer, &big)?;
+    here.send_stream(PeerId(2), Channel::Transfer, &big)?;
 
     let mut control: Vec<Vec<u8>> = Vec::new();
     let mut transfer: Vec<Vec<u8>> = Vec::new();
@@ -218,8 +218,8 @@ fn a_channel_does_not_hold_up_another() -> Fallible {
     assert!(joined(&here, &there), "the two sockets did not meet");
 
     let big: Vec<u8> = vec![7; 4_000];
-    here.send_stream(PeerId(1), Channel::Transfer, &big)?;
-    here.send_stream(PeerId(1), Channel::Chat, b"hello")?;
+    here.send_stream(PeerId(2), Channel::Transfer, &big)?;
+    here.send_stream(PeerId(2), Channel::Chat, b"hello")?;
 
     let mut chat: Option<Vec<u8>> = None;
     let mut transfer: Option<Vec<u8>> = None;
@@ -267,7 +267,7 @@ fn a_socket_that_goes_away_says_goodbye() -> Fallible {
         thread::sleep(Duration::from_millis(2));
     }
 
-    assert_eq!(lost, Some((PeerId(0), corvid_net::Lost::Closed)));
+    assert_eq!(lost, Some((PeerId(1), corvid_net::Lost::Closed)));
     assert!(
         there.peers().is_empty(),
         "a peer that said goodbye is still in the roster",
@@ -294,7 +294,7 @@ fn a_stray_packet_is_dropped_rather_than_parsed() -> Fallible {
         let _sent = stranger.send_to(noise, target)?;
     }
 
-    here.send_datagram(PeerId(1), b"still here")?;
+    here.send_datagram(PeerId(2), b"still here")?;
     let mut heard: Vec<Vec<u8>> = Vec::new();
     let arrived = until(&here, &there, |round| match round {
         Round::Heard(_, Delivery::Datagram(bytes), true) => {
@@ -310,5 +310,30 @@ fn a_stray_packet_is_dropped_rather_than_parsed() -> Fallible {
         "a socket stopped working after being sent nonsense"
     );
     assert_eq!(heard, [b"still here".to_vec()]);
+    Ok(())
+}
+
+#[test]
+fn nobody_is_refused_as_an_identity_and_as_a_destination() -> Fallible {
+    // `PeerId::NONE` is the contract's word for an absent peer, so a socket
+    // cannot announce it and no address belongs to it. Refused at both doors
+    // rather than allowed to reach a roster, where it would be a peer every
+    // `Option`-free "not connected" slot compares equal to.
+    let refused = UdpNet::bind(("127.0.0.1", 0), PeerId::NONE);
+    assert!(
+        refused.is_err(),
+        "a socket announced itself as nobody and was allowed to"
+    );
+
+    let here = UdpNet::bind(("127.0.0.1", 0), PeerId(1))?;
+    let refused = here.connect(PeerId::NONE, "127.0.0.1:9");
+    assert!(
+        refused.is_err(),
+        "nobody was given an address to be reached at"
+    );
+    assert!(
+        here.peers().is_empty(),
+        "a refused connect still put something in the roster"
+    );
     Ok(())
 }
