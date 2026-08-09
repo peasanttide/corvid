@@ -29,11 +29,13 @@ corvid_macros = { workspace = true }
 corvid_time = { workspace = true, features = ["serde"] }
 corvid_transform = { workspace = true, features = ["serde"] }
 # `alloc` because this crate has no `std`; `rc` -- named again here rather than
-# left to the workspace entry -- because `Frame` is four `Arc` handles and its
-# `Serialize` and `Deserialize` are the whole reason a front end can be driven
-# off a recorded frame with no runtime behind it. A build of this crate alone
-# needs the feature, and Cargo's unification across a workspace is not the sort
-# of thing to leave that resting on.
+# left to the workspace entry -- because `Data` demands `Serialize` of every
+# implementor and a game's state may hold an `Arc`, as the level behind
+# `State::step` already does. Without the feature an `Arc` has no
+# implementation at all, so the trait would be unimplementable for exactly the
+# shape this crate hands its implementors. A build of this crate alone needs
+# it, and Cargo's unification across a workspace is not the sort of thing to
+# leave that resting on.
 serde = { workspace = true, features = ["alloc", "rc"] }
 # A concrete format, because `round_trip_is_faithful` cannot check that a value
 # survives being written down without writing it down -- and the workspace's one

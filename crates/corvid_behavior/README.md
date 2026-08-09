@@ -260,11 +260,13 @@ exists.
 
 ## The two wire formats
 
-Everything here has two encodings that share nothing -- a hand-written `Hash` and
-a derived `Serialize` -- and `tests/golden.rs` and `tests/wire.rs` freeze both.
+Everything here has two encodings that share nothing -- a derived `Hash` and a
+derived `Serialize` -- and `tests/golden.rs` and `tests/wire.rs` freeze both.
 Two peers on different builds compare digests, so a field that changed its
 hashing order is a desync, and a field that changed its serialized form is a
 save that will not load.
 
-`Digestible` implementations are hand-written throughout, never derived: the
-derive links `syn`, and this crate is on the path of every build.
+Both are derived rather than written out. A hand-written `Hash` is a claim that
+the derived one is wrong and has to say how, and nothing here has that to say:
+the field order *is* the hashing order, which is exactly what the golden table
+freezes.

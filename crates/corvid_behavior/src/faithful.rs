@@ -47,9 +47,9 @@ pub enum Unfaithful {
 
 /// How [`Unfaithful::Changed`] reads, which depends on its two digests.
 ///
-/// Equal digests and unequal values is the same trap
-/// [`Divergence`](crate::Divergence) names, one function over: the round trip
-/// did lose something, and the digest is the half that cannot see it. A message
+/// Equal digests and unequal values is the trap this check exists for: the
+/// round trip did lose something, and the digest is the half that cannot see
+/// it. A message
 /// that printed one digest twice would look like the check contradicting itself,
 /// so that case says what it means instead.
 #[allow(
