@@ -304,8 +304,15 @@ impl Default for Frustum {
 /// integer sine and cosine and divided in Q16, so it is bit-identical on every
 /// target — and so that a half-angle of a quarter turn, whose tangent is
 /// infinite, saturates instead of dividing by zero.
+///
+/// A field of view past a half turn has no half a pitch can hold, and is not a
+/// field of view: it saturates here, which is the same answer the quarter-turn
+/// case already gives.
 const fn slope_of(fov_y: Angle16) -> I16F16 {
-    let (sine, cosine) = fov_y.half().sin_cos();
+    let Some(half) = fov_y.half() else {
+        return I16F16::MAX;
+    };
+    let (sine, cosine) = half.sin_cos();
     // `as` rather than `i64::from`, which is not callable in a `const fn`:
     // `From` is not a const trait yet. Both sources are `i32`, so the widening
     // is exact either way.
