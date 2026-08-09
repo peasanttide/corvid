@@ -13,8 +13,8 @@ categories = ["game-development", "mathematics", "no-std::no-alloc"]
 [dependencies]
 arbitrary = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
-corvid_fixed = { version = "0.1.0", path = "../corvid_fixed" }
-corvid_vector = { version = "0.1.0", path = "../corvid_vector" }
+corvid_fixed = { workspace = true }
+corvid_vector = { workspace = true }
 mint = { workspace = true, optional = true }
 nalgebra = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
