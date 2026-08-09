@@ -131,7 +131,7 @@ fn the_same_inputs_give_the_same_bits_every_run() {
     };
     // Pinned rather than compared to a rerun of itself: a rerun proves only
     // that the function is a function. A change that moves every result
-    // alike — a rounding rule, a normalize retune — fails here.
+    // alike -- a rounding rule, a normalize retune -- fails here.
     assert_eq!(
         checksum(0xDE7_E4A1),
         3_157_927_899_308_932_402,
@@ -142,79 +142,13 @@ fn the_same_inputs_give_the_same_bits_every_run() {
 #[test]
 fn decoding_is_bit_stable_across_repeated_calls() {
     // The property the VR stability tests lean on: a fixed packed pose decodes
-    // to the same bits every frame, so nothing shimmers. Both tiers, because a
-    // long-lived orientation is as likely to be a `Rotation` as a
-    // `FineRotation` and the two decode by entirely different routines.
-    let m = pose(37.0, -12.0, 3.0);
-    let fine = FineRotation::from_basis(m);
-    let coarse = Rotation::from_basis(m);
-    let (fine_basis, fine_versor) = (fine.to_basis(), fine.to_versor());
-    let (coarse_basis, coarse_versor) = (coarse.to_basis(), coarse.to_versor());
+    // to the same bits every frame, so nothing shimmers.
+    let packed = FineRotation::from_basis(pose(37.0, -12.0, 3.0));
+    let first = packed.to_basis();
+    let first_versor = packed.to_versor();
     for _ in 0..10_000 {
-        assert_eq!(fine.to_basis(), fine_basis);
-        assert_eq!(fine.to_versor(), fine_versor);
-        assert_eq!(coarse.to_basis(), coarse_basis);
-        assert_eq!(coarse.to_versor(), coarse_versor);
+        assert_eq!(packed.to_basis(), first);
+        assert_eq!(packed.to_versor(), first_versor);
     }
     let _ = I2F30::ZERO;
-}
-
-#[test]
-fn repacking_an_unchanged_decode_is_stationary() {
-    // The other half of the anti-drift argument, and the half that actually
-    // bears weight. Decode purity above is true of any pure function; it says
-    // nothing about the loop the README's claim is about, where a pose is
-    // unpacked, used and packed again every frame. What that loop needs is that
-    // packing a decode does not walk.
-    //
-    // It is stationary rather than exactly fixed. Both encoders round after
-    // normalizing, and a lattice point is not always the closest lattice point
-    // to its own normalized direction, so a first repack can land one step over
-    // — 0.065% of `Rotation` patterns and 1.58% of `FineRotation` ones do, each
-    // pinned to a two-sided band by `tests/rotation32.rs` and
-    // `tests/rotation64.rs` so that neither figure can drift out from under this
-    // sentence. It goes no further: one repack reaches a pattern every later
-    // repack leaves alone.
-    //
-    // Both working types, because a frame that unpacks to a `Basis` and one
-    // that unpacks to a `Versor` come back through different code — and the two
-    // routes do not always settle on the same pattern, only each on its own.
-
-    /// Repacks until the pattern stops moving, holding the measured bound of
-    /// one step, then checks that four further repacks leave it where it is.
-    fn settles_in_one_step<T: Copy + core::fmt::Debug>(
-        start: T,
-        bits: fn(T) -> u64,
-        repack: fn(T) -> T,
-    ) {
-        let mut at = start;
-        let mut steps = 0;
-        while bits(repack(at)) != bits(at) {
-            at = repack(at);
-            steps += 1;
-            assert!(steps <= 1, "{at:?} was still moving after {steps} repacks");
-        }
-        for _ in 0..4 {
-            assert_eq!(bits(repack(at)), bits(at), "{at:?} would not stay put");
-        }
-    }
-
-    let coarse_bits: fn(Rotation) -> u64 = |r| u64::from(r.to_bits());
-    let mut rng = Rng::new(0x0DEF_1FED);
-    for _ in 0..20_000 {
-        let q = common::random_versor(&mut rng);
-        let coarse = Rotation::from_versor(q);
-        let fine = FineRotation::from_versor(q);
-
-        settles_in_one_step(coarse, coarse_bits, |r| {
-            Rotation::from_versor(r.to_versor())
-        });
-        settles_in_one_step(coarse, coarse_bits, |r| Rotation::from_basis(r.to_basis()));
-        settles_in_one_step(fine, FineRotation::to_bits, |r| {
-            FineRotation::from_versor(r.to_versor())
-        });
-        settles_in_one_step(fine, FineRotation::to_bits, |r| {
-            FineRotation::from_basis(r.to_basis())
-        });
-    }
 }

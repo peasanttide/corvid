@@ -16,7 +16,7 @@ corvid_fixed = { workspace = true, features = ["std"] }
 # the view a `draw` reads is declared a crate down from here — which is what
 # lets a game that draws nothing state its camera without a graphics stack
 # behind it, and is the whole reason the two traits are this way round.
-corvid_control = { version = "0.2", path = "../corvid_control" }
+corvid_control = { workspace = true }
 # For `Icon`, which moved here from the controller crate: a picture for a title
 # bar is a picture, and this is the half of a game that deals in those.
 corvid_color = { workspace = true, features = ["std"] }
@@ -37,10 +37,10 @@ corvid_shape = { workspace = true, features = ["std"] }
 # The fixed-point poses a camera and an instance are. `matrix` is the boundary
 # between those and the `f32` a device wants, and it is the only thing in this
 # crate that has an opinion about arithmetic.
-corvid_transform = { version = "0.2.0", path = "../corvid_transform", default-features = false, features = ["std"] }
+corvid_transform = { workspace = true, features = ["std"] }
 # `OctDirection`, which is a mesh vertex's normal, with `bytemuck` because a
 # vertex buffer is bytes and that is the workspace's one safe way to make them.
-corvid_vector = { version = "0.2.0", path = "../corvid_vector", default-features = false, features = ["bytemuck", "std"] }
+corvid_vector = { workspace = true, features = ["bytemuck", "std"] }
 # The device. Everything about a GPU that this workspace knows is behind this
 # one name.
 wgpu = { workspace = true }

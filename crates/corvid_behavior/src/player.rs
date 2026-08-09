@@ -12,7 +12,7 @@ id_type! {
     /// action per player per tick at `(tick - first) * players + player`. It is
     /// a seat rather than an account, so a player who drops and rejoins keeps
     /// theirs and the log stays rectangular.
-    PlayerId, u16, "The seat number."
+    PlayerId, u16, "The seat number.", serde
 }
 
 id_type! {
@@ -22,7 +22,7 @@ id_type! {
     /// It enters the simulation exactly once, in
     /// [`Presence::Joining`](crate::Presence::Joining), so a `State` can fold
     /// it in and thereafter talk about a [`PlayerId`].
-    ProfileId, u64, "The account's identifier."
+    ProfileId, u64, "The account's identifier.", serde
 }
 
 /// Where a player stands in the roster this tick.
@@ -71,7 +71,7 @@ pub enum Presence {
 ///
 /// # There is no `pose` here, and the absence is the design
 ///
-/// A `GlobalFineTransform` for head and hands would be the obvious fourth field, on
+/// A `FineTransform` for head and hands would be the obvious fourth field, on
 /// the grounds that XR poses are first class, and it cannot be one: an action
 /// log records actions, so a seek has nothing to rebuild a pose from and would
 /// hand every player the identity — and a game whose tick read one would replay
@@ -88,7 +88,7 @@ pub enum Presence {
 /// So the fix is subtraction rather than a second recording. A game that wants
 /// head and hand poses puts them in its own [`Action`](crate::State::Action),
 /// where the log already carries them, the digest already covers them and a
-/// rollback already corrects them. Nothing is lost — a `GlobalFineTransform` costs
+/// rollback already corrects them. Nothing is lost — a `FineTransform` costs
 /// the same in an `Action` as it did here — and an input that is not in the
 /// input log stops being expressible.
 ///

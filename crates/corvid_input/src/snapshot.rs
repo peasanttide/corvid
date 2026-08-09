@@ -9,7 +9,7 @@ use crate::cursor::Cursor;
 use crate::id::{AnalogId, DigitalId, PoseId, SetId};
 use crate::sets::SetDescriptor;
 use crate::source::Button;
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 
 /// One on-or-off action, with the two edges around it.
 ///
@@ -164,7 +164,7 @@ pub struct Input {
     digital: Vec<Digital>,
     analog: Vec<Analog>,
     delta: Vec<Analog>,
-    poses: Vec<Option<GlobalFineTransform>>,
+    poses: Vec<Option<FineTransform>>,
     pointer: Option<Analog>,
     cursor: Cursor,
     viewport: Option<Viewport>,
@@ -432,7 +432,7 @@ impl Input {
     /// descriptor itself; a caller drawing a hand does not care, which is why
     /// the three collapse here.
     #[must_use]
-    pub fn pose(&self, id: PoseId) -> Option<GlobalFineTransform> {
+    pub fn pose(&self, id: PoseId) -> Option<FineTransform> {
         if self.owns(SetDescriptor::pose, id.0) {
             self.poses.get(usize::from(id.0)).copied().flatten()
         } else {
@@ -484,7 +484,7 @@ impl Input {
     /// Records a tracked pose, or its absence. An unnamed identifier is
     /// ignored.
     #[inline]
-    pub fn set_pose(&mut self, id: PoseId, value: Option<GlobalFineTransform>) {
+    pub fn set_pose(&mut self, id: PoseId, value: Option<FineTransform>) {
         if let Some(slot) = self.poses.get_mut(usize::from(id.0)) {
             *slot = value;
         }

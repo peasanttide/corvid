@@ -16,7 +16,7 @@ corvid_vector = { workspace = true }
 corvid_bits = { workspace = true }
 bytemuck = { workspace = true, optional = true }
 corvid_hash = { workspace = true }
-corvid_transform = { version = "0.2.0", path = "../corvid_transform", default-features = false }
+corvid_transform = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

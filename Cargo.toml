@@ -114,7 +114,7 @@ resolver = "3"
 members = ["crates/*", "examples/*"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.1.0"
 edition = "2024"
 # The toolchain this workspace is developed and tested against, rather than the
 # oldest one the code happens to compile on. A bit-exactness workspace pins its
@@ -136,50 +136,123 @@ publish = true
 license = "GPL-2.0-or-later"
 
 [workspace.dependencies]
-# Bit manipulation, and the floor of the whole stack: no dependencies at all,
-# which is what lets `corvid_fixed` — the crate everything else here is built
-# on — depend on it. How wide a magnitude is, and bringing a wide intermediate
-# back to the width a component is.
-corvid_bits = { version = "0.2", path = "crates/corvid_bits", default-features = false }
-# Floating point, in const. The other half of the arithmetic floor, and the
-# side of it nothing hashed ever touches: a matrix entry, a texture coordinate
-# and a gain are all computed here and none of them is compared against another
-# machine's answer.
-corvid_float = { version = "0.2", path = "crates/corvid_float", default-features = false }
-# The `f32` vectors and matrices, which are nalgebra's. The one crate that
-# names nalgebra for its float types, for the reason `corvid_render` is the one
-# that names `wgpu`: two linear algebra libraries in a graph are two `Matrix4`
-# types that do not convert.
-corvid_glm = { version = "0.2", path = "crates/corvid_glm", default-features = false }
-corvid_fixed = { version = "0.2", path = "crates/corvid_fixed", default-features = false }
-corvid_rotation = { version = "0.2", path = "crates/corvid_rotation", default-features = false }
-corvid_transform = { version = "0.2", path = "crates/corvid_transform", default-features = false }
-corvid_vector = { version = "0.2", path = "crates/corvid_vector", default-features = false }
-corvid_behavior = { version = "0.2", path = "crates/corvid_behavior", default-features = false }
-corvid_hash = { version = "0.2", path = "crates/corvid_hash", default-features = false }
-# The declarative macros the crates share. No dependencies of its own: a macro
-# emits tokens and the crate expanding them is what has to name what they
-# mention, so every path in an expansion is absolute.
-corvid_macros = { version = "0.2", path = "crates/corvid_macros", default-features = false }
-corvid_time = { version = "0.2", path = "crates/corvid_time", default-features = false }
-corvid_sound = { version = "0.2", path = "crates/corvid_sound", default-features = false }
-corvid_input = { version = "0.2", path = "crates/corvid_input", default-features = false }
+# The workspace's own crates, so that a member names a sibling as
+# `corvid_fixed = { workspace = true }` and the version and the path are
+# written here once. The facade is absent on purpose: it is the crate that
+# re-exports these, so nothing in the workspace depends on it.
+corvid_bits = { version = "0.1.0", path = "crates/corvid_bits" }
+corvid_files = { version = "0.1.0", path = "crates/corvid_files" }
+corvid_fixed = { version = "0.1.0", path = "crates/corvid_fixed" }
+corvid_float = { version = "0.1.0", path = "crates/corvid_float" }
+corvid_glm = { version = "0.1.0", path = "crates/corvid_glm" }
+corvid_hash = { version = "0.1.0", path = "crates/corvid_hash" }
+corvid_macros = { version = "0.1.0", path = "crates/corvid_macros" }
+corvid_net = { version = "0.1.0", path = "crates/corvid_net" }
+corvid_net_mock = { version = "0.1.0", path = "crates/corvid_net_mock" }
+corvid_net_udp = { version = "0.1.0", path = "crates/corvid_net_udp" }
+corvid_rotation = { version = "0.1.0", path = "crates/corvid_rotation" }
+corvid_signal = { version = "0.1.0", path = "crates/corvid_signal" }
+corvid_time = { version = "0.1.0", path = "crates/corvid_time" }
+corvid_transform = { version = "0.1.0", path = "crates/corvid_transform" }
+corvid_vector = { version = "0.1.0", path = "crates/corvid_vector" }
+corvid_wire = { version = "0.1.0", path = "crates/corvid_wire" }
+
+# `default-features = false` for the reason `serde` below has it: a crate here
+# starts `#![no_std]`, and the default feature is what pulls in the `std`
+# `Error` rather than `core`'s. A member that wants the `std` half turns it on
+# for itself.
+thiserror = { version = "2", default-features = false }
+
+# The benchmark harness. A dev-dependency of three members, so the version is
+# written here once: a benchmark that reported against a different Criterion
+# than the row beside it would not be a comparison. `default-features = false`
+# drops the plotting and the rayon it pulls in; the numbers are read from the
+# terminal.
+criterion = { version = "0.8", default-features = false, features = [
+    "cargo_bench_support",
+] }
+serde = { version = "1", default-features = false, features = ["derive"] }
+bytemuck = { version = "1", features = ["derive"] }
+arbitrary = { version = "1", features = ["derive"] }
+# Pinned here rather than per crate: the cross-crate `From` impls only line up
+# while every crate resolves the same `mint::Vector3` and `nalgebra::Vector3`.
+mint = "0.5"
+nalgebra = { version = "0.34", default-features = false }
+# Spans and events. Pinned here rather than per crate for the reason `mint` and
+# `nalgebra` are: two versions of `tracing` in one graph are two independent
+# subscriber registries, so half of a trace goes to each and the half that
+# matters is whichever one nobody installed a subscriber on. `corvid_signal` is
+# the only crate that needs it today; the runtime will.
+tracing = { version = "0.1", default-features = false }
+
+# The crates this branch has still to land. They are here so the workspace
+# resolves as one while the split is in progress; each moves up into the block
+# above as its pull request merges.
+corvid_behavior = { version = "0.1.0", path = "crates/corvid_behavior", default-features = false }
+corvid_sound = { version = "0.1.0", path = "crates/corvid_sound", default-features = false }
+corvid_input = { version = "0.1.0", path = "crates/corvid_input", default-features = false }
+# The client-local half that is not about a device: input, the view's motion and
+# audio. No `default-features = false`, unlike every `no_std` crate here — this
+# one used to be one and is not any more. It sits on top of `corvid_render`, so
+# there is no build of it without a device under it, and a flag suppressing
+# defaults it does not have would say the opposite.
+corvid_control = { version = "0.1.0", path = "crates/corvid_control" }
+corvid_replay = { version = "0.1.0", path = "crates/corvid_replay", default-features = false }
+corvid_app = { version = "0.1.0", path = "crates/corvid_app" }
+corvid_test = { version = "0.1.0", path = "crates/corvid_test" }
+corvid_window = { version = "0.1.0", path = "crates/corvid_window" }
+# The device. The base of a game's client-local half. It no longer re-exports
+# `wgpu` for the crates above it — they name it themselves and take the pin
+# above — so what this owns is the renderer, the target and the read-back seam.
+corvid_render = { version = "0.1.0", path = "crates/corvid_render" }
+# The sound card. Its own `device` feature is what pulls `cpal`, so a crate
+# naming this one still builds on a target with no audio backend.
+corvid_audio = { version = "0.1.0", path = "crates/corvid_audio", default-features = false }
+# Colour. Client ring, `no_std`, and depended on by nothing that draws — a
+# `LinearRgba` is four floats a game writes into its own uniform buffer, and
+# that crate has no opinion about which buffer that is.
+corvid_color = { version = "0.1.0", path = "crates/corvid_color", default-features = false }
+# Geometric primitives and the raycasts a cursor is resolved with. Client ring,
+# `no_std`, integer-only — the same arithmetic the simulation uses, which is
+# what lets a picking test run with no GPU in the process.
+corvid_shape = { version = "0.1.0", path = "crates/corvid_shape", default-features = false }
+# The ready-made cameras a `View` is composed out of. Client ring, `no_std`,
+# and holding fixed point rather than a matrix: the 4x4 `f32` a device binds is
+# `corvid_render::matrix`'s, which is the boundary and is the only place that
+# names both.
+corvid_camera = { version = "0.1.0", path = "crates/corvid_camera", default-features = false }
+# The widget tree. Client ring, `no_std`, and behind no device: a `Painted` is
+# rectangles and glyphs a renderer turns into pixels, and the crate has no
+# opinion about which renderer.
+corvid_ui = { version = "0.1.0", path = "crates/corvid_ui", default-features = false }
+# What draws one. Reaches the device through `corvid_render`, which is the one
+# crate in this workspace that names `wgpu`.
+corvid_ui_render = { version = "0.1.0", path = "crates/corvid_ui_render" }
+# The console, the tunables and the inspector. Its registry is typed, so help
+# and completion are generated rather than written.
+corvid_dev = { version = "0.1.0", path = "crates/corvid_dev" }
+# Predict, roll back, and find the tick a desync started on. `no_std`, and it
+# names no transport: it produces frames of bytes and a runtime carries them.
+corvid_lockstep = { version = "0.1.0", path = "crates/corvid_lockstep", default-features = false }
+# The headset. The workspace's one crate that relaxes `unsafe_code`, and the
+# only one that may: OpenXR hands out Vulkan handles and `wgpu-hal` takes them.
+# Its scripted stand-in is unconditional, so XR paths run with no hardware.
+corvid_xr = { version = "0.1.0", path = "crates/corvid_xr", default-features = false }
+# Geometry. Client ring, `no_std`, and naming no graphics library at all — which
+# is the whole reason it is a crate rather than a module of `corvid_render`:
+# `examples/alacarte/mesh` names this one and nothing else and builds for a
+# target with no operating system.
+corvid_mesh = { version = "0.1.0", path = "crates/corvid_mesh" }
+# The device half of a mesh: the vertex layout, the upload and the draw call.
+# It names `wgpu` itself, as every crate here that touches a device does; the
+# pin above is what keeps one of it in the graph.
+corvid_mesh_render = { version = "0.1.0", path = "crates/corvid_mesh_render" }
 # The one text format in the workspace, and it is a *file a player edits*
 # rather than an encoding anything is agreed over: a binding file. `corvid_wire`
 # stays the encoding for everything a peer or a save reads, because a varint is
 # not something to hand somebody a text editor for. Already in this tree as a
 # test dependency of `corvid_input`, so this adds no crate to the build.
 serde_json = { version = "1", default-features = false, features = ["std"] }
-corvid_wire = { version = "0.2", path = "crates/corvid_wire", default-features = false }
-# The client-local half that is not about a device: input, the view's motion and
-# audio. No `default-features = false`, unlike every `no_std` crate here — this
-# one used to be one and is not any more. It sits on top of `corvid_render`, so
-# there is no build of it without a device under it, and a flag suppressing
-# defaults it does not have would say the opposite.
-corvid_control = { version = "0.2", path = "crates/corvid_control" }
-corvid_replay = { version = "0.2", path = "crates/corvid_replay", default-features = false }
-corvid_app = { version = "0.2", path = "crates/corvid_app" }
-corvid_test = { version = "0.2", path = "crates/corvid_test" }
 # The GPU. Pinned at the workspace level for the reason `mint` is: `wgpu` and
 # anything that hands it a window handle have to agree on which
 # `raw-window-handle` they mean, and two versions of that in one graph is a
@@ -204,89 +277,6 @@ pollster = "0.4"
 # `corvid_test` and `corvid_mesh_render` decode one — and a golden compared
 # across two versions of an encoder is a golden that says nothing.
 png = "0.18"
-corvid_window = { version = "0.2", path = "crates/corvid_window" }
-# The device. The base of a game's client-local half. It no longer re-exports
-# `wgpu` for the crates above it — they name it themselves and take the pin
-# above — so what this owns is the renderer, the target and the read-back seam.
-corvid_render = { version = "0.2", path = "crates/corvid_render" }
-# The sound card. Its own `device` feature is what pulls `cpal`, so a crate
-# naming this one still builds on a target with no audio backend.
-corvid_audio = { version = "0.2", path = "crates/corvid_audio", default-features = false }
-# The `Display` and `Error` impls, derived. `default-features = false` like every
-# `no_std` crate here: the `std` feature only decides which `Error` trait the
-# derive names, and `core::error::Error` is the one a crate in the simulation
-# ring can implement. A `std` crate that wants the other spelling asks for the
-# feature by name.
-thiserror = { version = "2", default-features = false }
-# `rc` is what gives `Arc<T>` a `Serialize` and a `Deserialize`, and without it
-# `corvid_behavior::Frame` — four `Arc` handles and two numbers — could not be
-# written down at all. It is not a default feature and never has been, so no
-# crate here loses it to a `default-features = false`, and it changes nothing
-# about how any existing byte is written: before it, an `Arc` simply has no
-# implementation to disagree with. What it does not do is preserve sharing, so a
-# value behind two handles comes back behind two allocations.
-serde = { version = "1", default-features = false, features = ["derive", "rc"] }
-bytemuck = { version = "1", features = ["derive"] }
-arbitrary = { version = "1", features = ["derive"] }
-# Pinned here rather than per crate: the cross-crate `From` impls only line up
-# while every crate resolves the same `mint::Vector3` and `nalgebra::Vector3`.
-mint = "0.5"
-nalgebra = { version = "0.34", default-features = false }
-corvid_signal = { version = "0.2", path = "crates/corvid_signal" }
-# Colour. Client ring, `no_std`, and depended on by nothing that draws — a
-# `LinearRgba` is four floats a game writes into its own uniform buffer, and
-# that crate has no opinion about which buffer that is.
-corvid_color = { version = "0.2", path = "crates/corvid_color", default-features = false }
-# Geometric primitives and the raycasts a cursor is resolved with. Client ring,
-# `no_std`, integer-only — the same arithmetic the simulation uses, which is
-# what lets a picking test run with no GPU in the process.
-corvid_shape = { version = "0.2", path = "crates/corvid_shape", default-features = false }
-# The ready-made cameras a `View` is composed out of. Client ring, `no_std`,
-# and holding fixed point rather than a matrix: the 4x4 `f32` a device binds is
-# `corvid_render::matrix`'s, which is the boundary and is the only place that
-# names both.
-corvid_camera = { version = "0.2", path = "crates/corvid_camera", default-features = false }
-# The widget tree. Client ring, `no_std`, and behind no device: a `Painted` is
-# rectangles and glyphs a renderer turns into pixels, and the crate has no
-# opinion about which renderer.
-corvid_ui = { version = "0.2", path = "crates/corvid_ui", default-features = false }
-# What draws one. Reaches the device through `corvid_render`, which is the one
-# crate in this workspace that names `wgpu`.
-corvid_ui_render = { version = "0.2", path = "crates/corvid_ui_render" }
-# The console, the tunables and the inspector. Its registry is typed, so help
-# and completion are generated rather than written.
-corvid_dev = { version = "0.2", path = "crates/corvid_dev" }
-# The filesystem a level is read through. No dependencies and `no_std`, because
-# `corvid_behavior` names `Source` in `Level::load`'s signature and everything
-# in the ring is `no_std` — so the trait lives below `std` even though every
-# real implementation of it is above.
-corvid_files = { version = "0.2", path = "crates/corvid_files" }
-# The wire, as a trait with a deterministic stand-in behind it. `MockNet` is the
-# one implementation here, so two peers play in one process and the netcode lab
-# and the netcode tests are the same setup with different assertions.
-corvid_net = { version = "0.2", path = "crates/corvid_net" }
-# Predict, roll back, and find the tick a desync started on. `no_std`, and it
-# names no transport: it produces frames of bytes and a runtime carries them.
-corvid_lockstep = { version = "0.2", path = "crates/corvid_lockstep", default-features = false }
-# The headset. The workspace's one crate that relaxes `unsafe_code`, and the
-# only one that may: OpenXR hands out Vulkan handles and `wgpu-hal` takes them.
-# Its scripted stand-in is unconditional, so XR paths run with no hardware.
-corvid_xr = { version = "0.2", path = "crates/corvid_xr", default-features = false }
-# Geometry. Client ring, `no_std`, and naming no graphics library at all — which
-# is the whole reason it is a crate rather than a module of `corvid_render`:
-# `examples/alacarte/mesh` names this one and nothing else and builds for a
-# target with no operating system.
-corvid_mesh = { version = "0.2", path = "crates/corvid_mesh" }
-# The device half of a mesh: the vertex layout, the upload and the draw call.
-# It names `wgpu` itself, as every crate here that touches a device does; the
-# pin above is what keeps one of it in the graph.
-corvid_mesh_render = { version = "0.2", path = "crates/corvid_mesh_render" }
-# Spans and events. Pinned here rather than per crate for the reason `mint` and
-# `nalgebra` are: two versions of `tracing` in one graph are two independent
-# subscriber registries, so half of a trace goes to each and the half that
-# matters is whichever one nobody installed a subscriber on. `corvid_signal` is
-# the only crate that needs it today; the runtime will.
-tracing = { version = "0.1", default-features = false }
 # The subscriber a *binary* installs. Pinned here beside `tracing` for the same
 # reason and one more: a library that emits events and a binary that shows them
 # have to agree on which registry they mean, and a second `tracing` in the graph

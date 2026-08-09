@@ -36,7 +36,7 @@ use corvid_fixed::{Factor16, I8F8, I16F16, I48F16};
 use corvid_hash::digest;
 use corvid_sound::{AudioFrame, Bus, BusId, Cue, CueId, Listener, SoundId, Source, SourceId};
 use corvid_time::Tick;
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 use corvid_vector::{FinePoint, GlobalFinePoint};
 
 /// A frame with something in every list and no two fields sharing a value, so
@@ -44,13 +44,11 @@ use corvid_vector::{FinePoint, GlobalFinePoint};
 fn populated() -> AudioFrame {
     let mut frame = AudioFrame::new();
     frame.listen(
-        Listener::new(
-            GlobalFineTransform::IDENTITY.with_position(GlobalFinePoint::new(
-                I48F16::from_f64(1.0),
-                I48F16::from_f64(2.0),
-                I48F16::from_f64(3.0),
-            )),
-        )
+        Listener::new(FineTransform::IDENTITY.with_position(GlobalFinePoint::new(
+            I48F16::from_f64(1.0),
+            I48F16::from_f64(2.0),
+            I48F16::from_f64(3.0),
+        )))
         .with_gain(Factor16::from_f64(0.875)),
     );
     frame.bus(Bus::new(BusId::MASTER).with_gain(Factor16::from_f64(0.5)));
@@ -181,7 +179,7 @@ fn every_field_of_every_type_reaches_the_digest() {
     assert_ne!(digest(&moved), base, "listener gain");
 
     let mut moved = frame.clone();
-    moved.listener = Listener::new(GlobalFineTransform::IDENTITY).with_gain(frame.listener.gain);
+    moved.listener = Listener::new(FineTransform::IDENTITY).with_gain(frame.listener.gain);
     assert_ne!(digest(&moved), base, "listener pose");
 
     let mut moved = frame.clone();
@@ -266,7 +264,7 @@ fn every_field_of_every_type_reaches_the_bytes() {
     assert_ne!(encode(&moved), base, "listener gain");
 
     let mut moved = frame.clone();
-    moved.listener = Listener::new(GlobalFineTransform::IDENTITY).with_gain(frame.listener.gain);
+    moved.listener = Listener::new(FineTransform::IDENTITY).with_gain(frame.listener.gain);
     assert_ne!(encode(&moved), base, "listener pose");
 
     let mut moved = frame.clone();

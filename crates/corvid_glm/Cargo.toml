@@ -21,8 +21,8 @@ nalgebra = { workspace = true, features = ["libm"] }
 # switched on by its `convert-bytemuck` feature below; this crate writes none of
 # its own and could not, because `unsafe_code` is forbidden workspace-wide. The
 # dependency is still named here rather than left to nalgebra so that the
-# workspace pin is what nalgebra's optional copy unifies against — one bytemuck
-# in the graph — and so `std` has somewhere to forward `extern_crate_std`.
+# workspace pin is what nalgebra's optional copy unifies against -- one bytemuck
+# in the graph -- and so `std` has somewhere to forward `extern_crate_std`.
 bytemuck = { workspace = true, optional = true }
 # Interoperation, for the same reason `corvid_vector` offers it: a game with a
 # glTF loader or a physics engine of its own speaks one of these.
@@ -32,7 +32,7 @@ mint = { workspace = true, optional = true }
 default = []
 bytemuck = ["dep:bytemuck", "nalgebra/convert-bytemuck"]
 mint = ["dep:mint", "nalgebra/mint"]
-# The crate itself stays `no_std` under every feature — it is type aliases and
+# The crate itself stays `no_std` under every feature -- it is type aliases and
 # one `const`, and none of that needs an allocator, so there is no `cfg` on the
 # inner attribute to make conditional. `std` is purely a forwarding switch for
 # the graph underneath: a downstream that is already linking std uses it to say

@@ -28,7 +28,8 @@ use corvid::{Acting, App, Camera, Controller, Game, Outcome, SetDescriptor, Tick
 use corvid::PlayerId;
 
 use corvid::{Clock, Tick, Ticks};
-use corvid_net::{MockNet, PeerId, Schedule, Transport};
+use corvid_net::{PeerId, Transport};
+use corvid_net_mock::{MockNet, Schedule};
 use pong::{Move, Table, action, opening};
 
 /// Whatever the test needs to say went wrong.
@@ -50,7 +51,7 @@ const TICKS: u64 = 400;
 #[derive(Debug)]
 struct Ticking {
     /// The endpoint everything is forwarded to.
-    endpoint: corvid_net::Endpoint,
+    endpoint: corvid_net_mock::Endpoint,
     /// The link whose clock this moves.
     net: MockNet,
     /// How far to move it per poll.
@@ -76,7 +77,7 @@ impl Transport for Ticking {
         self.endpoint.poll(sink);
     }
 
-    fn peers(&self) -> &corvid::Watch<corvid_net::PeerSet> {
+    fn peers(&self) -> corvid_net::PeerSet {
         self.endpoint.peers()
     }
 }

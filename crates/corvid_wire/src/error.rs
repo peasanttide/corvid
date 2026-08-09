@@ -19,7 +19,7 @@ use core::fmt;
 /// failure. `#[serde(flatten)]` serializes as a map whose length is not known
 /// in advance and never reaches a decoder at all:
 /// `Err(Wrote("Serde(SequenceMustHaveLength)"))`. An untagged enum writes down
-/// without complaint — its *reader* is the half that wants the names — and
+/// without complaint -- its *reader* is the half that wants the names -- and
 /// fails on the way back with `Err(Read("Serde(AnyNotSupported)"))`. Both are
 /// findings rather than false alarms, and `tests/named.rs` pins them.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -38,7 +38,7 @@ pub enum Error {
     /// [`CEILING`](crate::CEILING).
     ///
     /// Writing knows how many, because it has them. Reading knows only that the
-    /// bytes asked for more than the ceiling — the number is refused on sight,
+    /// bytes asked for more than the ceiling -- the number is refused on sight,
     /// before anything is allocated on the strength of it, which is the whole
     /// reason the ceiling exists.
     TooLarge {
@@ -91,7 +91,7 @@ impl Error {
     /// The encoder's own error, kept as text.
     ///
     /// The message is carried rather than the error, so that no caller can match
-    /// on which encoder produced it and come to depend on that encoder — which
+    /// on which encoder produced it and come to depend on that encoder -- which
     /// is the whole failure this crate exists to prevent, arriving through the
     /// error type instead of through a manifest.
     pub(crate) fn wrote(why: &impl fmt::Display) -> Self {

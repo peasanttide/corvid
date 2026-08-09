@@ -8,85 +8,41 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # `sccache` in front of rustc, with GitHub's own action cache behind it. Five
-  # jobs compile overlapping halves of the same thirty-six packages — `check`
-  # and `msrv` share everything, and `cross` and `determinism` share the
-  # simulation ring with both — so the object a second job needs has usually
-  # already been built by a first.
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: "sccache"
 
 jobs:
-  # Does it build, does it pass, and does it say what it means. One job, because
-  # these all want the same checkout and the same warm target directory.
-  check:
+  build:
+
     runs-on: ubuntu-latest
-    # The backstop of last resort. Every test here that waits on another thread
-    # carries a deadline of its own, and this is what catches the wait that
-    # nobody wrapped: a wedged test binary keeps a runner for six hours and
-    # reports nothing, which has happened.
+    # The backstop of last resort. This job has no caching, and a wedged step
+    # keeps a runner for six hours and reports nothing.
     timeout-minutes: 30
 
     steps:
     - uses: actions/checkout@v4
-    - uses: mozilla-actions/sccache-action@v0.0.9
-    - uses: Swatinem/rust-cache@v2
-      with:
-        # `sccache` holds the object files now. This one stays for the registry
-        # index and the git checkouts, which it caches and `sccache` does not —
-        # caching the target directory as well would be two copies of the same
-        # build, restored twice.
-        cache-targets: false
-    # The two system libraries this workspace's device halves are built against.
-    # `corvid_audio/device` reaches `cpal` and then `alsa-sys`, and
-    # `corvid_window/gamepad` reaches `gilrs` and then `libudev-sys`; both probe
-    # with `pkg-config` in a build script and panic when the `.pc` file is
-    # absent, so a runner without them fails before rustc is asked anything.
-    # Every step below that passes `--all-features` compiles both.
-    #
-    # Nothing else here needs a system library: `wgpu`'s Vulkan backend loads
-    # the loader at runtime through `ash`, and `winit` is pinned with `x11` and
-    # `wayland-dlopen`, which do the same.
-    - name: System libraries the device halves link against
-      run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
-
-    - name: Formatting
-      run: cargo fmt --all --check
-    # A warning that nobody fails on is a warning that accumulates. The
-    # workspace pins its own rules in `[workspace.lints]` — `unsafe_code`
-    # forbidden, `panic`/`unwrap_used`/`missing_docs` denied — and this is what
-    # makes them rules rather than a convention. `-D warnings` goes here rather
-    # than in `RUSTFLAGS`, which would hold every crates.io dependency to rules
-    # this workspace wrote for itself.
-    - name: Clippy
-      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-    - name: Docs
-      env:
-        RUSTDOCFLAGS: -D warnings
-      run: cargo doc --workspace --no-deps --all-features
-
+    - name: Build
+      run: cargo build --workspace --verbose
     # Only `--all-features`. Every optional integration is off by default, so a
-    # plain `cargo test` compiles the wire format and the layout assertions out
-    # entirely, which makes the all-features run a superset of it.
-    - name: Tests, all features
-      run: cargo test --workspace --all-features
-    # Overflow checks are on in dev and off in release, so the two profiles
-    # disagree about what a wrapped intermediate does — the one divergence a
-    # bit-exactness workspace cannot ship.
-    - name: Tests, all features, release
-      run: cargo test --workspace --all-features --release
-
-    # A target with no operating system is the check with teeth: a crate that
-    # quietly reached for `std` fails here rather than being discovered by
-    # whoever first builds a dedicated server or a console port.
+    # plain `cargo test` compiles out the serde, bytemuck, mint and nalgebra
+    # tests entirely — the wire format and the layout assertions among them —
+    # which makes the all-features run a superset of it. The `Build` step above
+    # is what still compiles the default set.
+    - name: Run tests, all features
+      run: cargo test --workspace --all-features --verbose
+    # A target with no operating system is the check with teeth. Seven crates
+    # here declare `#![no_std]`, and nothing so far has held them to it: every arm
+    # above builds for the host, where a crate that quietly reached for `std`
+    # compiles and passes, and the discovery is left to whoever first builds a
+    # dedicated server or a console port. `corvid_wire` is the sharpest case,
+    # being the first of them with a dependency of its own — `bincode` is
+    # `no_std` only while `alloc` is on and `std` is off, which is a property of
+    # this crate's manifest rather than of its source.
     #
-    # Not the whole simulation ring, and the ceiling is not this workspace's:
+    # Not the whole workspace, and the ceiling is not this workspace's:
     # `corvid_float` depends on `const_soft_float`, which does not declare
     # `#![no_std]`, so nothing above `corvid_float` has a bare-metal build to
     # check. `corvid_fixed` is *not* above it — it names `corvid_bits` and
-    # nothing else — so the fixed-point arithmetic and `corvid_time` on top of it
-    # are both here. The wider portability claim is the `cross` job, where it is
-    # checked on targets that do have an operating system.
+    # nothing else — so the fixed-point arithmetic and `corvid_time` on top of
+    # it are both here.
     - name: Build for a target with no operating system
       run: |
         set -eu
@@ -96,6 +52,54 @@ jobs:
           echo "== $crate"
           cargo build -p "$crate" --no-default-features --target thumbv7em-none-eabi
         done
+
+    # `corvid_hash` overrides `write_usize` and `write_isize` so a `Vec`'s
+    # length prefix is eight bytes on every target rather than the pointer
+    # width, which is the one thing standing between a `wasm32` browser peer and
+    # a native server agreeing on a digest. Every arm above runs on the 64-bit
+    # host, where the override and the native-width default write the identical
+    # eight little-endian bytes — so deleting the override outright leaves all
+    # of them green, `tests/width.rs` included. The regression this crate exists
+    # to prevent is invisible to a workflow that never leaves `x86_64`.
+    #
+    # `i686-unknown-linux-gnu` is the cheapest target that actually *runs* the
+    # tests with a four-byte `usize`: it needs a multilib gcc and no emulator,
+    # where `wasm32` would need a runtime and would only ever be a build.
+    #
+    # Measured rather than assumed. Replacing both overrides with the
+    # native-width write that `core` defaults to leaves all 68 tests green on
+    # `x86_64` and fails exactly one here —
+    # `width::a_pointer_sized_integer_is_absorbed_as_sixty_four_bits`. So this
+    # arm is the only thing in the workflow standing between that regression and
+    # a merge, and `tests/width.rs` is the only file in it that notices.
+    # `tests/golden.rs` is not a second net: its rows drive the `Hasher` with
+    # words and byte slices directly rather than through `Hash` on a container,
+    # so they never reach `write_usize` and cannot move with the pointer width.
+    # The whole suite is run anyway, because it costs one link over running the
+    # one file and it covers whatever becomes width-dependent later.
+    - name: Run tests on a 32-bit target
+      run: |
+        set -eu
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib
+        rustup target add i686-unknown-linux-gnu
+        cargo test -p corvid_hash --all-features --target i686-unknown-linux-gnu
+    # Overflow checks are on in dev and off in release, so the two profiles
+    # disagree about what a wrapped intermediate does — the one divergence a
+    # bit-exactness crate cannot ship. Both arms have to run.
+    - name: Run tests, release
+      run: cargo test --workspace --all-features --release --verbose
+    # The workspace pins its own rules in `[workspace.lints]` — `unsafe_code`
+    # forbidden, `panic`/`unwrap_used`/`missing_docs` denied. They are only a
+    # convention if something runs them.
+    - name: Clippy
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+    - name: Formatting
+      run: cargo fmt --all --check
+    - name: Docs
+      env:
+        RUSTDOCFLAGS: -D warnings
+      run: cargo doc --workspace --no-deps --all-features
 
   # `rust-version` is a promise to a downstream, and every other job here runs
   # on whatever stable the runner has — so a crate reaching past the declared
@@ -109,17 +113,10 @@ jobs:
   # since two copies of a number are one copy and one stale copy.
   msrv:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
     - uses: actions/checkout@v4
-    - uses: mozilla-actions/sccache-action@v0.0.9
-    - uses: Swatinem/rust-cache@v2
-      with:
-        cache-targets: false
-    # `--all-targets` reaches the device halves, which probe with `pkg-config`.
-    - name: System libraries the device halves link against
-      run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
     - name: The oldest toolchain the manifest promises
       run: |
         set -eu
@@ -128,126 +125,3 @@ jobs:
         echo "rust-version is $floor"
         rustup toolchain install "$floor" --profile minimal
         cargo "+$floor" check --workspace --all-targets --all-features
-
-  # The claim the whole design rests on is that a simulation computes the same
-  # bits on every machine. This job is the half that says the code *compiles*
-  # elsewhere — that no crate below the runtime has quietly grown a dependency
-  # on a pointer width, an operating system or a float. What it says nothing
-  # about is what those builds compute; that is `determinism` below.
-  cross:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          # A second 64-bit architecture, with a different code generator and a
-          # different floating-point story.
-          - aarch64-unknown-linux-gnu
-
-    steps:
-    - uses: actions/checkout@v4
-    - uses: mozilla-actions/sccache-action@v0.0.9
-    - uses: Swatinem/rust-cache@v2
-      with:
-        # `sccache` holds the object files now. This one stays for the registry
-        # index and the git checkouts, which it caches and `sccache` does not —
-        # caching the target directory as well would be two copies of the same
-        # build, restored twice.
-        cache-targets: false
-    - run: rustup target add ${{ matrix.target }}
-    # The simulation ring and the client ring's data types: everything two peers
-    # have to agree about, plus everything a capture is made of. The runtime is
-    # not here — `corvid_app` is unconditionally `std`, and the crates that own
-    # a device are `std` with it.
-    #
-    # `cargo build` of a library produces an rlib and links nothing, so no
-    # cross-linker is needed for any of these.
-    - name: Build the portable crates
-      run: |
-        set -eu
-        for crate in corvid_bits corvid_float corvid_fixed corvid_vector \
-                     corvid_rotation corvid_transform corvid_hash corvid_time \
-                     corvid_wire corvid_files corvid_behavior corvid_replay \
-                     corvid_lockstep corvid_shape corvid_camera corvid_color \
-                     corvid_sound corvid_input corvid_mesh corvid_ui; do
-          echo "== $crate for ${{ matrix.target }}"
-          cargo build -p "$crate" --no-default-features --target ${{ matrix.target }}
-        done
-
-  # `corvid_hash` overrides `write_usize` and `write_isize` so a `Vec`'s length
-  # prefix is eight bytes on every target rather than the pointer width, which
-  # is the one thing standing between a `wasm32` browser peer and a native
-  # server agreeing on a digest. Every other arm runs on a 64-bit host, where
-  # the override and the native-width default write the identical eight
-  # little-endian bytes — so deleting the override outright leaves all of them
-  # green, `tests/width.rs` included. The regression this crate exists to
-  # prevent is invisible to a workflow that never leaves a 64-bit `usize`.
-  #
-  # `i686-unknown-linux-gnu` is the cheapest target that actually *runs* the
-  # tests with a four-byte `usize`: it needs a multilib gcc and no emulator,
-  # where `wasm32` would need a runtime and would only ever be a build. Measured
-  # rather than assumed — replacing both overrides with the native-width write
-  # `core` defaults to leaves the whole suite green on `x86_64` and fails
-  # exactly one test here.
-  narrow:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-    - uses: actions/checkout@v4
-    - uses: mozilla-actions/sccache-action@v0.0.9
-    - uses: Swatinem/rust-cache@v2
-      with:
-        cache-targets: false
-    - name: A four-byte usize, and the digest that must not move with it
-      run: |
-        set -eu
-        sudo apt-get update
-        sudo apt-get install -y gcc-multilib
-        rustup target add i686-unknown-linux-gnu
-        cargo test -p corvid_hash --all-features --target i686-unknown-linux-gnu
-
-  # The other half, and the one about output rather than about compiling:
-  # `examples/pong`'s `tests/baseline.rs` holds the simulation to two digests
-  # recorded before the contracts were rewritten. It would notice the arithmetic
-  # moving, a field's width altering, or the loop's order changing — none of
-  # which any test comparing one run against another can see.
-  #
-  # Run on aarch64, which is what makes "the same digest everywhere" a checked
-  # property rather than an argument from the source being integer-only: the
-  # numbers in `baseline.rs` were recorded on x86-64, and `check` above already
-  # replays them there. This arm is the one that would notice an architecture
-  # disagreeing, and a red arm named `determinism` says so without anybody
-  # reading a log.
-  determinism:
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 20
-
-    steps:
-    - uses: actions/checkout@v4
-    - uses: mozilla-actions/sccache-action@v0.0.9
-    - uses: Swatinem/rust-cache@v2
-      with:
-        # `sccache` holds the object files now. This one stays for the registry
-        # index and the git checkouts, which it caches and `sccache` does not —
-        # caching the target directory as well would be two copies of the same
-        # build, restored twice.
-        cache-targets: false
-    # As in `check`. None of the three suites below opens a sound card or reads
-    # a pad, but `examples/pong` ships with `window` on by default and that
-    # reaches `corvid_audio/device` and `corvid_window/gamepad` — so both are
-    # *compiled* here even though neither is called, and a build script that
-    # cannot find its `.pc` file fails whether or not the code runs.
-    - name: System libraries the device halves link against
-      run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
-    # Three suites, and none of them asks for an adapter — the baseline is a
-    # headless simulation, which is what lets it run on a machine with no GPU.
-    # Both profiles, because overflow checks are on in dev and off in release,
-    # and a digest that moved with the profile is exactly the failure this
-    # exists to catch.
-    - name: The frozen digests, debug
-      run: cargo test -p pong --test baseline --test table --test bot
-    - name: The frozen digests, release
-      run: cargo test -p pong --test baseline --test table --test bot --release

@@ -26,7 +26,7 @@ corvid_replay = { workspace = true, features = ["std"] }
 # `std` for `Wall`, which is the clock a run in front of a player uses and the
 # one every other crate in the workspace refuses to forward. This is the crate
 # that runs the loop, so this is where a wall clock is asked for.
-corvid_time = { version = "0.2.0", path = "../corvid_time", features = ["std", "serde"] }
+corvid_time = { workspace = true, features = ["std", "serde"] }
 # The workspace's one encoding. Every file a capture contains is written through
 # it, which is what makes a capture readable by `Session::load` rather than by
 # something this crate would have had to define.
@@ -85,6 +85,10 @@ corvid_audio = { workspace = true }
 # neither is any use without the other: a transport with nothing to carry is a
 # socket, and a peer with nothing to carry its datagrams cannot reach anybody.
 corvid_net = { workspace = true, optional = true }
+# The backend `--listen`/`--connect` asks for. `corvid_net` is the contract and
+# this is the one implementation of it a shipped game binds a port with, so the
+# two arrive together under the feature below.
+corvid_net_udp = { workspace = true, optional = true }
 corvid_lockstep = { workspace = true, features = ["std"], optional = true }
 
 [dev-dependencies]
@@ -127,7 +131,7 @@ dev = ["corvid_lockstep?/dev"]
 # because `corvid_app`'s promise that a run's digest is a function of its action
 # log is exactly what makes adding this arm safe: `tests/net.rs` plays the same
 # opening with and without one and compares the traces.
-net = ["dep:corvid_net", "dep:corvid_lockstep"]
+net = ["dep:corvid_net", "dep:corvid_net_udp", "dep:corvid_lockstep"]
 # A graphics stack. `wgpu` is most of what one weighs and this is the feature
 # that decides whether it is compiled at all: without it a game owes `Present`
 # and nothing else, `Playable` is one trait rather than two, and

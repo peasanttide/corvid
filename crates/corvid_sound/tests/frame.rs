@@ -6,7 +6,7 @@ use corvid_sound::{AudioFrame, Bus, BusId, Cue, CueId, Listener, SoundId, Source
 
 use corvid_time::Tick;
 
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 const THUD: SoundId = SoundId(1);
 const TORCH: SoundId = SoundId(2);
 
@@ -28,7 +28,7 @@ fn fill(frame: &mut AudioFrame) {
 fn a_new_frame_is_empty_and_hears_everything() {
     let frame = AudioFrame::new();
     assert!(frame.is_empty());
-    assert_eq!(frame.listener.pose, GlobalFineTransform::IDENTITY);
+    assert_eq!(frame.listener.pose, FineTransform::IDENTITY);
 
     // The listener's default gain is written by hand rather than derived,
     // because a derived `Factor16` is zero and a frame nobody gave a listener

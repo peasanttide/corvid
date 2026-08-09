@@ -2,8 +2,8 @@
 //!
 //! Run this only when a change to the implementation is *intended* to move
 //! results, and paste the output into the test. Correctness is established
-//! elsewhere — `tests/trig.rs` and `tests/arithmetic.rs` check against `f64`
-//! references — so this table's job is purely to make an unintended change loud.
+//! elsewhere -- `tests/trig.rs` and `tests/arithmetic.rs` check against `f64`
+//! references -- so this table's job is purely to make an unintended change loud.
 
 #![allow(
     clippy::print_stdout,

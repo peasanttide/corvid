@@ -10,19 +10,19 @@ use corvid_camera::{Camera, FirstPerson};
 use corvid_fixed::{Angle16, Angle32, I16F16, Pitch32, Signed32};
 use corvid_rotation::{FineRotation, Versor};
 use corvid_shape::{Frustum, Ray};
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 use corvid_vector::{Direction, GlobalFinePoint, globalfinepoint, globalpoint};
 
 /// At the origin, facing forward, with the default frustum.
 const fn eye() -> Camera {
-    at(GlobalFineTransform::new(
+    at(FineTransform::new(
         GlobalFinePoint::ZERO,
         FineRotation::IDENTITY,
     ))
 }
 
 /// A camera at a given pose, with the default frustum.
-const fn at(pose: GlobalFineTransform) -> Camera {
+const fn at(pose: FineTransform) -> Camera {
     let mut camera = FirstPerson::new(pose.position().to_global().unwrap());
     camera.facing = pose.rotation();
     camera.camera()
@@ -53,7 +53,7 @@ fn the_centre_looks_forward() {
 /// pick, forever.
 #[test]
 fn the_ray_starts_at_the_eye() {
-    let pose = GlobalFineTransform::new(globalfinepoint(1, 2, 3), FineRotation::IDENTITY);
+    let pose = FineTransform::new(globalfinepoint(1, 2, 3), FineRotation::IDENTITY);
     let ray = at(pose).ray(CENTRE, SQUARE);
     assert_eq!(ray.origin, globalpoint(1, 2, 3));
 }
@@ -128,7 +128,7 @@ fn turning_the_camera_turns_the_ray() {
         Pitch32::ZERO,
         Angle32::ZERO,
     ));
-    let pose = GlobalFineTransform::new(GlobalFinePoint::ZERO, quarter);
+    let pose = FineTransform::new(GlobalFinePoint::ZERO, quarter);
     let ray = at(pose).ray(CENTRE, SQUARE);
 
     // A quarter turn about up takes forward to -X in a right-handed frame with
@@ -144,7 +144,7 @@ fn pitching_the_camera_pitches_the_ray() {
         Pitch32::from_turns(0.1),
         Angle32::ZERO,
     ));
-    let pose = GlobalFineTransform::new(GlobalFinePoint::ZERO, raised);
+    let pose = FineTransform::new(GlobalFinePoint::ZERO, raised);
     let ray = at(pose).ray(CENTRE, SQUARE);
     assert!(ray.direction.z() > Signed32::ZERO, "{:?}", ray.direction);
 }

@@ -4,7 +4,7 @@ use crate::matrix;
 use corvid_fixed::I48F16;
 use corvid_glm::{IDENTITY, Mat4};
 use corvid_shape::Frustum;
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 
 /// The whole camera, as the bytes a uniform buffer takes.
 ///
@@ -21,10 +21,10 @@ use corvid_transform::GlobalFineTransform;
 /// ```
 /// use corvid_camera::Eye;
 /// use corvid_shape::Frustum;
-/// use corvid_transform::GlobalFineTransform;
+/// use corvid_transform::FineTransform;
 /// use corvid_vector::globalfinepoint;
 ///
-/// let far_away = GlobalFineTransform::new(globalfinepoint(10_000_000, 0, 0), Default::default());
+/// let far_away = FineTransform::new(globalfinepoint(10_000_000, 0, 0), Default::default());
 /// let eye = Eye::new(far_away, Frustum::default(), 16.0 / 9.0);
 /// assert_eq!(eye.coarse, [10_000_000, 0, 0]);
 /// ```
@@ -75,7 +75,7 @@ impl Eye {
     /// `f32`'s. That is two million kilometres out, against the 8388 km a
     /// `GlobalPoint` reaches at all.
     #[must_use]
-    pub fn new(pose: GlobalFineTransform, frustum: Frustum, aspect: f32) -> Self {
+    pub fn new(pose: FineTransform, frustum: Frustum, aspect: f32) -> Self {
         let position = pose.position().to_array();
         let mut coarse = [0i32; 3];
         let mut remainder = IDENTITY;

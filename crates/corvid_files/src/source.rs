@@ -119,8 +119,8 @@ impl From<Missing> for Malformed {
 /// The counterpart to [`Missing`], and folded the same way: one type for every
 /// reason a source did not take the bytes, because a caller that has been told
 /// its write did not land has been told the thing it can act on. A source that
-/// refuses every write and a source that refused this one — a path outside what
-/// it will follow, a device with nothing left on it — raise the same finding,
+/// refuses every write and a source that refused this one -- a path outside what
+/// it will follow, a device with nothing left on it -- raise the same finding,
 /// exactly as a permission and an absent file both raise a `Missing`.
 ///
 /// The name is for the common case, which is that the source is a directory
@@ -156,7 +156,7 @@ impl core::error::Error for ReadOnly {}
 /// # It is synchronous, and that is a decision
 ///
 /// A level is read off the tick, on a thread of its own, so blocking costs a
-/// simulation nothing — and the barrier that keeps two peers applying a level
+/// simulation nothing -- and the barrier that keeps two peers applying a level
 /// at the same tick is built on a load being a thing that finishes rather than
 /// a thing that is polled. A platform with only asynchronous reads is a later
 /// problem, and this trait is where it will be solved rather than a reason to
@@ -167,7 +167,7 @@ pub trait Source: Send + Sync {
     /// # Errors
     ///
     /// [`Missing`] for a path this source has nothing under, which includes a
-    /// path it refuses to follow and a file it can see and cannot open — a
+    /// path it refuses to follow and a file it can see and cannot open -- a
     /// permission it does not have, an archive member that will not inflate.
     /// There is one read failure and it means the bytes did not arrive, the
     /// same way [`list`](Self::list) folds a directory that will not say what
@@ -186,14 +186,14 @@ pub trait Source: Send + Sync {
     /// **Everything, and the caller narrows it.** A source is the files one
     /// level is read through rather than a whole disk, so the listing is the
     /// whole of it and a caller wanting a subset writes the `filter` it wants.
-    /// That keeps the one rule a source owes — sorted — from having to hold
+    /// That keeps the one rule a source owes -- sorted -- from having to hold
     /// alongside a matching rule about what counts as being under a name, which
     /// is the part every implementation would have spelled differently.
     ///
     /// A source with nothing in it answers an empty list rather than an error:
     /// "there are no props in this level" is an answer, and a level that has to
     /// name every file it might read is a level that cannot grow one. What *is*
-    /// an error is a source that could not be asked at all — a directory whose
+    /// an error is a source that could not be asked at all -- a directory whose
     /// permissions refuse to say what is in it.
     ///
     /// # Errors
@@ -218,7 +218,7 @@ pub trait Source: Send + Sync {
     ///
     /// **`&mut self`, which is what keeps a load from writing.** `Level::load`
     /// is handed a `&dyn Source`, and a shared reference cannot reach this
-    /// method at all — so a level that tried to write during its own load
+    /// method at all -- so a level that tried to write during its own load
     /// fails to compile rather than at run time. The blanket impl on `&T`
     /// inherits this default for the same reason.
     ///
@@ -245,7 +245,7 @@ pub trait Source: Send + Sync {
 
 /// A borrow of a `Source` is a `Source`, so code generic over one takes either.
 ///
-/// This buys nothing at a `&dyn Source` parameter — `&Memory` already coerces
+/// This buys nothing at a `&dyn Source` parameter -- `&Memory` already coerces
 /// to `&dyn Source` on its own, and `Level::load` needs no help. What it buys
 /// is the bound `S: Source`: a caller that only borrows its source, or that was
 /// handed the `&dyn Source` from a `load` further up, can satisfy that bound
@@ -263,7 +263,7 @@ impl<T: Source + ?Sized> Source for &T {
     // `write` is *not* forwarded, and cannot be: `&mut self` here is a mutable
     // borrow of the reference rather than of what it points at, so there is no
     // `&mut T` to hand on. Inheriting the refusing default is the honest answer
-    // and not a gap — a caller holding a shared borrow of a source was never in
+    // and not a gap -- a caller holding a shared borrow of a source was never in
     // a position to write through it, and this is where that shows up.
 
     // Forwarded rather than left to the default, which is not a formality: the
@@ -277,8 +277,8 @@ impl<T: Source + ?Sized> Source for &T {
 
 /// Nothing at all, for a game whose levels are constants.
 ///
-/// A `Level::load` that ignores its source — pong's court is written in the
-/// source and read from no file — still has to be handed one, and this is what
+/// A `Level::load` that ignores its source -- pong's court is written in the
+/// source and read from no file -- still has to be handed one, and this is what
 /// a caller with nothing to hand over hands over. Every read fails; that is the
 /// honest answer for a source with no files in it, and a `load` that ignores it
 /// never asks. Writes fail too, through the trait's own default: a source that

@@ -21,13 +21,10 @@
 
 mod common;
 
-use corvid_fixed::{Angle32, I48F16};
+use corvid_transform::{
+    Angle32, FineRotation, FineTransform, GlobalFinePoint, I48F16, Rotation, Versor,
+};
 
-use corvid_rotation::{FineRotation, Rotation, Versor};
-
-use corvid_transform::GlobalFineTransform;
-
-use corvid_vector::GlobalFinePoint;
 /// A brisk but realistic head sweep.
 const SWEEP_DEGREES_PER_SECOND: f64 = 200.0;
 
@@ -72,7 +69,7 @@ fn a_static_pose_decodes_identically_on_every_frame() {
 fn a_static_camera_projects_a_static_point_every_frame() {
     // The whole pipeline, not just the codec: a fixed camera and a fixed world
     // point must give bit-identical eye coordinates every frame.
-    let camera = GlobalFineTransform::new(
+    let camera = FineTransform::new(
         GlobalFinePoint::splat(I48F16::from_f64(6_371_000.0)),
         common::pose(37.0, -12.0, 3.0),
     );
@@ -164,7 +161,7 @@ fn the_same_sweep_at_the_coarse_tier_shows_why_there_are_two_tiers() {
         2.0 * FINE_QUANTUM_DEGREES
     );
 
-    // The coarse tier misses the bound the fine tier holds, by a wide margin —
+    // The coarse tier misses the bound the fine tier holds, by a wide margin --
     // which is the evidence for carrying two tiers.
     assert!(
         worst > 2.0 * FINE_QUANTUM_DEGREES,
@@ -183,8 +180,8 @@ fn the_same_sweep_at_the_coarse_tier_shows_why_there_are_two_tiers() {
 /// cannot answer this: it is an unsigned magnitude.
 fn signed_yaw_step(from: Versor, to: Versor) -> f64 {
     let relative = from.inverse().compose(to);
-    // For a yaw about +Z the relative versor is `(0, 0, sin(θ/2), cos(θ/2))`,
-    // so `z · w` carries the sign of θ over a half turn either way.
+    // For a yaw about +Z the relative versor is `(0, 0, sin(theta/2), cos(theta/2))`,
+    // so `z * w` carries the sign of theta over a half turn either way.
     let q = relative.to_xyzw();
     let signed = q[2].to_f64() * q[3].to_f64();
     if signed >= 0.0 {
@@ -198,13 +195,13 @@ fn signed_yaw_step(from: Versor, to: Versor) -> f64 {
 const fn yaw(degrees: f64) -> Versor {
     Versor::from_yaw_pitch_roll(
         Angle32::from_degrees(degrees),
-        corvid_fixed::Pitch32::ZERO,
+        corvid_transform::Pitch32::ZERO,
         Angle32::ZERO,
     )
 }
 
-/// Sweeps the head at 200°/s sampled at 90 Hz through `codec`, and returns the
-/// worst deviation of a frame-to-frame step from the ideal 2.22°, along with
+/// Sweeps the head at 200 deg/s sampled at 90 Hz through `codec`, and returns the
+/// worst deviation of a frame-to-frame step from the ideal 2.22 deg, along with
 /// the number of frames where the motion reversed.
 fn sweep_deviation(mut codec: impl FnMut(Versor) -> Versor) -> (f64, u32) {
     let mut worst = 0.0f64;
@@ -216,7 +213,7 @@ fn sweep_deviation(mut codec: impl FnMut(Versor) -> Versor) -> (f64, u32) {
         if let Some(prev) = previous {
             let step = prev.angle_to(decoded).to_degrees();
             worst = worst.max((step - STEP_DEGREES).abs());
-            // `angle_to` is `2·acos(|dot|)` and so never negative — testing it
+            // `angle_to` is `2*acos(|dot|)` and so never negative -- testing it
             // against zero could not detect a reversal. The sweep is a yaw, so
             // the sign of the step is the sign of the relative rotation's `z`
             // component, which is what actually says which way the head turned.

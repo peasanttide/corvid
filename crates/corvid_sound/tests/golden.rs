@@ -57,7 +57,7 @@ mod common;
 use corvid_fixed::{Factor16, I8F8, I16F16, I48F16};
 use corvid_sound::{AudioFrame, Bus, BusId, Cue, CueId, Listener, SoundId, Source, SourceId};
 use corvid_time::Tick;
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 use corvid_vector::{FinePoint, GlobalFinePoint};
 
 // ---------------------------------------------------------------------------
@@ -112,13 +112,11 @@ const fn full_cue() -> Cue {
 }
 
 const fn full_listener() -> Listener {
-    Listener::new(
-        GlobalFineTransform::IDENTITY.with_position(GlobalFinePoint::new(
-            I48F16::from_f64(1.0),
-            I48F16::from_f64(2.0),
-            I48F16::from_f64(3.0),
-        )),
-    )
+    Listener::new(FineTransform::IDENTITY.with_position(GlobalFinePoint::new(
+        I48F16::from_f64(1.0),
+        I48F16::from_f64(2.0),
+        I48F16::from_f64(3.0),
+    )))
     .with_gain(Factor16::from_f64(0.875))
 }
 

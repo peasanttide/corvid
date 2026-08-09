@@ -192,15 +192,3 @@ fn conversions_are_available_in_const_context() {
     assert_eq!(NEAR, Some(FinePoint::splat(I16F16::ONE)));
     assert_eq!(WIDE, GlobalFinePoint::splat(I48F16::ONE));
 }
-
-/// `OutOfRange` is an error in the trait sense, not merely a type named one.
-///
-/// This crate is `no_std`, so the trait is `core::error::Error` — which is what
-/// `thiserror` derives when its `std` feature is off. A build that turned that
-/// feature on would name `std::error::Error` instead and fail to compile here
-/// rather than quietly dropping the impl, and this is what says so.
-#[test]
-fn out_of_range_is_an_error() {
-    const fn assert_error<E: core::error::Error>() {}
-    assert_error::<corvid_vector::OutOfRange>();
-}

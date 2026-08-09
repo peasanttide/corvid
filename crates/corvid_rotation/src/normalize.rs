@@ -1,7 +1,7 @@
 //! The one normalize every decoder in this crate shares.
 //!
-//! Both packed codecs end in the same question — given four integers, what unit
-//! quaternion do they point at? — and the answer is the dominant cost of either
+//! Both packed codecs end in the same question -- given four integers, what unit
+//! quaternion do they point at? -- and the answer is the dominant cost of either
 //! decode. It is worth writing once, and worth writing without a division.
 //!
 //! Normalizing is **scale-free**: only the ratios of the inputs matter, so a
@@ -20,7 +20,7 @@ const ONE: i64 = 1 << 30;
 /// caller a value that is not a rotation at all: `Versor::from_xyzw` rejects it,
 /// `renormalize` cannot repair it, `to_basis` reads it as the identity while
 /// `angle_to` reads it as a half turn, and `compose` spreads it. The inputs that
-/// reach it are all ones where the identity is the honest answer — an all-zero
+/// reach it are all ones where the identity is the honest answer -- an all-zero
 /// `FineRotation` off a zeroed buffer, `from_axis_angle` about a zero axis, a
 /// `mint` quaternion that collapsed in `f64`.
 ///
@@ -28,7 +28,7 @@ const ONE: i64 = 1 << 30;
 ///
 /// This is the reduction [`I2F30`] was given its spare bit of range for.
 /// Rescaled so the largest component is just under `1`, the sum of squares
-/// lands in `[0.25, 4]` — which does not fit a type that stops at `±2`. But an
+/// lands in `[0.25, 4]` -- which does not fit a type that stops at `+/-2`. But an
 /// **even** shift always brings it into `[0.25, 1]`, and `rsqrt` of *that*
 /// lands in `[1, 2]`, which fits exactly. Undoing the shift afterwards is
 /// another shift, because the shift was even.
@@ -48,7 +48,7 @@ pub(crate) const fn normalize4(v: [i64; 4]) -> [i32; 4] {
 /// trading that step's exact rounding for roughly 3.7x its throughput.
 ///
 /// The `3.2e-5` relative error scales all four components alike, so it carries
-/// straight through step 4: each lands within about `2^15` of its Q30 value —
+/// straight through step 4: each lands within about `2^15` of its Q30 value --
 /// four decimal digits of a unit quaternion, against the twelve [`normalize4`]
 /// gives. That is well inside what either packed codec resolves.
 ///
@@ -57,8 +57,8 @@ pub(crate) const fn normalize4(v: [i64; 4]) -> [i32; 4] {
 /// exact tier's than the component figures suggest.
 ///
 /// Zero still returns the identity, and the reduction's `0.25` case still lands
-/// on an exact `±1` by hand, so the axis-aligned rotations stay exact in both
-/// tiers. What the approximation does cost a repeated caller is a deadband —
+/// on an exact `+/-1` by hand, so the axis-aligned rotations stay exact in both
+/// tiers. What the approximation does cost a repeated caller is a deadband --
 /// see [`renormalize_fast`](crate::Versor::renormalize_fast), where it is the
 /// dominant effect.
 #[must_use]
@@ -76,7 +76,7 @@ pub(crate) const fn normalize4_fast(v: [i64; 4]) -> [i32; 4] {
 const fn normalize4_tier(v: [i64; 4], fast: bool) -> [i32; 4] {
     // 1. Rescale so the largest |component| sits in `[2^29, 2^30)`. A shift
     //    rather than a divide, which costs at most a last bit of the smallest
-    //    component — below the resolution of anything downstream.
+    //    component -- below the resolution of anything downstream.
     let mut largest = v[0].unsigned_abs();
     let mut i = 1;
     while i < 4 {
@@ -89,7 +89,7 @@ const fn normalize4_tier(v: [i64; 4], fast: bool) -> [i32; 4] {
         return [0, 0, 0, ONE as i32];
     }
 
-    let bit_length = corvid_bits::bit_length_u64(largest);
+    let bit_length = 64 - largest.leading_zeros();
     let t = if bit_length > 30 {
         let down = bit_length - 30;
         [
@@ -116,7 +116,7 @@ const fn normalize4_tier(v: [i64; 4], fast: bool) -> [i32; 4] {
     let inverse = if reduced <= ONE >> 2 {
         // `rsqrt(0.25)` is exactly `2.0`, one step past `I2F30::MAX`, so the
         // type would clamp. That is the axis-aligned case, whose answer ought
-        // to be exactly ±1 — so take this one value by hand.
+        // to be exactly +/-1 -- so take this one value by hand.
         1i64 << 31
     } else {
         let root = I2F30::from_bits(reduced as i32);
@@ -143,7 +143,7 @@ const fn normalize4_tier(v: [i64; 4], fast: bool) -> [i32; 4] {
 /// `value >> shift`, truncating **toward zero** rather than toward negative
 /// infinity.
 ///
-/// An arithmetic shift floors, which makes the rescale asymmetric in sign — and
+/// An arithmetic shift floors, which makes the rescale asymmetric in sign -- and
 /// then `normalize(-v)` stops being `-normalize(v)`. That matters here: a
 /// rotation and its double-cover twin would pack to bit patterns a last bit
 /// apart, and `FineRotation`'s sign canonicalization would not actually

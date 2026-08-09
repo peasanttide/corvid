@@ -16,8 +16,8 @@
 
 use core::mem::{align_of, size_of};
 
-use corvid_fixed::{I24F8, I48F16, Signed8, Signed32};
-use corvid_vector::{Direction, FinePoint, GlobalFinePoint, GlobalPoint, OctDirection};
+use corvid_fixed::{I24F8, I48F16, Signed32};
+use corvid_vector::{Direction, FinePoint, GlobalFinePoint, GlobalPoint};
 
 #[test]
 fn every_point_is_three_scalars_and_nothing_else() {
@@ -31,13 +31,6 @@ fn every_point_is_three_scalars_and_nothing_else() {
     );
     assert_eq!((size_of::<FinePoint>(), align_of::<FinePoint>()), (12, 4));
     assert_eq!((size_of::<Direction>(), align_of::<Direction>()), (12, 4));
-
-    // Sixteen bits, byte-aligned, which is the whole reason the packed normal
-    // exists — and it is `wgpu`'s `Snorm8x2` only while both of these hold.
-    assert_eq!(
-        (size_of::<OctDirection>(), align_of::<OctDirection>()),
-        (2, 1)
-    );
 }
 
 #[test]
@@ -46,19 +39,6 @@ fn default_is_the_origin() {
     assert_eq!(GlobalFinePoint::default(), GlobalFinePoint::ZERO);
     assert_eq!(FinePoint::default(), FinePoint::ZERO);
     assert_eq!(Direction::default(), Direction::ZERO);
-}
-
-#[test]
-fn the_zero_packed_normal_points_up() {
-    // A zeroed vertex buffer is a real thing, so the all-zero pattern had better
-    // name a direction rather than nothing. It is +Z, and `Default`, `UP` and
-    // the decode all have to agree about that.
-    assert_eq!(OctDirection::default(), OctDirection::UP);
-    assert_eq!(
-        OctDirection::UP.decode(),
-        Direction::new(Signed32::ZERO, Signed32::ZERO, Signed32::MAX)
-    );
-    assert_eq!(OctDirection::encode(Direction::ZERO), OctDirection::UP);
 }
 
 #[test]
@@ -102,96 +82,6 @@ fn arrays_round_trip_through_the_trait_conversions() {
     assert_eq!(<[I48F16; 3]>::from(p), components);
 }
 
-mod digest_interop {
-    use core::hash::Hash as _;
-
-    use corvid_fixed::I16F16;
-    use corvid_hash::{Digest, Hasher, digest};
-
-    use super::{Direction, FinePoint, GlobalFinePoint, GlobalPoint, I24F8, Signed32};
-
-    /// A point absorbs its three components in `x`, `y`, `z` order, each
-    /// through its own encoding, and nothing else — no length, because the
-    /// arity is in the type.
-    fn corner() -> Digest {
-        let mut hasher = Hasher::new();
-        for bits in [1, 2, 3] {
-            I24F8::from_bits(bits).hash(&mut hasher);
-        }
-        hasher.digest()
-    }
-
-    #[test]
-    fn a_point_absorbs_its_components_and_no_length() {
-        let point = GlobalPoint::new(
-            I24F8::from_bits(1),
-            I24F8::from_bits(2),
-            I24F8::from_bits(3),
-        );
-        assert_eq!(corner(), digest(&point));
-    }
-
-    #[test]
-    fn the_components_are_absorbed_in_order() {
-        // A point that absorbed its components as an unordered set, or that
-        // dropped one, would let two different positions agree on a mark.
-        let one = I16F16::from_bits(1);
-        let x = FinePoint::new(one, I16F16::ZERO, I16F16::ZERO);
-        let y = FinePoint::new(I16F16::ZERO, one, I16F16::ZERO);
-        let z = FinePoint::new(I16F16::ZERO, I16F16::ZERO, one);
-        assert_ne!(digest(&x), digest(&y));
-        assert_ne!(digest(&y), digest(&z));
-        assert_ne!(digest(&x), digest(&FinePoint::ZERO));
-    }
-
-    #[test]
-    fn a_denormal_component_digests_as_the_direction_it_denotes() {
-        // `Direction` already folds `Signed32`'s second encoding of `-1.0` for
-        // `Eq` and for `Hash`; the digest has to fold in the same place, or two
-        // directions that compare equal would produce different marks.
-        let canonical = Direction::from_array([Signed32::MIN, Signed32::ZERO, Signed32::ZERO]);
-        let denormal = Direction::from_array([
-            Signed32::from_bits(i32::MIN),
-            Signed32::ZERO,
-            Signed32::ZERO,
-        ]);
-        assert_eq!(canonical, denormal);
-        assert_eq!(digest(&canonical), digest(&denormal));
-    }
-
-    #[test]
-    fn a_packed_normal_digests_as_the_direction_it_denotes() {
-        use super::{OctDirection, Signed8};
-
-        // Same argument as `Direction`'s, at the narrower width: the two
-        // spellings of `-1.0` are one component, so they are one normal, so they
-        // are one mark.
-        let canonical = OctDirection::new(Signed8::from_bits(-127), Signed8::from_bits(40));
-        let denormal = OctDirection::new(Signed8::from_bits(-128), Signed8::from_bits(40));
-        assert_eq!(canonical, denormal);
-        assert_eq!(digest(&canonical), digest(&denormal));
-
-        // And the two components are absorbed in order, so a swapped pair —
-        // which names a different direction — is a different mark.
-        let swapped = OctDirection::new(Signed8::from_bits(40), Signed8::from_bits(-127));
-        assert_ne!(canonical.decode(), swapped.decode());
-        assert_ne!(digest(&canonical), digest(&swapped));
-    }
-
-    #[test]
-    fn every_point_type_is_digestible() {
-        // Every point type hashes, and none of them hashes to nothing.
-        assert_ne!(digest(&GlobalFinePoint::ZERO), Digest::ZERO);
-        assert_ne!(digest(&GlobalPoint::ZERO), Digest::ZERO);
-        assert_ne!(digest(&FinePoint::ZERO), Digest::ZERO);
-        assert_ne!(
-            digest(&Direction::from_array([Signed32::ZERO; 3])),
-            Digest::ZERO
-        );
-        assert_ne!(digest(&super::OctDirection::UP), Digest::ZERO);
-    }
-}
-
 #[cfg(feature = "bytemuck")]
 #[test]
 fn points_are_plain_old_data() {
@@ -207,15 +97,6 @@ fn points_are_plain_old_data() {
         <GlobalPoint as bytemuck::Zeroable>::zeroed(),
         GlobalPoint::ZERO
     );
-
-    // The packed normal is the one whose `bytes_of` a vertex buffer actually
-    // holds, so its two bytes are the two components in order and nothing else.
-    let normal = OctDirection::new(Signed8::from_bits(40), Signed8::from_bits(-3));
-    assert_eq!(bytemuck::bytes_of(&normal), &[40, 0xfd]);
-    assert_eq!(
-        <OctDirection as bytemuck::Zeroable>::zeroed(),
-        OctDirection::UP
-    );
 }
 
 #[cfg(feature = "serde")]
@@ -230,14 +111,6 @@ fn points_serialize_transparently_as_three_element_arrays() {
     );
     assert_eq!(serde_json::to_string(&p).unwrap(), "[1,-2,3]");
     assert_eq!(serde_json::from_str::<GlobalPoint>("[1,-2,3]").unwrap(), p);
-
-    // The packed normal is a two-element array for the same reason.
-    let normal = OctDirection::new(Signed8::from_bits(40), Signed8::from_bits(-3));
-    assert_eq!(serde_json::to_string(&normal).unwrap(), "[40,-3]");
-    assert_eq!(
-        serde_json::from_str::<OctDirection>("[40,-3]").unwrap(),
-        normal
-    );
 
     let wide = GlobalFinePoint::splat(I48F16::from_bits(1 << 40));
     let text = serde_json::to_string(&wide).unwrap();

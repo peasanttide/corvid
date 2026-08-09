@@ -5,7 +5,7 @@ use corvid_fixed::{I16F16, Signed32};
 use corvid_glm::Mat4;
 use corvid_rotation::Versor;
 use corvid_shape::{Frustum, Ray};
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 use corvid_vector::{Direction, FinePoint, GlobalPoint};
 
 /// A pose and a frustum: where the camera is, and how much it sees.
@@ -51,7 +51,7 @@ use corvid_vector::{Direction, FinePoint, GlobalPoint};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Camera {
     /// Where the camera is and which way it faces. World space.
-    pub pose: GlobalFineTransform,
+    pub pose: FineTransform,
     /// How much of the world it sees.
     pub frustum: Frustum,
 }
@@ -59,7 +59,7 @@ pub struct Camera {
 impl Camera {
     /// An eye at a pose, seeing a frustum.
     #[must_use]
-    pub const fn new(pose: GlobalFineTransform, frustum: Frustum) -> Self {
+    pub const fn new(pose: FineTransform, frustum: Frustum) -> Self {
         Self { pose, frustum }
     }
 

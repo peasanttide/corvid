@@ -19,7 +19,7 @@ corvid_hash = { workspace = true }
 # `sin_cos`, and this workspace already owns both — reaching for them here is
 # cheaper than a `libm` dependency and gives the hue a type that says it wraps,
 # which an `f32` of radians does not.
-corvid_fixed = { version = "0.2.0", path = "../corvid_fixed", default-features = false }
+corvid_fixed = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

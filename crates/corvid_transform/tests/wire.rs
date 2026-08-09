@@ -6,7 +6,7 @@
 //! transform is a *struct* rather than a transparent newtype: it has two fields
 //! and they are written in declaration order, with no name and no tag.
 //!
-//! The field order is already covered — `tests/interop.rs` pins the JSON, which
+//! The field order is already covered -- `tests/interop.rs` pins the JSON, which
 //! carries the names and would go red the moment `position` and `rotation`
 //! exchanged places or one of them was renamed. What this table adds is
 //! everything about the same two fields that JSON has no way to spell: the exact
@@ -20,7 +20,7 @@
 //! one `fd` and eight. The two positions do not separate: a coordinate is written
 //! as a varint, so the same small numbers are the same bytes whether they were
 //! declared at four bytes each or eight. A widened coordinate is invisible here
-//! and invisible in JSON, and what sees it is the digest — `tests/determinism.rs`
+//! and invisible in JSON, and what sees it is the digest -- `tests/determinism.rs`
 //! is that table.
 //!
 //! So the tables are all needed and none substitutes for another: JSON sees the
@@ -38,7 +38,7 @@
 
 use corvid_fixed::{I24F8, I48F16};
 use corvid_rotation::{FineRotation, Rotation};
-use corvid_transform::{GlobalFineTransform, Transform};
+use corvid_transform::{FineTransform, Transform};
 use corvid_vector::{GlobalFinePoint, GlobalPoint};
 use corvid_wire::golden::{Row, check};
 
@@ -61,9 +61,9 @@ const GOLDEN_TRANSFORMS: &[Row<'_>] = &[
 /// The camera and tracked-pose tier: twenty-four bytes of position, then eight
 /// of rotation.
 const GOLDEN_FINE_TRANSFORMS: &[Row<'_>] = &[
-    ("GlobalFineTransform::IDENTITY", "000000fd000000000000ff7f"),
+    ("FineTransform::IDENTITY", "000000fd000000000000ff7f"),
     (
-        "GlobalFineTransform, position bits 1, 2, -3, rotation bits 0x1234_5678_9abc_def0",
+        "FineTransform, position bits 1, 2, -3, rotation bits 0x1234_5678_9abc_def0",
         "020405fdf0debc9a78563412",
     ),
 ];
@@ -79,8 +79,8 @@ const fn transform() -> Transform {
     )
 }
 
-const fn fine_transform() -> GlobalFineTransform {
-    GlobalFineTransform::new(
+const fn fine_transform() -> FineTransform {
+    FineTransform::new(
         GlobalFinePoint::new(
             I48F16::from_bits(1),
             I48F16::from_bits(2),
@@ -103,9 +103,9 @@ fn the_object_transform_encodes_as_it_was_recorded() {
 #[test]
 fn the_fine_transform_encodes_as_it_was_recorded() {
     check(
-        "GlobalFineTransform",
+        "FineTransform",
         GOLDEN_FINE_TRANSFORMS,
-        &[GlobalFineTransform::IDENTITY, fine_transform()],
+        &[FineTransform::IDENTITY, fine_transform()],
     )
     .unwrap();
 }
@@ -148,7 +148,7 @@ fn the_two_tiers_are_the_same_shape_at_two_widths() {
     assert_eq!(narrow_position, wide_position);
 
     // What separates the two whole transforms is the rotation, which fills its
-    // width and so takes a wider marker — five bytes against nine.
+    // width and so takes a wider marker -- five bytes against nine.
     assert_ne!(narrow, wide);
     assert_eq!(wide.len(), narrow.len() + 4);
 

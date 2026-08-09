@@ -22,22 +22,22 @@ const fn fold(raw: u64) -> i64 {
     }
 }
 
-/// A rotation packed into 64 bits: **~0.0017° mean, ~0.0034° max**.
+/// A rotation packed into 64 bits: **~0.0017 deg mean, ~0.0034 deg max**.
 ///
 /// Four [`Signed16`] SNORM components, packed low to high as `x`, `y`, `z`,
-/// `w`. That is 2.3× inside the 1/128° (0.0078°) target with no chart and no
+/// `w`. That is 2.3x inside the 1/128 deg (0.0078 deg) target with no chart and no
 /// warp: at 64 bits the chart machinery stops paying for itself, because the
 /// redundancy of storing four numbers for three degrees of freedom costs about
 /// one bit and the budget is there.
 ///
 /// # Where those figures come from
 ///
-/// They are **extrapolated, not measured**. The source harness reports 0.4298°
-/// mean / 0.8712° max for this encoding at 4×8 bits, and uniform quantization
+/// They are **extrapolated, not measured**. The source harness reports 0.4298 deg
+/// mean / 0.8712 deg max for this encoding at 4x8 bits, and uniform quantization
 /// error scales linearly with step size, so eight more bits per component
 /// divides both by 256. The extrapolation is sound, but note where it lands:
-/// the source paper states its own `f32` tables plateau near 0.001–0.01°, which
-/// is exactly this range — so the test that checks it must use an **`f64`**
+/// the source paper states its own `f32` tables plateau near 0.001-0.01 deg, which
+/// is exactly this range -- so the test that checks it must use an **`f64`**
 /// reference, or it measures the harness rather than the codec.
 ///
 /// # Sign canonicalization
@@ -88,8 +88,8 @@ impl FineRotation {
     ///
     /// `i16::MIN` is folded onto `-COMPONENT_MAX`, the way `Rotation` folds its
     /// own one-past-the-end field pattern. The signed-normalized convention
-    /// keeps `±1` symmetric, so `MIN` is `-MAX` and the extra pattern denotes
-    /// nothing new — but left alone it makes `canonicalize` negate a value that
+    /// keeps `+/-1` symmetric, so `MIN` is `-MAX` and the extra pattern denotes
+    /// nothing new -- but left alone it makes `canonicalize` negate a value that
     /// wraps straight back to itself, so `canonicalize` would not be idempotent
     /// and [`is_canonical`](Self::is_canonical) would be false for its own
     /// output.
@@ -182,11 +182,11 @@ impl FineRotation {
 
     /// Unpacks into a unit quaternion.
     ///
-    /// The four raw `i16`s go straight to the shared normalize — which is
+    /// The four raw `i16`s go straight to the shared normalize -- which is
     /// scale-free, so there is no division by `32767` to perform first.
     ///
-    /// The all-zero pattern — what a zeroed buffer, a `serde` `0` or
-    /// `bytemuck::zeroed` produces — names no rotation at all, and
+    /// The all-zero pattern -- what a zeroed buffer, a `serde` `0` or
+    /// `bytemuck::zeroed` produces -- names no rotation at all, and
     /// `normalize4` reads it as the identity rather than handing back a zero
     /// quaternion.
     #[must_use]
@@ -212,9 +212,9 @@ impl FineRotation {
     /// Upgrades from the 32-bit tier. Total.
     ///
     /// Not lossless in the way "upgrade" suggests: this re-quantizes, adding up
-    /// to this type's own 0.0034° on top of the 0.186° the
+    /// to this type's own 0.0034 deg on top of the 0.186 deg the
     /// [`Rotation`] already carries. That is a 1.8% increase in a quantity
-    /// already dominated by the coarse codec — not a free improvement.
+    /// already dominated by the coarse codec -- not a free improvement.
     #[must_use]
     #[inline]
     pub const fn from_rotation(r: Rotation) -> Self {

@@ -985,7 +985,7 @@ impl<S: State> Link<S> {
 
     /// One control message to everybody the transport can reach.
     fn say_all(&self, control: Control) {
-        for peer in self.transport.peers().get().iter() {
+        for peer in self.transport.peers().iter() {
             self.say(peer, control);
         }
     }
@@ -1034,7 +1034,7 @@ impl<S: State> Link<S> {
             }
         }
 
-        let peers = self.transport.peers().get();
+        let peers = self.transport.peers();
         traffic.peers = u16::try_from(peers.len()).unwrap_or(u16::MAX);
         for peer in peers.iter() {
             match self.transport.send_datagram(peer, &self.outbound) {
@@ -1113,13 +1113,12 @@ pub(crate) fn udp(
         return Err(crate::Error::Argument(crate::Argument::Pairing { seat }));
     };
     let here = ("0.0.0.0", port);
-    let socket = corvid_net::udp::UdpNet::bind(here, PeerId(seat.0)).map_err(|why| {
-        crate::Error::Socket {
+    let socket =
+        corvid_net_udp::UdpNet::bind(here, PeerId(seat.0)).map_err(|why| crate::Error::Socket {
             what: "bind",
             address: format!("0.0.0.0:{port}"),
             why,
-        }
-    })?;
+        })?;
     socket
         .connect(PeerId(other), peer)
         .map_err(|why| crate::Error::Socket {

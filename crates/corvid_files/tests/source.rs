@@ -1,5 +1,5 @@
 //! The trait's own contract: the three findings, the sources that are not
-//! `Memory`, and what an implementation gets for free — including the write it
+//! `Memory`, and what an implementation gets for free -- including the write it
 //! is entitled to refuse.
 
 #![allow(
@@ -106,8 +106,8 @@ fn the_unit_source_holds_nothing_and_says_so_rather_than_panicking() {
 /// A source that overrides nothing refuses every write, and says which path it
 /// refused rather than answering a bare unit.
 ///
-/// The default is what most implementations will keep — a directory mounted for
-/// reading, an archive, a constant compiled in — so it is the behaviour worth
+/// The default is what most implementations will keep -- a directory mounted for
+/// reading, an archive, a constant compiled in -- so it is the behaviour worth
 /// pinning rather than the override.
 #[test]
 fn a_source_that_overrides_nothing_refuses_the_write_and_names_the_path() {
@@ -173,8 +173,8 @@ fn a_refused_write_says_which_finding_it_is_when_printed() {
     );
 }
 
-/// A borrow of a source satisfies an `S: Source` bound, and that — not the
-/// coercion to `&dyn Source`, which needs no help — is what the impl on `&T`
+/// A borrow of a source satisfies an `S: Source` bound, and that -- not the
+/// coercion to `&dyn Source`, which needs no help -- is what the impl on `&T`
 /// is for.
 #[test]
 fn a_borrow_of_a_source_is_itself_a_source() {
@@ -243,7 +243,7 @@ fn a_borrow_forwards_exists_rather_than_falling_back_to_the_default() {
 /// by reading the file and throwing the bytes away.
 ///
 /// Wasteful and correct, which is why it is a default rather than a
-/// requirement — and why both of the sources shipped here override it.
+/// requirement -- and why both of the sources shipped here override it.
 #[test]
 fn the_default_exists_reads_the_file_and_drops_the_bytes() {
     struct TwoMethodsOnly(Memory);

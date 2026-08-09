@@ -325,7 +325,7 @@ impl Painted {
     /// A ray that misses the quad, a panel of no width, and a layout of no
     /// size all answer [`None`].
     ///
-    /// `pose` is a [`Transform`] rather than a `GlobalFineTransform` because a
+    /// `pose` is a [`Transform`] rather than a `FineTransform` because a
     /// [`Ray`] is cast in `GlobalPoint` and the two have to be the same tier
     /// for the intersection to be exact. The
     /// resolution that leaves is the ray's own: 3.9 mm, which on a metre-wide

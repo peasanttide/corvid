@@ -215,7 +215,7 @@ pub use corvid_fixed::{
 pub use corvid_float as float;
 pub use corvid_glm::{self as glm, Mat4, Vec2, Vec3, Vec4};
 pub use corvid_rotation::{self as rotation, Basis, FineRotation, Rotation, Versor};
-pub use corvid_transform::{self as transform, GlobalFineTransform, Transform};
+pub use corvid_transform::{self as transform, FineTransform, Transform};
 pub use corvid_vector::{
     self as vector, Direction, FinePoint, GlobalFinePoint, GlobalPoint, OctDirection,
 };

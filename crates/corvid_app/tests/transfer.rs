@@ -128,8 +128,8 @@ impl Transport for Scripted {
         }
     }
 
-    fn peers(&self) -> &Watch<PeerSet> {
-        &self.peers
+    fn peers(&self) -> PeerSet {
+        self.peers.get().as_ref().clone()
     }
 }
 

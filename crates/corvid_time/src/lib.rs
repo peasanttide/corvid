@@ -2,7 +2,7 @@
 #![no_std]
 
 // `Clock::wall` is the only thing here that asks the operating system
-// anything, and `std` is the only feature that adds API — the clock itself, in
+// anything, and `std` is the only feature that adds API -- the clock itself, in
 // its stepping mode, is `no_std` like everything else. Nothing here reaches
 // past `core` otherwise, and there is no allocation in this crate at all.
 #[cfg(feature = "std")]

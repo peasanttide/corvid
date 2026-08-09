@@ -7,7 +7,7 @@
 
 use core::time::Duration;
 
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 use serde::{Deserialize, Serialize};
 
 /// A pose in stage space: metres from the stage's origin.
@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// anything a cursor can pick and coarser than the shimmer a wearer sees on
 /// every frame; [`GlobalFinePoint`](corvid_vector::GlobalFinePoint)'s
 /// 15.26 µm is not.
-pub type Pose = GlobalFineTransform;
+pub type Pose = FineTransform;
 
 /// How much a tracked value is to be believed.
 ///

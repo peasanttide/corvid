@@ -36,11 +36,18 @@ bytemuck = { workspace = true, optional = true }
 # the runtime: that is what makes the demo and the tests one piece of code, and
 # what lets a session over a bad link be a `for` loop with no clock in it.
 corvid_net = { workspace = true, optional = true }
+# The scripted link `rally::Match` drives. A backend rather than the contract,
+# because the demo and the tests are one piece of code and what makes that
+# work is a network with no clock in it.
+corvid_net_mock = { workspace = true, optional = true }
 corvid_lockstep = { workspace = true, features = ["std"], optional = true }
 corvid_replay = { workspace = true, features = ["std"], optional = true }
 # The encoding a datagram is written in, which the harness needs because it
 # builds and reads datagrams itself.
 corvid_wire = { workspace = true, features = ["std"], optional = true }
+# `tests/socket.rs` plays a rally over two real sockets rather than over a
+# scripted link, which is the one test here that needs a backend that binds.
+corvid_net_udp = { workspace = true, optional = true }
 
 [features]
 # A window, a device, a sound card, and the netcode. All four, because the point
@@ -57,6 +64,8 @@ net = [
     "render",
     "corvid/net",
     "dep:corvid_net",
+    "dep:corvid_net_mock",
+    "dep:corvid_net_udp",
     "dep:corvid_lockstep",
     "dep:corvid_replay",
     "dep:corvid_wire",

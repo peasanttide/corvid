@@ -26,8 +26,8 @@ corvid_macros = { workspace = true }
 # `serde` is turned on rather than forwarded, because `Data` demands
 # `Serialize + DeserializeOwned` unconditionally: a game whose transforms could
 # not be serialized could not implement the trait this crate exists to define.
-corvid_time = { version = "0.2.0", path = "../corvid_time", features = ["serde"] }
-corvid_transform = { version = "0.2.0", path = "../corvid_transform", features = ["serde"] }
+corvid_time = { workspace = true, features = ["serde"] }
+corvid_transform = { workspace = true, features = ["serde"] }
 # `alloc` because this crate has no `std`; `rc` — named again here rather than
 # left to the workspace entry — because `Frame` is four `Arc` handles and its
 # `Serialize` and `Deserialize` are the whole reason a front end can be driven

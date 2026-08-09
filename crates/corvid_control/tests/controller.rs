@@ -15,7 +15,7 @@ use corvid_files::{Malformed, Source};
 use corvid_input::{Input, SetDescriptor};
 use corvid_rotation::FineRotation;
 use corvid_shape::Frustum;
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 use corvid_vector::globalfinepoint;
 use serde::{Deserialize, Serialize};
 
@@ -78,7 +78,7 @@ impl Controller<Walk> for Hands {
 
     fn look(&self) -> Camera {
         Camera::new(
-            GlobalFineTransform::new(globalfinepoint(0, 0, self.height), FineRotation::IDENTITY),
+            FineTransform::new(globalfinepoint(0, 0, self.height), FineRotation::IDENTITY),
             Frustum::default(),
         )
     }
@@ -167,7 +167,7 @@ fn the_unit_controller_is_not_real_and_answers_the_idle_action() {
     );
     assert_eq!(
         Controller::<Walk>::look(&nobody).pose,
-        GlobalFineTransform::IDENTITY,
+        FineTransform::IDENTITY,
     );
 
     // And it survives being driven, which is what makes it usable as a default

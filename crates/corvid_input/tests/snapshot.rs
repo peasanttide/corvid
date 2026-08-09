@@ -6,7 +6,7 @@ use corvid_fixed::Signed16;
 use corvid_input::{
     Analog, AnalogId, Cursor, Digital, DigitalId, IdRange, Input, PoseId, SetId, Viewport,
 };
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 use corvid_vector::GlobalFinePoint;
 /// Two sets that share no action, which is the arrangement a console overlay
 /// makes: `Console` is layered over `Build` and neither knows about the other.
@@ -97,10 +97,10 @@ const fn swept() -> Analog {
 /// A pose a metre east of the origin.
 ///
 /// Somewhere other than the identity on purpose, so that a query answering with
-/// `Some(GlobalFineTransform::IDENTITY)` could not pass for the pose that was
+/// `Some(FineTransform::IDENTITY)` could not pass for the pose that was
 /// actually recorded.
-const fn somewhere() -> GlobalFineTransform {
-    GlobalFineTransform::IDENTITY.with_position(GlobalFinePoint::new(
+const fn somewhere() -> FineTransform {
+    FineTransform::IDENTITY.with_position(GlobalFinePoint::new(
         I48F16::ONE,
         I48F16::ZERO,
         I48F16::ZERO,

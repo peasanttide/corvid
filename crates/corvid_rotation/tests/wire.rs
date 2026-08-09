@@ -2,15 +2,15 @@
 //! break.**
 //!
 //! A rotation is a packed integer, and that is the whole of what a capture holds
-//! of one. The *packing* — which chart is in which bits, how many bits a field
-//! gets — is already frozen: `tests/determinism.rs` records the bit patterns a
+//! of one. The *packing* -- which chart is in which bits, how many bits a field
+//! gets -- is already frozen: `tests/determinism.rs` records the bit patterns a
 //! table of poses quantizes to, and moving `FIELD_BITS` by one turns it red.
 //!
 //! What that table cannot see is how a pattern becomes bytes, and that is what
 //! this one is for. A packed rotation uses its bits, so it is the one value in
 //! this workspace whose width *is* on the wire: a `Rotation` is a marker and
 //! four bytes and a `FineRotation` a marker and eight, least significant first,
-//! with no wrapper around either — three separate claims, none of them stated
+//! with no wrapper around either -- three separate claims, none of them stated
 //! anywhere in the source, and all three about whether a capture recorded on one
 //! machine is the same capture on another.
 //! `to_bits` returning the right number says nothing about any of them: it is
@@ -46,7 +46,7 @@ use corvid_wire::golden::{Row, check};
 /// The second row is the one that is only about the encoding. Its value is a
 /// pattern rather than a quantized rotation, and its four bytes are all
 /// different, so it moves for an endianness change or a width change and for
-/// nothing else — where the identity row would also move for a change to the
+/// nothing else -- where the identity row would also move for a change to the
 /// packing, which `tests/determinism.rs` owns.
 const GOLDEN_ROTATIONS: &[Row<'_>] = &[
     ("Rotation::IDENTITY", "fc000208e0"),

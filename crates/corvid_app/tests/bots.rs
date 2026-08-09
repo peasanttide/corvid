@@ -209,8 +209,8 @@ mod linked {
 
         fn poll(&self, _sink: &mut dyn FnMut(PeerId, Delivery<'_>)) {}
 
-        fn peers(&self) -> &Watch<PeerSet> {
-            &self.peers
+        fn peers(&self) -> PeerSet {
+            self.peers.get().as_ref().clone()
         }
     }
 

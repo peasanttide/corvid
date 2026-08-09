@@ -17,10 +17,11 @@ mod common;
 use std::hint::black_box;
 
 use common::Rng;
-use corvid_fixed::{Factor32, I24F8, I48F16};
-use corvid_rotation::{FineRotation, Rotation};
-use corvid_transform::{GlobalFineTransform, Transform};
-use corvid_vector::{FinePoint, GlobalFinePoint, GlobalPoint};
+use corvid_transform::{
+    Factor32, FinePoint, FineRotation, FineTransform, GlobalFinePoint, GlobalPoint, I24F8, I48F16,
+    Rotation, Transform,
+};
+
 /// Camera position in metres, then the eye-space bits of a point one metre
 /// ahead of it on each axis.
 const GOLDEN_EYE: &[(f64, [i32; 3])] = &[
@@ -32,7 +33,7 @@ const GOLDEN_EYE: &[(f64, [i32; 3])] = &[
 #[test]
 fn the_hot_path_matches_its_golden_table() {
     for &(origin, expected) in GOLDEN_EYE {
-        let camera = GlobalFineTransform::new(
+        let camera = FineTransform::new(
             GlobalFinePoint::splat(I48F16::from_f64(origin)),
             FineRotation::IDENTITY,
         );
@@ -54,7 +55,7 @@ fn the_hot_path_matches_its_golden_table() {
 
 #[test]
 fn const_evaluation_agrees_with_runtime() {
-    const CAMERA: GlobalFineTransform = GlobalFineTransform::new(
+    const CAMERA: FineTransform = FineTransform::new(
         GlobalFinePoint::splat(I48F16::from_f64(6_371_000.0)),
         FineRotation::IDENTITY,
     );
@@ -63,10 +64,10 @@ fn const_evaluation_agrees_with_runtime() {
     const EYE: Option<FinePoint> = CAMERA.to_fine_global(TARGET);
     const LOCAL: Option<GlobalPoint> = CAMERA.to_local_global(TARGET);
     const WORLD: GlobalFinePoint = CAMERA.to_world(FinePoint::ZERO);
-    const INVERTED: GlobalFineTransform = CAMERA.inverse();
-    const COMPOSED: GlobalFineTransform = CAMERA.compose(CAMERA.inverse());
+    const INVERTED: FineTransform = CAMERA.inverse();
+    const COMPOSED: FineTransform = CAMERA.compose(CAMERA.inverse());
     const COARSE: Option<Transform> = CAMERA.to_coarse_transform();
-    const BLEND: GlobalFineTransform = CAMERA.lerp(CAMERA, Factor32::from_f64(0.5));
+    const BLEND: FineTransform = CAMERA.lerp(CAMERA, Factor32::from_f64(0.5));
 
     let camera = black_box(CAMERA);
     let target = black_box(TARGET);
@@ -85,7 +86,7 @@ fn const_evaluation_agrees_with_runtime_at_the_coarse_tier() {
         GlobalPoint::splat(I24F8::from_f64(100.0)),
         Rotation::IDENTITY,
     );
-    const UPGRADED: GlobalFineTransform = T.to_fine_transform();
+    const UPGRADED: FineTransform = T.to_fine_transform();
     const POINT: GlobalPoint = T.transform_point(GlobalPoint::ZERO);
     const BACK: Option<GlobalPoint> = T.to_local(GlobalPoint::ZERO);
 
@@ -118,7 +119,7 @@ fn the_same_inputs_give_the_same_bits_every_run() {
     };
     // Pinned rather than compared to a rerun of itself: a rerun proves only
     // that the function is a function. A change that moves every result
-    // alike — a rounding rule, a codec retune — fails here.
+    // alike -- a rounding rule, a codec retune -- fails here.
     assert_eq!(
         checksum(0xDE7_E4A1),
         13_347_538_525_801_684_715,

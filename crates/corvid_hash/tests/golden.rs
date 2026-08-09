@@ -8,7 +8,7 @@
 //! compile error. So the outputs are written down here as literals: an
 //! implementation that drifts fails these tests instead of failing a player.
 //!
-//! If a change here is genuinely wanted, it is a new version of the format —
+//! If a change here is genuinely wanted, it is a new version of the format --
 //! bump the crate's major version, update every golden in the workspace that
 //! was recorded with the old one, and say so in the changelog. Regenerating
 //! these numbers to make a red test go green is never the right move.
@@ -20,7 +20,7 @@ use corvid_hash::{Digest, Hasher, digest};
 /// One word absorbed, then finished.
 ///
 /// The fifth row is the seed itself, and it is the weakest row in this file.
-/// Absorbing it computes `mix(SEED ^ SEED)`, which is `mix(0)`, which is zero —
+/// Absorbing it computes `mix(SEED ^ SEED)`, which is `mix(0)`, which is zero --
 /// every stage of the mixer maps zero to zero. So the state collapses and the
 /// digest is `mix(0 ^ 8)`, a function of the length alone. That still pins the
 /// odd constant, the round count and the three later shift distances, but it
@@ -66,8 +66,8 @@ const GOLDEN_BYTES: &[(&[u8], u64)] = &[
 /// string in this suite is. A string absorbs its *bytes*, and for ASCII the
 /// byte count, the character count and the UTF-16 unit count are the same
 /// number, so an ASCII-only table cannot tell an implementation that packs
-/// bytes from one that packs something else. `"é"` is two bytes and one
-/// character; `"🐦"` is four bytes, one character and two UTF-16 units; and the
+/// bytes from one that packs something else. `"\u{e9}"` is two bytes and one
+/// character; `"\u{1f426}"` is four bytes, one character and two UTF-16 units; and the
 /// last row is eleven bytes and eight characters, with the four bytes of the
 /// bird straddling the eight-byte word boundary. A reimplementation in another
 /// language that read the wire-format table and packed code points fails on

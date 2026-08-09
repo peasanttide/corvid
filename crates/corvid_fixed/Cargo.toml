@@ -12,49 +12,38 @@ categories = ["game-development", "mathematics", "no-std::no-alloc"]
 
 [dependencies]
 arbitrary = { workspace = true, optional = true }
-# How wide a magnitude is, which is the first step of every kernel here: the
-# reciprocal square root normalizes to one binade and the arctangent normalizes
-# its divisor to sixteen bits, and both begin by counting the bits. A leaf with
-# no dependencies of its own, which is what lets this crate — the base of the
-# workspace's arithmetic — take it.
-corvid_bits = { workspace = true }
 bytemuck = { workspace = true, optional = true }
-# The rounding the `from_f64` conversions do. It is const, which is what keeps
-# `I16F16::from_f64(0.5)` usable in a `const` — the whole reason that crate
-# wraps a soft float rather than calling the intrinsic.
-corvid_float = { workspace = true }
+# Spelled here rather than in `[workspace.dependencies]` because this is the one
+# crate that names it, and the one that can: the traits are about a scalar, and
+# a scalar is what this crate defines. A vector or a transform has no `Zero` and
+# no `Bounded` to offer, so nothing downstream has a reason to want this.
 num-traits = { version = "0.2.19", default-features = false, optional = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
-# The workspace's one encoding, so that this crate's byte goldens are recorded
-# in the format a capture is actually written in rather than in a stand-in.
-# Every scalar here goes inside somebody's snapshot, and a width is the one
-# change nothing else in this crate can see.
-corvid_wire = { workspace = true }
-# The digest the tests here check a scalar's encoding against. Nothing in the
-# source names it: a scalar's `Hash` is `core`'s, and what the tests pin is what
-# that emission comes to under this workspace's one hasher.
-corvid_hash = { workspace = true }
-# Named here and nowhere in the source, which is the claim: nalgebra's blanket
-# `Scalar` impl already covers every scalar in this crate, so a `Vector3` of
-# fixed point needs no code from either side. `tests/interop.rs` is what says so
-# rather than the README alone. It is not the float-matrix dependency the root
-# manifest reserves to `corvid_glm` — nothing here has a float in it.
+# `tests/wire.rs` digests a value alongside its encoding, which is how it
+# checks that two types with the same bits are two values on the wire.
+corvid_hash = { workspace = true, features = ["std"] }
+# `tests/wire.rs` freezes this crate's encoding as hex, so a field width or
+# an ordering that moved is a failed test rather than a silent format change.
+corvid_wire = { workspace = true, features = ["std"] }
+criterion = { workspace = true }
 nalgebra = { workspace = true }
-# A self-describing format, for the shape `corvid_wire` cannot show. A varint
-# writes a transparent newtype and a struct of one field identically;
-# `tests/interop.rs` pins that a scalar is written as its raw integer, which is
-# the only place a wrapper gaining a field would be visible.
-serde_json = { workspace = true }
+serde_json = "1"
 
 [features]
 default = []
-std = [
-    "bytemuck?/extern_crate_std",
-    "num-traits?/std",
-    "serde?/std",
-]
+std = ["bytemuck?/extern_crate_std", "num-traits?/std", "serde?/std"]
+
+# Criterion supplies its own `main`, so the built-in harness is off. Both
+# benchmarks read the same input table, which `benches/common` builds.
+[[bench]]
+name = "trig"
+harness = false
+
+[[bench]]
+name = "scalar"
+harness = false
 
 [lints]
 workspace = true

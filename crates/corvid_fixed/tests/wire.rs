@@ -3,22 +3,22 @@
 //!
 //! Every scalar in this crate ends up inside somebody's snapshot. A position is
 //! three `I24F8`s, a rotation is packed into an integer, a volume is a
-//! `Factor16` and a tick rate is a count — so the bytes recorded here are most
+//! `Factor16` and a tick rate is a count -- so the bytes recorded here are most
 //! of the bytes of a save file, and all of them are written by a derive that
 //! nothing in the source constrains.
 //!
 //! What that derive writes down is the *width* of the newtype's representation,
 //! and only that: every type here is `#[serde(transparent)]`, so an `Angle16` is
 //! two bytes rather than a wrapper around two bytes, and its bytes are the bytes
-//! of a bare `u16`. That transparency is worth freezing on its own — losing it
+//! of a bare `u16`. That transparency is worth freezing on its own -- losing it
 //! would add nothing visible to a JSON table and would change every capture in
-//! the workspace — and so is the width.
+//! the workspace -- and so is the width.
 //!
 //! The width is what a recorded *digest* is the witness to, and no byte row
 //! here sees it. Whether a widening is a compile error depends entirely on how
 //! it arrives: changing `Angle16(u16)` to `Angle16(u32)` leaves this crate's
 //! *library* compiling untouched, and is caught only by call sites that spell
-//! the old width out — and a widening reached another way, through a composition
+//! the old width out -- and a widening reached another way, through a composition
 //! that swapped one fixed-point scalar for a wider one or through a value only
 //! ever built from `f64`, has no such call sites at all. What does not depend on
 //! the route is that a round trip stays green, because the writer and the reader
@@ -26,7 +26,7 @@
 //! green, because JSON writes `4` for a `u8` and for a `u64` alike; and that the
 //! byte rows below stay green too, because a varint spells a small number the
 //! same at either width. What moves is the digest, which absorbs an integer as
-//! its declared bytes and injects the count —
+//! its declared bytes and injects the count --
 //! [`widening_a_scalar_moves_the_digest_and_not_the_bytes`] is that pair of
 //! facts, and `tests/determinism.rs` is the table it argues for.
 //!
@@ -95,8 +95,8 @@ const GOLDEN_PITCHES: &[Row<'_>] = &[
 /// of.
 ///
 /// `I24F8` and `I16F16` are both `i32` and encode identically, and `I2F30` is a
-/// third. That is the convention rather than an oversight — where the point sits
-/// is the type's business and not the wire's — but it is also why nothing in a
+/// third. That is the convention rather than an oversight -- where the point sits
+/// is the type's business and not the wire's -- but it is also why nothing in a
 /// capture says which of the three wrote it, and why a field that changed from
 /// one to another is a change *no* table in this workspace can see. It is a
 /// reinterpretation of the same bytes, and the schema on both peers is what says
@@ -118,7 +118,7 @@ const GOLDEN_POINTS: &[Row<'_>] = &[
 ///
 /// The last two are both `-1.0`. `Signed32` has a redundant encoding for it, the
 /// crate's own comparison folds the two together, and so every value comparison
-/// in this workspace — including the read-back half of `check` itself — says
+/// in this workspace -- including the read-back half of `check` itself -- says
 /// they are the same value. The bytes say otherwise, and the bytes are what a
 /// capture holds: two peers that disagree about which pattern to write are two
 /// peers whose captures differ byte for byte while every assertion they could
@@ -249,8 +249,8 @@ fn the_signed_normalized_scalars_encode_as_they_were_recorded() {
 #[test]
 fn the_two_encodings_of_minus_one_are_one_value_and_two_captures() {
     // The claim the last two golden rows rest on, stated where a reader of this
-    // file can check it. The crate is right to fold these — they denote the same
-    // rotation, the same volume, the same anything — and a capture is still two
+    // file can check it. The crate is right to fold these -- they denote the same
+    // rotation, the same volume, the same anything -- and a capture is still two
     // different byte strings, which is what makes the rows above worth having
     // rather than a restatement of the row before them.
     let denormal = Signed32::from_bits(i32::MIN);
@@ -279,7 +279,7 @@ fn widening_a_scalar_moves_the_digest_and_not_the_bytes() {
     let wide = corvid_wire::encode(&WiderAngle(1)).unwrap();
 
     // The same single byte. A varint carries the number and not the declaration,
-    // so every byte row in this file stays green through the widening — which is
+    // so every byte row in this file stays green through the widening -- which is
     // why the widening claim in the header belongs to the digest table.
     assert_eq!(narrow, [0x01]);
     assert_eq!(wide, [0x01]);
@@ -304,7 +304,7 @@ fn transparency_is_not_visible_in_the_bytes_and_is_pinned_anyway() {
     // A newtype struct and its contents encode alike under this format, so
     // losing `#[serde(transparent)]` on one of these families would move no row
     // here and no row of a byte table anywhere. It would move a JSON table,
-    // which is the reason the crate keeps one — this line records which of the
+    // which is the reason the crate keeps one -- this line records which of the
     // two tables owns the question.
     assert_eq!(
         corvid_wire::encode(&Angle16::from_bits(0x1234)).unwrap(),

@@ -6,7 +6,7 @@ use crate::{PlayerId, name::bounded_name};
 
 id_type! {
     /// What a process exits with.
-    ExitCode, u8, "The status the operating system is handed."
+    ExitCode, u8, "The status the operating system is handed.", serde
 }
 
 impl ExitCode {
@@ -27,12 +27,12 @@ id_type! {
     /// at the tick that asked, which the runtime already holds — so a game
     /// implements nothing to have saves, and the number is the whole of what it
     /// says.
-    SaveSlot, u16, "Which slot."
+    SaveSlot, u16, "Which slot.", serde
 }
 
 id_type! {
     /// Which rumble effect, out of the set the game declared.
-    RumbleId, u16, "The effect's index in that set."
+    RumbleId, u16, "The effect's index in that set.", serde
 }
 
 id_type! {
@@ -44,18 +44,18 @@ id_type! {
     /// not of the simulation that earned the achievement — and the simulation
     /// is the thing that has to digest identically on a peer published
     /// somewhere else.
-    AchievementId, u16, "The achievement's index in that set."
+    AchievementId, u16, "The achievement's index in that set.", serde
 }
 
 id_type! {
     /// Which tracked statistic, out of the set the game declared. Numbered for
     /// the same reason [`AchievementId`] is.
-    StatId, u16, "The statistic's index in that set."
+    StatId, u16, "The statistic's index in that set.", serde
 }
 
 id_type! {
     /// Which lobby, as the platform's networking layer names it.
-    LobbyId, u64, "The identifier the platform handed out."
+    LobbyId, u64, "The identifier the platform handed out.", serde
 }
 
 bounded_name! {

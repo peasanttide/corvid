@@ -4,7 +4,7 @@ use crate::Camera;
 use corvid_fixed::{Angle32, I24F8, Pitch32};
 use corvid_rotation::{FineRotation, Versor};
 use corvid_shape::Frustum;
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 use corvid_vector::{Direction, GlobalPoint};
 
 /// A camera at a position, steered by yaw and pitch, walked in its own frame.
@@ -153,13 +153,13 @@ impl FirstPerson {
     /// Where the eye is and which way it faces.
     #[must_use]
     #[inline]
-    pub const fn pose(self) -> GlobalFineTransform {
-        GlobalFineTransform::new(self.position.to_global_fine(), self.facing)
+    pub const fn pose(self) -> FineTransform {
+        FineTransform::new(self.position.to_global_fine(), self.facing)
     }
 }
 
 /// Where the eye is and which way it faces, which is [`FirstPerson::pose`].
-impl From<FirstPerson> for GlobalFineTransform {
+impl From<FirstPerson> for FineTransform {
     #[inline]
     fn from(camera: FirstPerson) -> Self {
         camera.pose()

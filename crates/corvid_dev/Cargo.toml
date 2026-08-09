@@ -14,21 +14,21 @@ categories = ["game-development", "development-tools"]
 corvid_fixed = { workspace = true, features = ["std"] }
 # The `Simulate` a tunable's `Rules`, an inspector's `State` and a frame dump's
 # two states all belong to.
-corvid_behavior = { version = "0.2", path = "../corvid_behavior", features = ["std"] }
+corvid_behavior = { workspace = true, features = ["std"] }
 # The digest on the overlay, and the one a frame dump prints per state.
-corvid_hash = { version = "0.2", path = "../corvid_hash", features = ["std"] }
+corvid_hash = { workspace = true, features = ["std"] }
 # The tick a proposal takes effect on and the slider scrubs to.
-corvid_time = { version = "0.2", path = "../corvid_time", features = ["std"] }
+corvid_time = { workspace = true, features = ["std"] }
 # `I16F16`, which is what a tunable's range and a tunable's value are. A live
 # tunable feeds `Rules`, which is hashed, so its arithmetic is the workspace's
 # rather than a float.
-corvid_transform = { version = "0.2", path = "../corvid_transform", default-features = false }
+corvid_transform = { workspace = true }
 # The time slider is `Session::seek` with a range on it. There is no second
 # implementation here: a slider that re-simulated its own way to a tick would
 # be a second replay to keep in step with the first.
-corvid_replay = { version = "0.2", path = "../corvid_replay", features = ["std"] }
+corvid_replay = { workspace = true, features = ["std"] }
 # The `AudioFrame` the audio dump summarises and digests.
-corvid_sound = { version = "0.2", path = "../corvid_sound", default-features = false }
+corvid_sound = { workspace = true }
 # And not `corvid_app`. The runtime is what reads an `Overlay`, a `Rows` and a
 # `Console` and puts them on a screen, so the edge runs from there to here: a
 # facade that reaches this crate through `corvid_app` needs that direction, and

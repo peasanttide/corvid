@@ -69,7 +69,7 @@ use corvid_mesh_render::{Uploaded, VERTEX_LAYOUT, upload};
 use corvid_render::{Extent, Image, Renderer, Target};
 use corvid_rotation::{FineRotation, Rotation};
 use corvid_shape::Frustum;
-use corvid_transform::{GlobalFineTransform, Transform};
+use corvid_transform::{FineTransform, Transform};
 use corvid_vector::{Direction, FinePoint, OctDirection};
 
 /// How big the frames are. Small, because every pixel is read back and
@@ -248,8 +248,8 @@ fn depth_texture(device: &wgpu::Device, size: Extent) -> wgpu::Texture {
 }
 
 /// A camera six metres back from the origin, facing the cube.
-const fn watching() -> GlobalFineTransform {
-    GlobalFineTransform::new(
+const fn watching() -> FineTransform {
+    FineTransform::new(
         FinePoint::new(I16F16::ZERO, I16F16::from_f64(-6.0), I16F16::ZERO).to_global_fine(),
         FineRotation::IDENTITY,
     )

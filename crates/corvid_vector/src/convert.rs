@@ -5,15 +5,15 @@
 //! - **Exact.** The target holds at least as much range *and* resolution, so
 //!   the conversion is a widening shift that loses nothing.
 //! - **Total but lossy.** [`FinePoint::to_global`] cannot fail, because
-//!   `I16F16`'s whole ±32.7 km range fits inside `I24F8`'s ±8388 km, but it
-//!   drops 8 fractional bits — 15.26 µm becomes 3.9 mm. Rounded once, never
+//!   `I16F16`'s whole +/-32.7 km range fits inside `I24F8`'s +/-8388 km, but it
+//!   drops 8 fractional bits -- 15.26 um becomes 3.9 mm. Rounded once, never
 //!   truncated.
 //! - **Range-checked.** Returns `None` when the value does not fit. Only
 //!   *range* failure produces `None`; magnitude is never silently discarded.
 //!
 //! [`GlobalFinePoint::to_fine`] is the important one. Because `I48F16` and
 //! `I16F16` both carry 16 fractional bits, it is a **pure range check on the
-//! integer part — `i64 as i32` after a bounds test, with no rounding at all**.
+//! integer part -- `i64 as i32` after a bounds test, with no rounding at all**.
 //! The near-field conversion a renderer runs thousands of times per frame is
 //! exact by construction, not exact within a tolerance.
 
@@ -24,7 +24,7 @@ use crate::{Direction, FinePoint, GlobalFinePoint, GlobalPoint};
 /// Rounds `bits >> shift` half away from zero.
 ///
 /// The rounding happens on the *unsigned* magnitude. Adding the half-step to a
-/// signed `bits` overflows for the top 2^(shift-1) patterns of `i64` — and
+/// signed `bits` overflows for the top 2^(shift-1) patterns of `i64` -- and
 /// [`I48F16`] reaches them, because its own saturating arithmetic lands on
 /// `i64::MAX` by design, which a narrowing conversion then has to be able to
 /// look at.
@@ -37,7 +37,15 @@ const fn shift_round(bits: i64, shift: u32) -> i64 {
     if bits >= 0 { rounded } else { -rounded }
 }
 
-use corvid_bits::try_narrow_i64 as narrow;
+/// Narrows an `i64` to an `i32`, or `None` if it does not fit.
+#[inline]
+const fn narrow(bits: i64) -> Option<i32> {
+    if bits > i32::MAX as i64 || bits < i32::MIN as i64 {
+        None
+    } else {
+        Some(bits as i32)
+    }
+}
 
 impl GlobalPoint {
     /// Widens to the full-range, full-resolution type. Exact.
@@ -56,7 +64,7 @@ impl GlobalPoint {
 
     /// Narrows to the near-field type, or `None` if out of range.
     ///
-    /// Exact in resolution — `I24F8` to `I16F16` *widens* the fraction — so
+    /// Exact in resolution -- `I24F8` to `I16F16` *widens* the fraction -- so
     /// range is the only thing that can fail.
     #[must_use]
     #[inline]
@@ -95,9 +103,9 @@ impl FinePoint {
 
     /// Converts to the object-scale type. Total, and lossy.
     ///
-    /// Cannot fail — `I16F16`'s whole ±32.7 km range fits inside `I24F8`'s
-    /// ±8388 km — but drops 8 fractional bits, taking the resolution from
-    /// 15.26 µm to 3.9 mm. Rounded once, never truncated.
+    /// Cannot fail -- `I16F16`'s whole +/-32.7 km range fits inside `I24F8`'s
+    /// +/-8388 km -- but drops 8 fractional bits, taking the resolution from
+    /// 15.26 um to 3.9 mm. Rounded once, never truncated.
     #[must_use]
     #[inline]
     pub const fn to_global(self) -> GlobalPoint {
@@ -114,8 +122,8 @@ impl GlobalFinePoint {
     /// This point, unchanged.
     ///
     /// The identity widening. It exists so that code generic over a position
-    /// type — `corvid_transform`'s macro, which widens both tiers to `I48F16`
-    /// before it subtracts — can call one method name on all of them.
+    /// type -- `corvid_transform`'s macro, which widens both tiers to `I48F16`
+    /// before it subtracts -- can call one method name on all of them.
     #[must_use]
     #[inline]
     pub const fn to_global_fine(self) -> Self {
@@ -125,8 +133,8 @@ impl GlobalFinePoint {
     /// Narrows to the near-field type, or `None` if out of range.
     ///
     /// **Bit-exact.** Both types carry 16 fractional bits, so this is a bounds
-    /// test and an `i64 as i32` — there is no rounding step for anything to be
-    /// lost in. This is what makes the world→eye conversion in
+    /// test and an `i64 as i32` -- there is no rounding step for anything to be
+    /// lost in. This is what makes the world->eye conversion in
     /// `corvid_transform` exact by construction.
     #[must_use]
     #[inline]
@@ -168,7 +176,7 @@ impl GlobalFinePoint {
     }
 }
 
-/// Rescales a [`Signed32`] component — a value over `2^31 − 1` — onto a
+/// Rescales a [`Signed32`] component -- a value over `2^31 - 1` -- onto a
 /// power-of-two fractional scale, rounded once.
 ///
 /// Takes the [`Signed32`] rather than its bits so it can canonicalize: the
@@ -250,9 +258,14 @@ impl From<FinePoint> for GlobalPoint {
 /// Carries no detail on purpose: the only way a narrowing fails is that the
 /// value lies outside the target's range, and the value itself is still in the
 /// caller's hand.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, thiserror::Error)]
-#[error("value is outside the target type's range")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct OutOfRange;
+
+impl core::fmt::Display for OutOfRange {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("value is outside the target type's range")
+    }
+}
 
 impl TryFrom<GlobalFinePoint> for FinePoint {
     type Error = OutOfRange;

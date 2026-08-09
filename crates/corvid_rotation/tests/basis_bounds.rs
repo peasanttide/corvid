@@ -1,9 +1,9 @@
 //! The `i64` invariant, constructed explicitly rather than sampled for.
 //!
-//! Rotating a `FinePoint` by an `I2F30` basis row is `i32 × i32 → i64`, and the
-//! row sum is bounded by Cauchy–Schwarz: `|m·v| ≤ |m||v|` with `|m| = 1` and
-//! `|v| ≤ √3 · max|component|`. That gives `√3 × 2^30 × 2^31 = 3.99e18`
-//! against `i64::MAX`'s 9.22e18 — a 131% margin.
+//! Rotating a `FinePoint` by an `I2F30` basis row is `i32 x i32 -> i64`, and the
+//! row sum is bounded by Cauchy-Schwarz: `|m*v| <= |m||v|` with `|m| = 1` and
+//! `|v| <= sqrt(3) * max|component|`. That gives `sqrt(3) x 2^30 x 2^31 = 3.99e18`
+//! against `i64::MAX`'s 9.22e18 -- a 131% margin.
 //!
 //! The bound holds **only because basis rows are unit-length**, which is what
 //! the absence of a raw constructor exists to guarantee. `Signed32` would also
@@ -34,7 +34,7 @@ use corvid_fixed::{I2F30, I16F16};
 use corvid_rotation::Basis;
 use corvid_vector::FinePoint;
 
-/// `√3 · 2^30`, the largest a row of absolute entry values can sum to.
+/// `sqrt(3) * 2^30`, the largest a row of absolute entry values can sum to.
 const ROW_ABS_LIMIT: i64 = 1_859_775_393;
 
 #[test]
@@ -48,9 +48,9 @@ fn the_worst_case_row_sum_stays_inside_i64_with_room_to_spare() {
     let row_sum = 3 * entry * component;
     assert!(row_sum < i64::MAX, "row sum {row_sum} must fit i64");
 
-    // The bound in closed form: sqrt(3) * 2^30 * 2^31 = 3.99e18.
+    // The spec's number: sqrt(3) * 2^30 * 2^31 = 3.99e18.
     assert!(row_sum < 4_000_000_000_000_000_000, "row sum {row_sum}");
-    // A 131% margin — the headroom is larger than the value itself.
+    // A 131% margin -- the headroom is larger than the value itself.
     assert!(
         i64::MAX - row_sum > row_sum,
         "margin {}",
@@ -80,7 +80,7 @@ fn the_worst_case_row_sum_stays_inside_i64_with_room_to_spare() {
 }
 
 /// The worst-case orthonormal basis: its first row is three equal entries at
-/// `1/√3`, which is the unit row maximising the sum of absolute entries.
+/// `1/sqrt(3)`, which is the unit row maximising the sum of absolute entries.
 fn worst_case_basis() -> Basis {
     let third = I2F30::from_f64(1.0 / 3.0f64.sqrt());
     let half = I2F30::from_f64(1.0 / 2.0f64.sqrt());
@@ -103,7 +103,7 @@ fn rotating_the_longest_fine_point_by_that_basis_saturates_rather_than_wrapping(
     let corner = FinePoint::splat(I16F16::MAX);
     let rotated = basis.rotate_fine(corner);
 
-    // The first row sums to sqrt(3) * MAX, which overflows FinePoint — so the
+    // The first row sums to sqrt(3) * MAX, which overflows FinePoint -- so the
     // saturating form clamps and the checked form says so. What must *not*
     // happen is a wrap, which is what the i64 bound rules out.
     assert_eq!(rotated.x(), I16F16::MAX);

@@ -26,13 +26,13 @@ use corvid_fixed::{Angle16, I16F16, I48F16};
 use corvid_glm::{Mat4, nalgebra::Vector4};
 use corvid_rotation::{FineRotation, Rotation};
 use corvid_shape::Frustum;
-use corvid_transform::{GlobalFineTransform, Transform};
+use corvid_transform::{FineTransform, Transform};
 use corvid_vector::{FinePoint, GlobalFinePoint, globalfinepoint};
 
 /// A camera at the origin, facing +Y with +Z up, spanning 90° vertically from
 /// 0.1 m to 100 m.
-const fn looking_forward() -> GlobalFineTransform {
-    GlobalFineTransform::new(
+const fn looking_forward() -> FineTransform {
+    FineTransform::new(
         FinePoint::new(I16F16::ZERO, I16F16::ZERO, I16F16::ZERO).to_global_fine(),
         FineRotation::IDENTITY,
     )
@@ -48,7 +48,7 @@ const fn square_lens() -> Frustum {
 }
 
 /// The whole view-projection that camera implies, at `aspect`.
-fn seen(camera: GlobalFineTransform, aspect: f32) -> Mat4 {
+fn seen(camera: FineTransform, aspect: f32) -> Mat4 {
     projection(square_lens(), aspect) * view(camera)
 }
 
@@ -58,7 +58,7 @@ fn seen(camera: GlobalFineTransform, aspect: f32) -> Mat4 {
 /// A plain matrix-vector product, because the matrix is already in the order a
 /// shader reads it — column-major, so no transpose stands between the matrix
 /// and the product.
-fn ndc(camera: GlobalFineTransform, point: [f32; 3]) -> [f32; 3] {
+fn ndc(camera: FineTransform, point: [f32; 3]) -> [f32; 3] {
     let clip = seen(camera, 2.0) * Vector4::new(point[0], point[1], point[2], 1.0);
     [clip.x / clip.w, clip.y / clip.w, clip.z / clip.w]
 }
@@ -253,7 +253,7 @@ fn a_millimetre_survives_ten_thousand_kilometres_from_the_origin() {
     // device: a point ten metres from a camera 1e7 m out still resolves to
     // millimetres, and the naive absolute `f32` it replaces does not.
     const OUT: i32 = 10_000_000;
-    let camera = GlobalFineTransform::new(globalfinepoint(OUT, 0, 0), FineRotation::IDENTITY);
+    let camera = FineTransform::new(globalfinepoint(OUT, 0, 0), FineRotation::IDENTITY);
     let seen = Eye::new(camera, Frustum::default(), 1.0);
     assert_eq!(seen.coarse, [OUT, 0, 0]);
 

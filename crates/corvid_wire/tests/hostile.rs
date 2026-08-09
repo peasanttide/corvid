@@ -3,7 +3,7 @@
 //! A container is sized from its count before a byte of its contents is read: a
 //! `String` whose prefix says two to the thirty-sixth is a `vec![0u8; 1 << 36]`
 //! and then a read. So the count has to be refused on the strength of the number
-//! alone, which is what [`corvid_wire::CEILING`] is for — without it these
+//! alone, which is what [`corvid_wire::CEILING`] is for -- without it these
 //! inputs reserve four gibibytes, panic in `raw_vec`, or abort the process, and
 //! all three are reachable from a packet shorter than this sentence.
 //!
@@ -12,8 +12,8 @@
 //! `Result`.
 //!
 //! `Vec<u32>` is deliberately absent. It is the one shape that was safe all
-//! along — `serde`'s sequence path caps the capacity it reserves against a size
-//! hint — and it is the shape `tests/trailing.rs` had been generalising from.
+//! along -- `serde`'s sequence path caps the capacity it reserves against a size
+//! hint -- and it is the shape `tests/trailing.rs` had been generalising from.
 
 #![allow(
     clippy::unwrap_used,

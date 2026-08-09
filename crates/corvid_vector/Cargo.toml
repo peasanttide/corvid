@@ -11,31 +11,21 @@ keywords = ["fixed-point", "deterministic", "vector", "no-std", "gamedev"]
 categories = ["game-development", "mathematics", "no-std::no-alloc"]
 
 [dependencies]
-corvid_bits = { workspace = true }
-# `Display` and `core::error::Error` on `OutOfRange`, derived. No `std` feature:
-# this crate is `no_std`, and the derive names `core::error::Error` without one.
-thiserror = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
-corvid_fixed = { version = "0.2.0", path = "../corvid_fixed" }
+corvid_fixed = { workspace = true }
 mint = { workspace = true, optional = true }
 nalgebra = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
-# The workspace's one encoding, so this crate's byte goldens are recorded in the
-# format a capture is written in. A position is most of what a snapshot holds,
-# and a component's width is the one change nothing else here can see.
-corvid_wire = { workspace = true }
-# The digest the tests here check a point's encoding against. Nothing in the
-# source names it: a point's `Hash` is derived, and what the tests pin is what
-# that emission comes to under this workspace's one hasher.
-corvid_hash = { workspace = true }
-# A self-describing format, for the shape `corvid_wire` cannot show.
-# `tests/interop.rs` pins that a point is written as the three integers it is
-# rather than as a struct of named components, which a varint table would read
-# the same either way.
-serde_json = { workspace = true }
+# `tests/wire.rs` digests a round trip rather than comparing structures, which
+# is what makes a moved field show up as one changed number.
+corvid_hash = { workspace = true, features = ["std"] }
+# `tests/wire.rs` freezes this crate's encoding as hex, so a field width or
+# an ordering that moved is a failed test rather than a silent format change.
+corvid_wire = { workspace = true, features = ["std"] }
+serde_json = "1"
 
 [features]
 default = []

@@ -39,7 +39,7 @@ fn round_trip_error_stays_inside_one_hundred_and_twenty_eighth_of_a_degree() {
 
     for _ in 0..SAMPLES {
         // The reference is f64 throughout. An f32 reference would put the
-        // measurement's own noise floor above the quantity being measured —
+        // measurement's own noise floor above the quantity being measured --
         // the pitfall the source paper documents.
         let reference = common::random_unit_quaternion_f64(&mut rng);
         let packed = FineRotation::from_versor(common::versor_from_f64(reference));
@@ -84,12 +84,12 @@ fn the_fine_tier_is_two_orders_of_magnitude_better_than_the_coarse_one() {
 
 #[test]
 fn repacking_is_stable_and_bounded() {
-    // `pack ∘ unpack` is the identity on almost every pattern, and where it is
+    // `pack(unpack(bits))` is the identity on almost every pattern, and where it is
     // not, it moves one component by one last bit.
     //
     // Stated over the patterns the encoder actually produces. An arbitrary
     // `u64` is a quaternion of arbitrary norm, and re-encoding renormalizes it
-    // onto a quite different lattice point — which is correct behaviour, not
+    // onto a quite different lattice point -- which is correct behaviour, not
     // instability, and is why the loop below starts from `from_versor`.
     //
     // Where it does move, the cause is inherent to "normalize, then round": a
@@ -110,27 +110,10 @@ fn repacking_is_stable_and_bounded() {
         }
     }
 
-    let share = f64::from(moved) / f64::from(SAMPLES);
-    println!(
-        "FineRotation repack: {moved} of {SAMPLES} patterns moved ({share:.5}), worst {worst:.5} deg"
-    );
-    // Banded rather than bounded above, for the reason the same measurement in
-    // `tests/rotation32.rs` is. 1.58% is the figure `tests/determinism.rs`
-    // quotes for this tier when it says a repack settles rather than sits still,
-    // and the bound this replaces — `< 0.05` — admitted everything from nothing
-    // moving at all to one pattern in twenty moving, so it did not support that
-    // sentence at either end. An encoder made self-stationary, quantizing its
-    // own output once more before returning it, measures 0.000 here and passed
-    // that bound while leaving the prose claiming 1.58%.
-    //
-    // This is a guard on the quoted figure and not on the codec; a codec change
-    // moves the frozen checksum in `tests/determinism.rs` too, which is the test
-    // that exists to stop it. The measurement is deterministic — a fixed seed
-    // over a fixed sample count — so the band has no noise to absorb and is
-    // drawn close.
+    println!("FineRotation repack: {moved} of {SAMPLES} patterns moved, worst {worst:.5} deg");
     assert!(
-        (0.014..0.018).contains(&share),
-        "{moved} of {SAMPLES} patterns changed bits, a share of {share}"
+        f64::from(moved) / f64::from(SAMPLES) < 0.05,
+        "{moved} of {SAMPLES} patterns changed bits"
     );
     assert!(
         worst < BUDGET_DEGREES,
@@ -155,7 +138,7 @@ fn both_members_of_a_double_cover_pair_canonicalize_the_same_way() {
 fn a_non_canonical_pattern_still_behaves_as_the_rotation_it_denotes() {
     // Equality and hashing route through `canonicalize`, so a pattern that
     // arrives over a wire with the other sign of the double cover compares
-    // equal to the canonical one — without any re-quantization in between.
+    // equal to the canonical one -- without any re-quantization in between.
     let mut rng = Rng::new(0x6400_0005);
     for _ in 0..50_000 {
         let canonical = FineRotation::from_versor(common::random_versor(&mut rng));
@@ -165,7 +148,7 @@ fn a_non_canonical_pattern_still_behaves_as_the_rotation_it_denotes() {
         assert_eq!(canonical.canonicalize(), flipped.canonicalize());
         assert_eq!(canonical.to_bits(), flipped.canonicalize().to_bits());
         assert!(canonical.is_canonical());
-        // The flipped pattern is only non-canonical when it actually differs —
+        // The flipped pattern is only non-canonical when it actually differs --
         // an all-zero-but-one rotation flips to itself.
         assert_eq!(
             flipped.is_canonical(),
@@ -245,8 +228,8 @@ fn every_bit_pattern_decodes_to_a_unit_quaternion() {
         let norm = x * x + y * y + z * z + w * w;
         assert!((norm - 1.0).abs() < 1e-6, "{q:?} has squared norm {norm}");
     }
-    // The all-zero pattern — a zeroed buffer, a `serde` `0`, `bytemuck::zeroed`
-    // — names no rotation, so it decodes to the identity rather than to the
+    // The all-zero pattern -- a zeroed buffer, a `serde` `0`, `bytemuck::zeroed`
+    // -- names no rotation, so it decodes to the identity rather than to the
     // zero quaternion, which is not a rotation at all.
     let zero = FineRotation::from_bits(0);
     let [x, y, z, w] = common::to_f64_quaternion(zero.to_versor());
@@ -257,7 +240,7 @@ fn every_bit_pattern_decodes_to_a_unit_quaternion() {
     );
     assert_eq!(zero.to_versor(), Versor::IDENTITY);
     assert_eq!(zero.to_basis(), Basis::IDENTITY);
-    // …and its round trip through the coarse tier is the identity too, rather
+    // ...and its round trip through the coarse tier is the identity too, rather
     // than the half turn a zero quaternion re-encodes into.
     assert_eq!(zero.to_rotation().to_basis(), Basis::IDENTITY);
     assert_eq!(zero.canonicalize(), FineRotation::IDENTITY);

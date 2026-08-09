@@ -8,7 +8,7 @@
 //! magnitudes down until their squares still fit an `i128`. The shift is
 //! different each time; the question is not.
 
-/// How many bits `value` occupies: zero for zero, otherwise `1 + ⌊log₂ v⌋`.
+/// How many bits `value` occupies: zero for zero, otherwise `1 + floor(log2 v)`.
 ///
 /// ```
 /// use corvid_bits::bit_length_u32;
@@ -23,7 +23,7 @@ pub const fn bit_length_u32(value: u32) -> u32 {
     u32::BITS - value.leading_zeros()
 }
 
-/// How many bits `value` occupies: zero for zero, otherwise `1 + ⌊log₂ v⌋`.
+/// How many bits `value` occupies: zero for zero, otherwise `1 + floor(log2 v)`.
 ///
 /// ```
 /// use corvid_bits::bit_length_u64;
@@ -38,7 +38,7 @@ pub const fn bit_length_u64(value: u64) -> u32 {
     u64::BITS - value.leading_zeros()
 }
 
-/// How many bits `value` occupies: zero for zero, otherwise `1 + ⌊log₂ v⌋`.
+/// How many bits `value` occupies: zero for zero, otherwise `1 + floor(log2 v)`.
 ///
 /// ```
 /// use corvid_bits::bit_length_u128;
@@ -55,7 +55,7 @@ pub const fn bit_length_u128(value: u128) -> u32 {
 
 /// How many bits `value`'s magnitude occupies.
 ///
-/// [`i32::MIN`] answers 32, because its magnitude is 2³¹ and that needs the
+/// [`i32::MIN`] answers 32, because its magnitude is 2^31 and that needs the
 /// thirty-second bit. That is why this takes the magnitude through
 /// [`unsigned_abs`](i32::unsigned_abs) rather than through a negation, which
 /// would overflow on exactly that value.

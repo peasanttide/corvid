@@ -19,16 +19,24 @@ categories = ["concurrency", "game-development"]
 # `tracing-attributes`, whose `#[instrument]` nothing here uses.
 tracing = { workspace = true, features = ["std"] }
 
+[dev-dependencies]
+criterion = { workspace = true }
+
 [features]
 # There are none, and that is a decision rather than an omission. `std` is not
-# optional here — a thread is the thing this crate exists to carry state
-# between — and the `tracing` span is the contract, so neither of the two things
+# optional here -- a thread is the thing this crate exists to carry state
+# between -- and the `tracing` span is the contract, so neither of the two things
 # a feature could switch off is a thing a downstream may switch off. So there is
 # nothing for CI's build-each-feature-alone sweep to sweep, and this crate is
 # absent from it: a `default` that is empty means the workspace build is already
 # the bare build, and `--all-features` and no features at all are the same
 # configuration.
 default = []
+
+# Criterion supplies its own `main`, so the built-in harness is off.
+[[bench]]
+name = "signal"
+harness = false
 
 [lints]
 workspace = true

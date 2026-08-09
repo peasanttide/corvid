@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use crate::{Bus, Cue, CueId, Source};
 use corvid_fixed::Factor16;
 use corvid_time::Tick;
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 
 /// Where the ears are.
 ///
@@ -27,7 +27,7 @@ use corvid_transform::GlobalFineTransform;
 #[cfg_attr(feature = "serde", derive(::serde::Serialize, ::serde::Deserialize))]
 pub struct Listener {
     /// Where the ears are in the world, and which way they face.
-    pub pose: GlobalFineTransform,
+    pub pose: FineTransform,
     /// The gain applied to everything, after the buses.
     pub gain: Factor16,
 }
@@ -40,7 +40,7 @@ impl Listener {
     /// identity pose's forward.
     #[must_use]
     #[inline]
-    pub const fn new(pose: GlobalFineTransform) -> Self {
+    pub const fn new(pose: FineTransform) -> Self {
         Self {
             pose,
             gain: Factor16::ONE,
@@ -65,7 +65,7 @@ impl Default for Listener {
     /// red test.
     #[inline]
     fn default() -> Self {
-        Self::new(GlobalFineTransform::IDENTITY)
+        Self::new(FineTransform::IDENTITY)
     }
 }
 
@@ -155,7 +155,7 @@ impl AudioFrame {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            listener: Listener::new(GlobalFineTransform::IDENTITY),
+            listener: Listener::new(FineTransform::IDENTITY),
             sources: Vec::new(),
             cues: Vec::new(),
             buses: Vec::new(),

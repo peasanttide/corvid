@@ -6,10 +6,6 @@
     reason = "each test binary includes this module and uses a different subset of it"
 )]
 #![allow(
-    clippy::panic,
-    reason = "a helper that cannot produce what it was asked for has to say so, and a panic in a test is a failed test, which is what a test is for"
-)]
-#![allow(
     clippy::missing_const_for_fn,
     reason = "test helpers are only ever called at run time, and their arithmetic is written plainly so it stays readable as a reference"
 )]
@@ -118,13 +114,11 @@ impl Worst {
 
 // --- transform helpers -----------------------------------------------------
 
-use corvid_fixed::{Angle32, I16F16, I24F8, I48F16, Pitch32};
+use corvid_transform::{
+    Angle32, FineRotation, FineTransform, GlobalFinePoint, GlobalPoint, I16F16, I24F8, I48F16,
+    Pitch32, Rotation, Transform, Versor,
+};
 
-use corvid_rotation::{FineRotation, Rotation, Versor};
-
-use corvid_transform::{GlobalFineTransform, Transform};
-
-use corvid_vector::{Direction, GlobalFinePoint, GlobalPoint};
 /// A uniformly distributed rotation, as a versor.
 pub fn random_versor(rng: &mut Rng) -> Versor {
     let u1 = f64::from(rng.next_u32()) / f64::from(u32::MAX);
@@ -132,7 +126,7 @@ pub fn random_versor(rng: &mut Rng) -> Versor {
     let u3 = f64::from(rng.next_u32()) / f64::from(u32::MAX);
     let (r1, r2) = ((1.0 - u1).sqrt(), u1.sqrt());
     let (t1, t2) = (core::f64::consts::TAU * u2, core::f64::consts::TAU * u3);
-    let c = |v: f64| corvid_fixed::I2F30::from_f64(v);
+    let c = |v: f64| corvid_transform::I2F30::from_f64(v);
     Versor::from_xyzw(
         c(r1 * t1.sin()),
         c(r1 * t1.cos()),
@@ -140,50 +134,6 @@ pub fn random_versor(rng: &mut Rng) -> Versor {
         c(r2 * t2.cos()),
     )
     .unwrap_or(Versor::IDENTITY)
-}
-
-/// A uniformly distributed unit direction.
-///
-/// Rejection-sampled from the cube, so the corners do not bias it toward the
-/// diagonals; a zero-length draw is redrawn rather than normalized.
-///
-/// Bounded, because an unbounded rejection loop is a hang with no thread in it:
-/// a `normalize` that answered [`None`] for every draw would spin a core for as
-/// long as anybody left the suite running and say nothing when it was finally
-/// noticed. A draw fails only within a hair of the origin, so [`DRAWS`] in a row
-/// is not luck.
-pub fn random_direction(rng: &mut Rng) -> Direction {
-    for _ in 0..DRAWS {
-        let candidate = GlobalPoint::new(
-            I24F8::from_f64(rng.next_unit()),
-            I24F8::from_f64(rng.next_unit()),
-            I24F8::from_f64(rng.next_unit()),
-        );
-        if let Some(direction) = candidate.normalize() {
-            return direction;
-        }
-    }
-    panic!(
-        "{DRAWS} draws from the cube in a row would not normalize, so `normalize` is refusing everything rather than the origin"
-    );
-}
-
-/// How many rejections [`random_direction`] takes as evidence that nothing will
-/// ever be accepted.
-const DRAWS: u32 = 1_000;
-
-/// A rotation a hair away from `from`, about a random axis, by `1 ..= most`
-/// units of a full turn.
-///
-/// The pairs a codec's own resolution lives on: too small an angle for
-/// `Versor::angle_to` to see, and large enough for the packing to land on a
-/// neighbouring code.
-pub fn nudged(rng: &mut Rng, from: Versor, most: u32) -> Versor {
-    let axis = random_direction(rng);
-    from.compose(Versor::from_axis_angle(
-        axis,
-        Angle32::from_bits(rng.next_u32() % most + 1),
-    ))
 }
 
 /// A `Transform` with a position uniform in `-range ..= range` per axis.
@@ -198,9 +148,9 @@ pub fn random_transform(rng: &mut Rng, range: f64) -> Transform {
     )
 }
 
-/// A `GlobalFineTransform` with a position uniform in `-range ..= range` per axis.
-pub fn random_fine_transform(rng: &mut Rng, range: f64) -> GlobalFineTransform {
-    GlobalFineTransform::new(
+/// A `FineTransform` with a position uniform in `-range ..= range` per axis.
+pub fn random_fine_transform(rng: &mut Rng, range: f64) -> FineTransform {
+    FineTransform::new(
         GlobalFinePoint::new(
             I48F16::from_f64(rng.next_unit() * range),
             I48F16::from_f64(rng.next_unit() * range),

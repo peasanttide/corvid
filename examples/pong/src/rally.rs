@@ -18,7 +18,8 @@ use corvid::PlayerId;
 use corvid::digest;
 use corvid::{Duration, Tick, Ticks};
 use corvid_lockstep::{Budget, Datagram, Halt, Peer};
-use corvid_net::{Delivery, MockNet, PeerId, Schedule, Transport};
+use corvid_net::{Delivery, PeerId, Transport};
+use corvid_net_mock::{MockNet, Schedule};
 use corvid_replay::Session;
 use corvid_replay::Shape;
 
@@ -464,7 +465,7 @@ pub fn together(
 fn opponent_loop(
     session: Session<Table>,
     seat: PlayerId,
-    endpoint: &corvid_net::Endpoint,
+    endpoint: &corvid_net_mock::Endpoint,
     net: &MockNet,
     period: Duration,
 ) {

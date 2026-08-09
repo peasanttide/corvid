@@ -1,31 +1,38 @@
 [package]
 name = "corvid_net"
-description = "Bytes to a peer and bytes back, and a network that lies on purpose: scriptable latency, jitter, loss and reorder from a seed."
+description = "The transport contract: bytes to a peer, bytes from a peer, and a published roster."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true
 license.workspace = true
-keywords = ["networking", "deterministic", "transport", "simulation", "gamedev"]
-categories = ["network-programming", "game-development", "simulation"]
+keywords = ["networking", "transport", "gamedev"]
+categories = ["network-programming", "game-development"]
 
 [dependencies]
-# The roster is published rather than returned, because a consumer that missed
-# three joins wants the set that is here now rather than three stale ones.
-corvid_signal = { version = "0.2", path = "../corvid_signal" }
-# `Factor16` is what a loss curve is written in: a share of one, exact at both
-# ends, and the same type a game already tunes with.
-corvid_fixed = { version = "0.2", path = "../corvid_fixed" }
-# The workspace's one hasher, used here as a counter-based random stream. A
-# `MockNet` draw is a hash of `(seed, link, sequence, counter)` and never a
-# system RNG, which is the whole of its determinism.
-corvid_hash = { version = "0.2", path = "../corvid_hash" }
+# `id_type!` for `PeerId` and `named_enum!` for `Channel` and `Lost` -- the
+# newtype, the `ALL`, the names and both `Display`s. A `macro_rules!` crate
+# with no dependencies of its own, so it adds a path entry and nothing to the
+# build below it.
+corvid_macros = { workspace = true }
+# Named by `id_type!`'s expansion rather than used directly here, and only
+# when the feature below is on: `PeerId` then encodes as the bare number under
+# `#[serde(transparent)]`.
+serde = { workspace = true, features = ["derive"], optional = true }
+# `Display` and `Error` for `SendError`, written on the variants rather than in
+# a `match` a new variant can be added without touching. `core::error::Error`,
+# since the workspace entry leaves the `std` default off.
+thiserror = { workspace = true }
 
 [features]
-# There are none. `MockNet` reaches no further than `std`, and the trait it
-# implements is the vocabulary a backend that does reach further implements too.
+# One, and it adds nothing to the contract: `serde` puts an encoding on the
+# value types and leaves `Transport` alone, so a caller generic over the trait
+# never has to know which way a backend compiled it.
 default = []
+# `PeerId` encodes as the bare number it is. The other value types are a
+# backend's business to send, not this crate's to encode.
+serde = ["dep:serde"]
 
 [lints]
 workspace = true

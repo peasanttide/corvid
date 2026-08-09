@@ -4,7 +4,7 @@ use crate::Camera;
 use corvid_fixed::{Angle32, Factor32, I24F8, Pitch32};
 use corvid_rotation::{FineRotation, Versor};
 use corvid_shape::Frustum;
-use corvid_transform::GlobalFineTransform;
+use corvid_transform::FineTransform;
 use corvid_vector::GlobalPoint;
 
 /// A camera on a sphere about an anchor, steered by yaw and pitch.
@@ -66,7 +66,7 @@ pub struct Orbit {
     /// Which way the eye faces, packed.
     ///
     /// A [`FineRotation`] rather than a yaw and a pitch, for three reasons. It
-    /// is what [`pose`](Self::pose) has to hand a [`GlobalFineTransform`] anyway, so
+    /// is what [`pose`](Self::pose) has to hand a [`FineTransform`] anyway, so
     /// storing it makes that a move. One rotation is one bit pattern, because
     /// the sign is canonicalized — so the double cover cannot give one facing
     /// two patterns that compare unequal. And it cannot represent a
@@ -256,8 +256,8 @@ impl Orbit {
     /// reason [`facing`](Self::facing) is stored packed.
     #[must_use]
     #[inline]
-    pub fn pose(self) -> GlobalFineTransform {
-        GlobalFineTransform::new(self.eye_position().to_global_fine(), self.facing)
+    pub fn pose(self) -> FineTransform {
+        FineTransform::new(self.eye_position().to_global_fine(), self.facing)
     }
 }
 
@@ -278,7 +278,7 @@ impl Default for Orbit {
 ///
 /// Total: an orbit always has a pose, because the eye is derived from the
 /// anchor and the facing rather than stored beside them.
-impl From<Orbit> for GlobalFineTransform {
+impl From<Orbit> for FineTransform {
     #[inline]
     fn from(camera: Orbit) -> Self {
         camera.pose()

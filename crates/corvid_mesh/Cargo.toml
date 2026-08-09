@@ -16,14 +16,14 @@ corvid_bits = { workspace = true }
 # The `Aabb` a mesh's bound is. This is what makes that type earn its place
 # outside a raycast: a bound is what a broad phase culls by and what a picking
 # pass tests first, and neither of those needs a device.
-corvid_shape = { version = "0.2.0", path = "../corvid_shape", default-features = false }
+corvid_shape = { workspace = true }
 # `Mesh::scale`'s own type, and the angles and factors the generators turn
 # circles with.
-corvid_transform = { version = "0.2.0", path = "../corvid_transform", default-features = false }
+corvid_transform = { workspace = true }
 # `OctDirection`, which is a vertex normal, and the `Direction` a face normal is
 # computed as. Named directly as well as through `corvid_transform` because the
 # `bytemuck` feature below has to be forwarded to it.
-corvid_vector = { version = "0.2.0", path = "../corvid_vector", default-features = false }
+corvid_vector = { workspace = true }
 bytemuck = { workspace = true, optional = true }
 
 [features]

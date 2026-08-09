@@ -21,7 +21,8 @@ use corvid::digest;
 use corvid_lockstep::{Budget, Datagram, Halt};
 
 use corvid::Tick;
-use corvid_net::{Lost, PeerId, Schedule};
+use corvid_net::{Lost, PeerId};
+use corvid_net_mock::Schedule;
 use pong::{
     Move,
     rally::{Match, Policy, Trace, agreed},

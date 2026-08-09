@@ -29,26 +29,26 @@ const fn nonzero(nanos: u32) -> NonZeroU32 {
 /// # Why the span and not the rate
 ///
 /// Holding a `NonZeroU32` of hertz and deriving the span by dividing into a
-/// second is the wrong way round. That division truncates — fifteen hertz is
-/// 66 666 666 nanoseconds and not a fifteenth of a second — so the stored value
+/// second is the wrong way round. That division truncates -- fifteen hertz is
+/// 66 666 666 nanoseconds and not a fifteenth of a second -- so the stored value
 /// would be the *approximate* one and the exact one derived from it.
 ///
 /// [`Step`](crate::Step) accumulates against the span and nothing accumulates
 /// against the rate, so the span is the number the simulation is actually
 /// defined by. Storing it means a span is whatever it says it is,
 /// [`hz`](Self::hz) becomes the lossy view rather than the stored truth, and a
-/// game wanting a period no whole rate names — a 72 Hz headset's 13 888 888 ns,
-/// say — can hold one exactly.
+/// game wanting a period no whole rate names -- a 72 Hz headset's 13 888 888 ns,
+/// say -- can hold one exactly.
 ///
 /// # Why a `u32` of them
 ///
 /// Nanoseconds, so the exactness above is real, and thirty-two bits of them, so
-/// the range stops at [`MAX`](Self::MAX) — four and a bit seconds. That bound is
+/// the range stops at [`MAX`](Self::MAX) -- four and a bit seconds. That bound is
 /// load-bearing rather than incidental: [`Step::alpha`](crate::Step::alpha)
 /// multiplies the accumulator by 65 535, and the accumulator is below one span,
 /// so a span that fits in a `u32` makes that product fit in a `u64` with four
-/// orders of magnitude to spare. A `u64` of nanoseconds would not — that product
-/// leaves the integer past about thirty-nine hours of span — and the
+/// orders of magnitude to spare. A `u64` of nanoseconds would not -- that product
+/// leaves the integer past about thirty-nine hours of span -- and the
 /// alternatives to bounding the type are 128-bit arithmetic on every frame or a
 /// clamp that silently rewrites what a caller asked for.
 ///
@@ -85,7 +85,7 @@ impl TickSpan {
     ///
     /// Fifteen hertz is low on purpose. A tick has sixty-six milliseconds to
     /// simulate in, which is where a rollback of half a dozen ticks has to fit
-    /// inside one frame's budget, and the display is not waiting on any of it —
+    /// inside one frame's budget, and the display is not waiting on any of it --
     /// the camera and the cursor run at the refresh rate and never ask the
     /// simulation for permission. Shortening the span buys nothing the player
     /// can see and spends the headroom rollback needs.
@@ -107,9 +107,9 @@ impl TickSpan {
 
     /// The span for `hz` ticks per second, truncated to a whole nanosecond.
     ///
-    /// This is the only truncation in the crate, and what it costs — a
+    /// This is the only truncation in the crate, and what it costs -- a
     /// simulation running fast against a wall clock by `1_000_000_000 % hz`
-    /// nanoseconds per second — is tabulated rate by rate in the [crate
+    /// nanoseconds per second -- is tabulated rate by rate in the [crate
     /// documentation](crate).
     ///
     /// Rates above a gigahertz truncate to nothing, so the span floors at one
@@ -127,8 +127,8 @@ impl TickSpan {
     /// answer every other zero in this module gets, rather than as a division
     /// by zero in [`Step`](crate::Step).
     ///
-    /// A game wanting a span no whole millisecond names — a 72 Hz headset's
-    /// 13 888 888 ns — has [`from_nanos`](Self::from_nanos).
+    /// A game wanting a span no whole millisecond names -- a 72 Hz headset's
+    /// 13 888 888 ns -- has [`from_nanos`](Self::from_nanos).
     ///
     /// ```
     /// use core::time::Duration;

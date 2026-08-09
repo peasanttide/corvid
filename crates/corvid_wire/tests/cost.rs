@@ -6,8 +6,8 @@
 //! the prose quietly wrong.
 //!
 //! Fifty thousand of each: the scale a rollback in this workspace is budgeted
-//! for, and large enough that the count in front of the list — three bytes, the
-//! marker `fb` and two more — is a rounding error against the elements.
+//! for, and large enough that the count in front of the list -- three bytes, the
+//! marker `fb` and two more -- is a rounding error against the elements.
 
 #![allow(
     clippy::unwrap_used,
@@ -26,7 +26,7 @@ const PREFIX: usize = 3;
 fn a_count_that_climbs_from_zero_is_cheaper_than_its_declared_width() {
     let ids: Vec<u32> = (0..MANY).collect();
 
-    // Under 251 for the first 251 of them, two bytes to 65,535, three above it —
+    // Under 251 for the first 251 of them, two bytes to 65,535, three above it --
     // so the column averages three bytes where a declared `u32` is always four.
     assert_eq!(encode(&ids).unwrap().len(), 149_501);
     assert!(149_501 < PREFIX + 4 * MANY as usize);

@@ -11,7 +11,7 @@
 //!
 //! The first is that a point is its three components and *no count*. An array is
 //! written as a fixed-size tuple, so a row is three components and nothing else
-//! — and JSON writes `[1,2,3]` whether the field is `[i32; 3]` or a `Vec<i32>`,
+//! -- and JSON writes `[1,2,3]` whether the field is `[i32; 3]` or a `Vec<i32>`,
 //! so a change that started writing a length would be invisible to it, invisible
 //! to every round trip, and would add a byte to every position in every snapshot
 //! in the workspace.
@@ -21,14 +21,14 @@
 //! component's width. A `GlobalPoint` is three `i32`s and a `GlobalFinePoint` is
 //! three `i64`s, and the two write the same bytes for the same small
 //! coordinates. The component types are strongly enough tied to their arithmetic
-//! that today an edit swapping them does not compile — but the width is
+//! that today an edit swapping them does not compile -- but the width is
 //! `corvid_fixed`'s to change, and if a widening ever does arrive it is silent
 //! here: a round trip stays green because the writer and the reader move
 //! together, a JSON row stays green because JSON spells a number the same at
 //! every width, and these rows stay green because a varint does too. The digest
 //! is what moves, and `tests/determinism.rs` is that table.
 //!
-//! The third is the byte order, which is little-endian on every target — a
+//! The third is the byte order, which is little-endian on every target -- a
 //! capture written on an aarch64 laptop is read by an x86-64 server, and neither
 //! a round trip nor a JSON row can tell the two machines apart.
 //!
@@ -69,7 +69,7 @@ const GOLDEN_POINTS: &[Row<'_>] = &[
 ///
 /// The row above is three components that a varint would have written in one
 /// byte each. This one holds a value that uses its width, so the row is also a
-/// statement about where the *second* component starts — which is the thing a
+/// statement about where the *second* component starts -- which is the thing a
 /// reader on the other end of a capture has to get right.
 const GOLDEN_WIDE: &[Row<'_>] = &[("GlobalPoint, bits 0x1234_5678, 0, 0", "fcf0ac68240000")];
 
@@ -123,7 +123,7 @@ fn every_point_encodes_as_it_was_recorded() {
 /// Two `i8` and no more: it is `wgpu`'s `Snorm8x2`, and a vertex buffer built
 /// from these is handed to a pipeline that was told the attribute is two bytes
 /// wide. A change that added a discriminant, a length, or a third component
-/// would not merely break a capture — it would silently misread every vertex
+/// would not merely break a capture -- it would silently misread every vertex
 /// after the first.
 ///
 /// `40, -3` rather than a symmetric pair for the reason the point rows use
@@ -205,7 +205,7 @@ fn a_point_is_its_components_and_no_count() {
     // A point is a fixed-size array, so it writes no count: three components and
     // nothing in front of them. An encoding that treated the array as a sequence
     // would have written a count first and made this four bytes rather than
-    // three — a change invisible to every round trip and to every JSON table,
+    // three -- a change invisible to every round trip and to every JSON table,
     // and one byte on every position in a snapshot.
     let point = GlobalPoint::new(I24F8::from_bits(1), I24F8::from_bits(2), I24F8::ZERO);
     assert_eq!(corvid_wire::encode(&point).unwrap().len(), 3);
@@ -222,8 +222,8 @@ fn a_point_is_its_components_and_no_count() {
 fn three_points_of_the_same_width_are_one_byte_string() {
     // `GlobalPoint`, `FinePoint` and `Direction` are three different types with
     // three different meanings, and a capture cannot tell which one wrote it.
-    // That is the convention — what says which field is which is the schema on
-    // both peers, not a tag on every value — but it is also the ceiling on what
+    // That is the convention -- what says which field is which is the schema on
+    // both peers, not a tag on every value -- but it is also the ceiling on what
     // the rows above can catch: a field that changed from one to another is a
     // reinterpretation of unchanged bytes, and no table in this workspace sees
     // it.
@@ -292,7 +292,7 @@ fn widening_a_component_moves_the_digest_and_not_the_bytes() {
 
     // The same three bytes. A varint carries each component's value and not the
     // width it was declared at, so every byte row in this file survives the
-    // widening — which is why the claim in the header belongs to the digest.
+    // widening -- which is why the claim in the header belongs to the digest.
     assert_eq!(narrow, [0x02, 0x04, 0x05]);
     assert_eq!(wide, narrow);
 

@@ -10,7 +10,7 @@ const FIELD_BITS: u32 = 10;
 /// Mask selecting one component field.
 const FIELD_MASK: u32 = (1 << FIELD_BITS) - 1;
 
-/// The largest magnitude a field can hold, so `±1.0` is exactly representable.
+/// The largest magnitude a field can hold, so `+/-1.0` is exactly representable.
 ///
 /// The crate's signed-normalized convention: a field denotes `v / MAX`, with
 /// `v` in `-511 ..= 511`, stored offset by 512.
@@ -19,32 +19,32 @@ const FIELD_MAX: i64 = (1 << (FIELD_BITS - 1)) - 1;
 /// The offset that makes a signed field an unsigned bit pattern.
 const FIELD_BIAS: i32 = 1 << (FIELD_BITS - 1);
 
-/// A rotation packed into 32 bits: **0.0784° mean, 0.1832° max** over uniform
+/// A rotation packed into 32 bits: **0.0784 deg mean, 0.1832 deg max** over uniform
 /// SO(3).
 ///
 /// A 2-bit chart index selects the largest-magnitude quaternion component; the
-/// other three are divided by it, giving the Gibbs vector `t = tan(θ/2)·axis`,
-/// which lies in exactly the cube `[-1, 1]³`. Three 10-bit fields store `t`.
+/// other three are divided by it, giving the Gibbs vector `t = tan(theta/2)*axis`,
+/// which lies in exactly the cube `[-1, 1]^3`. Three 10-bit fields store `t`.
 ///
-/// This clears the 1/5° budget and is the cheapest decode in the family.
+/// This clears the 1/5 deg budget and is the cheapest decode in the family.
 /// Alternatives measured and rejected for this tier:
 ///
 /// | codec | mean | max | decode work beyond the shared normalize |
 /// |---|---|---|---|
-/// | **gibbs linear 2+10+10+10** | 0.0784° | **0.1832°** | none |
-/// | gibbs bcc linear 2+1+29 | 0.0766° | 0.1528° | 2 int div/mod by N=812 |
-/// | smallest-three (baseline) | 0.0844° | 0.2423° | — misses the budget |
+/// | **gibbs linear 2+10+10+10** | 0.0784 deg | **0.1832 deg** | none |
+/// | gibbs bcc linear 2+1+29 | 0.0766 deg | 0.1528 deg | 2 int div/mod by N=812 |
+/// | smallest-three (baseline) | 0.0844 deg | 0.2423 deg | -- misses the budget |
 ///
 /// Every rejected codec performs the same normalize and then strictly more
 /// work, so the ranking holds regardless of what the integer costs turn out to
 /// be. The figures are `examples/rotation_quality.rs` over 200,000 uniform
 /// samples against an `f64` reference, which is the same run the crate README
-/// quotes — stated once there rather than re-transcribed per type.
+/// quotes -- stated once there rather than re-transcribed per type.
 ///
 /// # Layout
 ///
-/// Low to high: `t[a]` in bits 0–9, `t[b]` in bits 10–19, `t[c]` in bits 20–29,
-/// chart index in bits 30–31, where `a < b < c` are the three component indices
+/// Low to high: `t[a]` in bits 0-9, `t[b]` in bits 10-19, `t[c]` in bits 20-29,
+/// chart index in bits 30-31, where `a < b < c` are the three component indices
 /// other than the chart index, ascending over `[x, y, z, w]`.
 ///
 /// Every `u32` is a valid `Rotation` and decodes to a unit quaternion.
@@ -53,24 +53,17 @@ const FIELD_BIAS: i32 = 1 << (FIELD_BITS - 1);
 ///
 /// Unlike [`FineRotation`](crate::FineRotation), whose `Eq` and [`Hash`] route
 /// through its own cheap canonicalization, this type compares and hashes its
-/// raw `u32`. The encoding is **not** injective: 0.58% of arbitrary `u32`
-/// patterns decode to a quaternion that re-encodes to different bits — the
+/// raw `u32`. The encoding is **not** injective: about 0.6% of arbitrary `u32`
+/// patterns decode to a quaternion that re-encodes to different bits -- the
 /// one-past-the-end field pattern folds onto `-511`, and a Gibbs vector sitting
 /// on a chart boundary can name either of two charts. Two such patterns are the
 /// same rotation and still compare unequal.
 ///
-/// Encoding narrows that; it does not close it. Of the patterns the encoder
-/// itself produced, 0.065% are still non-canonical, the residue being the chart
-/// ties: where two quaternion components are equal in magnitude either can serve
-/// as the chart, and a re-encode picks the lower-indexed one and requantizes
-/// there. So the case to plan for is mostly a value that arrived as raw bits —
-/// over a wire, from `bytemuck`, from `arbitrary` — but not only that.
-/// [`canonicalize`](Self::canonicalize) is what settles either, and it is
-/// idempotent, so one pass is enough. It is not free: unlike `FineRotation`'s,
-/// it costs a decode and a re-encode, which is why it is not folded into `Eq`.
-///
-/// Both figures are measured in `tests/rotation32.rs`, over a million arbitrary
-/// patterns and a hundred thousand encoded ones.
+/// Encoding always lands on a canonical pattern, so this only bites values that
+/// arrived as raw bits -- over a wire, from `bytemuck`, from `arbitrary`. Put
+/// them through [`canonicalize`](Self::canonicalize) first if they are going to
+/// be compared or used as a key. It is not free: unlike `FineRotation`'s, it
+/// costs a decode and a re-encode, which is why it is not folded into `Eq`.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(::serde::Serialize, ::serde::Deserialize))]
@@ -156,7 +149,7 @@ impl Rotation {
     ///
     /// Integer-only: swizzle the three fields back around the chart index, pin
     /// the chart slot to the field scale, and hand all four to the shared
-    /// normalize. That normalize is *not* free — it is the dominant cost of the
+    /// normalize. That normalize is *not* free -- it is the dominant cost of the
     /// decode, which is why `corvid_fixed` grew an `rsqrt` rather than
     /// composing `sqrt` and `recip`.
     #[must_use]
@@ -165,7 +158,7 @@ impl Rotation {
         let chart = (self.0 >> (3 * FIELD_BITS)) as usize & 3;
 
         // The pivot takes the field scale, so the four numbers share one scale
-        // and `normalize4` — which cares only about ratios — needs no division
+        // and `normalize4` -- which cares only about ratios -- needs no division
         // by the field maximum.
         let mut raw = [0i64; 4];
         raw[chart] = FIELD_MAX;
@@ -175,7 +168,7 @@ impl Rotation {
             if index != chart {
                 let field = ((self.0 >> (slot * FIELD_BITS)) & FIELD_MASK) as i32;
                 // The biased range reaches `-512`, one step past what the
-                // encoder emits — the signed-normalized convention keeps `±1`
+                // encoder emits -- the signed-normalized convention keeps `+/-1`
                 // symmetric, so `MIN` is `-MAX`. Folding that one pattern onto
                 // `-511` keeps the pivot the largest component for *every*
                 // `u32`, so every pattern decodes to a genuine rotation. It
@@ -196,7 +189,7 @@ impl Rotation {
 
     /// The canonical bit pattern for this rotation.
     ///
-    /// A decode and a re-encode — the chart choice and the field quantization
+    /// A decode and a re-encode -- the chart choice and the field quantization
     /// are only recoverable that way, so unlike
     /// [`FineRotation::canonicalize`](crate::FineRotation::canonicalize) this
     /// is not a handful of compares. Idempotent, so it is safe to use as a map

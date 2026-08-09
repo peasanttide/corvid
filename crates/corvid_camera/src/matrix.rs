@@ -44,7 +44,7 @@
 use corvid_glm::Mat4;
 use corvid_rotation::Basis;
 use corvid_shape::Frustum;
-use corvid_transform::{GlobalFineTransform, Transform};
+use corvid_transform::{FineTransform, Transform};
 use corvid_vector::{GlobalFinePoint, GlobalPoint};
 
 /// A rotation as a matrix, with no translation.
@@ -95,7 +95,7 @@ pub fn model(transform: Transform, eye: GlobalFinePoint) -> Mat4 {
 /// turns the world the wrong way, which looks like a camera whose controls are
 /// mirrored rather than like anything failing.
 #[must_use]
-pub fn view(camera: GlobalFineTransform) -> Mat4 {
+pub fn view(camera: FineTransform) -> Mat4 {
     from_basis(camera.basis()).transpose()
 }
 

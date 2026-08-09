@@ -29,7 +29,8 @@ use corvid::Controller;
 use corvid::Tick;
 use corvid::digest as mark_of;
 use corvid_lockstep::{Budget, Datagram, Peer};
-use corvid_net::{Delivery, PeerId, Transport, udp::UdpNet};
+use corvid_net::{Delivery, PeerId, Transport};
+use corvid_net_udp::UdpNet;
 use corvid_replay::Session;
 use pong::{Move, Table, opening, rally::Policy};
 
@@ -53,7 +54,7 @@ fn met() -> Result<(UdpNet, UdpNet), Box<dyn std::error::Error>> {
     while Instant::now() < deadline {
         here.poll(&mut |_, _| {});
         there.poll(&mut |_, _| {});
-        if !here.peers().get().is_empty() && !there.peers().get().is_empty() {
+        if !here.peers().is_empty() && !there.peers().is_empty() {
             return Ok((here, there));
         }
         thread::sleep(Duration::from_millis(2));

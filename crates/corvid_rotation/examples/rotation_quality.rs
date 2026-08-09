@@ -4,8 +4,9 @@
 //! cargo run --release --example rotation_quality
 //! ```
 //!
-//! It measures what this crate actually computes, against an `f64` reference, by
-//! the chord form `4·asin(chord/2)` — never `2·acos(|q1·q2|)`, whose noise
+//! The spec's table came from a GPU harness measuring in `f32`. This one
+//! measures what this crate actually computes, against an `f64` reference, by
+//! the chord form `4*asin(chord/2)` -- never `2*acos(|q1*q2|)`, whose noise
 //! floor sits above `FineRotation`'s whole error budget.
 //!
 //! The rejected alternatives are implemented here as private functions rather
@@ -100,7 +101,7 @@ fn fine_quaternion(q: [f64; 4]) -> [f64; 4] {
 /// The smallest-three baseline at 2+10+10+10, for comparison only.
 ///
 /// Drops the largest component and stores the other three directly rather than
-/// dividing by it. Cheaper still to decode, and it misses the 1/5° budget —
+/// dividing by it. Cheaper still to decode, and it misses the 1/5 deg budget --
 /// which is the whole reason the Gibbs form is the one that ships.
 fn smallest_three(q: [f64; 4]) -> [f64; 4] {
     let mut chart = 0;
@@ -136,7 +137,7 @@ fn smallest_three(q: [f64; 4]) -> [f64; 4] {
 /// The BCC-lattice Gibbs variant at 2+1+29, for comparison only.
 ///
 /// Slightly better error than the shipped codec, at the price of two integer
-/// divisions and two modulos by `N = 812` in the decode — on top of the same
+/// divisions and two modulos by `N = 812` in the decode -- on top of the same
 /// normalize. That is the trade the crate declines.
 fn gibbs_bcc_linear(q: [f64; 4]) -> [f64; 4] {
     const N: i64 = 812;
@@ -216,99 +217,6 @@ fn measure(name: &str, bits: u32, mut codec: impl FnMut([f64; 4]) -> [f64; 4]) {
     );
 }
 
-/// Samples for the endpoint table, which counts rare events and needs more of
-/// them than the codec table does.
-const ENDPOINT_SAMPLES: u32 = 1_000_000;
-
-/// Measures what an interpolation at an endpoint computes when it is not
-/// short-circuited, and prints the table the READMEs quote.
-///
-/// Nothing is reverted to get these. Each of the four operations reduces to a
-/// routine that is still public, so the drift the short-circuits hide can be
-/// measured by calling that routine directly:
-///
-/// * `Versor::nlerp` at `Factor32::ZERO` mixes `self` with `to` in proportion
-///   zero — which is `self` — and ends on `normalize4`. `renormalize` *is*
-///   `normalize4` and nothing else, so `a.renormalize()` is bit for bit what
-///   the unguarded `nlerp` returned.
-/// * `Basis::nlerp` at `ZERO` adds a conversion at each end of that.
-/// * `Transform::lerp` and `GlobalFineTransform::lerp` at either endpoint leave the
-///   versor alone — `Versor::nlerp` has its own guard — and then repack it, so
-///   the drift is the codec's round trip and nothing else.
-fn measure_endpoints() {
-    let mut rng = Rng(0x2024_e4d9_0147_5f01);
-    let mut counts = [0u32; 4];
-    let mut worst = [0.0f64; 4];
-    // The `acos` form on the fine codec's pairs, for the comparison the
-    // `angle_to` documentation makes.
-    let mut worst_acos = 0.0f64;
-
-    for _ in 0..ENDPOINT_SAMPLES {
-        let a = to_versor(random_quaternion(&mut rng));
-
-        let renormalized = a.renormalize();
-        if renormalized != a {
-            counts[0] += 1;
-            worst[0] = worst[0].max(angle_degrees(from_versor(a), from_versor(renormalized)));
-        }
-
-        let m = a.to_basis();
-        let round_tripped = Versor::from_basis(m).renormalize().to_basis();
-        if round_tripped != m {
-            counts[1] += 1;
-            let (p, q) = (Versor::from_basis(m), Versor::from_basis(round_tripped));
-            worst[1] = worst[1].max(angle_degrees(from_versor(p), from_versor(q)));
-        }
-
-        let coarse = Rotation::from_versor(a);
-        let coarse_again = Rotation::from_versor(coarse.to_versor());
-        if coarse_again != coarse {
-            counts[2] += 1;
-            worst[2] = worst[2].max(angle_degrees(
-                from_versor(coarse.to_versor()),
-                from_versor(coarse_again.to_versor()),
-            ));
-        }
-
-        let fine = FineRotation::from_versor(a);
-        let fine_again = FineRotation::from_versor(fine.to_versor());
-        if fine_again != fine {
-            counts[3] += 1;
-            worst[3] = worst[3].max(angle_degrees(
-                from_versor(fine.to_versor()),
-                from_versor(fine_again.to_versor()),
-            ));
-            worst_acos = worst_acos.max(
-                fine.to_versor()
-                    .angle_to(fine_again.to_versor())
-                    .to_degrees(),
-            );
-        }
-    }
-
-    println!("\nendpoint drift the short-circuits hide ({ENDPOINT_SAMPLES} uniform samples)");
-    println!(
-        "  {:<40} {:>10}  {:>10}",
-        "operation at an endpoint", "moved", "max"
-    );
-    for (name, i) in [
-        ("Versor::nlerp / slerp", 0),
-        ("Basis::nlerp / slerp", 1),
-        ("Transform::lerp (Rotation repack)", 2),
-        ("GlobalFineTransform::lerp (FineRotation repack)", 3),
-    ] {
-        println!("  {name:<40} {:>10}  {:>11.9}°", counts[i], worst[i]);
-    }
-    println!();
-    println!("  The coarse repack's max is a flat zero: the pairs it moves are two codes");
-    println!("  for one rotation, so the bits change and the versor does not.");
-    println!("  Versor::angle_to reads the fine codec's worst pair as {worst_acos:.4}°, against");
-    println!(
-        "  {:.9}° by the chord form — `acos` is ill-conditioned at 1.\n",
-        worst[3]
-    );
-}
-
 fn main() {
     println!("\nrotation codec quality ({SAMPLES} uniform samples, f64 reference, chord metric)");
     println!(
@@ -322,8 +230,6 @@ fn main() {
     measure("4x Signed16 quaternion (shipped)", 64, fine_quaternion);
 
     println!(
-        "\n  budgets: 1/5 deg = 0.2000 for the 32-bit tier, 1/128 deg = 0.0078 for the 64-bit tier"
+        "\n  budgets: 1/5 deg = 0.2000 for the 32-bit tier, 1/128 deg = 0.0078 for the 64-bit tier\n"
     );
-
-    measure_endpoints();
 }

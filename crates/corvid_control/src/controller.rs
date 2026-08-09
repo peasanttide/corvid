@@ -253,7 +253,7 @@ pub trait Controller<S: State> {
     ///
     /// `input` already carries `pressed` and `released` folded across every
     /// display frame since the last tick, the analog deflections, the mouse's
-    /// displacement, the `Option<GlobalFineTransform>` poses a headset reports,
+    /// displacement, the `Option<FineTransform>` poses a headset reports,
     /// and [`text`](corvid_input::Input::text) — so a tap that started and
     /// finished between two ticks is here rather than lost.
     ///

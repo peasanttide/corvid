@@ -11,16 +11,16 @@ keywords = ["lockstep", "rollback", "netcode", "deterministic", "no-std"]
 categories = ["game-development", "no-std"]
 
 [dependencies]
-corvid_behavior = { version = "0.2", path = "../corvid_behavior", default-features = false }
-corvid_hash = { version = "0.2", path = "../corvid_hash", default-features = false }
-corvid_replay = { version = "0.2", path = "../corvid_replay", default-features = false }
+corvid_behavior = { workspace = true }
+corvid_hash = { workspace = true }
+corvid_replay = { workspace = true }
 # Named directly rather than reached through `corvid_replay` for the `serde`
 # feature: a `Datagram` carries two ticks and they have to go on the wire.
 # `corvid_time/std` is deliberately absent, as it is everywhere in the
 # simulation ring — the API it adds is `Wall`, and nothing that computes part of
 # a tick may ask what time it is.
-corvid_time = { version = "0.2", path = "../corvid_time", default-features = false, features = ["serde"] }
-corvid_wire = { version = "0.2", path = "../corvid_wire", default-features = false }
+corvid_time = { workspace = true, features = ["serde"] }
+corvid_wire = { workspace = true }
 # `rc` is named here rather than left to workspace feature unification, because
 # a standalone `-p corvid_lockstep` build unifies with nothing: an `Opening`
 # carries its level, rules and origin behind `Arc`, and without `rc` serde has

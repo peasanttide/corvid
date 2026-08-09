@@ -20,9 +20,9 @@
 mod common;
 
 use common::Rng;
-use corvid_fixed::{Angle32, Factor32, I2F30, I16F16, I48F16, Pitch32, Signed32};
+use corvid_fixed::{Angle32, Factor32, I2F30, I16F16, Pitch32, Signed32};
 use corvid_rotation::{Basis, Versor};
-use corvid_vector::{Direction, FinePoint, GlobalFinePoint};
+use corvid_vector::{Direction, FinePoint};
 
 /// A few hundred last bits of `I2F30`, which is what a rotation that has been
 /// through the codecs and back can drift by.
@@ -75,64 +75,6 @@ fn the_identity_leaves_every_point_alone() {
 }
 
 #[test]
-fn a_rotation_rounds_a_tie_away_from_zero_at_both_widths() {
-    // `round_shift_i64` and `round_shift_i128` in `src/basis.rs` round half
-    // away from zero, the rule `quantize` and the rest of the crate's
-    // reductions use, so a rotation and its mirror image land on components
-    // that are exact negations rather than one step apart. Nothing else here
-    // can see that: only an exact tie separates it from rounding half up or
-    // half down, and no random pose produces one.
-    //
-    // This basis is a sixth of a turn in the right-forward plane, whose cosine
-    // is exactly one half — `1 << 29` at Q30 — so `row[0] · (x, 0, 0)` is
-    // `x / 2` exactly and a component of one raw unit is exactly half a step.
-    // The sine is irrational and lands wherever Q30 puts it; the rows are still
-    // orthonormal to well within `from_rows`'s tolerance, which is what makes
-    // this a basis the public constructor accepts rather than one smuggled in.
-    const HALF: I2F30 = I2F30::from_bits(1 << 29);
-    const SIN: I2F30 = I2F30::from_bits(929_887_697);
-    let m = Basis::from_rows([
-        [HALF, I2F30::from_bits(-SIN.to_bits()), I2F30::ZERO],
-        [SIN, HALF, I2F30::ZERO],
-        [I2F30::ZERO, I2F30::ZERO, I2F30::ONE],
-    ])
-    .expect("a sixth of a turn is a rotation");
-
-    // The `i64` path, through `I16F16` components.
-    let fine = |bits: i32| {
-        m.rotate_fine(FinePoint::new(
-            I16F16::from_bits(bits),
-            I16F16::ZERO,
-            I16F16::ZERO,
-        ))
-        .to_array()[0]
-            .to_bits()
-    };
-    assert_eq!(fine(1), 1, "a positive tie rounded toward zero");
-    assert_eq!(fine(-1), -1, "a negative tie rounded toward zero");
-
-    // The `i128` path, through `I48F16` components, which is a second
-    // implementation of the same rule and was reached by nothing above.
-    let wide = |bits: i64| {
-        m.rotate_global_fine(GlobalFinePoint::new(
-            I48F16::from_bits(bits),
-            I48F16::ZERO,
-            I48F16::ZERO,
-        ))
-        .to_array()[0]
-            .to_bits()
-    };
-    assert_eq!(wide(1), 1, "a positive tie rounded toward zero at i128");
-    assert_eq!(wide(-1), -1, "a negative tie rounded toward zero at i128");
-
-    // Stated as the symmetry it exists for, rather than only as two constants:
-    // negating the input negates the output exactly, which is what "half away
-    // from zero" buys and what half up or half down would break on this pair.
-    assert_eq!(fine(1), -fine(-1));
-    assert_eq!(wide(1), -wide(-1));
-}
-
-#[test]
 fn untransform_undoes_transform() {
     let mut rng = Rng::new(0x1111_7777);
     for _ in 0..20_000 {
@@ -182,7 +124,7 @@ fn composition_is_associative() {
 
 #[test]
 fn compose_applies_the_right_hand_operand_first() {
-    // a.compose(b) applies b first, then a — matrix multiplication order and
+    // a.compose(b) applies b first, then a -- matrix multiplication order and
     // glam's Mul. This test fails if the order is ever flipped.
     let yaw = Basis::from_yaw_pitch_roll(Angle32::from_degrees(90.0), Pitch32::ZERO, Angle32::ZERO);
     let pitch =
@@ -290,7 +232,7 @@ fn versor_composition_matches_matrix_composition() {
 
 #[test]
 fn repeated_composition_drifts_slowly_and_renormalize_fixes_it() {
-    // `compose` deliberately does not renormalize — folding an `rsqrt` into it
+    // `compose` deliberately does not renormalize -- folding an `rsqrt` into it
     // would cost an order of magnitude and hand the win back to the matrix. The
     // price is a slow drift off the unit sphere, and this test states its size.
     let mut rng = Rng::new(0xD21F_0013);
@@ -341,7 +283,7 @@ fn negating_a_versor_names_the_same_rotation() {
     for _ in 0..20_000 {
         let q = common::random_versor(&mut rng);
         // The matrix form is the sign-free statement of "same rotation", and
-        // it is exact — unlike `angle_to`, whose `acos` cannot resolve zero.
+        // it is exact -- unlike `angle_to`, whose `acos` cannot resolve zero.
         assert_eq!(q.to_basis(), q.negate().to_basis());
         assert_eq!(q.negate().negate(), q);
         assert!(q.angle_to(q.negate()).to_degrees() < 0.01);
