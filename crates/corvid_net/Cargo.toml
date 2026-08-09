@@ -1,0 +1,41 @@
+[package]
+name = "corvid_net"
+description = "The transport contract: bytes to a peer, bytes from a peer, and a published roster."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["networking", "transport", "gamedev"]
+categories = ["network-programming", "game-development"]
+
+[dependencies]
+# `id_type!` for `PeerId` and `named_enum!` for `Channel` and `Lost` -- the
+# newtype, the `ALL`, the names and both `Display`s. A `macro_rules!` crate
+# with no dependencies of its own, so it adds a path entry and nothing to the
+# build below it.
+corvid_macros = { workspace = true }
+# Named by `id_type!`'s expansion rather than used directly here, and only
+# when the feature below is on: `PeerId` then encodes as the bare number under
+# `#[serde(transparent)]`.
+serde = { workspace = true, features = ["derive"], optional = true }
+# `Display` and `Error` for `SendError`, written on the variants rather than in
+# a `match` a new variant can be added without touching. `core::error::Error`,
+# since the workspace entry leaves the `std` default off.
+thiserror = { workspace = true }
+
+[features]
+# One, and it adds nothing to the contract: `serde` puts an encoding on the
+# value types and leaves `Transport` alone, so a caller generic over the trait
+# never has to know which way a backend compiled it.
+default = []
+# `PeerId` encodes as the bare number it is. The other value types are a
+# backend's business to send, not this crate's to encode.
+serde = ["dep:serde"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

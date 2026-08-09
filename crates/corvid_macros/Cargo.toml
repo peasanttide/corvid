@@ -24,6 +24,15 @@ categories = ["game-development", "rust-patterns", "no-std::no-alloc"]
 # to the build for a newtype and a `Display`.
 [dependencies]
 
+[features]
+default = []
+# Not a dependency of this crate, which has none. The flag exists so that
+# `id_type!`'s `cfg_attr` resolves when this crate expands the macro in its own
+# tests, and so those tests can exercise the encoding half at all. A caller
+# declares its own flag of the same name and takes the real dependency behind
+# it.
+serde = []
+
 [dev-dependencies]
 # The README's example derives `Serialize`/`Deserialize` through `id_type!`,
 # which is the point being made: the expansion names `::serde` and the crate

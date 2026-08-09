@@ -48,6 +48,8 @@ corvid_float = { version = "0.1.0", path = "crates/corvid_float" }
 corvid_glm = { version = "0.1.0", path = "crates/corvid_glm" }
 corvid_hash = { version = "0.1.0", path = "crates/corvid_hash" }
 corvid_macros = { version = "0.1.0", path = "crates/corvid_macros" }
+corvid_net = { version = "0.1.0", path = "crates/corvid_net" }
+corvid_net_mock = { version = "0.1.0", path = "crates/corvid_net_mock" }
 corvid_rotation = { version = "0.1.0", path = "crates/corvid_rotation" }
 corvid_signal = { version = "0.1.0", path = "crates/corvid_signal" }
 corvid_time = { version = "0.1.0", path = "crates/corvid_time" }
@@ -55,7 +57,11 @@ corvid_transform = { version = "0.1.0", path = "crates/corvid_transform" }
 corvid_vector = { version = "0.1.0", path = "crates/corvid_vector" }
 corvid_wire = { version = "0.1.0", path = "crates/corvid_wire" }
 
-thiserror = "2"
+# `default-features = false` for the reason `serde` below has it: a crate here
+# starts `#![no_std]`, and the default feature is what pulls in the `std`
+# `Error` rather than `core`'s. A member that wants the `std` half turns it on
+# for itself.
+thiserror = { version = "2", default-features = false }
 
 # The benchmark harness. A dev-dependency of three members, so the version is
 # written here once: a benchmark that reported against a different Criterion

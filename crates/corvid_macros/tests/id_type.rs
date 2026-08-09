@@ -25,6 +25,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher as _};
 
 use corvid_macros::id_type;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 id_type! {
@@ -51,6 +52,7 @@ id_type! {
 
 /// A struct with an identifier in it, to see the encoding in the position it
 /// will actually be read from -- a field of a message -- rather than alone.
+#[cfg(feature = "serde")]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct Seating {
     seat: SeatId,
@@ -81,16 +83,19 @@ fn digest<T: Hash>(value: &T) -> u64 {
 #[test]
 fn the_field_is_public_and_display_is_the_integer() {
     assert_eq!(SeatId(3).0, 3);
-    assert_eq!(SeatId(3).to_string(), "3");
+    assert_eq!(SeatId(3).to_string(), "SeatId(3)");
 
     // The ends of each repr, where a `Display` written by hand would be most
     // likely to have gone through a narrower intermediate.
-    assert_eq!(SeatId(u16::MIN).to_string(), "0");
-    assert_eq!(SeatId(u16::MAX).to_string(), "65535");
-    assert_eq!(AccountId(u64::MAX).to_string(), "18446744073709551615");
-    assert_eq!(Offset(i8::MIN).to_string(), "-128");
-    assert_eq!(Offset(-1).to_string(), "-1");
-    assert_eq!(Offset(i8::MAX).to_string(), "127");
+    assert_eq!(SeatId(u16::MIN).to_string(), "SeatId(0)");
+    assert_eq!(SeatId(u16::MAX).to_string(), "SeatId(65535)");
+    assert_eq!(
+        AccountId(u64::MAX).to_string(),
+        "AccountId(18446744073709551615)"
+    );
+    assert_eq!(Offset(i8::MIN).to_string(), "Offset(-128)");
+    assert_eq!(Offset(-1).to_string(), "Offset(-1)");
+    assert_eq!(Offset(i8::MAX).to_string(), "Offset(127)");
 
     // `Copy`, so passing one does not move it. This is a compile-time claim
     // dressed as a runtime one; it fails to build rather than to assert.
@@ -120,6 +125,7 @@ fn ordering_is_the_integer_ordering_including_the_signed_half() {
     assert_eq!(seats, [SeatId(0), SeatId(1), SeatId(2)]);
 }
 
+#[cfg(feature = "serde")]
 #[test]
 fn the_encoding_is_the_bare_number() -> Result<(), serde_json::Error> {
     assert_eq!(serde_json::to_string(&SeatId(3))?, "3");
@@ -148,6 +154,7 @@ fn the_encoding_is_the_bare_number() -> Result<(), serde_json::Error> {
     Ok(())
 }
 
+#[cfg(feature = "serde")]
 #[test]
 fn every_16_bit_value_survives_a_json_round_trip() -> Result<(), serde_json::Error> {
     for number in u16::MIN..=u16::MAX {
@@ -159,6 +166,7 @@ fn every_16_bit_value_survives_a_json_round_trip() -> Result<(), serde_json::Err
     Ok(())
 }
 
+#[cfg(feature = "serde")]
 #[test]
 fn a_wrapper_on_the_wire_is_rejected_and_so_is_an_out_of_range_number() {
     // The three shapes a reader would see if the identifier had been encoded
@@ -213,5 +221,5 @@ fn an_identifier_keys_a_map() {
 fn a_declaration_survives_a_module_without_the_prelude() {
     let bare = without_the_prelude::BareId(7);
     assert_eq!(bare.0, 7);
-    assert_eq!(bare.to_string(), "7");
+    assert_eq!(bare.to_string(), "BareId(7)");
 }
