@@ -1,13 +1,9 @@
 # `corvid_transform`
 
-Deterministic, integer-only rigid transforms for
-[Corvid](https://github.com/peasanttide/corvid), sized for an earth-scale VR
-game. Transform points between world and local space using nothing but
-fixed-point arithmetic, so every machine running the simulation computes the
-same bits.
-
-This crate re-exports [`corvid_fixed`], [`corvid_vector`] and
-[`corvid_rotation`], so downstream code depends on one name.
+Deterministic, integer-only rigid transforms for Corvid, sized for an earth-scale
+VR game. `no_std`, every operation `const`. This crate re-exports
+[`corvid_fixed`], [`corvid_vector`] and [`corvid_rotation`], so downstream code
+depends on one name.
 
 ```rust
 use corvid_transform::{
@@ -25,15 +21,14 @@ let camera = FineTransform::new(
     )),
 );
 
-// Something a millimetre in front of it.
+// Something a millimetre in front of it. World to eye still resolves to
+// 15.26 um at that distance, because the subtraction happens before the
+// narrowing.
 let target = camera.position() + GlobalFinePoint::new(
     I48F16::from_f64(0.001),
     I48F16::ZERO,
     I48F16::ZERO,
 );
-
-// World to eye: the near field still resolves to 15.26 um at that distance
-// from the origin, because the subtraction happens before the narrowing.
 let local = camera.to_fine_global(target).expect("a millimetre is near field");
 assert!(local.length().to_f64() < 0.0011);
 
@@ -43,86 +38,34 @@ let object = Transform::new(
     Rotation::IDENTITY,
 );
 assert_eq!(size_of::<Transform>(), 16);
-assert_eq!(size_of::<FineTransform>(), 32);
 assert_eq!(object.inverse().compose(object), Transform::IDENTITY);
 ```
 
-## The two tiers
+Two tiers, generated from one macro so the operation family cannot drift between
+them. [`Transform`] is 16 bytes: a [`GlobalPoint`] position at 3.9 mm over
++/-8388 km, and a [`Rotation`]. [`FineTransform`] is 32 bytes: a
+[`GlobalFinePoint`] at 15.26 um over +/-1.407e14 m, and a [`FineRotation`].
+Objects in the world are the first; the camera and VR tracked poses are the
+second. Both widen to `I48F16` internally, which is an exact shift and makes the
+subtraction total, so two coarse positions differing by more than `GlobalPoint`
+holds still subtract correctly.
 
-| | Position | Rotation | Size |
-|---|---|---|---|
-| [`Transform`] | [`GlobalPoint`] -- +/-8388 km at 3.9 mm | [`Rotation`] -- 0.186 deg | **16 B** |
-| [`FineTransform`] | [`GlobalFinePoint`] -- +/-1.407e14 m at 15.26 um | [`FineRotation`] -- 0.0033 deg | **32 B** |
+The convention is right-handed, **+X right, +Y forward, +Z up**, with yaw about
++Z, pitch about +X and roll about +Y composed ZXY intrinsic. Identity faces +Y
+with +Z up, so an identity transform looks forward rather than at the floor.
+`a.compose(b)` applies `b` first.
 
-Objects in the world are [`Transform`]. The camera and VR tracked poses are
-[`FineTransform`]. Both are generated from one macro, so the operation family is
-written once and cannot drift between them.
+World to local is the hot path, and its order is **widen, subtract, range-check,
+narrow, rotate**. The first three steps are bit-exact end to end and nothing
+rounds until the rotation, which rounds once, so every unit of error in a
+world-to-eye conversion is attributable to one place. Narrowing a difference
+rather than an absolute is what makes earth scale work: the camera can sit
+6.37e6 m from the origin, or 1e13 m, and near-field geometry still resolves to
+15.26 um -- with no `i128` on the path. `None` appears only when the *offset*
+leaves range, never for magnitude quietly discarded.
 
-**Both widen to `I48F16` internally.** `Transform`'s own position is a
-`GlobalPoint`, so a naive implementation would subtract in `i32` and need a
-separate code path with its own overflow story -- two `GlobalPoint`s can differ by
-more than `GlobalPoint` holds. Widening the operands first is an exact `<< 8`,
-makes the subtraction total, and lets both tiers share one macro body. The shift
-is free next to the rotation that follows.
-
-## Coordinate convention
-
-Right-handed, **+X right, +Y forward, +Z up**. Yaw about **+Z**, pitch about
-**+X**, roll about **+Y**; Euler composition is **ZXY intrinsic**.
-`right = forward x up`. Identity faces **+Y** with **+Z** up, so an identity
-transform looks forward rather than at the floor. `a.compose(b)` applies **`b`
-first**, then `a`.
-
-## World -> local, the hot path
-
-```rust
-use corvid_transform::{FineTransform, GlobalFinePoint, GlobalPoint, I48F16};
-
-let camera = FineTransform::new(
-    GlobalFinePoint::splat(I48F16::from_f64(1.0e13)),
-    Default::default(),
-);
-
-// The offset is bit-exact before the rotation: both types carry 16 fractional
-// bits, so the widen is a shift, the subtract is exact i64, and the narrow is a
-// bounds test.
-let one_step = camera.position() + GlobalFinePoint::new(
-    I48F16::from_bits(1),
-    I48F16::ZERO,
-    I48F16::ZERO,
-);
-let local = camera.to_fine_global(one_step).expect("one last bit is near field");
-assert_eq!(local.x().to_bits(), 1);
-
-// None appears only when the *offset* leaves range, never for magnitude
-// quietly discarded.
-let far = GlobalFinePoint::splat(I48F16::from_f64(1.0e13 + 40_000.0));
-assert_eq!(camera.to_fine_global(far), None);
-assert!(camera.to_local_global(far).is_some());
-```
-
-| Method | Argument | Result | Resolution over range |
-|---|---|---|---|
-| `to_fine` | `GlobalPoint` | `Option<FinePoint>` | 15.26 um over +/-32.7 km |
-| `to_fine_global` | `GlobalFinePoint` | `Option<FinePoint>` | 15.26 um over +/-32.7 km |
-| `to_local` | `GlobalPoint` | `Option<GlobalPoint>` | 3.9 mm over +/-8388 km |
-| `to_local_global` | `GlobalFinePoint` | `Option<GlobalPoint>` | 3.9 mm over +/-8388 km |
-| `to_world` | `FinePoint` | `GlobalFinePoint` | total |
-| `to_world_coarse` | `GlobalPoint` | `GlobalFinePoint` | total |
-
-Order inside every `to_*` is **widen -> subtract -> range-check -> narrow ->
-rotate**. Steps 1-3 into a `FinePoint` are **bit-exact end to end**; nothing
-rounds until the rotation, which rounds once. Every unit of error in a
-world->eye conversion is attributable to one place.
-
-Narrowing a *difference* rather than an absolute is what makes earth scale work:
-the camera can sit 6.37e6 m from the origin -- or 1e13 m -- and near-field
-geometry still resolves to 15.26 um. **There is no `i128` on this path.**
-
-### Hoist the basis out of hot loops
-
-Every conversion above decodes the packed rotation on the way in, and that
-decode dominates the cost. A loop over thousands of points should decode once:
+Every conversion decodes the packed rotation on the way in, and that decode
+dominates the cost, so a loop over thousands of points should decode once:
 
 ```rust
 use corvid_transform::{FineTransform, GlobalFinePoint, I48F16};
@@ -141,88 +84,18 @@ let local: Vec<_> = objects
 assert_eq!(local.len(), 4);
 ```
 
-`benches/earth_scale_vr.rs` measures both forms over 10,000 objects at 90 Hz
-with the camera at 6.37e6 m:
+Converting between the tiers is [`to_fine_transform`](Transform::to_fine_transform)
+and [`to_coarse_transform`](FineTransform::to_coarse_transform). The upgrade
+cannot fail but is not lossless in the way the name suggests: the position widens
+exactly while the rotation is re-quantized. The downgrade returns `None` only on
+position range; the rotation always converts, losing accuracy to the 32-bit tier.
 
-| | per point | per frame | of the 11.1 ms budget |
-|---|---|---|---|
-| `to_fine_global` (decodes per call) | 65.4 ns | 0.65 ms | 5.9% |
-| hoisted basis, `i64` local path | **15.7 ns** | **0.16 ms** | **1.4%** |
-| hoisted basis, `i128` global path | 22.3 ns | 0.22 ms | 2.0% |
+The optional integrations are `mint`, `nalgebra`, `serde`, `bytemuck` and
+`arbitrary`, all off by default and forwarded to the layers below.
 
-Hoisting is **4.2x faster** -- the packed-rotation decode really is the dominant
-cost -- and subtracting before narrowing buys a further **29%** over rotating at
-world width. Even the naive form fits the budget seventeen times over; the point
-of the fast path is what is left for everything else in the frame.
+## Scope
 
-## Converting between the tiers
-
-```rust
-use corvid_transform::{FineTransform, GlobalFinePoint, I48F16, Transform};
-
-let object = Transform::default();
-let fine = object.to_fine_transform();
-assert_eq!(fine.to_coarse_transform(), Some(object));
-
-// Range is the only reason the downgrade fails.
-let far = FineTransform::new(
-    GlobalFinePoint::splat(I48F16::from_f64(1.0e13)),
-    Default::default(),
-);
-assert_eq!(far.to_coarse_transform(), None);
-```
-
-`to_fine_transform` cannot fail, but it is **not lossless in the way the name
-suggests**: the position widens exactly while the rotation is re-quantized,
-adding up to `FineRotation`'s 0.0033 deg on top of the 0.186 deg the `Rotation`
-already carries. That is a 1.8% increase in a quantity already dominated by the
-coarse codec.
-
-`to_coarse_transform` returns `None` **only** on position range; the rotation
-always converts, losing accuracy down to the 32-bit tier.
-
-> **Naming note.** The design document called these `to_fine` and `to_coarse`.
-> `Transform::to_fine` is already the world->eye point conversion above, and two
-> inherent methods cannot share a name, so the tier conversions carry the
-> `_transform` suffix. `From` and `TryFrom` impls exist alongside.
-
-## Operation family
-
-`IDENTITY`, `new`, `position`, `rotation`, `basis`, `origin`, `inverse`,
-`compose`, `transform_point` / `transform_vector` / `transform_direction` and
-their inverses, the six conversions above, `look_at`, `looking_to`,
-`looking_at`, `lerp`, `move_towards`, `rotate_towards`, `direction_to`,
-`distance_to`, `translated_by`, `rotated_by`, `with_position`, `with_rotation`,
-`forward` / `right` / `up`.
-
-## Determinism
-
-Every operation is integer arithmetic and `const`. Floating point appears only
-in conversions at the boundary -- `from_f64`, `to_f64` and their `f32` forms --
-exactly as in `corvid_fixed`. `tests/determinism.rs` compares const-evaluated
-results against runtime results: rustc's const interpreter and the CPU are
-independent implementations of the same arithmetic, so agreement is evidence,
-not tautology.
-
-`tests/vr_stability.rs` turns "does not visibly swim" into three assertions:
-bit-identical decoding of a static pose across 10,000 frames, no dither at a
-quantization boundary, and bounded steps under a 200 deg/s sweep sampled at 90 Hz.
-
-## Features
-
-Every integration is optional and off by default.
-
-| Feature | Effect |
-|---|---|
-| `mint` | `mint` conversions, forwarded from the layers below |
-| `nalgebra` | `nalgebra` conversions, forwarded from the layers below |
-| `serde` | `Serialize`/`Deserialize`; packed rotations transparently as their integer |
-| `bytemuck` | `Pod` and `Zeroable` |
-| `arbitrary` | `Arbitrary`, for fuzzing (links `std`) |
-| `std` | Forwards `std` to whichever of the above are enabled |
-
-## Out of scope
-
-Transform hierarchies -- Corvid has none, by design. Scale, uniform or not: a
-transform here is rigid, so the inverse is exact and composition stays in SO(3).
-View and projection matrices. Distribution-adaptive rotation codebooks.
+Rigid transforms, which means no scale, uniform or otherwise: the inverse is
+exact and composition stays in SO(3). No transform hierarchies -- Corvid has
+none, by design -- and no view or projection matrices, which take a fixed-point
+type on their near side and belong to the crate that owns the camera.
