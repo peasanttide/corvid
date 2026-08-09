@@ -250,6 +250,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_net_udp"
+version = "0.1.0"
+dependencies = [
+ "corvid_net",
+]
+
+[[package]]
 name = "corvid_rotation"
 version = "0.1.0"
 dependencies = [
