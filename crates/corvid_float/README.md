@@ -28,16 +28,15 @@ divided by each other, within two. `hypot` is the one that genuinely differs, at
 the far ends of the range, and its own documentation says where.
 
 The `f32` surface is at the crate root and the `f64` one in [`wide`], and both
-carry the same names. [`consts`] re-exports `core`'s `f32` constants, so a caller
-reaching for a `PI` names one crate rather than two.
+carry the same names. [`consts`] re-exports `core`'s `f32` constants, so a
+caller reaching for a `PI` names one crate rather than two.
 
 ## Scope
 
 The boundary, and not the workspace's arithmetic. Everything a Corvid simulation
-hashes, sends or replays is fixed-point, because two machines have to agree on it
-bit for bit and floating point does not give that across architectures. This
-crate is for the other side of that line: the matrices, the texture coordinates
-and the gains that reach a device, where nothing is compared against another
-machine's answer and the rounding is free.
+hashes, sends or replays is fixed-point; this crate is for the other side of
+that line, where nothing is compared against another machine's answer and the
+rounding is free -- the matrices, the texture coordinates and the gains that
+reach a device.
 
 Scalars only. The vector and matrix types built on these are `corvid_glm`.

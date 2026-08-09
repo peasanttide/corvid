@@ -1,7 +1,7 @@
 # `corvid_bits`
 
-The two integer questions the rest of Corvid's arithmetic keeps asking. `no_std`,
-no dependencies, every function `const`.
+The two integer questions the rest of Corvid's arithmetic keeps asking.
+`no_std`, no dependencies, every function `const`.
 
 ```rust
 use corvid_bits::{bit_length_u64, narrow_i64, try_narrow_i64};
@@ -26,18 +26,15 @@ A magnitude's width is [`bit_length_u32`], [`bit_length_u64`] and
 form takes the magnitude through `unsigned_abs` rather than through a negation,
 so [`i32::MIN`] answers 32 instead of overflowing.
 
-Narrowing is [`narrow_i64`] and [`narrow_i128`] to saturate, or [`try_narrow_i64`]
-and [`try_narrow_i128`] to be told. Both land on `i32`, which is the width a
-fixed-point component comes back to after a multiply has widened it.
+Narrowing is [`narrow_i64`] and [`narrow_i128`] to saturate, or
+[`try_narrow_i64`] and [`try_narrow_i128`] to be told. Both land on `i32`, which
+is the width a fixed-point component comes back to after a multiply has widened
+it.
 
 ## Scope
 
-Two questions, and a third arrives when a third question starts repeating across
-crates rather than when one crate finds a use for it. A bit trick one crate needs
-stays in that crate; what earns a place here is a boundary more than one of them
-would otherwise get wrong separately.
-
-Not a general bit-manipulation library: `count_ones`, `leading_zeros` and
-`rotate_left` are already on the primitive integers, and nothing is copied here
-to keep them company. Nothing here knows about fixed point either. These are
-integer answers, and the crates above decide what the integers mean.
+Two questions, and not a general bit-manipulation library: `count_ones`,
+`leading_zeros` and `rotate_left` are already on the primitive integers, and
+nothing is copied here to keep them company. Nothing here knows about fixed
+point either: these are integer answers, and the crates above decide what the
+integers mean.

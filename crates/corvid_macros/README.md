@@ -30,16 +30,14 @@ fn takes(_: AccountId) {}
 takes(AccountId(3));
 ```
 
-`macro_rules!` rather than a derive, because a derive is handed a type that
-already exists and what is wanted here is the newtype, its field, its `Display`
-and its serde attributes from one line. That also keeps `syn` and `quote` out of
-every build below the simulation ring.
+`id_type!` declares the newtype, its field, its `Display` and its serde
+attributes from one line, which is why it is a macro to invoke rather than a
+derive to attach: a derive is handed a type that already exists.
 
-The crate has no dependencies. A macro emits tokens, and the crate that *expands*
-them is the one that has to name what they mention, so every path in an expansion
-that leaves the prelude is absolute -- `::core::fmt::Display`, `::serde::Serialize`
--- and a caller of `id_type!` depends on serde while this crate depends on
-nothing.
+The crate has no dependencies, and a caller of `id_type!` supplies them instead.
+Every path in the expansion that leaves the prelude is absolute --
+`::core::fmt::Display`, `::serde::Serialize` -- so the crate that expands the
+macro is the one that has to have serde in scope.
 
 The derived `Hash` absorbs the number and nothing else, which is the convention
 the rest of the workspace hashes under: what establishes that two peers are
@@ -47,10 +45,5 @@ reading the same field is the opening's schema, not a tag on every value.
 
 ## Scope
 
-The declarative macros more than one crate needs. One so far, and the second
-arrives once a shape has actually repeated -- a macro one crate needs stays in
-that crate, beside the code it generates, which is where the newtype macros in
-`corvid_fixed` and `corvid_vector` still are.
-
-Not a proc-macro crate, and not a general newtype toolkit. `id_type!` declares
-the one shape this workspace kept writing out by hand.
+One macro today. Not a proc-macro crate, and not a general newtype toolkit:
+`id_type!` declares the one shape this workspace kept writing out by hand.

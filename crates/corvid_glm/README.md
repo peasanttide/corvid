@@ -34,15 +34,14 @@ transposed on the way to a uniform buffer. That is a claim about byte order and
 not about alignment: a `Mat4` is sixty-four bytes aligned to four where a WGSL
 matrix is aligned to sixteen, which cannot be observed at an offset that is
 already sixteen-aligned and can be inside a `#[repr(C)]` struct cast to bytes. A
-struct that crosses to a shader owes its own padding, because only the game knows
-what else is in it.
+struct that crosses to a shader owes its own padding, because only the game
+knows what else is in it.
 
 The optional `bytemuck` and `mint` features switch on nalgebra's own impls; this
 crate writes neither, and could not, since the workspace forbids `unsafe`.
 
 ## Scope
 
-Types, and one value. Nothing here computes: the matrices a camera is turned into
-belong to the crate that owns the camera, because every one of them takes a
-fixed-point Corvid type on its near side and this crate has no opinion about
-fixed point. `corvid_float` is the scalar half.
+Types, and one value. Nothing here computes: the matrices a camera is turned
+into belong to the crate that owns the camera. `corvid_float` is the scalar
+half.

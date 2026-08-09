@@ -1,7 +1,7 @@
 # `corvid_transform`
 
-Deterministic, integer-only rigid transforms for Corvid, sized for an earth-scale
-VR game. `no_std`, every operation `const`. This crate re-exports
+Deterministic, integer-only rigid transforms for Corvid, sized for an
+earth-scale VR game. `no_std`, every operation `const`. This crate re-exports
 [`corvid_fixed`], [`corvid_vector`] and [`corvid_rotation`], so downstream code
 depends on one name.
 
@@ -84,11 +84,13 @@ let local: Vec<_> = objects
 assert_eq!(local.len(), 4);
 ```
 
-Converting between the tiers is [`to_fine_transform`](Transform::to_fine_transform)
-and [`to_coarse_transform`](FineTransform::to_coarse_transform). The upgrade
-cannot fail but is not lossless in the way the name suggests: the position widens
+Converting between the tiers is
+[`to_fine_transform`](Transform::to_fine_transform) and
+[`to_coarse_transform`](FineTransform::to_coarse_transform). The upgrade cannot
+fail but is not lossless in the way the name suggests: the position widens
 exactly while the rotation is re-quantized. The downgrade returns `None` only on
-position range; the rotation always converts, losing accuracy to the 32-bit tier.
+position range; the rotation always converts, losing accuracy to the 32-bit
+tier.
 
 The optional integrations are `mint`, `nalgebra`, `serde`, `bytemuck` and
 `arbitrary`, all off by default and forwarded to the layers below.
@@ -97,5 +99,5 @@ The optional integrations are `mint`, `nalgebra`, `serde`, `bytemuck` and
 
 Rigid transforms, which means no scale, uniform or otherwise: the inverse is
 exact and composition stays in SO(3). No transform hierarchies -- Corvid has
-none, by design -- and no view or projection matrices, which take a fixed-point
-type on their near side and belong to the crate that owns the camera.
+none, by design -- and no view or projection matrices, which belong to the crate
+that owns the camera.

@@ -1,8 +1,8 @@
 # `corvid_time`
 
 Simulation time for Corvid: a tick number, the rate it is counted at, the fixed
-step that turns real time into whole ticks, and the clock the simulation is never
-handed. `no_std`, and every quantity here is an integer.
+step that turns real time into whole ticks, and the clock the simulation is
+never handed. `no_std`, and every quantity here is an integer.
 
 ```rust
 use corvid_time::{Clock, Duration, Elapsed, Step, Tick, TickSpan};
@@ -41,15 +41,14 @@ the simulation runs fast against a wall clock -- ten nanoseconds a second at
 fifteen hertz, one second of drift every three years -- which is a quantity
 nobody measures traded for one everybody depends on.
 
-[`Step::advance`] returns the ticks owed after some real time has passed, up to a
-catch-up ceiling. Whatever the ceiling refuses is *dropped* and counted in
+[`Step::advance`] returns the ticks owed after some real time has passed, up to
+a catch-up ceiling. Whatever the ceiling refuses is *dropped* and counted in
 [`Step::dropped`], never banked, so the second after a ten-second stall is an
 ordinary second. The remainder below one period does survive, so the ticks that
-are delivered land on the schedule they would have had anyway.
-[`Step::alpha`] is where the display sits between two ticks, as a ratio of two
-integers rounded once onto a [`Factor16`](corvid_fixed::Factor16). There is no
-floating point in this crate at all, and a test reads its own source to keep it
-that way.
+are delivered land on the schedule they would have had anyway. [`Step::alpha`]
+is where the display sits between two ticks, as a ratio of two integers rounded
+once onto a [`Factor16`](corvid_fixed::Factor16). There is no floating point in
+this crate at all, and a test reads its own source to keep it that way.
 
 Nothing here offers a simulation the time. [`Clock`] lives one level out, in the
 loop that drives the simulation, and exists so that loop can be handed a

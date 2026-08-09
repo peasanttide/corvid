@@ -29,8 +29,8 @@ assert_eq!(FineRotation::from_versor(q), FineRotation::from_versor(q.negate()));
 ```
 
 The convention is right-handed, **+X right, +Y forward, +Z up**: yaw about +Z,
-pitch about +X, roll about +Y, composed ZXY intrinsic, with
-`right = forward x up`. `a.compose(b)` applies `b` first.
+pitch about +X, roll about +Y, composed ZXY intrinsic, with `right = forward x
+up`. `a.compose(b)` applies `b` first.
 
 | Type | Size | Role |
 |---|---|---|
@@ -53,14 +53,15 @@ untransforming costs what transforming costs; a versor composes more cheaply and
 is 44% of the size but goes through the matrix form to rotate anything. Packing
 and unpacking are dominated by a shared normalize, so they belong once per frame
 rather than once per point. Interpolation is `nlerp` by default with `slerp`
-opt-in, because true slerp needs the `acos` and `sin` on `corvid_fixed`'s slowest
-path and over the few degrees a frame spans the difference is not observable.
+opt-in, because true slerp needs the `acos` and `sin` on `corvid_fixed`'s
+slowest path and over the few degrees a frame spans the difference is not
+observable.
 
 A [`Basis`] cannot be built from arbitrary entries. Rotating a `FinePoint` by an
 `I2F30` row is `i32 x i32 -> i64`, and the bound that keeps the row sum inside
 `i64` is Cauchy-Schwarz with `|m| = 1` -- it holds only because the rows are
-unit-length. So the ordinary way in is a type already known to be a rotation, and
-[`Basis::from_rows`], which exists for deserialization and FFI, verifies
+unit-length. So the ordinary way in is a type already known to be a rotation,
+and [`Basis::from_rows`], which exists for deserialization and FFI, verifies
 orthonormality and a determinant of `+1` first:
 
 ```rust
@@ -95,8 +96,8 @@ assert_eq!(
 
 [`Versor::from_xyzw`] gets the same treatment against unit norm. The `bytemuck`
 feature bypasses both, deliberately, so bytes that did not come from this crate
-should arrive through a checked constructor or through a packed type, whose every
-bit pattern is a valid rotation by construction.
+should arrive through a checked constructor or through a packed type, whose
+every bit pattern is a valid rotation by construction.
 
 `Option` appears only on genuinely degenerate input: `look_to` with forward
 parallel to up or either vector zero-length, and the checked constructors.

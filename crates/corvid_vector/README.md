@@ -1,8 +1,8 @@
 # `corvid_vector`
 
 Deterministic fixed-point 3-vectors for Corvid, built on
-[`corvid_fixed`](https://docs.rs/corvid_fixed). Four concrete types, no generics,
-every operation `const` and integer-only.
+[`corvid_fixed`](https://docs.rs/corvid_fixed). Four concrete types, no
+generics, every operation `const` and integer-only.
 
 ```rust
 use corvid_fixed::{I24F8, I48F16};
@@ -40,8 +40,8 @@ make, because a separate offset type would double the API for no caught bug.
 
 A squared length comes back in the widened unsigned intermediate rather than the
 component type -- `u64` for the 32-bit components, `u128` for
-[`GlobalFinePoint`] -- because [`GlobalPoint`]'s components reach 8388608 and the
-sum of three squares passes `i64::MAX`. Expressing it back in `I24F8` would
+[`GlobalFinePoint`] -- because [`GlobalPoint`]'s components reach 8388608 and
+the sum of three squares passes `i64::MAX`. Expressing it back in `I24F8` would
 saturate for any vector longer than 1672 m, which is worse than not offering the
 operation. [`length`](GlobalPoint::length) and
 [`distance`](GlobalPoint::distance) do return the component type, since a value
@@ -59,9 +59,9 @@ bits it is a pure range check with no rounding at all.
 for the zero vector. Only the ratios of the components matter, so one
 implementation serves all four widths without touching the component scale: one
 [`I2F30::rsqrt`](corvid_fixed::I2F30::rsqrt), three multiplies and a few shifts,
-with no division anywhere. Rescaling is a shift rather than a divide, so the same
-direction at two magnitudes can differ in the last bit or two -- deterministic,
-not magnitude-independent to the bit.
+with no division anywhere. Rescaling is a shift rather than a divide, so the
+same direction at two magnitudes can differ in the last bit or two --
+deterministic, not magnitude-independent to the bit.
 
 The optional integrations are `mint`, `nalgebra`, `serde`, `bytemuck` and
 `arbitrary`, all off by default.
