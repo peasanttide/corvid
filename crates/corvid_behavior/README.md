@@ -74,11 +74,11 @@ That is a whole game. It states three types and a name, and writes one function.
 
 ## Implemented by the state, not by a marker
 
-This crate used to require a marker type carrying five associated types, and the
-reason given was the orphan rule: an art crate could not implement a Corvid
-trait for a simulation crate's type.
+The one argument for a marker type carrying five associated types is the orphan
+rule: an art crate cannot implement a Corvid trait for a simulation crate's
+type.
 
-That reason is gone. A renderer no longer implements anything *for* the state —
+It does not apply. A renderer implements nothing *for* the state —
 it implements `Extract<S>` for **its own** type, which its own crate owns, and
 the state is a type parameter. So the marker went, and what is left is a trait
 you put on the struct you were already writing.
@@ -203,19 +203,19 @@ sink.achieve(corvid_behavior::AchievementId(3)); // no code for it; dropped
 assert_eq!(sink.quits, [ExitCode::SUCCESS]);
 ```
 
-Two things came of the change. **A tick that asks for nothing allocates
-nothing**, which is almost all of them — the old shape returned
-`Vec<Command<R>>`, and every element of every non-empty one was as wide as the
-widest request, which is why the big payloads were boxed. And **a test can be a
-`Vec`**, which is the reason the shape changed at all.
+Two things follow. **A tick that asks for nothing allocates nothing**, which is
+almost all of them — returning `Vec<Command<R>>` instead would make every
+element of every non-empty one as wide as the widest request, so the big
+payloads would have to be boxed. And **a test can be a `Vec`**, which is the
+reason this is a trait at all.
 
 A sink that wants none of it can be `Discard<R>`.
 
 The scope of each request — whether it is about the session or about one machine
-— is written on each method. It used to be an accessor, because a match on a
-`#[non_exhaustive]` enum is forced to write a fallback arm holding an unknown
-request with no way to ask what kind it is. One method per effect makes that
-problem disappear rather than solving it.
+— is written on each method rather than answered by an accessor. An accessor is
+what a `#[non_exhaustive]` enum would need, because a match on one is forced to
+write a fallback arm holding an unknown request with no way to ask what kind it
+is. One method per effect makes that problem disappear rather than solving it.
 
 ## Exactly one action per player, always
 

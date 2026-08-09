@@ -29,9 +29,9 @@ crate called `corvid_mesh` that pulls `wgpu` in to build a cube in a test.
 
 ## Where `wgpu` comes from
 
-This crate's manifest names `wgpu` directly, as `wgpu = { workspace = true }`.
-It used to reach it through `corvid_render`'s re-export, and that re-export is
-gone with all the others — `corvid` is the workspace's one facade.
+This crate's manifest names `wgpu` directly, as `wgpu = { workspace = true }`,
+rather than reaching it through a re-export from `corvid_render` — `corvid` is
+the workspace's one facade, and no crate below it forwards its neighbours.
 
 **The pin is what keeps the version single, not the re-export.** One entry in
 the root manifest, one version in the graph, one `raw-window-handle` that a

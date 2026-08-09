@@ -38,16 +38,15 @@ impl<T> Data for T where T: Serialize + DeserializeOwned + Hash + Eq + Clone + D
 ///
 /// # Implemented by the state, not by a marker
 ///
-/// This is the change the rest of the workspace is arranged around. There used
-/// to be a marker type carrying five associated types, and the reason given for
-/// it was the orphan rule: an art crate could not implement a Corvid trait for
-/// a simulation crate's type.
+/// The arrangement the rest of the workspace is built around, and the one
+/// argument for a marker type carrying five associated types is the orphan
+/// rule: an art crate cannot implement a Corvid trait for a simulation crate's
+/// type.
 ///
-/// That reason is gone, because a renderer no longer implements anything *for*
-/// the state. It implements [`Extract<S>`](crate::Extract) for **its own** type,
-/// which its own crate owns, and the state is a type parameter. So the marker
-/// went, and what is left is a trait a game puts on the struct it was already
-/// writing.
+/// It does not apply, because a renderer implements nothing *for* the state. It
+/// implements [`Extract<S>`](crate::Extract) for **its own** type, which its
+/// own crate owns, and the state is a type parameter. So there is no marker,
+/// and this is a trait a game puts on the struct it was already writing.
 ///
 /// # What the signature buys, and what it does not
 ///

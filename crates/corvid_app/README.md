@@ -564,15 +564,6 @@ peer and a release peer play the same session and agree. It is off by default
 because the bisection costs a walk over the retained window, which is work a
 build in front of a player should not be doing.
 
-This feature used to mean something else. `State` carried a `Scratch` associated
-type, and `dev` replaced the accumulated one on a schedule that was a function of
-the session's [`Seed`] and the tick number — so that a game leaning on what its
-pools happened to still hold diverged during ordinary play rather than during a
-rollback. The associated type is gone from the contract, which left the schedule
-with no caller and this feature gating a module nothing consulted. What it points
-at now is what [`Error::Diverged`]'s own documentation had been promising all
-along.
-
 ## What this crate enforces, and what the caller owes
 
 Worth separating, because most of what makes a run reproducible is not something
@@ -667,10 +658,9 @@ every frame and without one, and compares the marks, the log, the state and the
 requests.
 
 The two settings that need a device are ordinary builder calls with no bound of
-their own. They used to sit in an impl block asking for `G: Render` while the
-rest of the builder asked for `G: Present`, because those were two bounds; they
-are one bound now, and a determinism check that never opens a device is a run of
-a game that has a `draw` and does not call it.
+their own, because there is one bound rather than two: a game is a `Game`, and a
+determinism check that never opens a device is a run of a game that has a `draw`
+and does not call it.
 
 A windowed run differs in two more ways, both documented on the builders that
 cause them. Its input snapshot is refilled from the window's devices every
@@ -715,7 +705,7 @@ it, and `corvid_window` says so at length.
 without `window`. **`wgpu` is not**: `Render` is in the `App`'s own bounds, so
 `corvid_render` is an unconditional dependency of this crate and every build of
 it compiles a graphics stack. `tests/graphicless.rs` is where that is asserted
-rather than assumed, and it used to assert the opposite.
+rather than assumed.
 
 What a build without `render` still does not pay for is the device.
 `Render::REAL` is false for `()`, so no adapter is requested, no surface is
@@ -732,11 +722,10 @@ session, the maths, the audio frame, the input snapshot and the renderer — fro
 the crates that own them. This one is an ordinary crate below it, holding the
 loop and the entry points, and it re-exports nothing.
 
-That changed. Every crate here used to forward its neighbours, so a `Factor32`
-could be reached as `corvid_app::present::transform::Factor32`, as
-`corvid_render::transform::Factor32`, and by two other paths besides — four
-spellings of one type, with nothing to say which was meant. There is one now,
-and it is `corvid::Factor32`.
+A crate forwarding its neighbours is what produces four spellings of one type —
+`corvid_app::present::transform::Factor32`,
+`corvid_render::transform::Factor32` and two paths besides — with nothing to say
+which was meant. There is one spelling, and it is `corvid::Factor32`.
 
 [`App::arguments`]: crate::App::arguments
 [`App`]: crate::App

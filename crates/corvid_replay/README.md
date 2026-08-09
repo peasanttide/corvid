@@ -205,11 +205,11 @@ the next section is that job.
 [`Session::seek`] restores a snapshot and runs forward, and there is nothing a
 tick can carry across that boundary: `State` has no scratch associated type, so
 a tick reads `previous`, `level`, `players` and `rules` and nothing besides.
-The contract used to carry one, along with an obligation that whatever a tick
-read out of it be a pure function of those same four values; the type is gone
-and so is the obligation.
+A scratch channel would need an obligation beside it — that whatever a tick read
+out of it be a pure function of those same four values — and no type could state
+that obligation or catch a tick breaking it.
 
-What is left is the property that made it load-bearing. Which snapshot a seek
+The property that makes it matter is this. Which snapshot a seek
 starts from is a property of one machine's memory budget and of where a player
 dragged a slider, and so is how many ticks it then re-simulates and which
 states the ring lets go of on the way. A tick that accumulated anything at all

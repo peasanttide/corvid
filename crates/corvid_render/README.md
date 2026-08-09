@@ -67,9 +67,9 @@ impl Render<Game> for Clear {
 
 
 `Render` is the half of a game's client-local code that knows there is a device.
-It is one of the four independent types an `App` is made of — beside a `State`,
-a `Controller` and an `Auralizer` — rather than a link in a chain over one
-marker type, which is what it used to be.
+It is one of the independent types a `Game` is made of — beside a `State`, a
+`Controller`, a `Bot` and an `Auralizer` — rather than a link in a chain over
+one marker type.
 
 That independence is the point. A renderer implements `Render<S>` for **its
 own** type, so an art crate can write one against a simulation crate's state
@@ -217,11 +217,10 @@ caller is discharged by ownership instead. Nothing here needed an exception.
 This crate has no features and depends on `wgpu` unconditionally, because it
 *is* the `wgpu` half — a feature to remove `wgpu` from it would leave nothing.
 
-There is no gating a level up either, and that is a deliberate change rather
-than an omission. `corvid_app` used to carry a `render` feature that decided
-whether this crate was compiled at all, which is what forced `Render::Graphics`
-to be declared in a crate that could not name a device. The feature is gone and
-the type came home. What a build genuinely avoiding a graphics stack looks like
-now is a build of the simulation ring by name — `cargo build -p corvid_behavior
+There is no gating a level up either, and that is deliberate rather than an
+omission. A `render` feature on `corvid_app` deciding whether this crate is
+compiled at all is what would force a renderer's pipelines to be declared in a
+crate that cannot name a device. What a build genuinely avoiding a graphics
+stack looks like is a build of the simulation ring by name — `cargo build -p corvid_behavior
 -p corvid_replay -p corvid_lockstep --no-default-features` — rather than a
 feature switch on a workspace, which Cargo unifies anyway.

@@ -106,11 +106,11 @@ pub struct Drawing<'a, S: State> {
 ///
 /// # The renderer *is* the graphics
 ///
-/// There is no `Graphics` associated type and no `Setup` trait. There used to
-/// be both: a `Render` declared what its pipelines were and a separate trait
-/// said how to build them, because the trait was implemented for a marker that
-/// could not itself hold a `wgpu::RenderPipeline`. `Self` holds them now, and
-/// the two traits collapse into [`new`](Self::new).
+/// There is no `Graphics` associated type and no `Setup` trait. Splitting them
+/// — a `Render` declaring what its pipelines are and a second trait saying how
+/// to build them — is what a trait implemented for a *marker* would need, since
+/// a marker cannot itself hold a `wgpu::RenderPipeline`. `Self` holds them, so
+/// both collapse into [`new`](Self::new).
 ///
 /// # Interpolation is this trait's, and it happens on the GPU
 ///
