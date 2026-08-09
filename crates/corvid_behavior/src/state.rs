@@ -30,6 +30,23 @@ use crate::{Command, Level, Player};
 /// `Clone` that reseeds a field, resets a counter or drops a cache does not --
 /// and a snapshot taken by cloning a state is only a snapshot if the clone is
 /// one.
+///
+/// **No pointer-sized integer in hashed state.** A count that a peer compares
+/// is a `u32` or a `u64`, never a `usize` or an `isize`. `corvid_hash`
+/// overrides `write_usize` so a container's *length* prefix is eight bytes
+/// everywhere, but `Hash::hash_slice` has a specialisation for integer slices
+/// that hands over raw bytes and reaches past the override -- so a
+/// `Vec<usize>` inside a state digests four bytes an element in a browser and
+/// eight on a native server, and two peers that agree about everything else
+/// disagree about the digest.
+///
+/// This bound cannot state that. Excluding a type from a blanket
+/// implementation over `Hash` is not something a `where` clause can do, and
+/// the alternative -- a `Digestible` trait of this workspace's own, deliberately
+/// not implemented for `usize` -- costs every game a hand-written impl per type
+/// to rule out a mistake a fixed-width annotation already rules out. So it is
+/// an obligation rather than a bound, and it is written here because this is
+/// where an implementor is reading.
 pub trait Data: Serialize + DeserializeOwned + Hash + Eq + Clone + Debug {}
 
 impl<T> Data for T where T: Serialize + DeserializeOwned + Hash + Eq + Clone + Debug {}
