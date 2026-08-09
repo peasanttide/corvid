@@ -37,6 +37,47 @@ use corvid_vector::{Direction, GlobalPoint};
 /// rather than shifting, for the reason the module's own documentation gives.
 pub(crate) const UNIT: i128 = i32::MAX as i128;
 
+/// The offset from `from` to `to`, as three component differences in `i128`.
+///
+/// The reason this exists rather than `to - from`: [`GlobalPoint`]'s
+/// subtraction saturates each component, so a difference wider than one
+/// component's range is clamped *before* any of the widening below can see it.
+/// Two points at opposite ends of the world are 16 777 km apart and a
+/// component reaches 8 388, so the clamp is reached by the very geometry the
+/// wide accumulators were written for -- and the answer that comes back is not
+/// merely imprecise, it is a different direction.
+///
+/// Everything in this crate that starts from the difference of two points
+/// starts here instead.
+pub(crate) fn offset_bits(to: GlobalPoint, from: GlobalPoint) -> [i128; 3] {
+    let [tx, ty, tz] = to.to_array();
+    let [fx, fy, fz] = from.to_array();
+    [
+        i128::from(tx.to_bits()) - i128::from(fx.to_bits()),
+        i128::from(ty.to_bits()) - i128::from(fy.to_bits()),
+        i128::from(tz.to_bits()) - i128::from(fz.to_bits()),
+    ]
+}
+
+/// [`project`], for an offset that is already wide. Answers a Q8.
+///
+/// Kept as an `i128` rather than narrowed to [`I24F8`], because a projection
+/// along a diagonal legitimately exceeds one component's range and the callers
+/// that want it square it before anything else.
+pub(crate) fn project_bits(offset: [i128; 3], direction: Direction) -> i128 {
+    let [dx, dy, dz] = direction.to_array();
+    // Q8 x Q31 = Q39; dividing by the unit takes it back to Q8.
+    let sum = offset[0] * i128::from(dx.to_bits())
+        + offset[1] * i128::from(dy.to_bits())
+        + offset[2] * i128::from(dz.to_bits());
+    divide(sum, UNIT)
+}
+
+/// The squared length of a wide offset, at the doubled scale: a Q16.
+pub(crate) const fn length_squared_bits(offset: [i128; 3]) -> i128 {
+    offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2]
+}
+
 /// How far along `direction` an offset reaches: `offset * direction`, in
 /// metres.
 ///

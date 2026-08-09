@@ -22,8 +22,8 @@ mod common;
 
 use common::Rng;
 use corvid_fixed::{
-    Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I8F8, I24F8, Signed8, Signed16,
-    Signed32,
+    Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I8F8, I16F16, I24F8, I48F16,
+    Signed8, Signed16, Signed32,
 };
 /// Asserts that `bits -> f64 -> bits` is the identity across a whole type.
 macro_rules! assert_f64_round_trip_exhaustive {
@@ -276,4 +276,45 @@ fn the_unorm_and_snorm_endpoints_are_exact() {
     assert_eq!(Signed16::MIN.to_f64(), -1.0);
     assert_eq!(Signed32::MIN.to_f64(), -1.0);
     assert_eq!(Signed16::ZERO.to_f64(), 0.0);
+}
+
+/// Every integer conversion, at the endpoints that decide whether the pair
+/// fits.
+///
+/// The claim `impl_from_int!` makes is that the conversion is exact for every
+/// value of the integer type, which is a fact about the *pair* rather than
+/// about either half: it holds only while `$int::MIN` and `$int::MAX` shifted
+/// by the fractional bits both still land inside `$repr`. These are the four
+/// pairs, each at both ends.
+#[test]
+fn every_integer_conversion_is_exact_at_both_ends() {
+    assert_eq!(I8F8::from(i8::MAX).to_f64(), f64::from(i8::MAX));
+    assert_eq!(I8F8::from(i8::MIN).to_f64(), f64::from(i8::MIN));
+
+    assert_eq!(I24F8::from(i16::MAX).to_f64(), f64::from(i16::MAX));
+    assert_eq!(I24F8::from(i16::MIN).to_f64(), f64::from(i16::MIN));
+
+    assert_eq!(I16F16::from(i16::MAX).to_f64(), f64::from(i16::MAX));
+    assert_eq!(I16F16::from(i16::MIN).to_f64(), f64::from(i16::MIN));
+
+    assert_eq!(I48F16::from(i32::MAX).to_f64(), f64::from(i32::MAX));
+    assert_eq!(I48F16::from(i32::MIN).to_f64(), f64::from(i32::MIN));
+}
+
+/// The next integer type up would not have fitted, which is why each scalar
+/// takes the one it does and no wider.
+///
+/// Checked as arithmetic rather than as a missing impl, because a
+/// `compile_fail` doctest would pass for any reason the code failed to
+/// compile, including a typo. What is actually being claimed is that the
+/// shifted endpoint leaves the representation.
+#[test]
+fn the_next_integer_up_would_not_have_fitted() {
+    // `I8F8` holds an `i8` in an `i16` at Q8; an `i16` would need 24 bits.
+    assert!(i32::from(i16::MAX) << 8 > i32::from(i16::MAX));
+    // `I24F8` and `I16F16` hold their integer in an `i32`.
+    assert!(i64::from(i32::MAX) << 8 > i64::from(i32::MAX));
+    assert!(i64::from(i32::MAX) << 16 > i64::from(i32::MAX));
+    // `I48F16` holds an `i32` in an `i64`; an `i64` shifted by 16 is not one.
+    assert!(i128::from(i64::MAX) << 16 > i128::from(i64::MAX));
 }

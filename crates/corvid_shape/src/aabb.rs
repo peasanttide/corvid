@@ -4,12 +4,9 @@ use corvid_fixed::I24F8;
 
 use crate::{
     Cast, Hit, Ray,
-    project::{UNIT, divide, narrow},
+    project::{UNIT, divide, narrow, offset_bits},
 };
 use corvid_vector::{Direction, GlobalPoint};
-
-/// A half, for taking the middle of a box.
-const HALF: I24F8 = I24F8::from_f64(0.5);
 
 /// An axis-aligned box, given by two corners.
 ///
@@ -81,7 +78,17 @@ impl Aabb {
     #[must_use]
     #[inline]
     pub fn half_extent(&self) -> GlobalPoint {
-        (self.max - self.min).mul(HALF)
+        // Widened before halving, not after. A box may legitimately be wider
+        // than one component's range -- `[-6000 km, 6000 km]` is 12 000 km on
+        // a component that stops at 8 388 -- and `self.max - self.min` would
+        // clamp that to the range before the halving ever saw it, answering
+        // 4 194 km for a box whose half extent is 6 000.
+        let [x, y, z] = offset_bits(self.max, self.min);
+        GlobalPoint::from_array([
+            I24F8::from_bits(narrow(x / 2)),
+            I24F8::from_bits(narrow(y / 2)),
+            I24F8::from_bits(narrow(z / 2)),
+        ])
     }
 
     /// The middle.
@@ -92,7 +99,17 @@ impl Aabb {
     #[must_use]
     #[inline]
     pub fn centre(&self) -> GlobalPoint {
-        self.min + self.half_extent()
+        // Also wide: the sum is bounded by the corners themselves and so always
+        // fits, but the intermediate is what has to survive, and `min + half`
+        // in component arithmetic saturates on the way there.
+        let [lx, ly, lz] = self.min.to_array();
+        let [hx, hy, hz] = self.half_extent().to_array();
+        let middle = |low: I24F8, half: I24F8| {
+            I24F8::from_bits(narrow(
+                i128::from(low.to_bits()) + i128::from(half.to_bits()),
+            ))
+        };
+        GlobalPoint::from_array([middle(lx, hx), middle(ly, hy), middle(lz, hz)])
     }
 
     /// Whether a point is inside, boundary included.
@@ -111,6 +128,12 @@ impl Aabb {
     /// Whether two boxes touch or overlap.
     #[must_use]
     pub fn intersects(&self, other: &Self) -> bool {
+        // An empty box holds no points, so it meets nothing -- and without this
+        // the interval test below says otherwise: a reversed `[1, 0]` is inside
+        // `[-1, 2]` by both of its comparisons.
+        if self.is_empty() || other.is_empty() {
+            return false;
+        }
         let (amin, amax) = (self.min.to_array(), self.max.to_array());
         let (bmin, bmax) = (other.min.to_array(), other.max.to_array());
         (0..3).all(|axis| amin[axis] <= bmax[axis] && bmin[axis] <= amax[axis])

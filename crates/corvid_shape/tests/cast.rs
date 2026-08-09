@@ -340,3 +340,19 @@ fn a_directionless_ray_hits_nothing() {
     let around = Sphere::new(GlobalPoint::ZERO, metres(5.0));
     assert!(nowhere.cast_against(&around).is_none());
 }
+
+/// A sphere at one end of the world does not contain a point at the other.
+///
+/// The separation here is 16 000 km and the radius 8 388, so the point is
+/// outside by nearly a whole radius. Subtracting in component arithmetic
+/// clamped the offset to the radius and answered that it was inside, which is
+/// the widening this crate is built on being skipped at the one input that
+/// needed it.
+#[test]
+fn a_sphere_does_not_swallow_the_far_side_of_the_world() {
+    let far = I24F8::from_f64(8_000_000.0);
+    let ball = Sphere::new(globalpoint(-far, I24F8::ZERO, I24F8::ZERO), I24F8::MAX);
+
+    assert!(!ball.contains(globalpoint(far, I24F8::ZERO, I24F8::ZERO)));
+    assert!(ball.contains(globalpoint(-far, I24F8::ZERO, I24F8::ZERO)));
+}

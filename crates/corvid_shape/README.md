@@ -5,12 +5,15 @@ Geometric primitives and the raycasts a cursor is resolved with, for a
 and integer-only: the same fixed-point arithmetic the simulation uses, which is
 what lets a picking test run with no GPU in the process.
 
-Everything here is **world space**, in `GlobalPoint` -- `I24F8`, +/-8388 km at
+The cast shapes are **world space**, in `GlobalPoint` -- `I24F8`, +/-8388 km at
 3.9 mm an axis. A shape is an object, and an object is somewhere in the world
-rather than somewhere relative to whoever happens to be looking at it. The
-near-field `FinePoint` a renderer works in is what a camera's own maths
-produces after the eye has been subtracted; it is not what a planet's cells are
-stored in.
+rather than somewhere relative to whoever happens to be looking at it.
+
+[`Frustum`] is the exception, and deliberately so: it is **eye space**, in
+`FinePoint`. A view volume is a property of whoever is looking, so its `contains`
+and `intersects_sphere` take positions with the eye already subtracted -- which
+is what a camera's own maths produces. Passing a world position to either is a
+type error rather than a wrong answer, since the two are different types.
 
 ```rust
 use corvid_shape::{Cast, Plane, Ray};
@@ -37,6 +40,7 @@ assert_eq!(hit.distance, I24F8::from_f64(10.0));
 | [`Aabb`] | an axis-aligned box, and the slab test |
 | [`Plane`] | a normal and an offset -- the ground, and half-spaces |
 | [`Triangle`] | Moller-Trumbore, for picking a face out of a mesh |
+| [`Frustum`] | a view volume in eye space, and the culling tests |
 | [`project`], [`align`] | the mixed-width dot products the rest is built from |
 
 ## Why every accumulator is an `i128`

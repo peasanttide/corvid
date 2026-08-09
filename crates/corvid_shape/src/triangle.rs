@@ -4,7 +4,7 @@ use corvid_fixed::I24F8;
 
 use crate::{
     Aabb, Cast, Hit, Ray,
-    project::{UNIT, cross_wide, divide, narrow},
+    project::{UNIT, cross_wide, divide, narrow, offset_bits},
 };
 use corvid_vector::{Direction, GlobalPoint};
 
@@ -86,22 +86,25 @@ impl Triangle {
 /// ray's direction, which is one line and is why that function is public.
 impl Cast for Triangle {
     fn cast(&self, ray: Ray) -> Option<Hit> {
-        let first = self.b - self.a;
-        let second = self.c - self.a;
+        // Wide from the start. `self.b - self.a` saturates each component, so
+        // a triangle spanning more than one component's range would run the
+        // arithmetic below against edges that are not its own.
+        let first = offset_bits(self.b, self.a);
+        let second = offset_bits(self.c, self.a);
 
-        let pitch = cross_wide(direction_bits(ray), point_bits(second));
-        let determinant = dot_wide(point_bits(first), pitch);
+        let pitch = cross_wide(direction_bits(ray), second);
+        let determinant = dot_wide(first, pitch);
         if determinant == 0 {
             return None;
         }
 
-        let to_origin = ray.origin - self.a;
-        let u = dot_wide(point_bits(to_origin), pitch);
+        let to_origin = offset_bits(ray.origin, self.a);
+        let u = dot_wide(to_origin, pitch);
         if outside(u, determinant) {
             return None;
         }
 
-        let across = cross_wide(point_bits(to_origin), point_bits(first));
+        let across = cross_wide(to_origin, first);
         let v = dot_wide(direction_bits(ray), across);
         if outside(v, determinant) || outside(u + v, determinant) {
             return None;
@@ -112,7 +115,7 @@ impl Cast for Triangle {
         // ratio back to a Q8. It can overflow only for geometry spanning most
         // of the world, which this reports as a miss rather than as a wrapped
         // distance.
-        let scaled = dot_wide(point_bits(second), across).checked_mul(UNIT)?;
+        let scaled = dot_wide(second, across).checked_mul(UNIT)?;
         let distance = divide(scaled, determinant);
         if distance < 0 {
             return None;
@@ -138,13 +141,6 @@ const fn outside(numerator: i128, determinant: i128) -> bool {
     } else {
         numerator > 0 || numerator < determinant
     }
-}
-
-/// A point's three components as wide integers, at whatever scale it holds.
-#[must_use]
-#[inline]
-fn point_bits(point: GlobalPoint) -> [i128; 3] {
-    point.to_array().map(|value| i128::from(value.to_bits()))
 }
 
 /// A ray's direction as wide integers.

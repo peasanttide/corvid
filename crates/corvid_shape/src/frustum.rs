@@ -264,23 +264,33 @@ impl Frustum {
     /// `aspect` means what it does in [`contains`](Self::contains).
     #[must_use]
     pub fn intersects_sphere(self, centre: FinePoint, radius: I16F16, aspect: I16F16) -> bool {
+        // A negative radius is an empty sphere, as it is for `Sphere::contains`
+        // and for casting at one. Without this a centre inside the frustum
+        // answers `true` for a ball that holds no points.
+        if radius.is_negative() {
+            return false;
+        }
         let [x, forward, z] = centre.to_array();
         if forward < self.near.saturating_sub(radius) || forward > self.far.saturating_add(radius) {
             return false;
         }
-        // The half-extents are taken at the sphere's own depth and widened by
-        // its radius. That is the conservative test: a sphere whose centre is
-        // outside the side planes but within a radius of them is kept.
         let clamped = if forward < self.near {
             self.near
         } else {
             forward
         };
-        let half = self.half_height_at(clamped).saturating_add(radius);
+        // The radius is inflated along each side plane's *normal* rather than
+        // straight up. A side plane leans by `slope`, so a sphere a radius from
+        // it is further than a radius in `z` -- by a factor of the normal's
+        // length -- and comparing against the vertical inflation culls a sphere
+        // that is partly inside. Which is the one thing this promises not to do.
+        let half = self
+            .half_height_at(clamped)
+            .saturating_add(inflate(radius, self.slope));
         let wide = self
             .half_height_at(clamped)
             .saturating_mul(aspect)
-            .saturating_add(radius);
+            .saturating_add(inflate(radius, self.slope.saturating_mul(aspect)));
         z.abs() <= half && x.abs() <= wide
     }
 }
@@ -298,14 +308,37 @@ impl Default for Frustum {
     }
 }
 
+/// A radius, as the distance it reaches along a leaning plane's normal.
+///
+/// `radius * sqrt(1 + slope^2)`. A side plane with slope `m` has normal
+/// proportional to `(1, -m)`, whose length is `sqrt(1 + m^2)`; a sphere one
+/// radius from that plane is therefore that much further in the vertical the
+/// half-height is measured in. Worked in Q32 and square-rooted back to Q16, so
+/// it is the same integer everywhere.
+fn inflate(radius: I16F16, slope: I16F16) -> I16F16 {
+    let m = i128::from(slope.to_bits());
+    let one = 1_i128 << 32;
+    // `1 + m^2` in Q32, square-rooted back to Q16.
+    let length = (one + m * m).isqrt();
+    let scaled = (i128::from(radius.to_bits()) * length) >> 16;
+    I16F16::from_bits(corvid_bits::narrow_i128(scaled))
+}
+
 /// The tangent of half an angle, in integers.
 ///
 /// The one trigonometric quantity a frustum has. Computed from the workspace's
 /// integer sine and cosine and divided in Q16, so it is bit-identical on every
 /// target -- and so that a half-angle of a quarter turn, whose tangent is
 /// infinite, saturates instead of dividing by zero.
+///
+/// A field of view past a half turn has no half a pitch can hold, and is not a
+/// field of view: it saturates here, which is the same answer the quarter-turn
+/// case already gives.
 const fn slope_of(fov_y: Angle16) -> I16F16 {
-    let (sine, cosine) = fov_y.half().sin_cos();
+    let Some(half) = fov_y.half() else {
+        return I16F16::MAX;
+    };
+    let (sine, cosine) = half.sin_cos();
     // `as` rather than `i64::from`, which is not callable in a `const fn`:
     // `From` is not a const trait yet. Both sources are `i32`, so the widening
     // is exact either way.

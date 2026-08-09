@@ -4,7 +4,7 @@ use corvid_fixed::I24F8;
 
 use crate::{
     Cast, Hit, Ray,
-    project::{narrow, project},
+    project::{length_squared_bits, narrow, offset_bits, project_bits},
 };
 use corvid_vector::GlobalPoint;
 
@@ -44,7 +44,7 @@ impl Sphere {
             return false;
         }
         let radius = i128::from(self.radius.to_bits());
-        i128::from((point - self.centre).length_squared()) <= radius * radius
+        length_squared_bits(offset_bits(point, self.centre)) <= radius * radius
     }
 }
 
@@ -77,10 +77,10 @@ impl Cast for Sphere {
         // direction the `b` term is zero, so an origin *inside* the sphere
         // leaves a positive discriminant and the quadratic reports a hit at a
         // distance the ray never travels.
-        let offset = ray.origin - self.centre;
-        let b = i128::from(project(offset, ray.direction).to_bits());
+        let offset = offset_bits(ray.origin, self.centre);
+        let b = project_bits(offset, ray.direction);
         let radius = i128::from(self.radius.to_bits());
-        let c = i128::from(offset.length_squared()) - radius * radius;
+        let c = length_squared_bits(offset) - radius * radius;
 
         let discriminant = b * b - c;
         if discriminant < 0 {

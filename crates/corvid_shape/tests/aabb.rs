@@ -166,3 +166,49 @@ fn a_ray_with_no_direction_hits_nothing() {
             .is_none()
     );
 }
+
+/// A box wider than one component's range still reports its own half extent.
+///
+/// `max - min` in component arithmetic saturates, so this box's 12 000 km
+/// width came back as 8 388 and the half extent as 4 194 -- and `centre`,
+/// derived from it, landed 1 805 km from the middle of a box symmetric about
+/// the origin. Both numbers below are the arithmetic ones rather than what any
+/// implementation happened to answer.
+#[test]
+fn a_box_wider_than_a_component_still_knows_its_middle() {
+    let reach = I24F8::from_f64(6_000_000.0);
+    let wide = Aabb::new(
+        globalpoint(-reach, -reach, -reach),
+        globalpoint(reach, reach, reach),
+    );
+
+    assert_eq!(
+        wide.half_extent(),
+        globalpoint(reach, reach, reach),
+        "the half extent of a box 12 000 km across is 6 000 km",
+    );
+    assert_eq!(
+        wide.centre(),
+        GlobalPoint::ZERO,
+        "a box symmetric about the origin is centred on it",
+    );
+}
+
+/// An empty box meets nothing, including a box that spans it.
+///
+/// The interval test alone says otherwise: a reversed `[1, 0]` satisfies both
+/// of its comparisons against `[-1, 2]`, so an empty box reported an overlap
+/// with a box it holds no points in common with -- it holds no points at all.
+#[test]
+fn an_empty_box_intersects_nothing() {
+    let one = I24F8::from_f64(1.0);
+    let reversed = Aabb::new(globalpoint(one, one, one), GlobalPoint::ZERO);
+    let spanning = Aabb::new(
+        globalpoint(-one, -one, -one),
+        globalpoint(one + one, one + one, one + one),
+    );
+
+    assert!(reversed.is_empty());
+    assert!(!reversed.intersects(&spanning));
+    assert!(!spanning.intersects(&reversed));
+}
