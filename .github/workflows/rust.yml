@@ -74,6 +74,36 @@ jobs:
           echo "== corvid_hash --features $feature"
           cargo build -p corvid_hash --no-default-features --features "$feature"
         done
+        # `corvid_wire`'s one feature is the first in this loop that actually
+        # forwards: `std` reaches both `serde` and the encoder, and a version of
+        # it that named only one of them would compile under `--all-features`,
+        # where the other crate turns its own on, and fail for the first
+        # downstream that asks for exactly this.
+        for feature in std; do
+          echo "== corvid_wire --features $feature"
+          cargo build -p corvid_wire --no-default-features --features "$feature"
+        done
+    # A target with no operating system is the check with teeth. Five crates here
+    # declare `#![no_std]`, and nothing so far has held them to it: every arm
+    # above builds for the host, where a crate that quietly reached for `std`
+    # compiles and passes, and the discovery is left to whoever first builds a
+    # dedicated server or a console port. `corvid_wire` is the sharpest case,
+    # being the first of them with a dependency of its own — `bincode` is
+    # `no_std` only while `alloc` is on and `std` is off, which is a property of
+    # this crate's manifest rather than of its source.
+    #
+    # These five and not the whole workspace, and the ceiling is not this
+    # workspace's: `corvid_float` depends on `const_soft_float`, which does not
+    # declare `#![no_std]`, so `corvid_fixed` and therefore all of the fixed
+    # point arithmetic above it has no bare-metal build to check.
+    - name: Build for a target with no operating system
+      run: |
+        set -eu
+        rustup target add thumbv7em-none-eabi
+        for crate in corvid_bits corvid_hash corvid_wire corvid_files corvid_macros; do
+          echo "== $crate"
+          cargo build -p "$crate" --no-default-features --target thumbv7em-none-eabi
+        done
     # `corvid_hash` overrides `write_usize` and `write_isize` so a `Vec`'s
     # length prefix is eight bytes on every target rather than the pointer
     # width, which is the one thing standing between a `wasm32` browser peer and
