@@ -77,7 +77,7 @@ macro_rules! define_transform {
             /// this type decodes the packed rotation on the way in, and that
             /// decode is the dominant cost. A loop over thousands of points
             /// should call `basis` once and use [`Basis`]'s own rotate and
-            /// unrotate; `examples/earth_scale_vr.rs` measures the difference.
+            /// unrotate; `benches/earth_scale_vr.rs` measures the difference.
             #[must_use]
             #[inline]
             pub const fn basis(self) -> Basis {

@@ -57,7 +57,7 @@ macro_rules! define_rsqrt_fast {
             /// -- and, on a CPU, the version that skips the 128-bit multiplies
             /// [`rsqrt`](Self::rsqrt) spends on its final step and its exact
             /// rounding correction. That is worth about 3.7x on a 64-bit host;
-            /// `cargo run --release --example bench` measures it.
+            /// `cargo bench -p corvid_fixed --bench scalar` measures it.
             ///
             /// Fifteen bits is not a step count that could be raised; it is
             /// where 32-bit arithmetic stops. Newton's residual `1 - n q^2` is a

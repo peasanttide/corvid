@@ -43,3 +43,15 @@ that each cover it a little differently.
 
 Being a leaf with no dependencies is what lets `corvid_fixed` -- the crate
 everything else here is built on -- depend on it.
+
+## Scope
+
+Two functions, and a third arrives when a third question starts repeating
+across crates rather than when one crate finds a use for it. A bit trick one
+crate needs stays in that crate; what earns a place here is a boundary more than
+one of them would otherwise get wrong separately.
+
+Not a general bit-manipulation library. `count_ones`, `leading_zeros` and
+`rotate_left` are already on the primitive integers, and nothing is copied here
+to keep them company. Nothing here knows about fixed point either: these are
+integer answers, and the crates above decide what the integers mean.

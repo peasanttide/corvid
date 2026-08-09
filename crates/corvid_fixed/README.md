@@ -167,7 +167,7 @@ identity for pi.
 ## Speed
 
 Integer trigonometry is not a compromise here. Measured on aarch64 with
-`cargo run --release --example bench`, against the platform's own `libm`. The
+`cargo bench -p corvid_fixed`, against the platform's own `libm`. The
 two trigonometry `_fast` rows were re-measured on x86-64 after those functions
 moved to 32-bit arithmetic, as were the two `rsqrt` rows; every unchanged row
 agreed between the two machines to within a few percent.
@@ -259,3 +259,20 @@ losslessly; [`I48F16`] is the exception, because its 63 magnitude bits exceed
 `f64`'s 53-bit mantissa. Through `f32`, only the 8- and 16-bit ones do --
 `I24F8`, `I16F16`, `I2F30`, `I48F16`, `Factor32`, `Signed32`, `Angle32`, and
 `Pitch32` carry more significant bits than an `f32` mantissa holds.
+
+## Scope
+
+Scalars, and nothing with more than one component. A 3-vector is
+[`corvid_vector`](https://docs.rs/corvid_vector), a rotation
+[`corvid_rotation`](https://docs.rs/corvid_rotation), a rigid transform
+[`corvid_transform`](https://docs.rs/corvid_transform); each is built on these
+types rather than generic over them, because `const fn` takes no trait bound and
+every operation here is `const`.
+
+Floating point appears only at the edges. `from_f64` and `to_f64` are
+conversions, and no arithmetic between them sees one;
+[`corvid_float`](https://docs.rs/corvid_float) is the other side of that line,
+for the matrices and gains that reach a device. Rational and arbitrary-precision
+arithmetic, units, and dimensional analysis are all out. A nineteenth type
+arrives when something needs a width these eighteen do not cover, rather than for
+symmetry.

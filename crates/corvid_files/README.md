@@ -85,3 +85,16 @@ its own load does not compile. The capability is not a flag a caller is asked to
 consult first, either: one asked about separately can change between the
 question and the write, and the answer a caller needs is the same either way --
 the bytes are not there.
+
+## Scope
+
+The trait, its three findings, and one implementation that keeps the files in
+memory. A source that opens an actual directory, reads an archive or fetches
+over a network is a game's own, one layer up, where `std` is already paid for --
+this crate stays `no_std` with an allocator so that a simulation crate can name
+[`Source`] in a signature.
+
+Synchronous, for the reason above, and asynchronous reads are a later problem to
+solve behind this trait rather than a reason to make every game's `load` async
+today. Nothing here caches, watches a path for changes, or interprets one: a
+path is a key, and what it names is the source's to decide.

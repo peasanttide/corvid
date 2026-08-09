@@ -146,7 +146,7 @@ copy-on-write through `Arc::make_mut`, which takes its copy *under the lock a
 read also takes* -- so a `modify` that has to copy holds every reader up for one
 whole `T::clone`. On a 400 000-entry `Vec<String>` whose copy costs 19 ms, a
 `get` issued once that copy had begun came back after 23 ms;
-`examples/signal_bench.rs` measures it and `tests/lock.rs` pins it with a
+`benches/signal.rs` measures it and `tests/lock.rs` pins it with a
 payload whose `Clone` is rigged to take 300 ms, so the property is asserted
 rather than timed. A `modify` that does not have to copy -- nobody holding the
 value -- costs a reader nothing.
@@ -180,14 +180,14 @@ crate did before, and it is what the middle row below measures:
 | 200 publications with nobody watching | 5.7 ms each | 5.7 ms each |
 | the same 200 with one consumer copying throughout | 5.8 ms each | 5.8 ms each |
 
-`examples/signal_bench.rs`; the figures move with the host and the first two rows
-are four orders of magnitude apart, which does not. Only the right column can be
-re-run from this tree -- the left one is what the same example printed against the
-design that is gone, so read it as recorded rather than as reproducible. What
-the example still measures on demand is the copy itself, and the left column's
-first row *is* that copy: a read that has to clone under the lock costs whatever
-cloning the value costs, which was 19 ms on the machine this paragraph was last
-checked against.
+`benches/signal.rs`; the figures move with the host and the first two rows are
+four orders of magnitude apart, which does not. Only the right column can be
+re-run from this tree -- the left one is what the same measurement gave against
+the design that is gone, so read it as recorded rather than as reproducible.
+What the benchmark still measures on demand is the copy itself, and the left
+column's first row *is* that copy: a read that has to clone under the lock costs
+whatever cloning the value costs, which was 19 ms on the machine this paragraph
+was last checked against.
 
 Read the bottom two rows as carefully as the top two, because they are the ones
 that say what did *not* change. Sustained throughput is the same either way -- a
@@ -393,7 +393,7 @@ cargo test -p corvid_signal
 | `tests/lock.rs` | What runs outside the lock: that the value a publication replaced is dropped there; that a consumer half a second into copying the value holds no publisher up; and that `modify` copies the value exactly when a consumer is holding it and never otherwise |
 | `tests/threads.rs` | eight publishing threads and eight observing threads on one signal, half of them parked and half polling, checking every observation against a seal over its own fields, against the range of values anybody published, and against a ticket that climbs for every author -- plus the check that the seal really does reject a reading assembled out of two publications |
 | `tests/tracing.rs` | a recording subscriber, reading back that a publication opens a span carrying the signal's label, level and sequence number, that an observation leaves the matching event at the level the table above gives it, and that a poll which saw nothing leaves nothing |
-| `examples/signal_bench.rs` | the four figures in the table above, on whatever host runs it |
+| `benches/signal.rs` | the four figures in the table above, on whatever host runs it |
 | doctests | every `rust` block on this page, including the three that must fail to compile |
 
 The blocking tests are the ones worth a note. A test about a thread *not*
@@ -409,3 +409,15 @@ day somebody reaches for two atomics because the lock showed up in a profile.
 And that no consumer *saw* a torn value across those sixteen thousand
 publications is a statement about the interleavings that run happened to
 produce, not about every interleaving there is.
+
+## Scope
+
+State, and never an event -- the section above is the whole argument. A signal
+holds one value, so nothing here queues, buffers or replays, and what was
+published between two observations is gone. A subsystem that needs every item
+wants a channel instead.
+
+One producer type and one consumer type over a `Mutex` and a `Condvar`, which is
+what a thread boundary costs. There is no async form and no executor integration:
+a consumer either polls or blocks. Carrying state between processes or across a
+network is somebody else's problem, since this is threads in one address space.

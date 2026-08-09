@@ -141,7 +141,7 @@ let local: Vec<_> = objects
 assert_eq!(local.len(), 4);
 ```
 
-`examples/earth_scale_vr.rs` measures both forms over 10,000 objects at 90 Hz
+`benches/earth_scale_vr.rs` measures both forms over 10,000 objects at 90 Hz
 with the camera at 6.37e6 m:
 
 | | per point | per frame | of the 11.1 ms budget |

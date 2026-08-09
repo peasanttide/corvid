@@ -85,3 +85,15 @@ otherwise, so "these two cannot come out alike" is not something this crate or
 `Hash` will tell you. Read the difference in what is written as an accident of
 the reprs rather than as the type tag returning: widen the `u16` and even the
 input is the same again. Nothing should be built on it either way.
+
+## Scope
+
+The declarative macros more than one crate needs. One so far, and the second
+arrives once a shape has actually repeated -- a macro one crate needs stays in
+that crate, beside the code it generates, which is where the newtype macros in
+`corvid_fixed` and `corvid_vector` still are.
+
+Not a proc-macro crate, for the reason above, and not a dependency of anything it
+generates: the expansion names `::serde` and `::core` absolutely, and supplying
+the first is the caller's job. Nor is it a general newtype toolkit. `id_type!`
+declares the one shape this workspace kept writing out by hand.

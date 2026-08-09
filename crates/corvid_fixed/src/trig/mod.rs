@@ -21,7 +21,7 @@
 //! division by a constant becomes a call into `__divti3`. Measured on aarch64,
 //! moving the polynomial from `i128` arithmetic with divisions to `i64`
 //! arithmetic with reciprocal coefficients took a sine from 85 ns to under 8 ns.
-//! `cargo run --release --example bench` reproduces the comparison.
+//! `cargo bench -p corvid_fixed --bench trig` reproduces the comparison.
 //!
 //! `i128` earns its keep in two places: [`asin_bits`] at 32-bit output, where the
 //! square root needs a 120-bit radicand, and the exact tier below.

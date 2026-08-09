@@ -224,3 +224,15 @@ cargo test -p corvid_time --all-features
 | `tests/clock.rs` | `Clock` queueing and stepping, a thousand calls driving a thousand ticks, `Elapsed` as a trait object, a clock not being `Copy`, and the wall mode measuring a sleep and then measuring nothing at all on the next call |
 | `tests/wire.rs` | The frozen bytes of [`Tick`], [`Ticks`] and [`TickSpan`], and the digests they come to under this workspace's hasher -- the one view of the three that can see a field narrowed |
 | doctests | Every Rust block in this file and in the type documentation |
+
+## Scope
+
+Simulation time: the tick, the rate it is counted at, and the step that turns
+elapsed nanoseconds into whole ticks. Civil time -- a date, a zone, a stamp a
+person reads -- is not a tick and is not here; that is what labels a replay file
+on the way out, and the two never mix.
+
+No scheduling, no timers, and no callback after a delay. [`Clock`] is the one
+thing here that can ask the operating system what time it is, it lives one level
+out from the simulation on purpose, and it exists so that a test can hand the
+loop a different one.

@@ -380,3 +380,16 @@ cargo test -p corvid_hash --all-features
 The avalanche and collision tests together hash a few million values, which is
 worth a `--release` run rather than a debug one. Both profiles are checked in
 CI, because a bit-exactness crate cannot afford a divergence between them.
+
+## Scope
+
+One construction, sixty-four bits wide, frozen. There is no second algorithm to
+choose between, no wider digest, and no configuration beyond the seed
+[`digest_with_seed`] takes: the whole job is letting two peers compare one number
+per tick and agree.
+
+Nothing here resists an adversary who picks the inputs. A digest detects
+divergence, not cheating, and an untrusted peer is the network layer's problem to
+solve with something designed for it. Reaching for this as a `HashMap` hasher
+gives up the per-process randomization `std` has for a reason, so it is a
+decision to take deliberately rather than a use this crate recommends.

@@ -309,3 +309,15 @@ cargo test -p corvid_wire --all-features
 declarations that differ by exactly one of the four changes and records what each
 table answers -- so which change is caught by which table is a set of exact values
 in the repository rather than a paragraph in a README.
+
+## Scope
+
+Two functions, and the table helpers a golden is written with. There is no
+configuration, no builder and no second format, because a knob is a second wire
+format waiting to be chosen by whoever is in a hurry.
+
+Not self-describing. A stream carries no field names, no type tags and no schema,
+so a reader has to hold the same declarations the writer did -- that is the trade
+the blindness table prices, and a version in front of a capture is the game's to
+write. No compression and no encryption either: both are layers over a byte
+string, and this crate is what produces the byte string.

@@ -153,3 +153,15 @@ Every integration is optional and off by default.
 
 The crate is `no_std` under every feature except `arbitrary`, whose derive emits
 `::std` paths.
+
+## Scope
+
+Three-component vectors, at the three widths a world needs, plus the unit
+direction they normalize into. No 2- or 4-component types and no generics: every
+operation is `const`, `const fn` takes no trait bound, and each width is a
+concrete type with an exhaustive suite behind it.
+
+Positions, offsets and directions, and the arithmetic that stays inside them.
+Rotating one is [`corvid_rotation`](https://docs.rs/corvid_rotation), moving one
+between frames is [`corvid_transform`](https://docs.rs/corvid_transform), and the
+`f32` vectors a shader reads are [`corvid_glm`](https://docs.rs/corvid_glm).

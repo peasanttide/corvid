@@ -19,6 +19,9 @@ categories = ["concurrency", "game-development"]
 # `tracing-attributes`, whose `#[instrument]` nothing here uses.
 tracing = { workspace = true, features = ["std"] }
 
+[dev-dependencies]
+criterion = { workspace = true }
+
 [features]
 # There are none, and that is a decision rather than an omission. `std` is not
 # optional here -- a thread is the thing this crate exists to carry state
@@ -29,6 +32,11 @@ tracing = { workspace = true, features = ["std"] }
 # the bare build, and `--all-features` and no features at all are the same
 # configuration.
 default = []
+
+# Criterion supplies its own `main`, so the built-in harness is off.
+[[bench]]
+name = "signal"
+harness = false
 
 [lints]
 workspace = true

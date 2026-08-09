@@ -32,7 +32,7 @@ const SLERP_FALLBACK: i64 = 1 << 12;
 /// measured at 17.6 ns against the matrix's 35.6 ns. Rotating a *point* goes
 /// through the matrix form and so costs strictly more than using a [`Basis`]
 /// directly: 38.5 ns against 12.6 ns. Compose as a versor, rotate as a basis.
-/// (`examples/rotation_bench.rs`; the figures move with the host, the ordering
+/// (`benches/rotation.rs`; the figures move with the host, the ordering
 /// does not.)
 ///
 /// Repeated composition needs [`renormalize`](Self::renormalize), which the

@@ -65,7 +65,7 @@ macro_rules! impl_conversions {
             /// This decodes the packed rotation on every call. A loop over
             /// thousands of points should call [`basis`](Self::basis) once and
             /// use [`Basis::unrotate_fine`](corvid_rotation::Basis::unrotate_fine)
-            /// directly; `examples/earth_scale_vr.rs` measures what that saves.
+            /// directly; `benches/earth_scale_vr.rs` measures what that saves.
             #[must_use]
             #[inline]
             pub const fn to_fine_global(self, p: GlobalFinePoint) -> Option<FinePoint> {

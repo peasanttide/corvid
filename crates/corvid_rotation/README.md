@@ -103,8 +103,8 @@ wins when many points go through one rotation, which is the earth-scale VR case.
 `Versor` composes more cheaply and is 44% of the size, but goes through the
 matrix form to rotate a point.
 
-Measured by `examples/rotation_bench.rs`, against an `f32` matrix baseline that says what
-determinism costs:
+Measured by `benches/rotation.rs`, against an `f32` matrix baseline that says
+what determinism costs:
 
 | operation | `f32` matrix | `Basis` | `Versor` |
 |---|---|---|---|
@@ -216,3 +216,17 @@ Every integration is optional and off by default.
 `corvid_transform`'s 16 B and 32 B figures mean something over the wire, so
 `tests/interop.rs` asserts the serialized form rather than only that a round
 trip succeeds.
+
+## Scope
+
+SO(3), and nothing around it. No scale, uniform or otherwise, and no translation
+-- a rigid transform is [`corvid_transform`](https://docs.rs/corvid_transform),
+which is these rotations with a position beside them. No Euler-angle type
+either: yaw, pitch and roll go in and come back out as
+[`Angle32`](corvid_fixed::Angle32) and [`Pitch32`](corvid_fixed::Pitch32), and
+what is stored between is a codec or a versor.
+
+Two packed tiers and two working types, chosen for the budgets above. A third
+tier arrives when a budget between them does. Distribution-adaptive codebooks are
+out: they buy accuracy back by assuming what the rotations look like, and a
+framework does not know that.

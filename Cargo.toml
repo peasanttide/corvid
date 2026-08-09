@@ -56,6 +56,15 @@ corvid_vector = { version = "0.1.0", path = "crates/corvid_vector" }
 corvid_wire = { version = "0.1.0", path = "crates/corvid_wire" }
 
 thiserror = "2"
+
+# The benchmark harness. A dev-dependency of three members, so the version is
+# written here once: a benchmark that reported against a different Criterion
+# than the row beside it would not be a comparison. `default-features = false`
+# drops the plotting and the rayon it pulls in; the numbers are read from the
+# terminal.
+criterion = { version = "0.8", default-features = false, features = [
+    "cargo_bench_support",
+] }
 serde = { version = "1", default-features = false, features = ["derive"] }
 bytemuck = { version = "1", features = ["derive"] }
 arbitrary = { version = "1", features = ["derive"] }
