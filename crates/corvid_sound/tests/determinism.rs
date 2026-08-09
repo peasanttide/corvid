@@ -19,7 +19,8 @@
 //! The rest of this file is the other question: whether the encodings *separate*
 //! the things a frame has to keep apart. Those are comparisons between two
 //! outputs, so they catch an encoding that stopped distinguishing two frames and
-//! cannot catch one that distinguishes them differently than it used to.
+//! cannot catch one that distinguishes them differently than it did when the
+//! table was recorded.
 
 // A frame has to survive being written down, so the claims here need `serde`.
 #![cfg(feature = "serde")]

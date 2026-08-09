@@ -199,8 +199,8 @@ fn a_new_session_is_consistent_with_the_opening_it_was_built_from() {
     );
 }
 
-/// The level is in the opening mark, which is what `Level` promises and what
-/// the removed `HASHED` opt-out used to be able to switch off.
+/// The level is in the opening mark, which is what `Level` promises and what no
+/// opt-out anywhere can switch off.
 ///
 /// Two openings alike in every other way, differing only inside the level, mark
 /// differently. Without this the guarantee is a sentence in a doc comment: the

@@ -64,8 +64,8 @@ fn a_datagram_at_the_opening_carries_the_opening_and_nothing_before_it() {
 
     // One row, because there is one tick. The window reaches () `WINDOW` rows
     // and is clamped to what the log holds, so a datagram sent on a session's
-    // first tick does not pad three ticks that never ran — it used to, and the
-    // padding was three rows of `Idle` naming the opening tick over and over.
+    // first tick does not pad three ticks that never ran, which would put three
+    // rows of `Idle` on the wire naming the opening tick over and over.
     assert_eq!(sent.actions, [push(9)]);
     assert_eq!(sent.first, Tick::ZERO);
     assert_eq!(sent.head(), Tick::ZERO);

@@ -52,7 +52,7 @@ fn a_rollback_drops_the_marks_it_invalidates_and_keeps_the_rest() {
     assert_eq!(trace.end(), Tick(42));
 
     // And the trace goes on from where it was cut, rather than from the end it
-    // used to have.
+    // had before the cut.
     trace.push(Digest::from_u64(0x2000));
     assert_eq!(trace.get(Tick(42)), Some(Digest::from_u64(0x2000)));
 }

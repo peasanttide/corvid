@@ -13,7 +13,8 @@
 //! So they are written down, as literals. Every other test in this crate
 //! compares digests to each other, which catches a digest that stopped
 //! distinguishing two things and cannot catch one that distinguishes them
-//! differently than it used to. This file is the other half.
+//! differently than it did when the row was recorded. This file is the other
+//! half.
 //!
 //! This is one of the crate's two frozen tables. `tests/wire.rs` is the other,
 //! and it freezes the *serialized bytes*, which are a different encoding over

@@ -634,12 +634,11 @@ impl_from_int!(I48F16, i64, i32, 16);
 /// The caller casts the result to an integer, where Rust's saturating
 /// float-to-int conversion supplies the clamping and the `NaN` behavior.
 ///
-/// This used to be `scaled ± 0.5` here, left to the cast to truncate. That is
-/// the same answer everywhere the conversions are actually used and a
-/// different one at exactly one input: the largest `f64` below a half, where
-/// adding a half rounds up to one and the truncation then reports the integer
-/// above. `corvid_float`'s is a true round, so that input now converts to zero
-/// the way its documentation always said it did.
+/// `scaled ± 0.5` left to the cast to truncate would be the same answer
+/// everywhere the conversions are actually used and a different one at exactly
+/// one input: the largest `f64` below a half, where adding a half rounds up to
+/// one and the truncation then reports the integer above. `corvid_float`'s is a
+/// true round, so that input converts to zero the way this documentation says.
 const fn round_f64(scaled: f64) -> f64 {
     corvid_float::wide::round(scaled)
 }

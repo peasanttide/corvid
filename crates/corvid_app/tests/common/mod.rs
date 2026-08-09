@@ -340,9 +340,9 @@ impl corvid_behavior::State for Tally {
 
 /// The player: what a tick's action is, and the client-local pause.
 ///
-/// This is where `View` went. It holds the elapsed wall clock and the frame
-/// count that used to be a `View`, and it is the only thing that writes them —
-/// which is what `update` being the one `&mut self` hook buys.
+/// It holds the elapsed wall clock and the frame count, and it is the only
+/// thing that writes them — which is what `update` being the one `&mut self`
+/// hook buys.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Hands {
     /// Simulated seconds handed to `update`.
@@ -364,9 +364,9 @@ pub(crate) struct Hands {
 
 /// What a `Hands` is built from: when to pause, and for how long.
 ///
-/// This used to be read off `frame.rules` — the client half was handed the
-/// simulation's own tuning. It is a `Config` now, which is the honest place
-/// for it: a pause is one machine's, and `Rules` is what every peer agrees on.
+/// A `Config` rather than something read off the simulation's own `Rules`,
+/// which is the honest place for it: a pause is one machine's, and `Rules` is
+/// what every peer agrees on.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) struct Holding {
     /// The tick from which to hold, if at all.
@@ -630,9 +630,9 @@ pub(crate) struct Roll {
 ///
 /// **There is no tick counter here**, and its absence is the point. A run of a
 /// fixed length is [`App::for_ticks`](corvid_app::App::for_ticks), and a
-/// predicate that wants the tick is handed it, so the number a game used to
-/// keep for a test's benefit — hashed, serialized and sent every tick — is not
-/// in this state. The index into [`rolls`](Self::rolls) is the tick's offset
+/// predicate that wants the tick is handed it. A counter kept for a test's
+/// benefit would be hashed, serialized and sent every tick, so there is none.
+/// The index into [`rolls`](Self::rolls) is the tick's offset
 /// from the opening, which is a fact about the vector rather than a column.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) struct Attendance {
@@ -928,11 +928,10 @@ corvid_app::game! {
 
 /// The controller for [`Attendance`]: it marks every action as its own.
 ///
-/// The old fixture also recorded the alpha its `action` was handed, and there
-/// is no alpha to record any more — a controller's `action` runs once per tick
-/// and never sees an interpolation weight, because interpolation is the
-/// renderer's and happens in a shader. So the column is written as zero and the
-/// test that read it says why.
+/// The alpha column is written as zero and stays zero: a controller's `action`
+/// runs once per tick and never sees an interpolation weight, because
+/// interpolation is the renderer's and happens in a shader. The test that reads
+/// the column says the same thing from the other side.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Marker;
 

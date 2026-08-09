@@ -102,11 +102,11 @@ fn absorbing_takes_the_freshest_mode() {
 /// Clearing keeps the pointer's mode, because clearing is about *device
 /// readings* and a pointer mode is not one.
 ///
-/// # This test used to assert the opposite, and that was the bug
+/// # Why the opposite is a trap
 ///
-/// It said clearing went "back to what a window does when nobody has said
-/// otherwise", which sounds right and made `Input::cursor` permanently
-/// `Cursor::Free` for every game in the workspace. The order of a frame is:
+/// "Clearing goes back to what a window does when nobody has said otherwise"
+/// sounds right and would make `Input::cursor` permanently `Cursor::Free` for
+/// every game in the workspace. The order of a frame is:
 /// take the snapshot — which begins by clearing — ask the game what it wants
 /// the pointer to do, tell the platform, and write back what actually took.
 /// The write-back landed in the snapshot the *next* frame wiped, so nobody

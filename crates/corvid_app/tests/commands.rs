@@ -21,8 +21,7 @@ use std::{
 };
 
 use common::{
-    APPLAUSE, Attending, Counting, FAREWELL, Rules, SLOT, Scratchpad, Tally, attendance, opening,
-    seat,
+    APPLAUSE, Attending, Counting, FAREWELL, Rules, Scratchpad, Tally, attendance, opening, seat,
 };
 use corvid_app::Command;
 use corvid_app::{Answer, App};
@@ -146,10 +145,9 @@ fn a_save_is_kept_and_can_be_read_back_in_the_same_run() {
         ..Rules::quiet()
     });
 
-    // A save carries a slot and nothing else. It used to carry the game's own
-    // bytes and this asserted on them — but what a save writes is the session
-    // and the state, both of which the runtime holds, and nothing ever read the
-    // blob back. So what is assertable is that the request was made and acted
+    // A save carries a slot and nothing else: what it writes is the session and
+    // the state, both of which the runtime holds, so there are no game bytes to
+    // assert on. What is assertable is that the request was made and acted
     // on, which the answers below say.
 
     let answers: Vec<(Tick, Answer)> = run
@@ -454,12 +452,6 @@ fn the_roster_the_loop_ticks_with_is_the_one_the_session_records() {
     // record is the number of ticks that ran.
     assert_eq!(run.state.rolls.len(), 5);
     assert_eq!(run.session.last(), Tick(5));
-
-    // A save request used to carry the game's own bytes, and this asserted
-    // nothing here rewrote them. It carries a slot and nothing else now: what a
-    // save writes is the session and the state, both of which the runtime
-    // holds, and the blob a tick handed over had no route back on reload.
-    assert_eq!(SLOT, SLOT);
 }
 
 // -- the subscriber -------------------------------------------------------

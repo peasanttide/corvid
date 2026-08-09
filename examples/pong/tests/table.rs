@@ -299,10 +299,10 @@ fn a_hundred_ticks_are_the_same_hundred_ticks_every_time() {
 ///
 /// `Court::face` is the bounce plane and `Court::centre` is what the client
 /// draws the rectangle around, and the two are only consistent while they
-/// differ by exactly half a paddle. They used to be the same number: the
-/// renderer centred the sprite on `face`, so the ball reached the drawn edge
-/// `paddle.x() + ball` before the plane and buried itself in the paddle on
-/// every return.
+/// differ by exactly half a paddle. Making them the same number — centring the
+/// sprite on `face` — puts the drawn edge at `paddle.x() + ball`, so the ball
+/// reaches it before the plane and buries itself in the paddle on every
+/// return.
 ///
 /// Nothing about this is visible to a digest — both peers computed the same
 /// wrong-looking bounce — which is exactly why it wants an assertion.

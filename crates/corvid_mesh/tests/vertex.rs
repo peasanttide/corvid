@@ -57,8 +57,8 @@ fn a_vertex_is_twelve_bytes_and_these_are_the_bytes() {
     let vertices = frozen();
     assert_eq!(bytemuck::cast_slice::<Vertex, u8>(&vertices), &RECORDED);
 
-    // Twelve, and against the twenty-four the float vertex this replaced cost:
-    // three `f32` of position and three of normal. The comparison is the whole
+    // Twelve, and against the twenty-four a float vertex would cost: three
+    // `f32` of position and three of normal. The comparison is the whole
     // reason the type is shaped this way, so it is a number here rather than a
     // sentence in a README.
     assert_eq!(size_of::<Vertex>(), 12);

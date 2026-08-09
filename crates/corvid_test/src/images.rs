@@ -332,7 +332,7 @@ pub enum Different {
     Rewritten {
         /// Which one.
         golden: std::path::PathBuf,
-        /// What it disagreed about before it was replaced.
+        /// What it disagreed about, which is what the rewrite discarded.
         why: Box<Self>,
     },
 }

@@ -5,11 +5,11 @@
 //! created from a window handle of a different version, and the failure is a
 //! runtime one that looks like a driver problem.
 //!
-//! **What enforces that is the workspace pin, not a re-export.** It used to be
-//! both: `corvid_render` was the only crate that named `wgpu` and every crate
-//! above it reached the device through its re-export. That re-export is gone
-//! with all the others — `corvid` is the workspace's one facade — so this
-//! crate names `wgpu` itself, and what keeps the version single is
+//! **What enforces that is the workspace pin, not a re-export.** Routing every
+//! crate above `corvid_render` through its re-export would enforce it too, and
+//! would make one crate's public surface load-bearing for the whole graph.
+//! `corvid` is the workspace's one facade, so this crate names `wgpu` itself,
+//! and what keeps the version single is
 //! `wgpu = { workspace = true }` resolving to the one entry in the root
 //! manifest.
 //!

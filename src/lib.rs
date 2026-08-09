@@ -146,11 +146,11 @@
 //! [`camera`] — and the runtime. All of that is reachable here
 //! unconditionally.
 //!
-//! That is a wider "unconditionally" than it used to be. A camera is
-//! fixed-point state, a raycast is integer arithmetic and a colour is four
-//! bytes, so none of those ever needed a feature; what is new is that
-//! [`Render`], [`Target`], `wgpu` and the mesh crates do not either. `Present`
-//! is built on `Render`, so a build of this crate compiles a graphics stack
+//! "Unconditionally" is wide on purpose. A camera is fixed-point state, a
+//! raycast is integer arithmetic and a colour is four bytes, so none of those
+//! needs a feature; neither do [`Render`], [`Target`], `wgpu` and the mesh
+//! crates. `Game` names a renderer, so a build of this crate compiles a
+//! graphics stack
 //! whatever it was asked for, and a feature gating one would gate nothing. What
 //! it does not do is *open* a device: a headless run never asks an adapter for
 //! anything, which is the property that was worth having and the one that

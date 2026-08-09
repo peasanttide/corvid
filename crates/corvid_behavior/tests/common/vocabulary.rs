@@ -6,14 +6,13 @@
 //! or the two tables are talking about different things. They live here for
 //! that reason rather than for brevity.
 //!
-//! # What left
+//! # What is not frozen here
 //!
-//! There used to be an `every_command` and an `every_save` here, freezing the
-//! discriminants of a closed `Command` enum and the field order of a
-//! `SaveRequest`. Neither is a value any more: `Command` is a trait with one
-//! method per effect, and a save carries no bytes. Nothing was lost by
-//! dropping them — a command was never part of a session's digest, which is
-//! taken over the state alone — but it is worth saying that the tables below
+//! Neither a command nor a save. `Command` is a trait with one method per
+//! effect rather than a closed enum with discriminants to pin, and a save
+//! carries no bytes to order. Nothing is lost by their absence — a command was
+//! never part of a session's digest, which is taken over the state alone — but
+//! it is worth saying that the tables below
 //! are now about the roster and the identifiers, which do cross a wire.
 
 use corvid_behavior::{Player, PlayerId, Presence, ProfileId};

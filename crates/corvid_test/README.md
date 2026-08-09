@@ -124,11 +124,10 @@ corvid_test::replays_to_itself(&run)?;
 | [`matches_goldens`] | This build computes what the last one did. |
 
 Each bounds on the game and never on a configuration of it. [`is_reproducible`]
-asks for `Present`, which is the whole client-local half — `Present` is built on
-`Render`, so one bound says the runtime may call `action`, `look`, `hear`,
-`setup` and `draw`, where this crate used to need a second bound written beside
-the first to say it. The two scratch-and-replay checks ask for `Simulate` alone,
-and [`matches_goldens`] is handed two directories and asks for nothing.
+asks for a `State` and a `Controller`, which is all it drives — it renders
+nothing and sounds nothing, so the renderer and the ear are `()`. The two
+replay checks ask for the state alone, and [`matches_goldens`] is handed two
+directories and asks for nothing.
 
 The first three fail naming the **first tick** that differs and what differs
 there. Everything after a divergence diverges too, because a simulation is a

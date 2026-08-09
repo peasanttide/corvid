@@ -139,8 +139,7 @@ pub fn projection(frustum: Frustum, aspect: f32) -> Mat4 {
     // no height — projects everything onto a point. Left alone it would put a
     // zero in `w` and a `NaN` in every vertex the matrix touched, which a
     // device rasterises into something arbitrary. Collapsing the two spatial
-    // rows instead draws nothing, which is what the degenerate case meant
-    // before this was one formula.
+    // rows instead draws nothing, which is what the degenerate case means.
     if base == 0.0 && slope == 0.0 {
         return Mat4::new(
             0.0, 0.0, 0.0, 0.0, //

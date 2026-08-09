@@ -28,12 +28,13 @@ const fn nonzero(nanos: u64) -> NonZeroU64 {
 ///
 /// # Why the span and not the rate
 ///
-/// This used to be a `TickRate` holding a `NonZeroU32` of hertz, deriving the
-/// span by dividing into a second. That division truncates — fifteen hertz is
-/// 66 666 666 nanoseconds and not a fifteenth of a second — so the stored
-/// value was the *approximate* one and the exact one was derived from it.
+/// A `TickRate` holding a `NonZeroU32` of hertz, deriving the span by dividing
+/// into a second, is the wrong way round. That division truncates — fifteen
+/// hertz is 66 666 666 nanoseconds and not a fifteenth of a second — so the
+/// stored value would be the *approximate* one and the exact one derived from
+/// it.
 ///
-/// It is the wrong way round. [`Step`](crate::Step) accumulates against the
+/// [`Step`](crate::Step) accumulates against the
 /// span and nothing accumulates against the rate, so the span is the number the
 /// simulation is actually defined by. Storing it means a span is whatever it
 /// says it is, [`hz`](Self::hz) becomes the lossy view rather than the stored

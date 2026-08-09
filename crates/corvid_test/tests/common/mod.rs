@@ -225,10 +225,9 @@ impl State for Climb {
         command: &mut impl Command<Reference = String>,
     ) -> Self {
         let previous = &self;
-        // The tick number, which the state already carries. This used to be a
-        // counter in a `Scratch` — the fixture existed to leak one — and the
-        // two increment together, so the threshold below lands on the same
-        // tick it always did.
+        // The tick number, which the state already carries rather than a
+        // counter kept beside it: the two would increment together, and only
+        // one of them is in the digest.
         let seen = i64::try_from(previous.now.0).unwrap_or(i64::MAX) + 1;
         let climbed = i64::try_from(
             players
@@ -255,11 +254,10 @@ impl State for Climb {
                 }
             }
             Habit::Blind => next.unhashed = spin(rules.spin),
-            // This used to read a `Scratch` as an accumulator — a count of
-            // ticks that particular scratch had been through, which was a
-            // property of one machine's snapshot budget rather than of the
-            // session. There is no `Scratch` to leak now, so `seen` is the tick
-            // number out of the state and this habit is an ordinary one.
+            // `seen` is the tick number out of the state. Accumulating a count
+            // beside the state instead would be a count of ticks one machine's
+            // snapshot budget happened to run, which is a property of that
+            // machine rather than of the session.
             Habit::Hoarder => next.metres += seen,
             // The same leak, on one tick only, so that which tick a check names
             // is a fact about the check rather than about the first tick with

@@ -239,12 +239,12 @@ fn a_captured_audio_frame_is_the_one_the_extractor_produced_at_that_tick() {
     // three, so one of these carries a cue and the other does not.
     assert_ne!(recorded(Tick(1)).cues.len(), recorded(Tick(2)).cues.len());
 
-    // The alpha half of this test is gone, and it is worth saying why rather
-    // than leaving a shorter test behind. It used to build two frames at
-    // `Factor16::ZERO` and `ONE` and assert they differed, because `hear` was
-    // handed the pair and the alpha between them.
+    // There is deliberately nothing here about the interpolation weight, which
+    // is what a test of two frames would otherwise reach for: building two at
+    // `Factor16::ZERO` and `ONE` and asserting they differ would need `hear` to
+    // be handed the pair and the alpha between them.
     //
-    // An ear is extracted into now. It keeps its own previous and current and
+    // An ear is extracted into instead. It keeps its own previous and current and
     // is never told an alpha — interpolation is the renderer's, and it happens
     // in a shader. So there is no alpha here to be right or wrong about, and
     // the comparison above is the whole of what this test can still claim.

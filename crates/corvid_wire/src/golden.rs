@@ -139,7 +139,8 @@ where
 /// a digest back into, which is the difference between this and [`check`] and
 /// the reason a crate that writes values down needs both tables rather than
 /// either. What a digest table catches is an encoding that still tells two
-/// values apart and tells them apart *differently* than it used to, which every
+/// values apart and tells them apart *differently* than when the row was
+/// recorded, which every
 /// other test in a crate — all of which compare one output to another — is
 /// structurally unable to see.
 ///

@@ -73,12 +73,12 @@ enum Mode {
 ///
 /// # One type rather than two
 ///
-/// This used to be a `Fake` and a `Wall`, and they were one type wearing two
-/// names: both answer one question, both are consumed by being read, and every
-/// caller that held one held it behind the same `Box<dyn Clock>` anyway. Two
-/// types meant two constructors to find, two `Debug` impls, two entries in
-/// every import line, and a test that wanted to swap real time for a fixed step
-/// changing a type rather than a call.
+/// A `Fake` and a `Wall` would be one type wearing two names: both answer one
+/// question, both are consumed by being read, and every caller that held one
+/// would hold it behind the same `Box<dyn Clock>` anyway. Two types would mean
+/// two constructors to find, two `Debug` impls, two entries in every import
+/// line, and a test that wanted to swap real time for a fixed step changing a
+/// type rather than a call.
 ///
 /// [`stepping`](Self::stepping) is what a headless test wants: one period per
 /// call, forever, so the loop it drives ticks exactly once per iteration and a

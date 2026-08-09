@@ -266,8 +266,8 @@ fn a_machine_handed_a_state_restarts_on_it() -> Fallible {
 ///
 /// Adopting one assigns this machine's tick and its whole simulation and
 /// forgets every row before them. So the question of *who sent it* is the whole
-/// question, and the answer used to be nobody's: any peer that put a
-/// `Transfer` on the wire was obeyed, whether this machine had asked or not.
+/// question: obeying any peer that put a `Transfer` on the wire, asked for or
+/// not, would let one machine assign every other machine's simulation.
 ///
 /// Seat zero is the authority here, which is what makes this checkable from one
 /// process: this run **is** seat zero, so a state arriving from seat one is by

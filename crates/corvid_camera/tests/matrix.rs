@@ -56,8 +56,8 @@ fn seen(camera: GlobalFineTransform, aspect: f32) -> Mat4 {
 /// coordinates.
 ///
 /// A plain matrix-vector product, because the matrix is already in the order a
-/// shader reads it. That is the column-major change, in one line: this used to
-/// need the transpose that `columns()` was.
+/// shader reads it — column-major, so no transpose stands between the matrix
+/// and the product.
 fn ndc(camera: GlobalFineTransform, point: [f32; 3]) -> [f32; 3] {
     let clip = seen(camera, 2.0) * Vector4::new(point[0], point[1], point[2], 1.0);
     [clip.x / clip.w, clip.y / clip.w, clip.z / clip.w]
@@ -177,8 +177,9 @@ fn an_orthographic_box_does_not_narrow_with_distance() {
     assert!((z(flat, [0.0, 100.0, 0.0]) - 1.0).abs() < 1e-6);
 }
 
-/// Both frustums, through one formula, against the two the workspace used to
-/// build with separate code. This is the test the merge is answerable to.
+/// Both frustums, through one formula, against the values separate perspective
+/// and orthographic code would produce. This is the test that one formula is
+/// answerable to.
 #[test]
 fn one_formula_reproduces_both_of_the_projections_it_replaced() {
     let aspect = 16.0 / 9.0;

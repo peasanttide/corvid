@@ -32,7 +32,7 @@
 //! So both are written down as literals, over the same fixtures. Every other
 //! test in this crate compares one output to another, which catches an encoding
 //! that stopped distinguishing two things and cannot catch one that
-//! distinguishes them differently than it used to. This file is the other half.
+//! distinguishes them differently than when the table was recorded. This file is the other half.
 //!
 //! Renaming a field is the change neither of those two can see: these bytes
 //! carry no names and the hasher absorbs values and never names. So there is a
