@@ -35,7 +35,7 @@
     reason = "a failed unwrap in a test is a failed test, which is what a test is for"
 )]
 
-use core::num::{NonZeroU32, NonZeroU64};
+use core::num::NonZeroU32;
 
 use corvid_time::{Tick, TickSpan};
 use corvid_wire::golden::{DigestRow, Row, check, check_digests};
@@ -101,7 +101,7 @@ fn the_tick_encodes_as_it_was_recorded() {
 #[test]
 fn the_tick_span_encodes_as_it_was_recorded() {
     let fast = NonZeroU32::new(0x1234_5678).unwrap();
-    let headset = NonZeroU64::new(13_888_888).unwrap();
+    let headset = NonZeroU32::new(13_888_888).unwrap();
     check(
         "TickSpan",
         GOLDEN_RATES,
@@ -124,7 +124,7 @@ fn a_tick_and_a_span_are_their_numbers_and_nothing_else() {
     );
     assert_eq!(
         corvid_wire::encode(&TickSpan::CRADLE).unwrap(),
-        corvid_wire::encode(&66_666_666_u64).unwrap(),
+        corvid_wire::encode(&66_666_666_u32).unwrap(),
     );
 
     // And a number this small is one byte at either width, which is the shape
@@ -132,22 +132,17 @@ fn a_tick_and_a_span_are_their_numbers_and_nothing_else() {
     // write these same bytes and pass every round trip in the crate — what it
     // would move is the digest, and `GOLDEN_MARKS` below is that table.
     assert_eq!(corvid_wire::encode(&Tick(1)).unwrap(), [0x01]);
-    // A one-nanosecond span is the same one byte, and the same digest as
-    // `Tick(1)`. Both are transparent newtypes over a `u64`, and a transparent
-    // newtype adds nothing to what it wraps, so alone the two are
-    // indistinguishable.
-    //
-    // Nothing depends on telling them apart, because nothing here hashes either
-    // one bare. Each reaches a digest as a field of some larger record, where
-    // the field order and every other field are absorbed with it, and
-    // `corvid_hash` still separates a narrowed field from a wide one *in that
-    // position*.
-    let shortest = TickSpan::from_nanos(NonZeroU64::MIN);
+    // A one-nanosecond span writes the same one byte, because a varint spells a
+    // value and never the width it was declared at. The digests differ, and the
+    // reason is the whole argument for keeping a digest table beside this one: a
+    // tick is a `u64` and a span is a `u32`, and `corvid_hash` absorbs an
+    // integer as its declared bytes and injects the count of them.
+    let shortest = TickSpan::from_nanos(NonZeroU32::MIN);
     assert_eq!(corvid_wire::encode(&shortest).unwrap(), [0x01]);
-    assert_eq!(
+    assert_ne!(
         corvid_hash::digest(&Tick(1)),
         corvid_hash::digest(&shortest),
-        "a tick and a span are both transparent u64s, so alone they collide",
+        "a tick and a span write one byte each and must still digest apart",
     );
 }
 
@@ -167,14 +162,20 @@ fn a_tick_beyond_a_narrower_counter_is_in_the_table() {
 ///
 /// The small values are the rows that carry the claim: the large ones would move
 /// the byte table on their own.
+///
+/// The two span rows are digests of a `u32`, which is what a span is. Their
+/// bytes above are unchanged from when it was a `u64` — a varint spells the
+/// value and never the width — so these two rows are the only record in the
+/// crate that the field ever narrowed. That is the argument for keeping this
+/// table, made by the table.
 const GOLDEN_MARKS: &[DigestRow<'_>] = &[
     ("Tick::ZERO", 0x7383_3581_a38e_f3cd),
     ("Tick(1)", 0x3178_2188_0dd5_d02b),
     ("Tick(0x1234_5678_9abc_def0)", 0x23a9_aafe_59d6_50f2),
-    ("TickSpan::CRADLE", 0x2e0d_400a_8586_8f54),
+    ("TickSpan::CRADLE", 0xeca4_fcde_ac6a_f52a),
     (
         "TickSpan::from_hz(1), a one-second span",
-        0x503f_4582_2b4a_6528,
+        0xe363_5a79_a168_86a8,
     ),
 ];
 

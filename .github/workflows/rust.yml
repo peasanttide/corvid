@@ -117,13 +117,15 @@ jobs:
           cargo build -p "$crate" --no-default-features --target thumbv7em-none-eabi
         done
     # `rust-version` is a promise to a downstream, and every other job here runs
-  # on whatever stable the runner has — so an API stabilised last month compiles
-  # green and breaks the first person who believed the manifest. Reached for
-  # `Duration::from_mins` in a test, which needs 1.92 and is a hard error on the
-  # declared floor.
+  # on whatever stable the runner has — so a crate reaching past the declared
+  # floor compiles green here and breaks the first person who believed the
+  # manifest. This is the only arm that would notice.
   #
-  # `--all-targets`, because a test target is where this slips in: nothing a
+  # `--all-targets`, because a test target is where it slips in: nothing a
   # downstream compiles, and nothing any other arm holds to the floor.
+  #
+  # The version is read out of the manifest rather than written here twice,
+  # since two copies of a number are one copy and one stale copy.
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 20

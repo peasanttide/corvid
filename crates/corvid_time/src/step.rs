@@ -68,7 +68,7 @@ impl Step {
     pub const fn new(span: TickSpan) -> Self {
         Self {
             span,
-            period_nanos: span.nanos(),
+            period_nanos: span.nanos() as u64,
             accumulated_nanos: 0,
             catchup: DEFAULT_CATCHUP,
             dropped: 0,
@@ -152,23 +152,24 @@ impl Step {
     #[must_use]
     #[inline]
     pub fn alpha(&self) -> Factor16 {
-        // Widened to `u128` for the multiplication, because nothing bounds a
-        // span. `from_nanos` takes any `NonZeroU64` and the serde impl will
-        // read one from a peer or a save file, so `accumulated_nanos * 65535`
-        // leaves a `u64` for any span past about thirty-nine hours — which
-        // panics in dev and wraps in release, and a release build that answers
-        // a wrong alpha rather than failing is the worse half of that.
-        let scale = u128::from(Factor16::ONE.to_bits());
-        let period = u128::from(self.period_nanos);
+        let scale = u64::from(Factor16::ONE.to_bits());
         // Round half up, matching how the rest of `corvid_fixed` rounds, with
         // the doubling done inside the numerator so the whole thing stays in
-        // integers. The widest this reaches is about 2^81, against a `u128`.
-        let numerator = 2 * u128::from(self.accumulated_nanos) * scale + period;
-        let bits = numerator / (2 * period);
-        // The accumulator is held below one period by `advance`, which makes
-        // the quotient at most `scale` and the conversion exact. `unwrap_or`
-        // rather than an unreachable branch, because a `Display`-free panic
-        // here would be a panic on the interpolation path.
+        // integers.
+        //
+        // It stays in a `u64`, and `TickSpan` is what makes that true rather
+        // than an assumption about how anyone configures a game. A span is a
+        // `u32` of nanoseconds and `advance` leaves the accumulator below one
+        // span, so the numerator is under two times `u32::MAX` times 65 535 —
+        // five hundred and sixty-three trillion against a ceiling of eighteen
+        // quintillion, four orders of magnitude of room. The bound is in the
+        // type, so neither a caller nor a save file can get underneath it.
+        let numerator = 2 * self.accumulated_nanos * scale + self.period_nanos;
+        let bits = numerator / (2 * self.period_nanos);
+        // Exact by the same argument: the accumulator below one period makes
+        // the quotient at most `scale`, which is `u16::MAX`. `unwrap_or` rather
+        // than an unreachable branch, because a panic here would be a panic on
+        // the interpolation path.
         Factor16::from_bits(u16::try_from(bits).unwrap_or(u16::MAX))
     }
 

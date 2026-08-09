@@ -1,76 +1,74 @@
-//! Spans no tick rate names, which is where the arithmetic used to run out.
+//! The slow end of the range, where the interpolation arithmetic runs closest
+//! to its ceiling.
 //!
-//! `TickSpan::from_hz` cannot produce a span longer than a second, so every
-//! other test in this crate stays inside one. Nothing holds a span there:
-//! `from_nanos` takes any `NonZeroU64`, `From<NonZeroU64>` does too, and under
-//! the `serde` feature a span is `transparent` over that integer — so a save
-//! file or a peer can hand this crate any span at all.
+//! `alpha` multiplies the accumulator by 65 535 in a `u64`. That is safe because
+//! a span is a `u32` of nanoseconds and the accumulator is below one span — a
+//! bound in the type rather than a habit of callers, which matters because the
+//! `serde` feature makes a span `transparent` over that integer, so a save file
+//! or a peer supplies one directly and no constructor is in the way.
 //!
-//! Past about thirty-nine hours, `alpha`'s numerator left a `u64`. That failed
-//! two different ways in the two profiles this workspace ships: a panic where
-//! overflow checks are on, and a wrong factor where they are off — and the
-//! wrong factor was not even monotonic, so a renderer reading it saw the
-//! picture jump backwards as the span grew. Neither profile's test suite could
-//! see it, because neither had a span this long in it.
-//!
-//! A turn-based game, a persistent world ticking once a minute, and a headless
-//! server catching up a day of simulation are all inside this range and none of
-//! them is exotic.
+//! Held to a `u64` of nanoseconds instead, the same product left the integer
+//! past about thirty-nine hours of span, and failed differently in the two
+//! profiles this workspace ships: a panic where overflow checks are on, and
+//! where they are off a factor that was not even monotonic, so a renderer read
+//! the picture jumping backwards as the span grew. What is checked here is the
+//! whole range the type now admits, ending at the largest span there is.
 
-use core::num::NonZeroU64;
+use core::num::NonZeroU32;
 use core::time::Duration;
 
 use corvid_fixed::Factor16;
 use corvid_time::{Step, TickSpan};
 
 /// A span from a plain number of nanoseconds, which is the constructor with no
-/// ceiling under it. Spelled without an `unwrap` so it works in a `const`, as
+/// rate behind it. Spelled without an `unwrap` so it works in a `const`, as
 /// `tests/step.rs` spells its rates.
-const fn span(nanos: u64) -> TickSpan {
-    match NonZeroU64::new(nanos) {
+const fn span(nanos: u32) -> TickSpan {
+    match NonZeroU32::new(nanos) {
         Some(nanos) => TickSpan::from_nanos(nanos),
         None => TickSpan::CRADLE,
     }
 }
 
-/// Just past where `accumulated_nanos * 65535` used to leave a `u64`.
-const PAST_THE_CLIFF: u64 = 140_739_635_871_745;
+#[test]
+fn the_longest_span_is_slower_than_any_rate_can_name() {
+    // The bound is worth stating as a value: four seconds and change, where the
+    // slowest span `from_hz` can produce is one second. So narrowing the field
+    // to a `u32` took nothing away that a rate could have asked for.
+    assert_eq!(TickSpan::MAX.nanos(), u32::MAX);
+    assert_eq!(TickSpan::MAX.period(), Duration::from_nanos(4_294_967_295));
+
+    let slowest_rate = TickSpan::from_hz(NonZeroU32::MIN);
+    assert_eq!(slowest_rate.period(), Duration::from_secs(1));
+    assert!(slowest_rate < TickSpan::MAX);
+}
 
 #[test]
-fn a_span_longer_than_a_day_still_answers_an_alpha() {
-    let day = span(24 * 60 * 60 * 1_000_000_000);
-    let mut step = Step::new(day);
+fn a_four_second_span_still_answers_an_alpha() {
+    let mut step = Step::new(TickSpan::MAX);
 
-    // Six hours into a day is a quarter of the way to the next tick.
-    step.advance(Duration::from_secs(6 * 60 * 60));
+    // A quarter of the way to the next tick, and a three-quarters that a
+    // product leaving its integer got wrong rather than merely imprecise.
+    step.advance(Duration::from_nanos(u64::from(u32::MAX) / 4));
     assert_eq!(step.alpha(), Factor16::from_bits(16384));
 
-    // And eighteen hours is three quarters, which is the half of this that a
-    // wrapped multiplication got wrong rather than merely imprecise.
-    step.advance(Duration::from_secs(12 * 60 * 60));
+    step.advance(Duration::from_nanos(u64::from(u32::MAX) / 2));
     assert_eq!(step.alpha(), Factor16::from_bits(49151));
 }
 
 #[test]
 fn alpha_climbs_with_the_accumulator_at_every_span() {
-    // Monotonicity is the property a wrapped numerator broke: the same step
-    // read a *lower* alpha further into its period. Checked across the cliff
-    // rather than near it, because the failure was a wrap and not a rounding.
-    for nanos in [
-        1,
-        1_000_000_000,
-        PAST_THE_CLIFF - 1,
-        PAST_THE_CLIFF,
-        u64::MAX / 2,
-        u64::MAX,
-    ] {
+    // Monotonicity is the property an overflowing numerator broke: the same
+    // step read a *lower* alpha further into its period. Checked across the
+    // whole range the type admits, both ends included.
+    for nanos in [1, 1_000, 1_000_000, 66_666_666, 1_000_000_000, u32::MAX] {
         let span = span(nanos);
         let mut last = Factor16::from_bits(0);
         for numerator in 0..=8_u64 {
             let mut step = Step::new(span);
             // A fraction of the period, computed in integers like everything
             // else here.
-            let into = nanos / 9 * numerator;
+            let into = u64::from(nanos) / 9 * numerator;
             step.advance(Duration::from_nanos(into));
 
             let alpha = step.alpha();
@@ -91,31 +89,19 @@ fn alpha_climbs_with_the_accumulator_at_every_span() {
 }
 
 #[test]
-fn the_longest_span_there_is_neither_panics_nor_wraps() {
-    // The value a `serde(transparent)` span deserializes from `u64::MAX`, which
-    // is the worst input reachable without a single line of caller error.
-    let mut step = Step::new(span(u64::MAX));
+fn an_absurd_elapsed_against_the_longest_span_neither_panics_nor_wraps() {
+    // The accumulator is a `u64` and saturates, so the worst input is one that
+    // fills it against the widest divisor. Both halves of the arithmetic have
+    // to survive that, not only the interpolation.
+    let mut step = Step::new(TickSpan::MAX).with_catchup(u32::MAX);
 
-    // Nothing advanced yet, so nothing of the period has elapsed.
-    assert_eq!(step.alpha(), Factor16::from_bits(0));
+    step.advance(Duration::MAX);
+    assert!(step.alpha().to_bits() <= Factor16::ONE.to_bits());
 
-    // And an ordinary frame against a span that long is still nothing of it,
-    // rather than the `from_bits(1)` a release build used to answer.
-    step.advance(Duration::from_millis(16));
-    assert_eq!(step.alpha(), Factor16::from_bits(0));
-
-    // No tick is owed either, because a frame is not a period.
-    assert_eq!(step.dropped(), 0);
-}
-
-#[test]
-fn a_span_that_long_still_delivers_its_tick_when_the_period_is_up() {
-    // The other side of the same arithmetic: the division that yields whole
-    // ticks has to survive the widening too.
-    let span = span(PAST_THE_CLIFF);
-    let mut step = Step::new(span);
-
-    assert_eq!(step.advance(span.period()), 1);
+    // And the step is still usable afterwards, which is what says the
+    // saturation left the accumulator somewhere sensible rather than wrapped.
+    let mut step = Step::new(TickSpan::MAX);
+    assert_eq!(step.advance(TickSpan::MAX.period()), 1);
     assert_eq!(step.alpha(), Factor16::from_bits(0));
     assert_eq!(step.dropped(), 0);
 }

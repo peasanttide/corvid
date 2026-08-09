@@ -84,11 +84,14 @@ compares one run's tick counter to another's.
 Fifteen hertz is low on purpose, and [`TickSpan::CRADLE`] is where that is
 argued.
 
-What a span stores is a [`NonZeroU64`](core::num::NonZeroU64) of nanoseconds,
+What a span stores is a [`NonZeroU32`](core::num::NonZeroU32) of nanoseconds,
 and it is a hashable value with a wire format rather than a number in a config
-struct because two peers at different spans are two different simulations. The
-[`NonZeroU32`](core::num::NonZeroU32) is only [`from_hz`](TickSpan::from_hz)'s
-argument, where it is non-zero because a rate of zero has no period at all.
+struct because two peers at different spans are two different simulations.
+Non-zero because a span of no time is a division by zero in [`Step`], and
+thirty-two bits because that is what keeps [`Step::alpha`] inside a `u64`
+without a clamp or 128-bit arithmetic — [`TickSpan::MAX`] is four seconds and
+change, against the one second that is the slowest span
+[`from_hz`](TickSpan::from_hz) can name.
 
 ## A stall drops ticks; it does not bank them
 
@@ -216,7 +219,7 @@ cargo test -p corvid_time --all-features
 |---|---|
 | `tests/tick.rs` | Saturation at both ends, `since` in both directions, ordering, the period of thirteen rates against `1_000_000_000 / hz`, the residual identity the table above is built on, the gigahertz clamp, the JSON encoding, and ten thousand ticks digesting without a collision |
 | `tests/step.rs` | A thousand exact periods at seven rates delivering a thousand ticks with nothing dropped and nothing accumulated; a period split into a hundred pieces; ten thousand ragged frame times accounting for every nanosecond; the stall dropping rather than banking; the ordinary second after it; the sub-tick remainder surviving that stall and completing the tick it was part of; alpha against hand-computed bit patterns, climbing within a period and landing on exactly zero at the boundary; a frame time of 2^64 nanoseconds saturating rather than wrapping; and the crate's own source containing no floating point |
-| `tests/slow.rs` | Spans longer than a second, which no rate can name and which only `from_nanos` and the deserializer can reach: alpha climbing rather than wrapping across a day-long period and at `u64::MAX` nanoseconds, and the whole-tick division surviving the same widening |
+| `tests/slow.rs` | The slow end of the range, which only `from_nanos` and the deserializer reach: that [`TickSpan::MAX`] is slower than any rate can name, and that alpha climbs rather than overflows across the whole range up to it |
 | `tests/clock.rs` | `Clock` queueing and stepping, a thousand calls driving a thousand ticks, `Elapsed` as a trait object, a clock not being `Copy`, and the wall mode measuring a sleep and then measuring nothing at all on the next call |
 | `tests/wire.rs` | The frozen bytes of [`Tick`], [`Ticks`] and [`TickSpan`], and the digests they come to under this workspace's hasher — the one view of the three that can see a field narrowed |
 | doctests | Every Rust block in this file and in the type documentation |

@@ -5,7 +5,7 @@
 //! machine. Nothing here may panic, because a tick arriving from a save file or
 //! a peer is untrusted input and arithmetic on it happens inside `tick`.
 
-use core::num::{NonZeroU32, NonZeroU64};
+use core::num::NonZeroU32;
 use core::time::Duration;
 
 use corvid_time::{Tick, TickSpan};
@@ -19,8 +19,8 @@ const fn rate(hz: u32) -> TickSpan {
 
 /// A span straight from nanoseconds, spelled without an `unwrap` for the reason
 /// the module doc gives: nothing in this file may panic.
-const fn span(nanos: u64) -> TickSpan {
-    match NonZeroU64::new(nanos) {
+const fn span(nanos: u32) -> TickSpan {
+    match NonZeroU32::new(nanos) {
         Some(nanos) => TickSpan::from_nanos(nanos),
         None => TickSpan::CRADLE,
     }
@@ -73,8 +73,8 @@ fn the_cradle_rate_is_fifteen_hertz() {
 fn a_period_is_a_whole_number_of_nanoseconds() {
     for hz in [1u32, 10, 15, 20, 24, 30, 50, 60, 64, 90, 120, 144, 240] {
         let rate = rate(hz);
-        assert_eq!(rate.period(), Duration::from_nanos(rate.nanos()));
-        assert_eq!(rate.nanos(), 1_000_000_000 / u64::from(hz));
+        assert_eq!(rate.period(), Duration::from_nanos(u64::from(rate.nanos())));
+        assert_eq!(rate.nanos(), 1_000_000_000 / hz);
     }
 }
 
@@ -85,8 +85,8 @@ fn the_residual_of_a_period_is_one_nanosecond_per_second_per_leftover() {
     // down as a test is what keeps the README's table honest.
     for hz in [10u32, 15, 30, 60, 64, 144] {
         let rate = rate(hz);
-        let per_second = 1_000_000_000 - u64::from(hz) * rate.nanos();
-        assert_eq!(per_second, u64::from(1_000_000_000 % hz));
+        let per_second = 1_000_000_000 - hz * rate.nanos();
+        assert_eq!(per_second, 1_000_000_000 % hz);
     }
 }
 
@@ -142,7 +142,7 @@ fn a_span_digests_as_its_nanoseconds() {
     use corvid_hash::digest;
 
     // The nanoseconds and nothing else, at the width the field is stored at.
-    assert_eq!(digest(&TickSpan::CRADLE), digest(&66_666_666u64));
+    assert_eq!(digest(&TickSpan::CRADLE), digest(&66_666_666u32));
     assert_ne!(digest(&TickSpan::CRADLE), digest(&rate(30)));
 
     // What a peer agrees on is the span, and `hz()` is not enough to name one:

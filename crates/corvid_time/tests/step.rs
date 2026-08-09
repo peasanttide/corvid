@@ -84,7 +84,7 @@ fn ragged_advances_deliver_the_whole_elapsed_time() {
         elapsed += nanos;
         total += u64::from(step.advance(Duration::from_nanos(nanos)));
     }
-    assert_eq!(total, elapsed / rate.nanos());
+    assert_eq!(total, elapsed / u64::from(rate.nanos()));
     assert_eq!(step.dropped(), 0);
 }
 
@@ -154,7 +154,7 @@ fn the_remainder_below_a_period_survives_a_stall() {
 fn the_catchup_ceiling_is_what_bounds_one_advance() {
     for ceiling in [1u32, 2, 8, 64] {
         let mut step = Step::new(TickSpan::CRADLE).with_catchup(ceiling);
-        assert_eq!(step.advance(Duration::from_secs(60)), ceiling);
+        assert_eq!(step.advance(Duration::from_mins(1)), ceiling);
     }
 }
 
@@ -264,7 +264,7 @@ fn alpha_tracks_an_independent_accumulator_across_ragged_frames() {
     // file owns, which is what makes it a check on the step's bookkeeping and
     // not just on its arithmetic.
     let rate = TickSpan::CRADLE;
-    let period = rate.nanos();
+    let period = u64::from(rate.nanos());
     let scale = u64::from(Factor16::ONE.to_bits());
     let mut step = Step::new(rate).with_catchup(64);
     let mut expected = 0u64;
