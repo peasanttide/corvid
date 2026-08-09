@@ -25,6 +25,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher as _};
 
 use corvid_macros::id_type;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 id_type! {
@@ -51,6 +52,7 @@ id_type! {
 
 /// A struct with an identifier in it, to see the encoding in the position it
 /// will actually be read from -- a field of a message -- rather than alone.
+#[cfg(feature = "serde")]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct Seating {
     seat: SeatId,
@@ -123,6 +125,7 @@ fn ordering_is_the_integer_ordering_including_the_signed_half() {
     assert_eq!(seats, [SeatId(0), SeatId(1), SeatId(2)]);
 }
 
+#[cfg(feature = "serde")]
 #[test]
 fn the_encoding_is_the_bare_number() -> Result<(), serde_json::Error> {
     assert_eq!(serde_json::to_string(&SeatId(3))?, "3");
@@ -151,6 +154,7 @@ fn the_encoding_is_the_bare_number() -> Result<(), serde_json::Error> {
     Ok(())
 }
 
+#[cfg(feature = "serde")]
 #[test]
 fn every_16_bit_value_survives_a_json_round_trip() -> Result<(), serde_json::Error> {
     for number in u16::MIN..=u16::MAX {
@@ -162,6 +166,7 @@ fn every_16_bit_value_survives_a_json_round_trip() -> Result<(), serde_json::Err
     Ok(())
 }
 
+#[cfg(feature = "serde")]
 #[test]
 fn a_wrapper_on_the_wire_is_rejected_and_so_is_an_out_of_range_number() {
     // The three shapes a reader would see if the identifier had been encoded

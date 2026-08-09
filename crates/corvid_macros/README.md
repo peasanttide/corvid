@@ -19,11 +19,15 @@ assert_eq!(seat.0, 3);
 // is the thing the newtype exists to keep straight.
 assert_eq!(seat.to_string(), "SeatId(3)");
 
-// And it encodes as one. `#[serde(transparent)]` is part of what `id_type!`
-// declares, so nothing on the wire records that the number was wrapped.
-let json = serde_json::to_string(&seat).expect("a u16 has a json encoding");
-assert_eq!(json, "3");
-assert_eq!(serde_json::from_str::<SeatId>(&json).expect("it reads back"), seat);
+// And behind the calling crate's `serde` feature it encodes as one, because
+// `#[serde(transparent)]` is part of what `id_type!` declares there. Nothing
+// on the wire records that the number was wrapped.
+#[cfg(feature = "serde")]
+{
+    let json = serde_json::to_string(&seat).expect("a u16 has a json encoding");
+    assert_eq!(json, "3");
+    assert_eq!(serde_json::from_str::<SeatId>(&json).expect("it reads back"), seat);
+}
 
 // And it is not the other kind of identifier.
 id_type! {
@@ -55,8 +59,16 @@ below the simulation ring, to produce a newtype and a `Display`.
 
 A macro emits tokens; the crate that *expands* them is the one that has to be
 able to name what they mention. So every path in an expansion that leaves the
-prelude is absolute -- `::core::fmt::Display`, `::serde::Serialize` -- and a
-caller of `id_type!` depends on `serde` while this crate depends on nothing.
+prelude is absolute -- `::core::fmt::Display`, `::serde::Serialize` -- and it
+is a caller of `id_type!` that depends on `serde`, while this crate depends on
+nothing.
+
+A `cfg` is read the same way, where the expansion lands rather than where it
+was written, so `id_type!`'s encoding sits behind a `serde` feature belonging
+to the caller. A crate calling it declares that flag and takes the real
+dependency behind it; with the flag off the expansion names `serde` nowhere.
+The `serde` feature on *this* crate carries no dependency and exists so the
+tests here can expand the encoding half at all.
 The nine built-in derives are left bare, as they are in the newtype macros in
 `corvid_fixed` and `corvid_vector`, because a prelude name needs no help: they
 resolve even inside a module marked `#![no_implicit_prelude]`, which the tests

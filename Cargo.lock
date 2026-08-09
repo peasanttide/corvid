@@ -136,7 +136,6 @@ name = "corvid_net"
 version = "0.1.0"
 dependencies = [
  "corvid_macros",
- "corvid_signal",
  "serde",
  "thiserror",
 ]
@@ -148,7 +147,6 @@ dependencies = [
  "corvid_fixed",
  "corvid_hash",
  "corvid_net",
- "corvid_signal",
  "rand",
 ]
 

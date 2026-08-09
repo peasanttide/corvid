@@ -20,8 +20,12 @@
 /// position would have made it one, and there is nothing yet to turn it with:
 /// an identifier no other module can name is an integer with extra steps.
 ///
-/// The expansion names `::serde`, so a crate calling this depends on `serde`
-/// with `derive`. This crate does not.
+/// The encoding is behind the calling crate's `serde` feature, which that
+/// crate therefore has to declare: the expansion is `cfg_attr`, and a `cfg` is
+/// read where it expands rather than where it was written. With the feature on,
+/// the caller supplies `serde` with `derive` and the identifier encodes as the
+/// bare number under `#[serde(transparent)]`. With it off, nothing here names
+/// `serde` at all. This crate depends on it either way not at all.
 ///
 /// The derived [`Hash`] absorbs the integer and no type tag, which is the
 /// convention the rest of the workspace hashes under: what establishes that two
@@ -44,8 +48,11 @@ macro_rules! id_type {
     ) => {
         $(#[$meta])*
         #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        #[derive(::serde::Serialize, ::serde::Deserialize)]
-        #[serde(transparent)]
+        #[cfg_attr(
+            feature = "serde",
+            derive(::serde::Serialize, ::serde::Deserialize),
+            serde(transparent)
+        )]
         pub struct $name(
             #[doc = $field_doc]
             pub $repr,
