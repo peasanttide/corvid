@@ -1,8 +1,9 @@
-//! Layout guarantees and the optional integrations.
+//! Layout guarantees, and the integrations that follow from them.
 //!
-//! Each feature's tests are gated on that feature, so this file compiles and
-//! passes with any subset enabled. Run with `--all-features` to exercise all of
-//! it.
+//! Every type here is a newtype over an integer and has to stay one: `bytemuck`
+//! reads it as bytes and `serde` writes it as the number inside, and both stop
+//! being sound the moment a niche or a padding byte appears. The `num-traits`
+//! and `nalgebra` integrations have their own files.
 
 #![allow(
     clippy::float_cmp,
@@ -12,14 +13,12 @@
     clippy::panic_in_result_fn,
     reason = "these tests use ? for the library calls and assert! for the checks"
 )]
-
 use core::mem::{align_of, size_of};
 
 use corvid_fixed::{
     Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I2F30, I8F8, I16F16, I24F8,
     I48F16, Signed8, Signed16, Signed32,
 };
-
 #[test]
 fn every_type_has_the_layout_of_its_storage_integer() {
     assert_eq!((size_of::<I0F8>(), align_of::<I0F8>()), (1, 1));
@@ -218,212 +217,5 @@ mod arbitrary_interop {
             assert!((0.0..=1.0).contains(&factor.to_f64()));
         }
         Ok(())
-    }
-}
-
-#[cfg(feature = "num-traits")]
-mod num_traits_interop {
-    use num_traits::{
-        Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, FromPrimitive, One, Saturating,
-        SaturatingAdd, SaturatingMul, SaturatingSub, ToPrimitive, WrappingAdd, WrappingNeg,
-        WrappingSub, Zero,
-    };
-
-    use super::{Angle16, Factor16, I8F8, I24F8, Signed16};
-
-    // Every call below goes through the trait explicitly. The inherent methods
-    // have the same names and would otherwise win method resolution, which would
-    // leave the trait implementations untested.
-
-    /// Generic over anything that can accumulate, to prove the traits compose.
-    fn sum_all<T: Zero + SaturatingAdd + Copy>(values: &[T]) -> T {
-        values
-            .iter()
-            .fold(T::zero(), |acc, v| SaturatingAdd::saturating_add(&acc, v))
-    }
-
-    /// The same, for the families that wrap rather than saturate.
-    fn turn_all<T: Zero + WrappingAdd + Copy>(values: &[T]) -> T {
-        values
-            .iter()
-            .fold(T::zero(), |acc, v| WrappingAdd::wrapping_add(&acc, v))
-    }
-
-    #[test]
-    fn zero_and_one_are_the_arithmetic_identities() {
-        assert_eq!(<I24F8 as Zero>::zero(), I24F8::ZERO);
-        assert!(Zero::is_zero(&I24F8::ZERO));
-        assert_eq!(<I24F8 as One>::one(), I24F8::ONE);
-        assert_eq!(<Factor16 as One>::one(), Factor16::MAX);
-        assert_eq!(<Signed16 as One>::one(), Signed16::MAX);
-        assert!(!Zero::is_zero(&Angle16::QUARTER_TURN));
-        assert!(Zero::is_zero(&<Angle16 as Zero>::zero()));
-    }
-
-    #[test]
-    fn bounds_match_the_inherent_constants() {
-        assert_eq!(<I8F8 as Bounded>::min_value(), I8F8::MIN);
-        assert_eq!(<I8F8 as Bounded>::max_value(), I8F8::MAX);
-        assert_eq!(<Signed16 as Bounded>::min_value(), Signed16::MIN);
-        assert_eq!(<Factor16 as Bounded>::min_value(), Factor16::ZERO);
-        assert_eq!(<Angle16 as Bounded>::max_value(), Angle16::MAX);
-    }
-
-    #[test]
-    fn primitive_conversions_agree_with_the_inherent_ones() {
-        let value = I8F8::from_f64(-2.5);
-        assert_eq!(ToPrimitive::to_f64(&value), Some(-2.5));
-        assert_eq!(ToPrimitive::to_f32(&value), Some(-2.5));
-        assert_eq!(ToPrimitive::to_i64(&value), Some(-2));
-        assert_eq!(ToPrimitive::to_u64(&value), None);
-        assert_eq!(ToPrimitive::to_u64(&I8F8::ONE), Some(1));
-
-        assert_eq!(
-            <I8F8 as FromPrimitive>::from_i64(3),
-            Some(I8F8::from_f64(3.0))
-        );
-        assert_eq!(<I8F8 as FromPrimitive>::from_i64(1_000_000), None);
-        assert_eq!(
-            <I8F8 as FromPrimitive>::from_u64(3),
-            Some(I8F8::from_f64(3.0))
-        );
-        assert_eq!(
-            <Factor16 as FromPrimitive>::from_f64(0.5),
-            Some(Factor16::from_f64(0.5))
-        );
-        assert_eq!(<Factor16 as FromPrimitive>::from_i64(2), None);
-
-        // An angle reads as turns, so a whole turn is out of range.
-        assert_eq!(ToPrimitive::to_f64(&Angle16::QUARTER_TURN), Some(0.25));
-        assert_eq!(<Angle16 as FromPrimitive>::from_i64(1), None);
-    }
-
-    #[test]
-    fn checked_traits_report_overflow() {
-        assert_eq!(CheckedAdd::checked_add(&I8F8::MAX, &I8F8::ONE), None);
-        assert_eq!(CheckedSub::checked_sub(&I8F8::MIN, &I8F8::ONE), None);
-        assert_eq!(CheckedMul::checked_mul(&I8F8::MAX, &I8F8::MAX), None);
-        assert_eq!(CheckedDiv::checked_div(&I8F8::ONE, &I8F8::ZERO), None);
-        assert_eq!(
-            CheckedAdd::checked_add(&I8F8::ONE, &I8F8::ONE),
-            Some(I8F8::from_f64(2.0))
-        );
-        assert_eq!(
-            CheckedAdd::checked_add(&Signed16::MAX, &Signed16::MAX),
-            None
-        );
-        // Multiplication over the unit interval cannot fail.
-        assert_eq!(
-            CheckedMul::checked_mul(&Factor16::MAX, &Factor16::MAX),
-            Some(Factor16::MAX)
-        );
-    }
-
-    #[test]
-    fn saturating_traits_clamp() {
-        assert_eq!(Saturating::saturating_add(I8F8::MAX, I8F8::ONE), I8F8::MAX);
-        assert_eq!(Saturating::saturating_sub(I8F8::MIN, I8F8::ONE), I8F8::MIN);
-        assert_eq!(
-            SaturatingAdd::saturating_add(&I8F8::MAX, &I8F8::ONE),
-            I8F8::MAX
-        );
-        assert_eq!(
-            SaturatingSub::saturating_sub(&Factor16::ZERO, &Factor16::ONE),
-            Factor16::ZERO
-        );
-        assert_eq!(
-            SaturatingMul::saturating_mul(&I8F8::MAX, &I8F8::MAX),
-            I8F8::MAX
-        );
-    }
-
-    #[test]
-    fn wrapping_traits_exist_for_the_modular_families() {
-        assert_eq!(
-            WrappingAdd::wrapping_add(&I8F8::MAX, &I8F8::DELTA),
-            I8F8::MIN
-        );
-        assert_eq!(
-            WrappingSub::wrapping_sub(&I8F8::MIN, &I8F8::DELTA),
-            I8F8::MAX
-        );
-        assert_eq!(
-            WrappingAdd::wrapping_add(&Angle16::MAX, &Angle16::DELTA),
-            Angle16::ZERO
-        );
-        assert_eq!(
-            WrappingNeg::wrapping_neg(&Angle16::QUARTER_TURN),
-            Angle16::THREE_QUARTER_TURN
-        );
-    }
-
-    #[test]
-    fn the_traits_compose_in_generic_code() {
-        let fixed = [I24F8::from_f64(1.5), I24F8::from_f64(2.25), I24F8::ONE];
-        assert_eq!(sum_all(&fixed).to_f64(), 4.75);
-
-        let factors = [Factor16::from_f64(0.25); 8];
-        assert_eq!(sum_all(&factors), Factor16::ONE, "should saturate at one");
-
-        // Angles have no saturating form, so they accumulate by wrapping.
-        let angles = [Angle16::QUARTER_TURN; 7];
-        assert_eq!(turn_all(&angles), Angle16::THREE_QUARTER_TURN);
-    }
-}
-
-/// `nalgebra` needs no code from this crate: its blanket `Scalar` impl already
-/// covers these types, and its arithmetic is built on the operator traits.
-///
-/// These tests exist to keep that true. If a future change broke `Copy`,
-/// `PartialEq`, `Debug`, or an operator impl, `Vector3<I24F8>` would stop
-/// compiling and this file would say so.
-mod nalgebra_interop {
-    use nalgebra::{Vector2, Vector3};
-
-    use super::{Angle16, I24F8, Signed16};
-
-    #[test]
-    fn vectors_of_fixed_point_add_and_subtract() {
-        let a = Vector3::new(
-            I24F8::from_f64(1.5),
-            I24F8::from_f64(-2.25),
-            I24F8::from_f64(0.125),
-        );
-        let b = Vector3::new(I24F8::ONE, I24F8::ONE, I24F8::ONE);
-
-        let sum = a + b;
-        assert_eq!(sum[0].to_f64(), 2.5);
-        assert_eq!(sum[1].to_f64(), -1.25);
-        assert_eq!(sum[2].to_f64(), 1.125);
-
-        let difference = sum - b;
-        assert_eq!(difference, a);
-    }
-
-    #[test]
-    fn vectors_saturate_component_wise() {
-        let a = Vector2::new(I24F8::MAX, I24F8::MIN);
-        let b = Vector2::new(I24F8::ONE, I24F8::ONE);
-        let sum = a + b;
-        assert_eq!(sum[0], I24F8::MAX, "component should have saturated");
-        assert_eq!(sum[1].to_f64(), I24F8::MIN.to_f64() + 1.0);
-    }
-
-    #[test]
-    fn vectors_of_the_other_families_work_too() {
-        let normals = Vector3::new(Signed16::MAX, Signed16::ZERO, Signed16::MIN);
-        assert_eq!(normals.map(Signed16::to_f64), Vector3::new(1.0, 0.0, -1.0));
-
-        let headings = Vector2::new(Angle16::QUARTER_TURN, Angle16::HALF_TURN);
-        let turned = headings + Vector2::new(Angle16::QUARTER_TURN, Angle16::HALF_TURN);
-        assert_eq!(turned, Vector2::new(Angle16::HALF_TURN, Angle16::ZERO));
-    }
-
-    #[cfg(feature = "num-traits")]
-    #[test]
-    fn dot_products_work_once_num_traits_supplies_zero() {
-        let a = Vector3::new(I24F8::from_f64(1.0), I24F8::from_f64(2.0), I24F8::ZERO);
-        let b = Vector3::new(I24F8::from_f64(3.0), I24F8::from_f64(4.0), I24F8::ONE);
-        assert_eq!(a.dot(&b).to_f64(), 11.0);
     }
 }

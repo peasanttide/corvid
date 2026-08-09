@@ -231,11 +231,22 @@ cargo test -p corvid_fixed --all-features
 | File | Covers |
 |---|---|
 | `tests/conversion.rs` | Float round-trips, exhaustive for the 8- and 16-bit types; rounding; `NaN`; infinities; saturation |
-| `tests/arithmetic.rs` | Every 8-bit operand pair against an `f64` reference; saturation, wrapping, overflow detection, division by zero, square roots, rounding, `recip`, `mul_add`, `hypot`, interpolation |
-| `tests/trig.rs` | Every `Angle8` and `Angle16` input against `f64`; identities; `atan2` round-trips; both accuracy tiers |
-| `tests/pitch.rs` | Clamping at the poles, out-of-range bit patterns, `asin`/`acos` against `f64` over their whole domain, shared scale with the angle types |
+| `tests/angle_conversion.rs` | Turns, radians and degrees agreeing with each other; wrapping rather than saturating; what the checked form rejects |
+| `tests/arithmetic.rs` | Every 8-bit operand pair against an `f64` reference; saturation, wrapping, overflow detection, division by zero |
+| `tests/identities.rs` | Multiplying and dividing by one, the factor complement, the shortest arc, interpolation, ordering and clamping |
+| `tests/rounding.rs` | The four roundings, `recip`, `mul_add` and `hypot`, each against a reference rounded once |
+| `tests/roots.rs` | Square roots and reciprocal square roots, correctly rounded, exhaustive at 8 and 16 bits |
+| `tests/rsqrt_fast.rs` | The fast reciprocal square root against its stated bound, over every exponent and at the boundaries |
+| `tests/trig.rs` | Every `Angle8` and `Angle16` input against `f64`; the identities; the exact phases |
+| `tests/trig_fast.rs` | The fast sine, cosine and `atan2` against their documented error, and the symmetries that survive it |
+| `tests/atan2.rs` | The tangent and `atan2`: a grid, the axes, the origin, scale invariance, extreme coordinates |
+| `tests/pitch.rs` | Clamping at the poles, out-of-range bit patterns, and the shared scale with the angle types |
+| `tests/pitch_inverse.rs` | `asin` and `acos` against `f64` over their whole domain, and the complement between them |
 | `tests/determinism.rs` | Const-evaluated results versus runtime results; golden value tables |
-| `tests/interop.rs` | Layout, hashing, and each optional integration |
+| `tests/rsqrt_determinism.rs` | The golden tables for both reciprocal square roots, and their agreement run after run |
+| `tests/interop.rs` | Layout, hashing, `serde`, `bytemuck` and `arbitrary` |
+| `tests/num_traits.rs` | Each `num-traits` trait doing what the inherent method of the same name does |
+| `tests/nalgebra.rs` | A scalar surviving the trip out to `nalgebra` and back |
 | doctests | Every Rust block in this file and in the type documentation |
 
 That last row is not a formality: this README is the crate's front page, so every

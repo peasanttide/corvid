@@ -107,3 +107,13 @@ impl Worst {
         );
     }
 }
+
+/// The reference result of a fixed-point operation: the true value, rounded to
+/// the type's resolution the way the implementation promises to round.
+pub fn round_half_away(value: f64) -> f64 {
+    if value >= 0.0 {
+        (value + 0.5).floor()
+    } else {
+        (value - 0.5).ceil()
+    }
+}
