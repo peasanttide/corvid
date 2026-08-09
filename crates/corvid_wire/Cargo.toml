@@ -1,6 +1,6 @@
 [package]
 name = "corvid_wire"
-description = "The one encoding a Corvid snapshot is written down in: fixed-width, little-endian, and nothing about the value it did not carry."
+description = "The one encoding a Corvid snapshot is written down in: little-endian, variable-length integers, and nothing about the value it did not carry."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,40 +11,33 @@ keywords = ["serialization", "deterministic", "no-std", "wire-format", "gamedev"
 categories = ["encoding", "game-development", "no-std"]
 
 [dependencies]
-serde = { workspace = true, features = ["alloc"] }
-# The encoder, in its `legacy` configuration: little-endian, and every integer
-# at its declared width. This is the only place in the workspace that names a
-# *compact* format crate, and that is the point of the crate — a second one
-# somewhere else is a second wire format, which is what this exists to stop.
-# Ten crates name `serde_json` as a dev-dependency and that is deliberate: a
-# JSON table sees a field's name and this encoding cannot, so the two tables
-# cover different halves and neither is a capture format. `tests/golden.rs`
-# freezes the bytes this produces, so an upgrade that moved them fails here
-# rather than in somebody's save file.
+# Spelled out rather than `workspace = true`, which is the convention everywhere
+# else here, because the workspace entry carries `derive` and this library
+# derives nothing — every `Serialize` in this crate is on a test fixture. Taking
+# the workspace entry would put `syn`, `quote` and `proc-macro2` in the build of
+# every downstream that wants only `encode` and `decode`.
+serde = { version = "1", default-features = false, features = ["alloc"] }
+# The encoder. Named here and nowhere else in the workspace, because a second
+# manifest naming a compact format is a second wire format. `src/codec.rs` pins
+# the configuration; `tests/golden.rs` freezes the bytes it produces, so an
+# upgrade that moved them fails here rather than in somebody's save file.
 bincode = { version = "2", default-features = false, features = ["alloc", "serde"] }
 
 [dev-dependencies]
-# The digest a peer actually exchanges, which is the table that sees the one
-# change these bytes do not: an integer's width is absent from a varint and
-# present in a digest, because the hasher injects the count of bytes it absorbed.
-# `tests/visible.rs` measures both over one fixture rather than asserting either.
-# The dependency is acyclic — `corvid_hash` has none of its own — and it is a
-# dev-dependency because nothing in this crate computes a digest.
+# The other two tables the README's blindness grid calls for, neither of which
+# this crate computes. `corvid_hash` for the digest row — acyclic, it has no
+# dependencies of its own — and `serde_json` for the self-describing row, so
+# both are measured against one fixture rather than asserted.
 corvid_hash = { workspace = true }
-# The format the README's comparison table measures this one against. It is here
-# so that the table's self-describing row is checked rather than asserted —
-# `tests/blind.rs` writes one fixture both ways and shows which changes each can
-# see. Nothing in this crate encodes anything as JSON.
-#
-# `serde` is not here: `derive` arrives with the workspace entry, so the
-# dependency above already gives the tests everything they write a fixture with.
 serde_json = { workspace = true }
+# `derive` for the fixtures, which is what the library above does without.
+serde = { workspace = true }
 
 [features]
 default = []
-# Adds no API. It exists so a downstream can forward `std` uniformly across the
-# workspace without special-casing this crate. [`Error`] implements
-# `core::error::Error` either way.
+# Adds no API — `Error` implements `core::error::Error` either way. It exists so
+# a downstream can forward `std` uniformly across the workspace without
+# special-casing this crate.
 std = ["serde/std", "bincode/std"]
 
 [lints]

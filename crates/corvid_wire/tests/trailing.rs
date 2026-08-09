@@ -58,22 +58,15 @@ fn a_capture_that_was_cut_short_is_refused_too() {
     assert!(matches!(decode::<(u16, u32)>(&[]), Err(Error::Read(_))));
 }
 
-/// A hostile count and an honest one that was cut short are *the same failure*.
+/// A hostile count and an honest one that was cut short are the same failure —
+/// for the one shape where the slice really does settle it.
 ///
-/// This is the test that decides whether `decode` needs a ceiling on how large
-/// a length prefix it will entertain, and it says no. Reading from a `&[u8]`
-/// means the elements a count promises have to come out of a slice whose length
-/// the caller already knows, so the count is never acted on — it is compared
-/// against what is there, and what is there runs out. The two rows below claim
-/// eighteen quintillion elements and two elements over the same one trailing
-/// byte, and the decoder says the identical thing about both, down to how many
-/// bytes it was short. A decoder that had believed either number could not
-/// produce the same sentence for the other.
-///
-/// So this crate puts no ceiling on a length prefix. One would refuse nothing
-/// here that is not refused without it, and the only answer it would change is
-/// the one for a capture that is merely *large* — which is a legitimate save
-/// file being told it is an attack.
+/// A `Vec<u32>` is read through `serde`'s sequence path, which reserves against
+/// a size hint it caps, so the count below is compared against what is there
+/// rather than acted on. That is the shape this test has always used, and it is
+/// the reason the crate's ceiling had to be found by trying a different one:
+/// `tests/hostile.rs` is the same idea over a `String`, where the count *is*
+/// acted on and eighteen quintillion of them is an allocation.
 #[test]
 fn a_length_no_capture_could_hold_fails_exactly_as_a_short_one_does() {
     // A count is a varint, so the widest marker there is followed by eight bytes
@@ -95,21 +88,23 @@ fn a_length_no_capture_could_hold_fails_exactly_as_a_short_one_does() {
     assert_eq!(decode::<Vec<u32>>(&modest).unwrap(), vec![1, 2, 3]);
 }
 
-/// Whatever `encode` writes, `decode` reads — at any size.
+/// Whatever `encode` writes, `decode` reads — which is what the ceiling being on
+/// both paths buys.
 ///
-/// This is the pair a ceiling breaks, and it breaks it in the direction nobody
-/// checks. `bincode` applies a limit on the read path only, so a bound on
-/// `decode` bounds nothing an `encode` will do: a crate that carries one writes
-/// byte strings it then refuses to read, and the refusal arrives as
-/// `Err(LimitExceeded)` on a save file that is merely large. The capture below
-/// is over sixty-four mebibytes, which is past where such a bound gets set.
+/// A limit on the read path alone is the worse of the two bugs: it writes a
+/// capture without complaint and refuses to read it back, so a save file is lost
+/// at the moment somebody needs it. `bincode` applies a configured limit to
+/// reading only, so `encode` carries the check itself. The capture below is over
+/// sixty-four mebibytes — past where such a bound usually gets set, and well
+/// under this crate's — and it survives the round trip.
 #[test]
-fn a_capture_larger_than_any_sensible_ceiling_still_reads() {
+fn a_capture_larger_than_a_bound_usually_set_still_makes_the_round_trip() {
     // Large values, so that each costs its marker and its eight bytes rather
     // than the one byte a varint spends on a small number.
     let big: Vec<u64> = (0..8_519_680).map(|n| u64::MAX - n).collect();
     let bytes = encode(&big).unwrap();
     assert!(bytes.len() > 64 << 20, "{} bytes", bytes.len());
+    assert!(bytes.len() < corvid_wire::CEILING, "{} bytes", bytes.len());
     assert_eq!(decode::<Vec<u64>>(&bytes).unwrap(), big);
 }
 
@@ -120,5 +115,17 @@ fn what_went_wrong_is_readable() {
 
     let why = decode::<(u16, u32)>(&grown).unwrap_err().to_string();
     assert!(why.contains("2 of 3"), "{why}");
-    assert!(why.contains('1'), "{why}");
+    assert!(why.contains("1 were left over"), "{why}");
+}
+
+/// A `Trailing` a caller built by hand, with the fields the wrong way round.
+///
+/// The variant's fields are `pub`, and `#[non_exhaustive]` stops exhaustive
+/// matching rather than construction — so `used > len` is reachable from outside
+/// this crate, and the subtraction in `Display` is the one place a `Display`
+/// could have panicked. It is saturating, and this is what says so.
+#[test]
+fn a_leftover_count_that_cannot_be_is_still_printable() {
+    let impossible = Error::Trailing { used: 5, len: 2 };
+    assert!(impossible.to_string().contains("5 of 2"), "{impossible}");
 }

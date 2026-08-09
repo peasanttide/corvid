@@ -1,10 +1,8 @@
 //! The two types that want their field names, and which half each fails in.
 //!
 //! This format carries no names, so a type that needs them cannot be written
-//! down and read back. That much is expected. What is not obvious — and what
-//! this crate's error documentation had backwards until these were run — is
-//! that the two usual shapes fail at opposite ends, and a person reading a
-//! failure is looking at a different error than the doc had led them to.
+//! down and read back. That much is expected. What is not obvious is that the
+//! two usual shapes fail at opposite ends.
 //!
 //! The rule underneath is that `serde` splits the two halves. `#[serde(flatten)]`
 //! changes what the *writer* does: it emits a map whose length is not known

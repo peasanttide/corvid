@@ -11,17 +11,16 @@
 //! `u32(1)` are the same byte and a byte golden is blind to the change. What
 //! sees it is the digest, because `corvid_hash` injects the count of bytes it
 //! absorbed and a wider integer absorbs more of them — so a peer comparing
-//! digests, and every crate's `tests/golden.rs`, catch what these bytes cannot.
-//! Both halves are measured below over one fixture.
+//! digests catches what these bytes cannot. Both halves are measured below over
+//! one fixture.
 //!
 //! One shape escapes both, and it is the last case here: trading width between
 //! two fields, where one integer widens and another narrows to pay for it. The
 //! varint writes the same bytes and the hasher absorbs the same words and the
-//! same total count, so neither table moves. `corvid_replay`'s `Schema` is what
-//! is left — a build that describes `"i64"` where another describes `"i128"`
-//! has a different digest in its opening and its captures are refused at load.
-//! That is a description a person maintains, which `Schema` says plainly, and it
-//! is the only thing standing here.
+//! same total count, so neither table moves. A declared schema is what is left —
+//! a build that describes `"i64"` where another describes `"i128"` refuses the
+//! other's captures at load. That is a description a person maintains rather
+//! than a measurement, and it is the only thing standing here.
 //!
 //! Each case is a pair of declarations that differ by exactly one of those
 //! changes, holding the same value.
@@ -75,7 +74,16 @@ struct Added {
     third: u8,
 }
 
-#[derive(Serialize)]
+/// The same two fields under a different name, holding the same values. The one
+/// change in this file that neither the bytes nor the digest can see, because
+/// neither carries a name.
+#[derive(Hash, Serialize)]
+struct Renamed {
+    across: u16,
+    second: u32,
+}
+
+#[derive(Hash, Serialize)]
 enum Order {
     First,
     Second,
@@ -84,7 +92,7 @@ enum Order {
 /// The same two variants, declared the other way round. Every use site still
 /// compiles: a variant is named, not numbered, and the number is only ever
 /// assigned by the derive.
-#[derive(Serialize)]
+#[derive(Hash, Serialize)]
 enum Renumbered {
     Second,
     First,
@@ -101,7 +109,6 @@ const fn base() -> Base {
 
 #[test]
 fn reordering_two_fields_of_different_types_moves_the_bytes() {
-    // Two bytes either way, and which byte is which is the whole difference.
     assert_eq!(hex(&encode(&base()).unwrap()), "0102");
     assert_eq!(
         hex(&encode(&Reordered {
@@ -153,8 +160,7 @@ fn widening_an_integer_does_not_move_the_bytes_and_does_move_the_digest() {
 
     // And the digest table is not. The hasher absorbs `first` as two bytes on
     // one side and four on the other, injects the total count at the end, and
-    // answers differently — which is what a peer compares and what every
-    // crate's `tests/golden.rs` records.
+    // answers differently — which is what a peer compares every tick.
     assert_eq!(digest(&base()).to_u64(), 0x0dbe_2df1_4a0d_0c8c);
     assert_eq!(digest(&widened).to_u64(), 0x0fc6_cbb3_9747_e543);
 }
@@ -194,10 +200,61 @@ fn trading_width_between_two_fields_moves_nothing_a_table_records() {
     let misread: (u16, u32) = corvid_wire::decode(&encode(&traded).unwrap()).unwrap();
     assert_eq!(misread, (FIRST, SECOND));
 
-    // What is left is `corvid_replay`'s `Schema`, which is a description rather
-    // than a measurement: the two builds have to spell these widths differently
-    // in the string they hash, and then a capture from one is refused by the
-    // other at load. `corvid_app`'s
-    // `a_capture_is_refused_by_a_build_that_describes_its_types_differently`
-    // is that refusal, over exactly a widened integer.
+    // What is left is a declared schema, which is a description rather than a
+    // measurement: the two builds have to spell these widths differently in the
+    // string they hash, and then a capture from one is refused by the other at
+    // load.
+}
+
+/// The rest of the README's digest row, which the tests above leave at three
+/// cells out of five.
+///
+/// The four changes are checked against one table each in the tests above,
+/// because that is the table the choice of encoding turns on. But the README
+/// prints a grid, and a grid is a claim about every cell in it. These are the
+/// remaining ones, so the row is measured rather than argued.
+#[test]
+fn the_digest_sees_every_change_these_bytes_do_and_no_name() {
+    let recorded = digest(&base()).to_u64();
+
+    // Field order: visible, because the hasher absorbs the two words in the
+    // other order.
+    assert_ne!(
+        digest(&Reordered {
+            second: SECOND,
+            first: FIRST,
+        })
+        .to_u64(),
+        recorded,
+    );
+
+    // An added field: visible, and unlike the byte table it is visible even for
+    // a field that writes no bytes — `Hash` reaches every field whatever it
+    // encodes to. `tests/blind.rs` is the other half of that comparison.
+    assert_ne!(
+        digest(&Added {
+            first: FIRST,
+            second: SECOND,
+            third: 0,
+        })
+        .to_u64(),
+        recorded,
+    );
+
+    // A variant's number: visible, because the derive hashes the discriminant.
+    assert_ne!(
+        digest(&Order::First).to_u64(),
+        digest(&Renumbered::First).to_u64(),
+    );
+
+    // A field's name: invisible, which is the one cell where the digest is as
+    // blind as the bytes. Only a self-describing table sees this.
+    assert_eq!(
+        digest(&Renamed {
+            across: FIRST,
+            second: SECOND,
+        })
+        .to_u64(),
+        recorded,
+    );
 }

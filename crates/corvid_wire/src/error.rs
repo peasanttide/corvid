@@ -5,13 +5,14 @@ use core::fmt;
 
 /// A value could not be written down, or bytes could not be read back.
 ///
-/// The three cases are separated because they mean different things to whoever
-/// is holding the bytes. [`Wrote`](Self::Wrote) is a bug in the type and is the
+/// The cases are separated because they mean different things to whoever is
+/// holding the bytes. [`Wrote`](Self::Wrote) is a bug in the type and is the
 /// same every time. [`Read`](Self::Read) is usually a capture that does not
 /// match the types reading it, which is what a version skew looks like from the
-/// receiving end. [`Trailing`](Self::Trailing) is the one worth being loud
-/// about: the bytes decoded, and there were more of them than the value needed,
-/// so what was recorded is *not* what was just read.
+/// receiving end. [`TooLarge`](Self::TooLarge) is the one that can arrive from a
+/// hostile peer rather than a mismatched one. [`Trailing`](Self::Trailing) is
+/// the one worth being loud about: the bytes decoded, and there were more of
+/// them than the value needed, so what was recorded is *not* what was just read.
 ///
 /// A type that needs its field names alongside its values is split across the
 /// first two, and which half it lands in is worth knowing before reading a
@@ -30,13 +31,20 @@ pub enum Error {
     /// cannot write: a sequence or a map that will not say how long it is,
     /// which is the shape `#[serde(flatten)]` has.
     Wrote(String),
-    /// The bytes could not be read back, with the decoder's reason.
-    ///
-    /// A capture that ran out lands here, and so does one whose length prefix
-    /// claims more than the slice holds. So does a type whose *reader* reaches
-    /// for `deserialize_any` — an untagged enum — because this format carries
-    /// no names for it to dispatch on.
+    /// The bytes could not be read back, with the decoder's reason. See
+    /// [`decode`](crate::decode) for which shapes land here.
     Read(String),
+    /// More bytes than a capture may hold, which is
+    /// [`CEILING`](crate::CEILING).
+    ///
+    /// Writing knows how many, because it has them. Reading knows only that the
+    /// bytes asked for more than the ceiling — the number is refused on sight,
+    /// before anything is allocated on the strength of it, which is the whole
+    /// reason the ceiling exists.
+    TooLarge {
+        /// How many bytes the value came to, when that is known.
+        wrote: Option<usize>,
+    },
     /// The value was read and the bytes were longer than it.
     Trailing {
         /// How many bytes the value consumed.
@@ -51,6 +59,17 @@ impl fmt::Display for Error {
         match self {
             Self::Wrote(why) => write!(f, "the value could not be written down: {why}"),
             Self::Read(why) => write!(f, "the bytes could not be read back: {why}"),
+            Self::TooLarge { wrote: Some(len) } => write!(
+                f,
+                "the value wrote down as {len} bytes, and a capture may hold {}",
+                crate::CEILING,
+            ),
+            Self::TooLarge { wrote: None } => write!(
+                f,
+                "the bytes ask to allocate more than the {} a capture may hold, \
+                 so they were refused before anything was read",
+                crate::CEILING,
+            ),
             Self::Trailing { used, len } => write!(
                 f,
                 "the value read in {used} of {len} bytes and {} were left over, \
@@ -59,9 +78,7 @@ impl fmt::Display for Error {
                 // enum whose `#[non_exhaustive]` stops exhaustive matching and
                 // not construction: a caller can build one with `used > len`,
                 // and a `Display` that panicked on it would abort on the one
-                // path that exists to explain a failure. The workspace denies
-                // `clippy::panic` and this is where the arithmetic could have
-                // reintroduced it.
+                // path that exists to explain a failure.
                 len.saturating_sub(*used),
             ),
         }

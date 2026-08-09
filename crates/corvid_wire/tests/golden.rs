@@ -6,8 +6,9 @@
 //! that implements the encoder — that crate has its own — but of the
 //! configuration this crate picked, which is a decision recorded nowhere else:
 //! an upgrade that changed a length prefix's width, or an endianness, or how a
-//! variant index is spelled, would move every recorded row in five crates, and
-//! it would move them one dependency bump at a time with nothing to say so.
+//! variant index is spelled, would move every recorded row of every crate that
+//! puts a type in a snapshot, one dependency bump at a time and with nothing to
+//! say so.
 //!
 //! So each row here is a value and the bytes it is written down as. The rows
 //! cover one of everything the `serde` data model offers that this workspace
@@ -15,8 +16,8 @@
 //! happen to use would stop covering the format the day somebody adds a `char`.
 //!
 //! If a change here is genuinely wanted, it is a new version of the format: bump
-//! the crate's major version, reissue every capture recorded under the old one,
-//! and say so in the changelog. Regenerating these literals to make a red test
+//! the crate's major version and reissue every capture recorded under the old
+//! one. Regenerating these literals to make a red test
 //! go green is never the right move — the red test *is* the notification that
 //! every capture in the workspace has stopped meaning what it meant.
 
@@ -24,6 +25,8 @@
     clippy::unwrap_used,
     reason = "a failed unwrap in a test is a failed test, which is what a test is for"
 )]
+
+use std::collections::BTreeMap;
 
 use corvid_wire::golden::{Row, check};
 use serde::{Deserialize, Serialize};
@@ -60,6 +63,51 @@ const GOLDEN_SIGNED: &[Row<'_>] = &[
     ("i64::MIN", "fdffffffffffffffff"),
 ];
 
+/// The 128-bit integers, which are the only values that reach the widest
+/// marker.
+///
+/// `fe` is part of the format the README states, and no other row in this file
+/// produces one, so without these the widest branch of the encoding is described
+/// and not frozen — an upgrade that spelled it differently, or that wrote the
+/// sixteen bytes in the other order, would move nothing here.
+///
+/// The `1u128 << 64` row is the one that pins the order, because its bytes are
+/// not a palindrome and its high half is where a big-endian writer would put the
+/// `01`. The two extremes are one byte string apiece and the same one, which
+/// `two_shapes_this_format_writes_alike` says out loud.
+const GOLDEN_WIDE: &[Row<'_>] = &[
+    ("1u128", "01"),
+    ("251u128", "fbfb00"),
+    ("1u128 << 64", "fe 00000000000000000100000000000000"),
+    ("u128::MAX", "fe ffffffffffffffffffffffffffffffff"),
+    ("-1i128", "01"),
+    ("i128::MAX", "fe feffffffffffffffffffffffffffffff"),
+    ("i128::MIN", "fe ffffffffffffffffffffffffffffffff"),
+];
+
+/// The floats, which are the one thing here that is *not* a varint.
+///
+/// A configuration chosen for its variable-length integers invites the
+/// assumption that everything shrinks, and a float does not: it is its declared
+/// width of IEEE-754 bytes, little-endian, whatever it holds. So `0.0f32` costs
+/// four bytes where `0u32` costs one, and an `f64` costs eight where a small
+/// `u64` costs one. Several crates in this workspace put an `f32` in a snapshot,
+/// which makes this the group most likely to be assumed rather than read.
+///
+/// The fractional rows are what pin the byte order, since the zeroes and the
+/// signed pair differ only in their last byte and would survive a reversal
+/// looking almost right.
+const GOLDEN_FLOATS: &[Row<'_>] = &[
+    ("0.0f32", "00000000"),
+    ("1.0f32", "0000803f"),
+    ("-1.0f32", "000080bf"),
+    ("0.1f32", "cdcccc3d"),
+    ("0.0f64", "0000000000000000"),
+    ("1.0f64", "000000000000f03f"),
+    ("-1.0f64", "000000000000f0bf"),
+    ("0.1f64", "9a9999999999b93f"),
+];
+
 /// The scalars that are not integers.
 ///
 /// `char` is here even though nothing in the simulation ring carries one,
@@ -92,6 +140,23 @@ const GOLDEN_LENGTHS: &[Row<'_>] = &[
     ("vec![1u16, 2]", "020102"),
 ];
 
+/// A count that has outgrown its one byte.
+///
+/// Every length row above counts to four, which leaves the marked half of the
+/// count — the half the README's table is mostly about — recorded nowhere, even
+/// though it is the varint that every container in every capture writes. 250 and
+/// 251 are the two sides of the boundary, so a change to where the marker starts
+/// moves one of them.
+///
+/// The elements are `()` and write nothing, which is what keeps these literals
+/// short enough to read as counts. A container whose elements do write bytes is
+/// checked in the test body, where 303 bytes can be said as a length instead.
+const GOLDEN_COUNTS: &[Row<'_>] = &[
+    ("vec![(); 250]", "fa"),
+    ("vec![(); 251]", "fbfb00"),
+    ("vec![(); 300]", "fb2c01"),
+];
+
 /// A fixed-size array, which is the one container that writes *no* count.
 ///
 /// Its length is in its type, so `serde` offers it as a tuple. That is worth a
@@ -100,6 +165,23 @@ const GOLDEN_LENGTHS: &[Row<'_>] = &[
 /// is the shorter by exactly one length prefix — one byte here, because three is
 /// a small count, and never more than nine.
 const GOLDEN_ARRAYS: &[Row<'_>] = &[("[1u16, 2, 3]", "010203"), ("vec![1u16, 2, 3]", "03010203")];
+
+/// A map, which is a count and then a key and a value for each entry.
+///
+/// `BTreeMap` and not `HashMap`, because the wire has an order and a hash map
+/// has none to give: a recorded row of an unordered map passes on the build that
+/// recorded it and is a coin toss everywhere else. The numbered fixture is built
+/// out of order and encodes in key order, which is the property the row is
+/// actually freezing.
+///
+/// The string-keyed row is here because a key is an ordinary value carrying its
+/// own count, so an entry has no fixed size and a reader cannot step over one
+/// without reading it.
+const GOLDEN_MAPS: &[Row<'_>] = &[
+    ("{}", "00"),
+    ("{1: 10, 2: 20, 3: 30}", "03 010a 0214 031e"),
+    ("{\"a\": 1, \"b\": 2}", "02 016101 016202"),
+];
 
 /// `Option`, which is a tag byte and then the payload if there is one.
 ///
@@ -201,6 +283,31 @@ fn the_signed_integers_encode_as_they_were_recorded() {
 }
 
 #[test]
+fn the_128_bit_integers_encode_as_they_were_recorded() {
+    check(
+        "u128",
+        &GOLDEN_WIDE[..4],
+        &[1_u128, 251, 1_u128 << 64, u128::MAX],
+    )
+    .unwrap();
+    check("i128", &GOLDEN_WIDE[4..], &[-1_i128, i128::MAX, i128::MIN]).unwrap();
+}
+
+#[test]
+fn a_float_keeps_its_declared_width_where_an_integer_does_not() {
+    check("f32", &GOLDEN_FLOATS[..4], &[0.0_f32, 1.0, -1.0, 0.1]).unwrap();
+    check("f64", &GOLDEN_FLOATS[4..], &[0.0_f64, 1.0, -1.0, 0.1]).unwrap();
+
+    // The rule the rows above are an instance of, said against the varint it is
+    // the exception to: the same zero costs four bytes as an `f32` and one as a
+    // `u32`, so a field that changed between the two changes the size of every
+    // capture holding it.
+    assert_eq!(corvid_wire::encode(&0.0_f32).unwrap().len(), 4);
+    assert_eq!(corvid_wire::encode(&0.0_f64).unwrap().len(), 8);
+    assert_eq!(corvid_wire::encode(&0_u32).unwrap().len(), 1);
+}
+
+#[test]
 fn the_other_scalars_encode_as_they_were_recorded() {
     check("bool", &GOLDEN_SCALARS[..2], &[false, true]).unwrap();
     check("char", &GOLDEN_SCALARS[2..4], &['a', '\u{1f426}']).unwrap();
@@ -226,6 +333,39 @@ fn every_length_is_a_count_before_its_contents() {
     )
     .unwrap();
     check("Vec<u16>", &GOLDEN_LENGTHS[5..], &[vec![1_u16, 2]]).unwrap();
+}
+
+#[test]
+fn a_count_past_250_takes_a_marker_like_any_other_number() {
+    check(
+        "Vec<()>",
+        GOLDEN_COUNTS,
+        &[vec![(); 250], vec![(); 251], vec![(); 300]],
+    )
+    .unwrap();
+
+    // The same count in front of elements that do write bytes, because the rows
+    // above are counts with nothing after them and the thing worth knowing is
+    // that the marker sits in front of the contents rather than replacing them.
+    let long = corvid_wire::encode(&vec![0_u8; 300]).unwrap();
+    assert_eq!(long[..3], [0xfb, 0x2c, 0x01]);
+    assert_eq!(long.len(), 303);
+}
+
+#[test]
+fn a_map_is_a_count_and_then_its_entries_in_key_order() {
+    let numbered: BTreeMap<u16, u16> = [(2, 20), (1, 10), (3, 30)].into_iter().collect();
+    let named: BTreeMap<String, u16> = [("b".to_owned(), 2), ("a".to_owned(), 1)]
+        .into_iter()
+        .collect();
+
+    check(
+        "BTreeMap<u16, u16>",
+        &GOLDEN_MAPS[..2],
+        &[BTreeMap::new(), numbered],
+    )
+    .unwrap();
+    check("BTreeMap<String, u16>", &GOLDEN_MAPS[2..], &[named]).unwrap();
 }
 
 #[test]
@@ -355,6 +495,17 @@ fn two_shapes_this_format_writes_alike() {
     assert_eq!(
         corvid_wire::encode(&None::<u16>).unwrap(),
         corvid_wire::encode(&Shape::Nothing).unwrap(),
+    );
+
+    // And a sign against a magnitude, at the one width where the collision uses
+    // every bit there is. Zigzag folds `i128::MIN` onto `u128::MAX` because that
+    // is the only place left for it, so the most negative value of one type and
+    // the largest value of the other are the same seventeen bytes — the extreme
+    // case of the `i64::MIN` row in the signed table, where a reader who checked
+    // only the leading marker would see two identical widest integers.
+    assert_eq!(
+        corvid_wire::encode(&i128::MIN).unwrap(),
+        corvid_wire::encode(&u128::MAX).unwrap(),
     );
 
     // What keeps that from mattering is that a decoder is told the type by its

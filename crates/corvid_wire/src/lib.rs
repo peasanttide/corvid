@@ -9,5 +9,5 @@ mod codec;
 mod error;
 pub mod golden;
 
-pub use codec::{decode, encode};
+pub use codec::{CEILING, decode, encode};
 pub use error::Error;

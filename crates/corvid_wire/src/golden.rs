@@ -1,19 +1,15 @@
 //! The table a byte golden is written as, and the one function that checks it.
 //!
-//! Every crate that serializes anything owes the workspace a table of what its
-//! types encode to, written down as literals, because that is the only thing
-//! that sees a format change. The comparison lives here rather than beside each
-//! table so that there is one of it: a golden check written per crate drifts —
-//! one arm checks only the direction an encoder writes in, another stops at the
-//! first row whose read-back failed rather than reporting them together, and each
-//! carries a hex-to-bytes helper of its own. So a byte golden is a table and one
-//! call.
+//! A crate that serializes anything owes the workspace a table of what its types
+//! encode to, written down as literals, because that is the only thing that sees
+//! a format change. The comparison lives here rather than beside each table so
+//! that there is one of it: both directions, every row reported at once, and one
+//! hex helper.
 //!
-//! [`check_digests`] is here for the same reason and not because a digest is a
-//! wire format this crate defines — it is not; `corvid_hash` defines it. A digest
-//! table is the third of the three comparisons a crate whose types go into a
-//! snapshot needs, and one shared twenty-line comparison is worth more than a
-//! copy of it per crate. It takes and returns plain `u64`, so nothing here
+//! [`check_digests`] and [`check_text`] are here for the same reason and not
+//! because either is a format this crate defines — they are the other two of the
+//! three tables the README's blindness table calls for, and each is blind where
+//! the others see. `check_digests` takes and returns plain `u64`, so nothing here
 //! depends on `corvid_hash`.
 
 use alloc::{
@@ -135,14 +131,12 @@ where
 
 /// Compares a labelled fixture's digests against the ones recorded for it.
 ///
-/// One direction only, because a digest has only one: there is nothing to read
-/// a digest back into, which is the difference between this and [`check`] and
-/// the reason a crate that writes values down needs both tables rather than
-/// either. What a digest table catches is an encoding that still tells two
-/// values apart and tells them apart *differently* than when the row was
-/// recorded, which every
-/// other test in a crate — all of which compare one output to another — is
-/// structurally unable to see.
+/// One direction only, because a digest has only one: there is nothing to read a
+/// digest back into, which is the difference between this and [`check`]. What a
+/// digest table catches is an encoding that still tells two values apart and
+/// tells them apart *differently* than when the row was recorded — invisible to
+/// any test that compares one of today's outputs against another of today's
+/// outputs.
 ///
 /// Everything that moved is reported at once, as paste-ready literals in the
 /// grouped-hex form these tables are written in, for the same reason as
@@ -152,8 +146,8 @@ where
 /// use corvid_wire::golden::{DigestRow, check_digests};
 ///
 /// const GOLDEN: &[DigestRow<'_>] = &[
-///     ("the empty list", 0x7383_3581_a38e_f3cd),
-///     ("one element", 0x3178_2188_0dd5_d02b),
+///     ("the opening tick", 0x7383_3581_a38e_f3cd),
+///     ("the tick after it", 0x3178_2188_0dd5_d02b),
 /// ];
 ///
 /// check_digests("Trace", GOLDEN, &[0x7383_3581_a38e_f3cd, 0x3178_2188_0dd5_d02b]).unwrap();
@@ -205,14 +199,10 @@ pub fn check_digests(what: &str, table: &[DigestRow<'_>], digests: &[u64]) -> Re
 /// same reason [`check_digests`] is: the comparison is about recorded rows and
 /// not about a format. Nothing in this crate writes text.
 ///
-/// A byte table and a text table are both needed, and this crate's README says
-/// why in full. In short, each is blind where the other sees. This crate's
-/// encoding carries no names, so it cannot see a field renamed, two same-typed
-/// fields swapped when their recorded values are equal, or a field added that
-/// writes no bytes. A self-describing one writes a variant by name, so it cannot
-/// see one renumbered. Neither spells an integer's width, and the digest table
-/// is where that one shows. A change that moves none of the three has not moved
-/// anything a peer can observe.
+/// What it catches that a byte table cannot is a field or a variant renamed, two
+/// same-typed fields swapped when their recorded values are equal, and a field
+/// added that writes no bytes — this encoding carries no names, so all four are
+/// invisible to it. `tests/blind.rs` measures the last two.
 ///
 /// ```
 /// use corvid_wire::golden::{Row, check_text};
@@ -248,7 +238,7 @@ pub fn check_text(what: &str, table: &[Row<'_>], written: &[String]) -> Result<(
         .filter(|((_, recorded), actual)| recorded != actual)
         .map(|((label, _), actual)| Finding::Rewritten {
             label: (*label).to_string(),
-            now: format!("r#\"{actual}\"#"),
+            now: raw(actual),
         })
         .collect();
 
@@ -319,6 +309,41 @@ pub fn unhex(text: &str) -> Option<Vec<u8>> {
             Some((high << 4) | low)
         })
         .collect()
+}
+
+/// A string as a Rust raw literal that actually parses.
+///
+/// A raw string is terminated by a quote followed by as many hashes as opened
+/// it, so the number of hashes has to exceed the longest run already inside the
+/// text. JSON is exactly where this bites: a recorded row for a struct with a
+/// `String` field holding `"#` closes a `r#"…"#` early, and the report a person
+/// was told to paste does not compile.
+fn raw(text: &str) -> String {
+    let mut longest = 0_usize;
+    let mut run: Option<usize> = None;
+    for character in text.chars() {
+        run = match (run, character) {
+            (Some(hashes), '#') => Some(hashes + 1),
+            (_, '"') => Some(0),
+            _ => None,
+        };
+        if let Some(hashes) = run {
+            longest = longest.max(hashes + 1);
+        }
+    }
+
+    let mut literal = String::with_capacity(text.len() + 2 * longest + 4);
+    literal.push('r');
+    for _ in 0..longest {
+        literal.push('#');
+    }
+    literal.push('"');
+    literal.push_str(text);
+    literal.push('"');
+    for _ in 0..longest {
+        literal.push('#');
+    }
+    literal
 }
 
 /// One hex digit's character.
