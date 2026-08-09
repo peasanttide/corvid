@@ -291,15 +291,47 @@ fn a_reciprocal_of_zero_is_an_infinity_rather_than_a_panic() {
 /// they agree closely — but the exponent's edges are where a chain like that
 /// goes wrong, and `i32::MIN` has no positive counterpart to take a magnitude
 /// of.
+///
+/// # Why the tolerance grows with the exponent
+///
+/// Both sides raise by binary exponentiation, which is about `log2(|n|)`
+/// squarings and as many multiplies again. Every one of them rounds, neither
+/// implementation is correctly rounded, and the two need not associate the
+/// chain the same way — so what separates them is bounded by how many roundings
+/// there were, not by a constant.
+///
+/// `llvm.powi` is also free to differ between targets, which is what makes a
+/// fixed bound here a bound on the platform rather than on this crate: at
+/// `powi(-5.25, -18)` the two answers are three ulps apart on
+/// `x86_64-pc-windows-msvc` and identical on `x86_64-unknown-linux-gnu`. A
+/// `<= 1` is therefore a test that passes on one machine, which is exactly what
+/// this file's opening paragraph says the inexact operations must not be held
+/// to.
+///
+/// `1 + ilog2(|n|)` is that count of roundings, and it is the algorithm's shape
+/// rather than a number fitted to the failure: one ulp for the final result,
+/// and one more for each doubling of the chain. It still holds `n = 0` and
+/// `n = ±1` to a single ulp, which is where an exact answer is actually
+/// available. Measured across this sweep, the worst case is three ulps at
+/// `n = -18` against a bound of five there, and no exponent below `|n| = 10`
+/// diverges by more than the one ulp the old bound allowed — which is the
+/// shape the chain-length argument predicts.
 #[test]
 fn integer_powers_match_the_intrinsic_including_at_the_exponent_s_edges() {
+    /// How far apart a chain of `|n|` multiplications may leave two
+    /// implementations that round independently.
+    fn allowed(n: i32) -> i64 {
+        1 + i64::from(n.unsigned_abs().max(1).ilog2())
+    }
+
     for step in -50i32..50 {
         let x = step as f32 / 8.0;
         for n in -20i32..20 {
             let (ours, theirs) = (corvid_float::powi(x, n), x.powi(n));
+            let (apart, bound) = (ulps(ours, theirs), allowed(n));
             assert!(
-                ulps(ours, theirs) <= 1,
-                "powi({x}, {n}): {ours} vs {theirs}"
+                apart <= bound,
+                "powi({x}, {n}): {ours} vs {theirs} — {apart} ulps apart, {bound} allowed"
             );
         }
     }
