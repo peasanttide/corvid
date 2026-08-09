@@ -8,115 +8,126 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # `sccache` in front of rustc, with GitHub's own action cache behind it. The
+  # two jobs here compile overlapping halves of the same packages, so an object
+  # the second needs has usually been built by the first.
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
 
+# Nothing below names a crate. A workspace member is picked up by `--workspace`
+# and an example by `--examples`, so adding a crate is a change to one manifest
+# and to nothing here.
 jobs:
-  build:
-
+  # Does it build, does it pass, and does it say what it means.
+  check:
     runs-on: ubuntu-latest
-    # The backstop of last resort. This job has no caching, and a wedged step
-    # keeps a runner for six hours and reports nothing.
-    timeout-minutes: 30
+    # The backstop of last resort. Every test that waits on another thread
+    # carries a deadline of its own, and this is what catches the wait that
+    # nobody wrapped: a wedged test binary keeps a runner for six hours and
+    # reports nothing.
+    timeout-minutes: 45
 
     steps:
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --workspace --verbose
-    # Only `--all-features`. Every optional integration is off by default, so a
-    # plain `cargo test` compiles out the serde, bytemuck, mint and nalgebra
-    # tests entirely — the wire format and the layout assertions among them —
-    # which makes the all-features run a superset of it. The `Build` step above
-    # is what still compiles the default set.
-    - name: Run tests, all features
-      run: cargo test --workspace --all-features --verbose
-    # A target with no operating system is the check with teeth. Seven crates
-    # here declare `#![no_std]`, and nothing so far has held them to it: every arm
-    # above builds for the host, where a crate that quietly reached for `std`
-    # compiles and passes, and the discovery is left to whoever first builds a
-    # dedicated server or a console port. `corvid_wire` is the sharpest case,
-    # being the first of them with a dependency of its own — `bincode` is
-    # `no_std` only while `alloc` is on and `std` is off, which is a property of
-    # this crate's manifest rather than of its source.
+    - uses: mozilla-actions/sccache-action@v0.0.9
+    - uses: Swatinem/rust-cache@v2
+      with:
+        # `sccache` holds the object files. This one stays for the registry
+        # index and the git checkouts, which it caches and `sccache` does not.
+        cache-targets: false
+    # The two system libraries this workspace's device halves are built
+    # against. `corvid_audio/device` reaches `cpal` and then `alsa-sys`, and
+    # `corvid_window/gamepad` reaches `gilrs` and then `libudev-sys`; both
+    # probe with `pkg-config` in a build script and fail when the `.pc` file is
+    # absent, so a runner without them fails before rustc is asked anything.
     #
-    # Not the whole workspace, and the ceiling is not this workspace's:
-    # `corvid_float` depends on `const_soft_float`, which does not declare
-    # `#![no_std]`, so nothing above `corvid_float` has a bare-metal build to
-    # check. `corvid_fixed` is *not* above it — it names `corvid_bits` and
-    # nothing else — so the fixed-point arithmetic and `corvid_time` on top of
-    # it are both here.
-    - name: Build for a target with no operating system
-      run: |
-        set -eu
-        rustup target add thumbv7em-none-eabi
-        for crate in corvid_bits corvid_hash corvid_wire corvid_files \
-                     corvid_macros corvid_fixed corvid_time; do
-          echo "== $crate"
-          cargo build -p "$crate" --no-default-features --target thumbv7em-none-eabi
-        done
+    # Nothing else needs a system library: `wgpu`'s Vulkan backend loads the
+    # loader at runtime through `ash`, and `winit` is pinned with `x11` and
+    # `wayland-dlopen`, which do the same.
+    - name: System libraries the device halves link against
+      run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
 
-    # `corvid_hash` overrides `write_usize` and `write_isize` so a `Vec`'s
-    # length prefix is eight bytes on every target rather than the pointer
-    # width, which is the one thing standing between a `wasm32` browser peer and
-    # a native server agreeing on a digest. Every arm above runs on the 64-bit
-    # host, where the override and the native-width default write the identical
-    # eight little-endian bytes — so deleting the override outright leaves all
-    # of them green, `tests/width.rs` included. The regression this crate exists
-    # to prevent is invisible to a workflow that never leaves `x86_64`.
-    #
-    # `i686-unknown-linux-gnu` is the cheapest target that actually *runs* the
-    # tests with a four-byte `usize`: it needs a multilib gcc and no emulator,
-    # where `wasm32` would need a runtime and would only ever be a build.
-    #
-    # Measured rather than assumed. Replacing both overrides with the
-    # native-width write that `core` defaults to leaves all 68 tests green on
-    # `x86_64` and fails exactly one here —
-    # `width::a_pointer_sized_integer_is_absorbed_as_sixty_four_bits`. So this
-    # arm is the only thing in the workflow standing between that regression and
-    # a merge, and `tests/width.rs` is the only file in it that notices.
-    # `tests/golden.rs` is not a second net: its rows drive the `Hasher` with
-    # words and byte slices directly rather than through `Hash` on a container,
-    # so they never reach `write_usize` and cannot move with the pointer width.
-    # The whole suite is run anyway, because it costs one link over running the
-    # one file and it covers whatever becomes width-dependent later.
-    - name: Run tests on a 32-bit target
-      run: |
-        set -eu
-        sudo apt-get update
-        sudo apt-get install -y gcc-multilib
-        rustup target add i686-unknown-linux-gnu
-        cargo test -p corvid_hash --all-features --target i686-unknown-linux-gnu
-    # Overflow checks are on in dev and off in release, so the two profiles
-    # disagree about what a wrapped intermediate does — the one divergence a
-    # bit-exactness crate cannot ship. Both arms have to run.
-    - name: Run tests, release
-      run: cargo test --workspace --all-features --release --verbose
-    # The workspace pins its own rules in `[workspace.lints]` — `unsafe_code`
-    # forbidden, `panic`/`unwrap_used`/`missing_docs` denied. They are only a
-    # convention if something runs them.
-    - name: Clippy
-      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
     - name: Formatting
       run: cargo fmt --all --check
+    # A warning nobody fails on is a warning that accumulates. The workspace
+    # pins its own rules in `[workspace.lints]` -- `unsafe_code` forbidden,
+    # `panic`/`unwrap_used`/`missing_docs` denied -- and this is what makes them
+    # rules rather than a convention. `-D warnings` goes here rather than in
+    # `RUSTFLAGS`, which would hold every crates.io dependency to rules this
+    # workspace wrote for itself.
+    - name: Clippy
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
     - name: Docs
       env:
         RUSTDOCFLAGS: -D warnings
       run: cargo doc --workspace --no-deps --all-features
 
-  # `rust-version` is a promise to a downstream, and every other job here runs
-  # on whatever stable the runner has — so a crate reaching past the declared
-  # floor compiles green here and breaks the first person who believed the
+    # The two ends of the feature axis, which is the whole matrix. Every
+    # optional integration is off by default, so the all-features run is a
+    # superset of the default one and the no-features run is what would
+    # otherwise never be compiled at all -- the arm that catches a crate whose
+    # `#![no_std]` half only builds because some other crate's feature dragged
+    # `std` in.
+    - name: Tests, all features
+      run: cargo test --workspace --all-features
+    - name: Tests, no features
+      run: cargo test --workspace --no-default-features
+    # Overflow checks are on in dev and off in release, so the two profiles
+    # disagree about what a wrapped intermediate does -- the one divergence a
+    # bit-exactness workspace cannot ship. `examples/pong`'s frozen digests are
+    # in this run, which is what makes it the arm that would notice.
+    - name: Tests, all features, release
+      run: cargo test --workspace --all-features --release
+
+    # An example that no longer builds is a document that lies, and these are
+    # the crate documentation this workspace leans on hardest. `--examples`
+    # takes every `examples/*.rs` in every member, so a new one is covered by
+    # having been written.
+    - name: Examples build
+      run: cargo build --workspace --examples --all-features
+    # And the games run. A workspace member under `examples/` is a game rather
+    # than a library, and the convention every one of them keeps is that
+    # `--headless --spectator` plays a scripted session with no window and no
+    # input and exits nonzero if it diverges. That is the end-to-end arm: every
+    # crate below it, in one process. The list comes from `cargo metadata`, so
+    # a game added under `examples/` is run here by having been added.
+    - name: The example games play
+      run: |
+        set -eu
+        cargo metadata --format-version 1 --no-deps \
+          | python3 -c 'import json, sys
+        for package in json.load(sys.stdin)["packages"]:
+            if "/examples/" in package["manifest_path"]:
+                print(package["name"])' \
+          | while read -r game; do
+              echo "== $game"
+              cargo run -p "$game" --all-features -- \
+                --headless --spectator --bots 2 --ticks 600
+            done
+
+  # `rust-version` is a promise to a downstream, and the job above runs on
+  # whatever stable the runner has -- so a crate reaching past the declared
+  # floor compiles green there and breaks the first person who believed the
   # manifest. This is the only arm that would notice.
   #
   # `--all-targets`, because a test target is where it slips in: nothing a
-  # downstream compiles, and nothing any other arm holds to the floor.
+  # downstream compiles, and nothing the other arm holds to the floor.
   #
   # The version is read out of the manifest rather than written here twice,
   # since two copies of a number are one copy and one stale copy.
   msrv:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
     - uses: actions/checkout@v4
+    - uses: mozilla-actions/sccache-action@v0.0.9
+    - uses: Swatinem/rust-cache@v2
+      with:
+        cache-targets: false
+    # `--all-targets` reaches the device halves, which probe with `pkg-config`.
+    - name: System libraries the device halves link against
+      run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
     - name: The oldest toolchain the manifest promises
       run: |
         set -eu
@@ -125,3 +136,36 @@ jobs:
         echo "rust-version is $floor"
         rustup toolchain install "$floor" --profile minimal
         cargo "+$floor" check --workspace --all-targets --all-features
+
+  # The one arm that names a crate, and it names the crate whose entire purpose
+  # is the thing being checked. `corvid_hash` overrides `write_usize` and
+  # `write_isize` so a `Vec`'s length prefix is eight bytes on every target
+  # rather than the pointer width, which is what stands between a `wasm32`
+  # browser peer and a native server agreeing on a digest. Every other arm runs
+  # on a 64-bit host, where the override and the native-width default write the
+  # identical eight little-endian bytes -- so deleting the override outright
+  # leaves them all green, `tests/width.rs` included.
+  #
+  # Measured rather than assumed: replacing both overrides with the
+  # native-width write `core` defaults to leaves the whole suite green on
+  # `x86_64` and fails exactly one test here. `i686-unknown-linux-gnu` is the
+  # cheapest target that actually *runs* the tests with a four-byte `usize` --
+  # it needs a multilib gcc and no emulator, where `wasm32` would need a
+  # runtime and would only ever be a build.
+  narrow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: mozilla-actions/sccache-action@v0.0.9
+    - uses: Swatinem/rust-cache@v2
+      with:
+        cache-targets: false
+    - name: A four-byte usize, and the digest that must not move with it
+      run: |
+        set -eu
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib
+        rustup target add i686-unknown-linux-gnu
+        cargo test -p corvid_hash --all-features --target i686-unknown-linux-gnu

@@ -1,0 +1,26 @@
+[package]
+name = "corvid_net_udp"
+description = "A real socket behind the transport contract: one UdpSocket, real datagrams, and the reliability the trait promises built on top."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["networking", "udp", "transport", "gamedev"]
+categories = ["network-programming", "game-development"]
+
+[dependencies]
+# The vocabulary this crate implements.
+corvid_net = { workspace = true }
+
+[features]
+# There are none. A socket is this crate's whole job, so `std` is
+# unconditional and there is no axis to put behind a flag.
+default = []
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
