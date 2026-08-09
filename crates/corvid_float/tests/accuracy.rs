@@ -6,8 +6,8 @@
 //! tests are where "the same one" is given a number.
 //!
 //! Two numbers, in fact, because the crate makes two different promises. The
-//! exact operations — the square root, the four roundings, the two sign
-//! operations — are held to the intrinsic's bits, since each of them has a
+//! exact operations -- the square root, the four roundings, the two sign
+//! operations -- are held to the intrinsic's bits, since each of them has a
 //! single right answer that IEEE 754 names and both implementations reach it.
 //! The transcendentals are held to a count of last bits, since neither the
 //! software one nor the platform's libm is correctly rounded and pretending
@@ -43,9 +43,9 @@ const STRIDE: usize = 1 << 12;
 
 /// Whether two `f32`s are the same answer: the same bits, or both `NaN`.
 ///
-/// A `NaN` payload is not part of what either implementation promises — the
+/// A `NaN` payload is not part of what either implementation promises -- the
 /// software square root of a negative builds its `NaN` out of an arithmetic
-/// operation and the hardware one hands back the platform's — so holding one to
+/// operation and the hardware one hands back the platform's -- so holding one to
 /// the other's spare mantissa bits would be testing something neither claims.
 /// Everything else, including which zero and which infinity, is held exactly.
 #[track_caller]
@@ -71,8 +71,8 @@ fn same_wide(ours: f64, theirs: f64, what: &str) {
 
 /// The count of representable values between two `f32`s.
 ///
-/// The raw bits are not monotonic across zero — the sign bit makes `-0.0` the
-/// largest pattern rather than the one below `0.0` — so they are folded onto a
+/// The raw bits are not monotonic across zero -- the sign bit makes `-0.0` the
+/// largest pattern rather than the one below `0.0` -- so they are folded onto a
 /// signed ordering first. Without that fold a pair straddling zero reads as two
 /// billion last bits apart and every tolerance below would be meaningless.
 fn ulps(ours: f32, theirs: f32) -> i64 {
@@ -91,7 +91,7 @@ fn ulps(ours: f32, theirs: f32) -> i64 {
 ///
 /// A square root is one of the five operations IEEE 754 requires to be
 /// correctly rounded, so there is an exact answer to hold this to rather than a
-/// tolerance — and a tolerance would let a last-bit regression through in the
+/// tolerance -- and a tolerance would let a last-bit regression through in the
 /// function the composed ones are all built out of. Sweeping bit patterns is
 /// what reaches the subnormals and `MAX`; stepping by a sixteenth, as an
 /// earlier version of this test did, never leaves a handful of exponents.
@@ -124,8 +124,8 @@ fn a_square_root_of_a_negative_is_a_nan_and_of_a_negative_zero_is_a_negative_zer
 /// The four roundings and the two sign operations, over the same sweep of bit
 /// patterns and to the same bit-for-bit standard.
 ///
-/// This is the test that says the composed [`corvid_float::ceil`] — `-floor(-x)`
-/// — is the ceiling rather than an approximation of it, and that the roundings
+/// This is the test that says the composed [`corvid_float::ceil`] -- `-floor(-x)`
+/// -- is the ceiling rather than an approximation of it, and that the roundings
 /// have not quietly lost a sign on a zero. It is also where a `-0.0` regression
 /// would show, which an `assert_eq!` between two floats cannot see: `-0.0 ==
 /// 0.0` is true and their bits are not.
@@ -246,9 +246,9 @@ fn tangents_match_the_intrinsic_away_from_the_poles() {
 
 /// The trap [`corvid_float::tan`]'s doc comment is about.
 ///
-/// No `f32` is π/2, so the cosine never actually reaches zero and the tangent
-/// at the pole is not an infinity — it is a large finite number whose sign
-/// depends on which side of π/2 the argument rounded to. `FRAC_PI_2` rounds
+/// No `f32` is pi/2, so the cosine never actually reaches zero and the tangent
+/// at the pole is not an infinity -- it is a large finite number whose sign
+/// depends on which side of pi/2 the argument rounded to. `FRAC_PI_2` rounds
 /// just past, so the answer there is negative, and a caller screening its
 /// frustum for a non-finite focal length would pass a mirrored one straight
 /// through. This test exists so that if the crate ever does start returning an
@@ -267,7 +267,7 @@ fn a_tangent_at_the_pole_is_large_finite_and_carries_the_sign_of_the_rounding() 
     }
     assert!(
         corvid_float::tan(over) < 0.0,
-        "π/2 rounds up, so tan is below"
+        "pi/2 rounds up, so tan is below"
     );
     assert!(
         corvid_float::tan(under) > 0.0,
@@ -276,7 +276,7 @@ fn a_tangent_at_the_pole_is_large_finite_and_carries_the_sign_of_the_rounding() 
 }
 
 /// The reciprocal's documented edge, which is a real infinity because it is a
-/// real division by a real zero — unlike the tangent's.
+/// real division by a real zero -- unlike the tangent's.
 #[test]
 fn a_reciprocal_of_zero_is_an_infinity_rather_than_a_panic() {
     assert_eq!(corvid_float::recip(0.0), f32::INFINITY);
@@ -292,7 +292,7 @@ fn a_reciprocal_of_zero_is_an_infinity_rather_than_a_panic() {
 /// # Why not against the intrinsic
 ///
 /// Because `f32::powi` is not an answer. It lowers to `llvm.powi`, which is not
-/// correctly rounded and is free to differ between targets — and it does: at
+/// correctly rounded and is free to differ between targets -- and it does: at
 /// `powi(-5.25, -18)` it lands three ulps from the true value on
 /// `x86_64-pc-windows-msvc` and on the true value on
 /// `x86_64-unknown-linux-gnu`. Holding this crate to it would be holding a
@@ -303,7 +303,7 @@ fn a_reciprocal_of_zero_is_an_infinity_rather_than_a_panic() {
 /// whose parts are a power of an odd integer and a power of two, so once the
 /// common twos are cancelled the correctly rounded `f32` is an integer division
 /// and a remainder to settle the tie on. The odd part reaches 113 bits at
-/// `49^20` — too wide to shift a numerator above and still fit a `u128` — so
+/// `49^20` -- too wide to shift a numerator above and still fit a `u128` -- so
 /// the reciprocal is taken by [`reciprocal`]'s long division, which never forms
 /// a number wider than one doubling of the divisor. There is no floating point
 /// anywhere in either, so nothing in them can vary by target.
@@ -317,7 +317,7 @@ fn a_reciprocal_of_zero_is_an_infinity_rather_than_a_panic() {
 /// is the shape of the algorithm: binary exponentiation is about `log2(|n|)`
 /// squarings and as many multiplies again, every one of them rounds, so the
 /// distance from the truth grows with the length of the chain and with nothing
-/// else. `n = 0` and `n = ±1` are held exactly, which is where no chain runs.
+/// else. `n = 0` and `n = +/-1` are held exactly, which is where no chain runs.
 ///
 /// Measured over this sweep, and the same on every target because both sides
 /// are: 814 of the 4000 samples are not the correctly rounded value, the worst
@@ -347,7 +347,7 @@ fn integer_powers_are_within_a_chain_s_worth_of_the_exact_answer() {
             let (apart, bound) = (ulps(ours, truth), allowed(n));
             assert!(
                 apart <= bound,
-                "powi({x}, {n}): {ours:e} against the exact {truth:e} — {apart} ulps out, \
+                "powi({x}, {n}): {ours:e} against the exact {truth:e} -- {apart} ulps out, \
                  {bound} allowed"
             );
         }
@@ -370,7 +370,7 @@ fn integer_powers_are_within_a_chain_s_worth_of_the_exact_answer() {
 ///
 /// Ordinary long division in binary: at each place the remainder doubles and
 /// the divisor is taken out of it if it fits. The remainder is always below the
-/// divisor, so the widest number this ever holds is one doubling of one — which
+/// divisor, so the widest number this ever holds is one doubling of one -- which
 /// is what lets it divide by a 113-bit `power` that no shifted numerator could
 /// reach.
 ///
@@ -433,7 +433,7 @@ fn exact_powi(step: i32, n: i32) -> f32 {
         // Long division rather than `(1 << s) / power`: `power` reaches 113
         // bits at `49^20`, and the shift that would put twenty-six quotient
         // bits above it does not fit a `u128`. Dividing a place at a time never
-        // forms that number — the remainder stays below the divisor, so the
+        // forms that number -- the remainder stays below the divisor, so the
         // widest value here is one doubling of it.
         let (quotient, places, rest) = reciprocal(power, 26);
         (quotient, scale - places, rest)
@@ -530,7 +530,7 @@ fn rounding_the_value_just_below_a_half_gives_zero() {
 }
 
 /// Unlike [`f32::clamp`], which panics when its bounds cross. The workspace
-/// forbids a panic in a library, so the upper bound simply wins — and `NaN`
+/// forbids a panic in a library, so the upper bound simply wins -- and `NaN`
 /// falls through to the low bound, which is what turns a gain that has gone
 /// wrong into silence rather than into full volume.
 #[test]
@@ -573,7 +573,7 @@ fn clamping_finitely_sends_every_non_finite_to_the_low_bound() {
 }
 
 /// The two clamps differ in two places and the doc comments name both: what an
-/// infinity does, and — because they test their bounds in opposite orders —
+/// infinity does, and -- because they test their bounds in opposite orders --
 /// what crossed bounds do.
 #[test]
 fn the_two_clamps_part_company_on_infinities_and_on_crossed_bounds() {
@@ -609,7 +609,7 @@ fn hypotenuses_match_the_intrinsic_in_the_range_a_camera_works_in() {
 /// And the two places outside that range where it does not, both of which the
 /// doc comment names. Forming the squares before the root is the whole reason,
 /// and a future implementation that scales its arguments first would fail this
-/// test — which is the point: the doc comment would have to change with it.
+/// test -- which is the point: the doc comment would have to change with it.
 #[test]
 fn hypotenuses_overflow_and_collapse_where_the_documentation_says_they_do() {
     // Above the top: the square overflows, the root of an infinity is one.
@@ -743,14 +743,14 @@ fn every_function_is_const() {
 }
 
 /// The same witness for the wide half, which is a second set of definitions
-/// rather than the same ones generically — so it can regress on its own and has
+/// rather than the same ones generically -- so it can regress on its own and has
 /// to be checked on its own.
 ///
 /// A separate test rather than a second block in the one above only because
 /// `clippy::items_after_statements` is on: a `const` is an item, and an item
 /// after an assertion is a warning the workspace turns into an error.
 /// `clamp_finite` and `demote` are absent here because `wide` does not have
-/// them — the first is the audio mixer's and the mixer works in `f32`, and the
+/// them -- the first is the audio mixer's and the mixer works in `f32`, and the
 /// second only ever narrows in the one direction.
 #[test]
 fn every_wide_function_is_const() {

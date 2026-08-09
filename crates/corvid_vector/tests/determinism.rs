@@ -2,8 +2,8 @@
 //!
 //! Two independent checks, following `corvid_fixed/tests/determinism.rs`:
 //!
-//! 1. **Const equals runtime.** Every operation is evaluated twice — once by
-//!    rustc's const interpreter at compile time, once by the CPU at run time —
+//! 1. **Const equals runtime.** Every operation is evaluated twice -- once by
+//!    rustc's const interpreter at compile time, once by the CPU at run time --
 //!    and the two must agree bit for bit. These are separate implementations of
 //!    the arithmetic, so agreement is real evidence that nothing here depends on
 //!    host floating-point behavior.
@@ -156,7 +156,7 @@ fn the_same_seed_gives_the_same_stream_of_results() {
     };
     // Pinned rather than compared to a rerun of itself: a rerun proves only
     // that the function is a function. A change that moves every result
-    // alike — a rounding rule, an `rsqrt` retune — fails here.
+    // alike -- a rounding rule, an `rsqrt` retune -- fails here.
     assert_eq!(
         checksum(0xD37_E4A1),
         11_369_903_297_625_141_325,
@@ -177,7 +177,7 @@ const GOLDEN_NORMALIZE_FAST: &[([i32; 3], [i32; 3])] = &[
     ([256, 0, 0], [2_147_483_647, 0, 0]),
     ([0, -256, 0], [0, -2_147_483_647, 0]),
     // About 1.0e-5 below the exact tier's [495_573_149, 660_764_199,
-    // 1_982_292_598] — a common-mode scale error, which is why all three
+    // 1_982_292_598] -- a common-mode scale error, which is why all three
     // components move by the same fraction rather than by the same amount.
     ([768, 1024, 3072], [495_568_032, 660_757_376, 1_982_272_129]),
     // The diagonal, against the exact 1_239_850_261.

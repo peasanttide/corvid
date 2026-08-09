@@ -2,8 +2,8 @@
 //!
 //! Two independent checks:
 //!
-//! 1. **Const equals runtime.** Every operation is evaluated twice — once by
-//!    rustc's const interpreter at compile time, once by the CPU at run time —
+//! 1. **Const equals runtime.** Every operation is evaluated twice -- once by
+//!    rustc's const interpreter at compile time, once by the CPU at run time --
 //!    and the two must agree bit for bit. These are separate implementations of
 //!    the arithmetic, so agreement is real evidence that no operation depends on
 //!    host floating-point behavior.

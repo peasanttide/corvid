@@ -41,7 +41,7 @@ the rule is short enough to state in full:
 
 The marker names the width: `fb` two bytes, `fc` four, `fd` eight, `fe` sixteen,
 and the narrowest one that holds the value is the one used. A `u8` or an `i8` is
-never marked — it is its one byte, whatever it holds, which is why `ff` is
+never marked -- it is its one byte, whatever it holds, which is why `ff` is
 `u8::MAX` and not a marker, and why an `i8` is not zigzagged either. A signed
 value *wider* than a byte is zigzagged before any of this, so `-1i32` is `01`,
 `1i32` is `02`, and a small negative costs a byte rather than eight.
@@ -94,7 +94,7 @@ The second, and the one that shapes how the rest of this workspace is tested: an
 integer's declared width is not in the bytes. `u16(1)` and `u32(1)` are the same
 single byte, so **no byte golden anywhere in this workspace can see a field
 widen**. That change compiles, passes every round trip, passes every recorded
-byte row — and breaks the peer on the old build at the first field holding a
+byte row -- and breaks the peer on the old build at the first field holding a
 number big enough to need the extra bytes.
 
 Two things do catch it, and neither is these bytes.
@@ -105,8 +105,8 @@ digest of every value it appears in. That is what two peers actually compare
 every tick, and it is why a crate that puts a type in a snapshot records a
 digest table beside its byte table. It is the strong one.
 
-The second is a **declared schema**: a hash of a description a person wrote —
-`"State.count"`, `"i64"` — compared when a capture is loaded. It catches a
+The second is a **declared schema**: a hash of a description a person wrote --
+`"State.count"`, `"i64"` -- compared when a capture is loaded. It catches a
 widening only if the description is edited along with the type, so it is a
 description rather than a measurement. What it gives is a clean refusal at load
 rather than a divergence at the first tick.
@@ -125,7 +125,7 @@ live here.
 
 | A recorded golden of | field order | field name | variant number | added field | **integer width** |
 |---|---|---|---|---|---|
-| Self-describing text (JSON) | visible | visible | invisible — it writes names | visible | invisible |
+| Self-describing text (JSON) | visible | visible | invisible -- it writes names | visible | invisible |
 | These bytes | visible *if the two fields' recorded values differ* | invisible | visible | visible *unless the field encodes to nothing* | invisible |
 | A `corvid_hash` digest | visible *if the two fields' recorded values differ* | invisible | visible | visible | **visible** |
 
@@ -138,12 +138,12 @@ does not pay them. Swapping two fields of the *same* type moves the bytes only
 because their values land in the other order, so a row recorded from `{x: 1, y: 1}`
 is the same row afterwards: both declarations write `0101`, while JSON writes
 `{"x":1,"y":1}` and `{"y":1,"x":1}` and can tell. Adding a field is visible for
-any field that writes bytes, and a `()` is not one of those — `{x, marker: (), y}`
+any field that writes bytes, and a `()` is not one of those -- `{x, marker: (), y}`
 writes the same two bytes as `{x, y}`, where JSON gains a `"marker":null`. Both
 are measured in `tests/blind.rs`.
 
 Little-endian explicitly, on every target, matching what `corvid_hash` documents
-for the digest — a capture recorded on an aarch64 laptop is read by an x86-64
+for the digest -- a capture recorded on an aarch64 laptop is read by an x86-64
 server, and "the machine's own order" is not an order.
 
 ## What it writes
@@ -152,14 +152,14 @@ server, and "the machine's own order" is not an order.
 |---|---|
 | A `u8` or an `i8` | its one byte |
 | Any wider integer | a varint, as the section above sets out |
-| An `f32` or an `f64` | **its declared width**, little-endian — four bytes or eight, whatever the value. A varint configuration does not reach floats |
+| An `f32` or an `f64` | **its declared width**, little-endian -- four bytes or eight, whatever the value. A varint configuration does not reach floats |
 | `char` | its UTF-8, one to four bytes, and no count |
 | `bool` | one byte, `00` or `01` |
 | A struct | its fields in declaration order, and nothing else |
 | An enum | a varint variant index, then that variant's fields |
 | `Option` | one tag byte, then the payload if there is one |
 | A sequence, a string, a map | a varint count, then the elements, the UTF-8, or the entries as key-then-value |
-| A fixed-size array | its elements, and **no count** — the length is in the type |
+| A fixed-size array | its elements, and **no count** -- the length is in the type |
 | A field name, a type name | nothing |
 
 The float row is the one that surprises people, and `tests/golden.rs` freezes it:
@@ -180,8 +180,8 @@ that is why the same crates keep a digest table beside the byte one.
 ## The golden table
 
 A byte golden is a table of labelled rows and one call. The comparison runs both
-ways round — that today's encoder writes the recorded bytes, and that the
-recorded bytes still read back as the value they were recorded from — and reports
+ways round -- that today's encoder writes the recorded bytes, and that the
+recorded bytes still read back as the value they were recorded from -- and reports
 every row that moved at once, formatted the way the table is written, so a
 deliberate format change is one paste.
 
@@ -216,7 +216,7 @@ Two more comparisons live beside it, and both are here for a reason about
 duplication rather than about encoding. `golden::check_digests` takes a table of
 `corvid_hash` digests as `u64`, and `golden::check_text` takes a table of what a
 *self-describing* format wrote. Neither is a format this crate defines and
-nothing here computes a digest or writes text — but the table above is why a
+nothing here computes a digest or writes text -- but the table above is why a
 crate that puts a type in a snapshot needs all three, and a comparison written
 once per crate is one that gets fixed in one place and drifts in the rest.
 
@@ -294,9 +294,9 @@ cargo test -p corvid_wire --all-features
 
 | File | Covers |
 |---|---|
-| `tests/golden.rs` | The encoding itself, frozen as literals: every integer width and both sides of the marker, `bool`, `Option`, sequences, fixed-size arrays, strings, structs, enums, and nesting — with the two shapes it writes alike |
+| `tests/golden.rs` | The encoding itself, frozen as literals: every integer width and both sides of the marker, `bool`, `Option`, sequences, fixed-size arrays, strings, structs, enums, and nesting -- with the two shapes it writes alike |
 | `tests/visible.rs` | Which recorded table sees each of the four changes: a reordered field, a renumbered variant and an added field in the bytes, a widened integer in the digest and not in the bytes, and a traded width in neither |
-| `tests/blind.rs` | The two the table above qualifies: same-typed fields holding one value swapping unseen, and a field that writes nothing being added unseen — with what JSON writes for both |
+| `tests/blind.rs` | The two the table above qualifies: same-typed fields holding one value swapping unseen, and a field that writes nothing being added unseen -- with what JSON writes for both |
 | `tests/trailing.rs` | That a longer and a shorter byte string are each refused and named differently, that a hostile count fails as a short one does, and that a capture larger than any ceiling worth setting still reads |
 | `tests/named.rs` | Which half a type that wants its field names fails in: `#[serde(flatten)]` at `encode`, an untagged enum at `decode` |
 | `tests/table.rs` | The golden helper: what it accepts, what it reports, and that its report is paste-ready |
@@ -305,5 +305,5 @@ cargo test -p corvid_wire --all-features
 
 `tests/visible.rs` is the load-bearing one. It writes a fixture down under two
 declarations that differ by exactly one of the four changes and records what each
-table answers — so which change is caught by which table is a set of exact values
+table answers -- so which change is caught by which table is a set of exact values
 in the repository rather than a paragraph in a README.

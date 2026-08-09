@@ -8,8 +8,8 @@
 //!
 //! `SNORM` spends one bit pattern twice. For [`Signed8`], both `-128` and `-127`
 //! denote `-1.0`, because the range is clamped rather than wrapped. That is a
-//! genuine wart, and left alone it would break `Hash`/`Eq` agreement — two
-//! values equal as numbers but unequal as bits — which Corvid's state hashing
+//! genuine wart, and left alone it would break `Hash`/`Eq` agreement -- two
+//! values equal as numbers but unequal as bits -- which Corvid's state hashing
 //! depends on.
 //!
 //! The resolution here:
@@ -193,7 +193,7 @@ macro_rules! define_signed {
                 Self::saturate(self.cmp_key() as $wide - rhs.cmp_key() as $wide)
             }
 
-            /// Multiplies. Exact and total — `[-1, 1]` is closed under
+            /// Multiplies. Exact and total -- `[-1, 1]` is closed under
             /// multiplication, so there is nothing to saturate or check.
             ///
             /// The product is formed at full width and rounded once, giving the
@@ -370,7 +370,7 @@ define_signed! {
     /// | | |
     /// |---|---|
     /// | Storage | `i8` |
-    /// | Range | `-1.0 ..= 1.0`, with `±127` denoting `±1.0` |
+    /// | Range | `-1.0 ..= 1.0`, with `+/-127` denoting `+/-1.0` |
     /// | Resolution | `1/127`, or about `0.0079` |
     ///
     /// Bit-compatible with `wgpu`'s `Snorm8` formats. The output type of
@@ -408,7 +408,7 @@ define_signed! {
     /// | | |
     /// |---|---|
     /// | Storage | `i16` |
-    /// | Range | `-1.0 ..= 1.0`, with `±32767` denoting `±1.0` |
+    /// | Range | `-1.0 ..= 1.0`, with `+/-32767` denoting `+/-1.0` |
     /// | Resolution | `1/32767`, or about `3.1e-5` |
     ///
     /// Bit-compatible with `wgpu`'s `Snorm16` formats. The output type of
@@ -445,11 +445,11 @@ define_signed! {
     /// | | |
     /// |---|---|
     /// | Storage | `i32` |
-    /// | Range | `-1.0 ..= 1.0`, with `±2147483647` denoting `±1.0` |
+    /// | Range | `-1.0 ..= 1.0`, with `+/-2147483647` denoting `+/-1.0` |
     /// | Resolution | about `4.7e-10` |
     ///
     /// Multiplication and division use a 128-bit intermediate, so they cost
-    /// more than the narrower types. Round-tripping through `f32` is lossy —
+    /// more than the narrower types. Round-tripping through `f32` is lossy --
     /// use `f64`.
     ///
     /// # Examples

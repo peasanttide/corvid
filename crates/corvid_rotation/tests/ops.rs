@@ -2,7 +2,7 @@
 //!
 //! These are the tests that pin the coordinate convention down: **+X right,
 //! +Y forward, +Z up**, yaw about +Z, pitch about +X, roll about +Y, ZXY
-//! intrinsic, `right = forward × up`.
+//! intrinsic, `right = forward x up`.
 
 #![allow(
     clippy::expect_used,
@@ -133,9 +133,9 @@ fn yaw_pitch_roll_round_trips() {
 /// The band just short of the pole, which the round-trip test above skips.
 ///
 /// The degenerate branch throws roll away, so it must not fire while roll is
-/// still determined. It used to fire from 89.84°, where `cos(pitch)` is
-/// `2.8e-3` and the discarded roll cost 0.30° of round-trip error — 60× the
-/// 0.005° the codec itself carries — right where a head-tracked pose looking
+/// still determined. It used to fire from 89.84 deg, where `cos(pitch)` is
+/// `2.8e-3` and the discarded roll cost 0.30 deg of round-trip error -- 60x the
+/// 0.005 deg the codec itself carries -- right where a head-tracked pose looking
 /// nearly straight up lives.
 #[test]
 fn near_the_poles_roll_is_still_recovered() {
@@ -152,7 +152,7 @@ fn near_the_poles_roll_is_still_recovered() {
                 let error = m.angle_to(back).to_degrees();
                 assert!(
                     error < 0.01,
-                    "pitch {pitch_degrees}, yaw {yaw:?}, roll {roll:?}: lost {error}°"
+                    "pitch {pitch_degrees}, yaw {yaw:?}, roll {roll:?}: lost {error} deg"
                 );
             }
         }
@@ -234,8 +234,8 @@ fn look_to_orthonormalizes_an_up_that_was_not_perpendicular() {
 
 /// `up` longer than one, which is what an engine boundary hands over.
 ///
-/// `Direction` permits a length of up to `√3`, and `cross` rounds each term
-/// onto `Signed32`'s `±1` — so a cross product longer than one comes back
+/// `Direction` permits a length of up to `sqrt(3)`, and `cross` rounds each term
+/// onto `Signed32`'s `+/-1` -- so a cross product longer than one comes back
 /// clamped per axis, which changes its *direction*. The tilted case above uses
 /// a unit `up` and does not reach it.
 #[test]
@@ -247,7 +247,7 @@ fn look_to_orthonormalizes_an_up_that_was_not_unit_length() {
             Signed32::from_f64(rng.next_unit()),
             Signed32::from_f64(rng.next_unit()),
         );
-        // Deliberately not normalized: lengths run past 1 up to √3.
+        // Deliberately not normalized: lengths run past 1 up to sqrt(3).
         let up = Direction::new(
             Signed32::from_f64(rng.next_unit()),
             Signed32::from_f64(rng.next_unit()),
@@ -303,7 +303,7 @@ fn from_rotation_arc_is_total_at_the_degenerate_cases() {
         "{same:?}"
     );
 
-    // Antipodal inputs give some half turn about a perpendicular axis — the
+    // Antipodal inputs give some half turn about a perpendicular axis -- the
     // honest answer when the shortest arc is not unique.
     for axis in [X, Y, Z] {
         let flip = Basis::from_rotation_arc(axis, common::neg(axis));
@@ -326,7 +326,7 @@ fn axis_angle_round_trips() {
         let (recovered_axis, recovered_angle) = q.to_axis_angle();
 
         // Rebuilding from what came back must give the same rotation, which is
-        // the claim that matters — the axis may come back negated with the
+        // the claim that matters -- the axis may come back negated with the
         // angle measured the other way.
         let rebuilt = Versor::from_axis_angle(recovered_axis, recovered_angle);
         assert!(
@@ -423,7 +423,7 @@ fn renormalize_fast_names_the_same_rotation_as_renormalize() {
         worst = worst.max(common::angle_degrees(exact, fast));
     }
     // Four decimal digits of a quaternion is well under a thousandth of a
-    // degree — below what any renderer or physics step resolves.
+    // degree -- below what any renderer or physics step resolves.
     assert!(worst < 1e-3, "worst disagreement {worst} degrees");
 }
 
@@ -444,8 +444,8 @@ fn renormalize_fast_is_exact_on_the_axis_aligned_rotations() {
 #[test]
 fn renormalize_fast_bounds_composition_drift_with_a_deadband() {
     // The documented characteristic, and the one that is easy to get wrong: the
-    // approximate tier does *not* diverge under repeated use — it bounds the
-    // drift — but it bounds it at the edge of its own `2^-15` deadband rather
+    // approximate tier does *not* diverge under repeated use -- it bounds the
+    // drift -- but it bounds it at the edge of its own `2^-15` deadband rather
     // than at a last bit, because drift finer than that is invisible to it.
     let axis = Direction::new(
         Signed32::from_f64(0.3),
@@ -553,7 +553,7 @@ fn from_rotation_arc_survives_near_antipodal_input() {
     // The degenerate case has to be recognized from the *dot product* alone.
     // Testing the cross product for exact zero as well narrows the branch to
     // exactly opposite inputs, and everything between there and opposite falls
-    // through to a formula whose two terms have both underflowed to noise —
+    // through to a formula whose two terms have both underflowed to noise --
     // which came back a rotation missing `to` by up to a hundred degrees.
     let mut rng = Rng::new(0x4152_4300_0000_0001);
     for _ in 0..50_000 {
@@ -588,7 +588,7 @@ fn look_to_stays_orthonormal_when_forward_and_up_nearly_coincide() {
     // `Direction::cross` divides its `i64` terms back onto the unit scale, so
     // for nearly parallel operands almost nothing survives and the normalize
     // that follows amplifies the rounding. `look_to` must not build its frame
-    // that way: it reported `Some` for a matrix skewed by as much as 30°, which
+    // that way: it reported `Some` for a matrix skewed by as much as 30 deg, which
     // `from_rows` rejects and which is not a rotation at all.
     let mut rng = Rng::new(0x4C4F_4F4B_0000_0001);
     let mut built = 0u32;

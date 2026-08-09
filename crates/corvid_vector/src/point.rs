@@ -5,7 +5,7 @@
 //! width; [`GlobalFinePoint`] and [`FinePoint`] share a resolution and differ
 //! only in range.
 //!
-//! Points double as offsets. There is no separate point/vector distinction —
+//! Points double as offsets. There is no separate point/vector distinction --
 //! the same choice Godot and Unity make, and a separate `GlobalPointOffset`
 //! would double the API for no caught bug.
 
@@ -37,13 +37,13 @@ const fn i16f16_bits(value: I16F16) -> i32 {
 ///
 /// `SNORM` spends one pattern twice: `i32::MIN` and `-(2^31 - 1)` both denote
 /// `-1.0`, and `corvid_fixed` resolves that by comparing, hashing and
-/// calculating on the canonical form — the denormal is accepted from
+/// calculating on the canonical form -- the denormal is accepted from
 /// `from_bits`, `bytemuck` and `serde` so that raw bits round-trip faithfully,
 /// and folded on the way into every operation.
 ///
 /// Everything here reads bit patterns directly, so it has to fold too.
 /// Otherwise two [`Direction`]s that compare equal and hash alike would come
-/// back with different lengths, dot products and normalized directions — which
+/// back with different lengths, dot products and normalized directions -- which
 /// is exactly the `Hash`/`Eq` disagreement the convention exists to prevent,
 /// and it would land in a state hash.
 #[inline]
@@ -65,7 +65,7 @@ const fn signed32_bits(value: Signed32) -> i32 {
 /// - `neg` names the scalar's negation, which is `saturating_neg` for the
 ///   fixed-point family and `neg` for the symmetric signed-normalized one.
 /// - `bits` names the reader that turns a component into its bit pattern. It is
-///   not simply `to_bits`, because [`Signed32`] has a redundant encoding — see
+///   not simply `to_bits`, because [`Signed32`] has a redundant encoding -- see
 ///   [`signed32_bits`].
 macro_rules! define_point {
     (
@@ -191,7 +191,7 @@ macro_rules! define_point {
             /// overflows.
             ///
             /// This is the honest way to take an offset between two points that
-            /// might be further apart than the type can express — which is
+            /// might be further apart than the type can express -- which is
             /// exactly why `corvid_transform` widens before it subtracts.
             #[must_use]
             #[inline]
@@ -294,7 +294,7 @@ macro_rules! define_point {
                 ])
             }
 
-            /// The dot product, in units of `DELTA²`.
+            /// The dot product, in units of `DELTA^2`.
             ///
             /// Returns the widened intermediate rather than the component
             /// scalar, for the same reason
@@ -317,8 +317,8 @@ macro_rules! define_point {
 
             /// The cross product, clamping each component independently.
             ///
-            /// Right-handed: `X × Y = Z`, which is what makes
-            /// `right = forward × up` come out consistent.
+            /// Right-handed: `X x Y = Z`, which is what makes
+            /// `right = forward x up` come out consistent.
             #[must_use]
             #[inline]
             pub const fn cross(self, rhs: Self) -> Self {
@@ -329,7 +329,7 @@ macro_rules! define_point {
                 ])
             }
 
-            /// `a·b − c·d` at full width, saturating.
+            /// `a*b - c*d` at full width, saturating.
             ///
             /// The two products each fit `wide`; their difference can want one
             /// bit more, and only for operands at the very corners of the type,
@@ -363,11 +363,11 @@ macro_rules! define_point {
                 }
             }
 
-            /// The squared length, in units of `DELTA²`.
+            /// The squared length, in units of `DELTA^2`.
             ///
             /// **This deliberately does not return the point's own scalar
-            /// type.** `GlobalPoint`'s components reach ±8388608, so the raw
-            /// sum of three squares reaches `3 × 2^62` — past `i64::MAX` — and
+            /// type.** `GlobalPoint`'s components reach +/-8388608, so the raw
+            /// sum of three squares reaches `3 x 2^62` -- past `i64::MAX` -- and
             /// expressing the result back in `I24F8` would saturate for any
             /// vector longer than 1672 m. A `length_squared` that silently
             /// returns `MAX` for a 2 km offset is worse than no
@@ -391,11 +391,11 @@ macro_rules! define_point {
             /// unsigned wide sum of squares, one integer square root, one
             /// rounding. Because a value is its bit pattern over a fixed scale,
             /// the integer square root of the summed squares *is* the result's
-            /// bit pattern — there is no rescaling step to lose anything in.
+            /// bit pattern -- there is no rescaling step to lose anything in.
             ///
             /// Saturates at the component type's `MAX`, which a
             /// [`GlobalFinePoint`] reaches at the far corners of the world:
-            /// `√3 × 1.407e14` exceeds `I48F16`'s own range.
+            /// `sqrt(3) x 1.407e14` exceeds `I48F16`'s own range.
             #[must_use]
             #[inline]
             pub const fn length(self) -> $scalar {
@@ -414,7 +414,7 @@ macro_rules! define_point {
             /// The distance to another point.
             ///
             /// Saturates at the component type's `MAX` when the points are further
-            /// apart than the type can express — which for a
+            /// apart than the type can express -- which for a
             /// [`GlobalFinePoint`] includes opposite corners of the world, and
             /// is documented rather than hidden.
             #[must_use]
@@ -435,10 +435,10 @@ macro_rules! define_point {
             /// Only the ratios of the components matter, so this normalizes
             /// the raw bit patterns and never touches the component scale.
             /// Rescaling is a shift rather than a divide, so the same direction
-            /// at two magnitudes can differ in the last bit or two — the result
+            /// at two magnitudes can differ in the last bit or two -- the result
             /// is deterministic, not magnitude-independent to the bit. One
             /// [`rsqrt`](corvid_fixed::I2F30::rsqrt), three multiplies, and a
-            /// handful of shifts — no division anywhere.
+            /// handful of shifts -- no division anywhere.
             #[must_use]
             #[inline]
             pub const fn normalize(self) -> Option<Direction> {
@@ -455,12 +455,12 @@ macro_rules! define_point {
             ///
             /// [`normalize`](Self::normalize) over
             /// [`rsqrt_fast`](corvid_fixed::I2F30::rsqrt_fast) rather than
-            /// [`rsqrt`](corvid_fixed::I2F30::rsqrt) — about 3.7x the
+            /// [`rsqrt`](corvid_fixed::I2F30::rsqrt) -- about 3.7x the
             /// throughput of that step, for a direction good to `3.2e-5`
             /// rather than to [`Direction`]'s own last bit.
             ///
             /// Relative to the angles a renderer resolves that is about
-            /// 0.002°, so this is the tier for a look-at or a face-normal
+            /// 0.002 deg, so this is the tier for a look-at or a face-normal
             /// recomputed per frame. It is the wrong one for an axis a
             /// rotation will be built from and then composed repeatedly, where
             /// the error compounds instead of being consumed.
@@ -480,9 +480,9 @@ macro_rules! define_point {
             ///
             /// The difference is taken at full width, **not** through
             /// [`sub`](Self::sub): the saturating difference clamps each axis
-            /// independently, which does not preserve a bearing — two points
+            /// independently, which does not preserve a bearing -- two points
             /// past the type's range in `x` and half that in `y` would come
-            /// back as a 45° heading. Widening first only helps a type that
+            /// back as a 45 deg heading. Widening first only helps a type that
             /// has headroom left, which the widest one does not, so the
             /// subtraction happens here instead.
             #[must_use]
@@ -502,7 +502,7 @@ macro_rules! define_point {
             /// [`direction_to`](Self::direction_to) over the approximate
             /// reciprocal square root; see
             /// [`normalize_fast`](Self::normalize_fast) for what that trades.
-            /// The subtraction is still exact at full width — only the
+            /// The subtraction is still exact at full width -- only the
             /// normalize is approximate.
             #[must_use]
             #[inline]
@@ -637,8 +637,8 @@ define_point! {
     /// | | |
     /// |---|---|
     /// | Component | [`I48F16`] |
-    /// | Range | ±1.407e14 m |
-    /// | Resolution | 15.26 µm |
+    /// | Range | +/-1.407e14 m |
+    /// | Resolution | 15.26 um |
     ///
     /// The camera's and the VR tracked poses' position type, and the width
     /// every transform widens into before it subtracts.
@@ -657,7 +657,7 @@ define_point! {
     /// | | |
     /// |---|---|
     /// | Component | [`I24F8`] |
-    /// | Range | ±8388 km |
+    /// | Range | +/-8388 km |
     /// | Resolution | 3.9 mm |
     GlobalPoint(I24F8) {
         wide: i64,
@@ -674,8 +674,8 @@ define_point! {
     /// | | |
     /// |---|---|
     /// | Component | [`I16F16`] |
-    /// | Range | ±32.7 km |
-    /// | Resolution | 15.26 µm |
+    /// | Range | +/-32.7 km |
+    /// | Resolution | 15.26 um |
     ///
     /// Shares its 16 fractional bits with [`GlobalFinePoint`], so narrowing a
     /// difference into this type is a range check and nothing else.
@@ -699,7 +699,7 @@ define_point! {
     ///
     /// The bit patterns match `wgpu`'s `Snorm32`, which is why this stays
     /// [`Signed32`] rather than moving to `I2F30` with the rotation matrices:
-    /// it is a boundary type, and direction maths is cold — once per object
+    /// it is a boundary type, and direction maths is cold -- once per object
     /// per frame at most, against thousands of point rotations.
     Direction(Signed32) {
         wide: i64,
@@ -718,7 +718,7 @@ define_point! {
 ///
 /// The reduction in step 3 is the reason [`I2F30`] exists in the shape it does.
 /// The sum of squares, relative to the largest component, lands in `[0.25, 3]`,
-/// which does not fit a type that stops at `±2` — but the sum can always be
+/// which does not fit a type that stops at `+/-2` -- but the sum can always be
 /// brought into `[0.25, 1)` by an *even* shift, and `rsqrt` of that lands in
 /// `(1, 2]`, which fits exactly.
 ///
@@ -773,7 +773,7 @@ const fn normalize_bits(bits: [i128; 3], fast: bool) -> Option<Direction> {
     let inverse = if reduced == 1 << 28 {
         // `rsqrt(0.25)` is exactly `2.0`, one step past `I2F30::MAX`, so the
         // type saturates. That is precisely the axis-aligned case, whose answer
-        // ought to be exactly ±1 — so take this one value by hand rather than
+        // ought to be exactly +/-1 -- so take this one value by hand rather than
         // lose a last bit to a clamp.
         1i64 << 31
     } else {
@@ -787,8 +787,8 @@ const fn normalize_bits(bits: [i128; 3], fast: bool) -> Option<Direction> {
     };
 
     // 4. Scale each component by it, undo the reduction's shift, and convert to
-    //    `Signed32` — all in one expression, so the whole normalize rounds
-    //    exactly once. `Signed32`'s scale is `2^31 − 1` rather than a power of
+    //    `Signed32` -- all in one expression, so the whole normalize rounds
+    //    exactly once. `Signed32`'s scale is `2^31 - 1` rather than a power of
     //    two, which is the only non-shift factor in the whole routine.
     let shift = if halve { 31 } else { 30 };
     Some(Direction::new(
@@ -801,7 +801,7 @@ const fn normalize_bits(bits: [i128; 3], fast: bool) -> Option<Direction> {
 /// `value >> shift`, truncating **toward zero** rather than toward negative
 /// infinity.
 ///
-/// An arithmetic shift floors, which makes the rescale asymmetric in sign — and
+/// An arithmetic shift floors, which makes the rescale asymmetric in sign -- and
 /// then `normalize(-v)` stops being `-normalize(v)`. A direction and its
 /// opposite would come back a last bit apart instead of exact negatives, so
 /// mirroring a scene, or reversing a ray, would not reproduce.
@@ -814,7 +814,7 @@ const fn shift_down(value: i128, shift: u32) -> i128 {
     }
 }
 
-/// `round(t · inverse · (2^31 − 1) / 2^(shift + 30))`, clamped into
+/// `round(t * inverse * (2^31 - 1) / 2^(shift + 30))`, clamped into
 /// [`Signed32`].
 ///
 /// The three factors reach `2^30`, `2^31` and `2^31`, so the product needs

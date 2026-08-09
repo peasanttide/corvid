@@ -5,7 +5,7 @@
 //! two clamps are written out here, because a comparison is const already and
 //! routing one through the soft float would only be slower. The sign
 //! operations go through [`SoftF32`] as well even though a sign is a bit and
-//! not an intrinsic — upstream's is the same masking this crate would write,
+//! not an intrinsic -- upstream's is the same masking this crate would write,
 //! and one implementation of it is easier to keep right than two.
 
 use const_soft_float::soft_f32::SoftF32;
@@ -13,7 +13,7 @@ use const_soft_float::soft_f32::SoftF32;
 // The intrinsics this module stands in for are named below as reference links
 // with a literal URL rather than as intra-doc links. That is not a stylistic
 // preference: `f32::sqrt` and `f32::hypot` are inherent methods `std` adds to
-// the primitive, not `core` ones, and this crate is `#![no_std]` — so rustdoc
+// the primitive, not `core` ones, and this crate is `#![no_std]` -- so rustdoc
 // has no `std` in the graph to resolve them against and `cargo doc -D warnings`
 // rejects the build. `f32::clamp` a few functions down *is* a `core` method and
 // links the ordinary way, which is the whole distinction. Anything that reads
@@ -38,7 +38,7 @@ pub const fn sqrt(x: f32) -> f32 {
 /// **This is not the workspace's trigonometry.** A simulation's angles are
 /// [`corvid_fixed`]'s, and its sine is the integer CORDIC there, because two
 /// machines have to agree on the answer bit for bit. This one is for the
-/// boundary — a projection's focal length, a gain curve — where nothing is
+/// boundary -- a projection's focal length, a gain curve -- where nothing is
 /// compared against another machine.
 ///
 /// [`corvid_fixed`]: https://docs.rs/corvid_fixed
@@ -62,12 +62,12 @@ pub const fn cos(x: f32) -> f32 {
 /// cosine of zero would give an infinity rather than a panic.
 ///
 /// The cosine does not reach zero, though, and that is the trap worth knowing
-/// about. No `f32` is π/2, so at the nearest one the cosine is merely small and
+/// about. No `f32` is pi/2, so at the nearest one the cosine is merely small and
 /// the tangent is a large *finite* number of whichever sign the rounding landed
 /// on: `tan(consts::FRAC_PI_2)` is about `-2.3e7`, negative because the nearest
-/// `f32` sits just past π/2. A caller building a frustum from a field of view
+/// `f32` sits just past pi/2. A caller building a frustum from a field of view
 /// of half a turn gets a finite, sign-flipped focal length, not the infinity a
-/// finiteness test would catch — so bound the angle before taking its tangent
+/// finiteness test would catch -- so bound the angle before taking its tangent
 /// rather than screening the result. [`clamp`] is here for that.
 ///
 /// ```
@@ -88,20 +88,20 @@ pub const fn recip(x: f32) -> f32 {
     SoftF32(1.0).div(SoftF32(x)).to_f32()
 }
 
-/// The length of the hypotenuse: `sqrt(x² + y²)`.
+/// The length of the hypotenuse: `sqrt(x^2 + y^2)`.
 ///
-/// Composed rather than supplied, and composed naively — the squares are formed
+/// Composed rather than supplied, and composed naively -- the squares are formed
 /// before the root, where [`f32::hypot`] scales its arguments first so that they
 /// never have to be. Skipping that costs both ends of the range, not just the
 /// top. Above about `1.8e19` a square overflows and this returns an infinity
 /// where the intrinsic returns the answer; below about `1.1e-19` a square is
 /// subnormal and starts shedding bits, and by `f32::MIN_POSITIVE` it has
-/// collapsed entirely — `hypot(f32::MIN_POSITIVE, f32::MIN_POSITIVE)` is `0.0`
+/// collapsed entirely -- `hypot(f32::MIN_POSITIVE, f32::MIN_POSITIVE)` is `0.0`
 /// here and `1.66e-38` there, which is the quieter of the two failures and so
 /// the one worth writing down.
 ///
 /// Between those bounds the only error is the extra roundings the composition
-/// adds, which the tests hold to a millionth of the answer — and a camera
+/// adds, which the tests hold to a millionth of the answer -- and a camera
 /// working in metres never leaves them.
 ///
 /// [`f32::hypot`]: https://doc.rust-lang.org/std/primitive.f32.html#method.hypot
@@ -129,7 +129,7 @@ pub const fn floor(x: f32) -> f32 {
 /// The smallest integer no less than `x`.
 ///
 /// Composed rather than supplied: the floor of the negation, negated. That
-/// identity is exact in binary floating point — a negation is a sign bit — so
+/// identity is exact in binary floating point -- a negation is a sign bit -- so
 /// this is the ceiling rather than an approximation of it.
 ///
 /// ```
@@ -166,7 +166,7 @@ pub const fn copysign(x: f32, sign: f32) -> f32 {
 /// The magnitude of `x`.
 ///
 /// A sign bit rather than a soft-float call, and written as a `copysign` onto a
-/// positive one so that it is a bit operation rather than a comparison — which
+/// positive one so that it is a bit operation rather than a comparison -- which
 /// is what makes it right for `-0.0` as well as for `NaN`.
 #[must_use]
 #[inline]
@@ -183,7 +183,7 @@ pub const fn abs(x: f32) -> f32 {
 /// above it and `low` for anything else.
 ///
 /// `NaN` gives `low`. Every comparison against it is false, so it falls
-/// through both arms — which is the useful answer as well as the one the
+/// through both arms -- which is the useful answer as well as the one the
 /// branch order produces: a gain that has gone to `NaN` should come back as
 /// silence rather than as full volume.
 ///
@@ -220,7 +220,7 @@ pub const fn clamp(x: f32, low: f32, high: f32) -> f32 {
 /// That is the right reading wherever a large value is the dangerous one. A
 /// frequency, a decay and a gain that arrived as infinities are a caller or a
 /// device that has malfunctioned, and the quietest interpretation of a
-/// malfunction is the one that does not scream — which is why the audio mixer
+/// malfunction is the one that does not scream -- which is why the audio mixer
 /// wants this one and a matrix does not.
 ///
 /// ```
@@ -242,7 +242,7 @@ pub const fn clamp_finite(x: f32, low: f32, high: f32) -> f32 {
 /// An [`f64`] as the [`f32`] a device takes.
 ///
 /// The one narrowing in this crate, and it is named for what it does rather
-/// than spelled `as` at each site — a texture coordinate, a matrix entry and a
+/// than spelled `as` at each site -- a texture coordinate, a matrix entry and a
 /// gain are all computed a word wider than they are bound.
 ///
 /// A magnitude past `f32`'s range narrows to an infinity rather than to

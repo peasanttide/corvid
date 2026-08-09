@@ -1,7 +1,7 @@
 //! The tick number and the rate it is counted at.
 //!
-//! Both are simulation state — a tick goes in a save, a rate goes in an opening
-//! — so both have to be total, ordered, and encoded the same way on every
+//! Both are simulation state -- a tick goes in a save, a rate goes in an opening
+//! -- so both have to be total, ordered, and encoded the same way on every
 //! machine. Nothing here may panic, because a tick arriving from a save file or
 //! a peer is untrusted input and arithmetic on it happens inside `tick`.
 

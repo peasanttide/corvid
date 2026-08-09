@@ -9,7 +9,7 @@
 //! really does break.
 //!
 //! Be exact about what a pass buys. The cell is a `Mutex`, so tearing is not
-//! something this implementation can do — the assertion is a guard on whatever
+//! something this implementation can do -- the assertion is a guard on whatever
 //! replaces it, and on the day somebody reaches for two atomics because the
 //! lock showed up in a profile. What it does test *today* is the rest of the
 //! list: that a consumer never sees a value nobody published, never sees one
@@ -157,7 +157,7 @@ impl Ledger {
         let author = usize::try_from(reading.author).unwrap();
         if let Some(before) = self.latest[author] {
             // Every author's tickets increase, the shutdown publisher's
-            // included — which is what makes this strict. A consumer told about
+            // included -- which is what makes this strict. A consumer told about
             // one publication twice sees the same ticket twice, and that is the
             // whole of what a `Seen` that failed to advance looks like from out
             // here.
@@ -213,12 +213,12 @@ fn eight_emitters_and_eight_watchers_agree_about_every_value() {
     // The whole session runs under a watchdog rather than only the join at the
     // end of it. Nearly every line below is a publication, an observation or a
     // join, and any of the three that stops returning turns this test into a
-    // binary that never exits — which was not a hypothetical: an early draft
+    // binary that never exits -- which was not a hypothetical: an early draft
     // guarded only the last join, and a `blocking_wait` that held the lock
     // while it waited hung the whole run rather than failing it.
     //
     // Every join inside is guarded by name as well, and this outer one is the
-    // catch-all for the waits that are not joins — `get` takes the same lock a
+    // catch-all for the waits that are not joins -- `get` takes the same lock a
     // publication does. It is given [`SIEGE`] rather than the usual patience so
     // that the guard which can say *which* thread is stuck reports first.
     within_for(
@@ -231,7 +231,7 @@ fn eight_emitters_and_eight_watchers_agree_about_every_value() {
 /// The session itself, so that the test above is one call under the watchdog.
 #[allow(
     clippy::needless_collect,
-    reason = "the two collects are what make this a stress test: each spawns all eight threads before any of them is joined, and the lazy iterator clippy suggests would spawn one, join it, and spawn the next — one thread at a time and no contention at all"
+    reason = "the two collects are what make this a stress test: each spawns all eight threads before any of them is joined, and the lazy iterator clippy suggests would spawn one, join it, and spawn the next -- one thread at a time and no contention at all"
 )]
 fn contended() {
     let (emit, watch) = channel("readings", Reading::new(CLOSER, 0));
@@ -286,7 +286,7 @@ fn contended() {
         thread::spawn(move || {
             // Its ticket climbs like everybody else's, so the polling watchers
             // are still held to seeing each publication once while this is the
-            // only thing publishing — which is the phase in which they poll far
+            // only thing publishing -- which is the phase in which they poll far
             // more often than anything is published.
             let mut ticket = 0;
             while all_out.load(Ordering::SeqCst) == 0 {

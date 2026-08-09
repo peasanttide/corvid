@@ -4,9 +4,9 @@ Simulation time for [Corvid](https://github.com/peasanttide/corvid): a tick
 number, the rate it is counted at, the fixed step that turns real time into
 whole ticks, and the clock the simulation is never allowed to see.
 
-Five types and one trait — [`Tick`], [`Ticks`], [`TickSpan`], [`Step`],
-[`Clock`] and [`Elapsed`]. Every one of them counts in integers — nanoseconds
-accumulated, periods taken out, a remainder left behind — including the
+Five types and one trait -- [`Tick`], [`Ticks`], [`TickSpan`], [`Step`],
+[`Clock`] and [`Elapsed`]. Every one of them counts in integers -- nanoseconds
+accumulated, periods taken out, a remainder left behind -- including the
 sub-tick interpolation factor, which is the one quantity here that looks like it
 wants to be a fraction.
 
@@ -52,7 +52,7 @@ there only to keep the panic out.
 sequence, so `Tick(30)` is the thirty-first tick of a session and `Ticks(30)` is
 thirty of them from wherever the counting started. It is what a caller passes to
 ask a run to last a given number of ticks, and it has a frozen wire format of
-its own — `tests/wire.rs` pins it.
+its own -- `tests/wire.rs` pins it.
 
 ## The period is an integer, and that is the definition
 
@@ -69,12 +69,12 @@ exactly `1_000_000_000 % hz` nanoseconds per second:
 
 | Rate | `period()` | Fast by | One second of drift every |
 |---|---|---|---|
-| 10 Hz | 100 000 000 ns | — | never |
+| 10 Hz | 100 000 000 ns | -- | never |
 | 15 Hz ([`CRADLE`](TickSpan::CRADLE)) | 66 666 666 ns | 10 ns/s | 3.2 years |
-| 20 Hz | 50 000 000 ns | — | never |
+| 20 Hz | 50 000 000 ns | -- | never |
 | 30 Hz | 33 333 333 ns | 10 ns/s | 3.2 years |
 | 60 Hz | 16 666 666 ns | 40 ns/s | 289 days |
-| 64 Hz | 15 625 000 ns | — | never |
+| 64 Hz | 15 625 000 ns | -- | never |
 | 144 Hz | 6 944 444 ns | 64 ns/s | 181 days |
 
 That is a trade of a quantity nobody measures for one everybody depends on. No
@@ -89,7 +89,7 @@ and it is a hashable value with a wire format rather than a number in a config
 struct because two peers at different spans are two different simulations.
 Non-zero because a span of no time is a division by zero in [`Step`], and
 thirty-two bits because that is what keeps [`Step::alpha`] inside a `u64`
-without a clamp or 128-bit arithmetic — [`TickSpan::MAX`] is four seconds and
+without a clamp or 128-bit arithmetic -- [`TickSpan::MAX`] is four seconds and
 change, against the one second that is the slowest span
 [`from_hz`](TickSpan::from_hz) can name.
 
@@ -106,7 +106,7 @@ use corvid_time::{Duration, Step, TickSpan};
 let span = TickSpan::CRADLE;
 let mut step = Step::new(span).with_catchup(4);
 
-// Ten seconds go missing — a load, a breakpoint, a laptop lid. A hundred and
+// Ten seconds go missing -- a load, a breakpoint, a laptop lid. A hundred and
 // fifty ticks are owed; four are delivered and a hundred and forty-six are gone.
 assert_eq!(step.advance(Duration::from_secs(10)), 4);
 assert_eq!(step.dropped(), 146);
@@ -161,7 +161,7 @@ assert_eq!(step.alpha(), Factor16::ZERO);
 ## Clocks the simulation is not handed
 
 Nothing here offers a simulation the time. A game that wants it has to go
-looking, rather than find a clock among the things it was handed — and a
+looking, rather than find a clock among the things it was handed -- and a
 simulation that read one would produce a different state on a slower machine,
 so every save, replay and peer would disagree.
 
@@ -221,5 +221,5 @@ cargo test -p corvid_time --all-features
 | `tests/step.rs` | A thousand exact periods at seven rates delivering a thousand ticks with nothing dropped and nothing accumulated; a period split into a hundred pieces; ten thousand ragged frame times accounting for every nanosecond; the stall dropping rather than banking; the ordinary second after it; the sub-tick remainder surviving that stall and completing the tick it was part of; alpha against hand-computed bit patterns, climbing within a period and landing on exactly zero at the boundary; a frame time of 2^64 nanoseconds saturating rather than wrapping; and the crate's own source containing no floating point |
 | `tests/slow.rs` | The slow end of the range, which only `from_nanos` and the deserializer reach: that [`TickSpan::MAX`] is slower than any rate can name, and that alpha climbs rather than overflows across the whole range up to it |
 | `tests/clock.rs` | `Clock` queueing and stepping, a thousand calls driving a thousand ticks, `Elapsed` as a trait object, a clock not being `Copy`, and the wall mode measuring a sleep and then measuring nothing at all on the next call |
-| `tests/wire.rs` | The frozen bytes of [`Tick`], [`Ticks`] and [`TickSpan`], and the digests they come to under this workspace's hasher — the one view of the three that can see a field narrowed |
+| `tests/wire.rs` | The frozen bytes of [`Tick`], [`Ticks`] and [`TickSpan`], and the digests they come to under this workspace's hasher -- the one view of the three that can see a field narrowed |
 | doctests | Every Rust block in this file and in the type documentation |

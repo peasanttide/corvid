@@ -793,7 +793,7 @@ fn arithmetic_is_available_in_const_context() {
 #[test]
 fn comparison_is_available_in_const_context() {
     // `min`/`max`/`clamp` canonicalize their result, which for the signed and
-    // pitch families is real work rather than a move — so it has to survive
+    // pitch families is real work rather than a move -- so it has to survive
     // const evaluation, and the const and runtime paths have to agree on the
     // bits and not merely on the value.
     const LOW: I24F8 = I24F8::from_f64(-1.0);
@@ -866,7 +866,7 @@ fn rsqrt_is_correctly_rounded_for_every_i8f8() {
 #[test]
 fn rsqrt_is_correctly_rounded_for_every_i0f8() {
     // I0F8's values are all under 0.5, so 1/sqrt(x) always exceeds 1.41 and the
-    // result always saturates — the same story as `recip`.
+    // result always saturates -- the same story as `recip`.
     for bits in 1..=i8::MAX {
         assert_eq!(I0F8::from_bits(bits).rsqrt(), I0F8::MAX);
     }
@@ -987,7 +987,7 @@ const RSQRT_FAST_TOLERANCE: f64 = 3.2e-5;
 ///
 /// The promise has two terms. The approximation itself is good to
 /// [`RSQRT_FAST_TOLERANCE`] *relative*, and landing that answer on the caller's
-/// own resolution costs the half step any rounding costs — a term that
+/// own resolution costs the half step any rounding costs -- a term that
 /// dominates wherever the type is coarse enough that the true answer is only a
 /// handful of last bits wide.
 ///
@@ -1070,7 +1070,7 @@ fn rsqrt_fast_holds_its_bound_across_every_exponent() {
 #[test]
 fn rsqrt_fast_holds_its_bound_at_the_boundaries() {
     // The ends of the range, the powers of two either side of the seed's two
-    // pieces, and the shifts that saturate — the inputs a sampled sweep is
+    // pieces, and the shifts that saturate -- the inputs a sampled sweep is
     // least likely to reach.
     for &raw in &[
         1,
@@ -1118,8 +1118,8 @@ fn rsqrt_fast_saturates_where_rsqrt_does() {
     assert_eq!(I0F8::ZERO.rsqrt_fast(), I0F8::MAX);
 
     // The smallest positive input gives the largest answer the type can be
-    // asked for. `I2F30` cannot hold its own — `2^15` against a range that
-    // stops at 2 — while `I16F16`'s `2^8` is comfortably inside, and lands
+    // asked for. `I2F30` cannot hold its own -- `2^15` against a range that
+    // stops at 2 -- while `I16F16`'s `2^8` is comfortably inside, and lands
     // exactly, because a power of two is a fixed point of the whole routine.
     assert_eq!(I2F30::DELTA.rsqrt_fast(), I2F30::MAX);
     assert_eq!(I16F16::DELTA.rsqrt_fast(), I16F16::from_f64(256.0));

@@ -3,7 +3,7 @@
 //!
 //! Every other byte golden in this workspace is written in terms of this one, so
 //! this is the table that has to hold still first. It is not a test of the crate
-//! that implements the encoder — that crate has its own — but of the
+//! that implements the encoder -- that crate has its own -- but of the
 //! configuration this crate picked, which is a decision recorded nowhere else:
 //! an upgrade that changed a length prefix's width, or an endianness, or how a
 //! variant index is spelled, would move every recorded row of every crate that
@@ -18,7 +18,7 @@
 //! If a change here is genuinely wanted, it is a new version of the format: bump
 //! the crate's major version and reissue every capture recorded under the old
 //! one. Regenerating these literals to make a red test
-//! go green is never the right move — the red test *is* the notification that
+//! go green is never the right move -- the red test *is* the notification that
 //! every capture in the workspace has stopped meaning what it meant.
 
 #![allow(
@@ -52,7 +52,7 @@ const GOLDEN_UNSIGNED: &[Row<'_>] = &[
 /// doubled and a negative one is folded onto the odd numbers, so `-1` is `01`
 /// and `-2` is `03` and a small negative costs one byte rather than eight. The
 /// negative rows are what pins that. `i8` and the two extremes are the rows that
-/// show the edges — a single byte is never zigzagged, and `i64::MIN` folds onto
+/// show the edges -- a single byte is never zigzagged, and `i64::MIN` folds onto
 /// `u64::MAX` and takes the widest marker there is.
 const GOLDEN_SIGNED: &[Row<'_>] = &[
     ("-1i8", "ff"),
@@ -68,7 +68,7 @@ const GOLDEN_SIGNED: &[Row<'_>] = &[
 ///
 /// `fe` is part of the format the README states, and no other row in this file
 /// produces one, so without these the widest branch of the encoding is described
-/// and not frozen — an upgrade that spelled it differently, or that wrote the
+/// and not frozen -- an upgrade that spelled it differently, or that wrote the
 /// sixteen bytes in the other order, would move nothing here.
 ///
 /// The `1u128 << 64` row is the one that pins the order, because its bytes are
@@ -143,7 +143,7 @@ const GOLDEN_LENGTHS: &[Row<'_>] = &[
 /// A count that has outgrown its one byte.
 ///
 /// Every length row above counts to four, which leaves the marked half of the
-/// count — the half the README's table is mostly about — recorded nowhere, even
+/// count -- the half the README's table is mostly about -- recorded nowhere, even
 /// though it is the varint that every container in every capture writes. 250 and
 /// 251 are the two sides of the boundary, so a change to where the marker starts
 /// moves one of them.
@@ -162,7 +162,7 @@ const GOLDEN_COUNTS: &[Row<'_>] = &[
 /// Its length is in its type, so `serde` offers it as a tuple. That is worth a
 /// row of its own because a position in this workspace is a `[T; 3]`: the pair
 /// below holds the same three numbers as a `Vec` and as an array, and the array
-/// is the shorter by exactly one length prefix — one byte here, because three is
+/// is the shorter by exactly one length prefix -- one byte here, because three is
 /// a small count, and never more than nine.
 const GOLDEN_ARRAYS: &[Row<'_>] = &[("[1u16, 2, 3]", "010203"), ("vec![1u16, 2, 3]", "03010203")];
 
@@ -213,7 +213,7 @@ const GOLDEN_STRUCTS: &[Row<'_>] = &[
 /// payload.
 ///
 /// `Two` and `Three` carry the same numbers as `Pair` and `Named` above, so the
-/// one leading byte is the whole difference — which is the statement that a
+/// one leading byte is the whole difference -- which is the statement that a
 /// variant's *position* is on the wire and its name is not.
 const GOLDEN_ENUMS: &[Row<'_>] = &[
     ("Shape::Nothing", "00"),
@@ -489,7 +489,7 @@ fn two_shapes_this_format_writes_alike() {
 
     // And a tag against an index. `None` is tag zero and a payload-free first
     // variant is index zero, and both are now one byte, so the two are the same
-    // byte string. Nothing in a capture says which type wrote it — which was
+    // byte string. Nothing in a capture says which type wrote it -- which was
     // already true of a struct against a tuple below, and is the general
     // property that a format carrying no type tags has.
     assert_eq!(
@@ -500,7 +500,7 @@ fn two_shapes_this_format_writes_alike() {
     // And a sign against a magnitude, at the one width where the collision uses
     // every bit there is. Zigzag folds `i128::MIN` onto `u128::MAX` because that
     // is the only place left for it, so the most negative value of one type and
-    // the largest value of the other are the same seventeen bytes — the extreme
+    // the largest value of the other are the same seventeen bytes -- the extreme
     // case of the `i64::MIN` row in the signed table, where a reader who checked
     // only the leading marker would see two identical widest integers.
     assert_eq!(

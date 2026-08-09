@@ -1,4 +1,4 @@
-//! [`Basis`]: a rotation as a 3×3 matrix of [`I2F30`] entries.
+//! [`Basis`]: a rotation as a 3x3 matrix of [`I2F30`] entries.
 
 use corvid_fixed::{I2F30, I16F16, I24F8, I48F16, Signed32};
 use corvid_vector::{Direction, FinePoint, GlobalFinePoint, GlobalPoint};
@@ -10,16 +10,16 @@ const ONE: i64 = 1 << 30;
 /// last bits.
 ///
 /// A rotation built in `f64` and rounded into `I2F30` lands within a handful of
-/// last bits; `2^14` — about `1.5e-5` — leaves room for one that arrived over a
+/// last bits; `2^14` -- about `1.5e-5` -- leaves room for one that arrived over a
 /// wire as `f32` while still rejecting anything that is not a rotation. The
 /// point of the check is to keep the [`i64` invariant](crate#the-i64-invariant)
 /// true, not to police the last bit.
 const ORTHONORMAL_TOLERANCE: i64 = 1 << 14;
 
-/// A rotation as a 3×3 matrix of [`I2F30`] entries: 36 bytes.
+/// A rotation as a 3x3 matrix of [`I2F30`] entries: 36 bytes.
 ///
 /// Rotating a point is 9 multiplies, 6 adds and 3 shifts, and the inverse is
-/// the transpose — so untransforming costs exactly what transforming costs.
+/// the transpose -- so untransforming costs exactly what transforming costs.
 /// That is what makes this the type to reach for when many points go through
 /// one rotation, which is the earth-scale VR case. [`Versor`](crate::Versor)
 /// is 16 bytes and composes more cheaply; the crate's benchmark says which to
@@ -27,8 +27,8 @@ const ORTHONORMAL_TOLERANCE: i64 = 1 << 14;
 ///
 /// # Storage and convention
 ///
-/// Row-major, with `rotate(v)ᵢ = Σⱼ rows[i][j] · vⱼ`. The world-space image of
-/// a local axis is therefore a **column**: [`right`](Self::right) is column 0,
+/// Row-major, with `rotate(v)[i] = sum over j of rows[i][j] * v[j]`. The
+/// world-space image of a local axis is therefore a **column**: [`right`](Self::right) is column 0,
 /// [`forward`](Self::forward) is column 1, [`up`](Self::up) is column 2, in the
 /// crate's right-handed **+X right, +Y forward, +Z up** convention.
 /// [`IDENTITY`](Self::IDENTITY) faces +Y with +Z up, so an identity transform
@@ -37,17 +37,17 @@ const ORTHONORMAL_TOLERANCE: i64 = 1 << 14;
 /// # Rows must be orthonormal
 ///
 /// The `i64` bound the hot path relies on holds **only for orthonormal rows**:
-/// the row sum is bounded by Cauchy–Schwarz against a unit row, and a longer
+/// the row sum is bounded by Cauchy-Schwarz against a unit row, and a longer
 /// row lifts it past `i64::MAX`. So the ordinary way in is a type already known
-/// to be a rotation, and [`from_rows`](Self::from_rows) — which exists for
-/// deserialization and FFI — verifies orthonormality and a determinant of `+1`
+/// to be a rotation, and [`from_rows`](Self::from_rows) -- which exists for
+/// deserialization and FFI -- verifies orthonormality and a determinant of `+1`
 /// before handing one back.
 ///
 /// **The `bytemuck` feature is a second door, and it is not checked.** `Pod`
 /// makes any 36 bytes a `Basis`, which is the point of the feature and also
 /// bypasses [`from_rows`](Self::from_rows) entirely. A `Basis` assembled that
 /// way from rows longer than one overflows `i64` inside
-/// [`rotate_fine`](Self::rotate_fine) and [`compose`](Self::compose) — a panic
+/// [`rotate_fine`](Self::rotate_fine) and [`compose`](Self::compose) -- a panic
 /// under `overflow-checks`, a wrapped value without them. Put bytes through
 /// [`from_rows`](Self::from_rows), or through
 /// [`Rotation`](crate::Rotation)/[`FineRotation`](crate::FineRotation), whose
@@ -81,8 +81,8 @@ impl Basis {
     /// Builds a basis from nine entries, or `None` if they are not a rotation.
     ///
     /// Accepts only matrices whose rows are orthonormal to within a
-    /// quantization tolerance — about `1.5e-5`, loose enough for a rotation
-    /// that arrived over a wire as `f32` — *and* whose determinant is `+1`,
+    /// quantization tolerance -- about `1.5e-5`, loose enough for a rotation
+    /// that arrived over a wire as `f32` -- *and* whose determinant is `+1`,
     /// which is what rejects reflections. This is the deserialization and FFI door;
     /// everything inside the crate reaches a `Basis` through a type that is
     /// already known to be a rotation.
@@ -163,12 +163,12 @@ impl Basis {
     ///
     /// Orthonormality alone leaves both `+1` and `-1`, and a `-1` matrix is a
     /// reflection: it would satisfy the `i64` bound but flip handedness, so
-    /// `right = forward × up` would stop holding.
+    /// `right = forward x up` would stop holding.
     #[inline]
     const fn has_unit_determinant(self) -> bool {
         let m = self.rows;
         // Entries are Q30, so a cofactor comes back at Q60 and the determinant
-        // at Q90 — hence `i128` and a 60-bit shift back to Q30.
+        // at Q90 -- hence `i128` and a 60-bit shift back to Q30.
         let cofactor_a = (m[1][1].to_bits() as i64) * (m[2][2].to_bits() as i64)
             - (m[1][2].to_bits() as i64) * (m[2][1].to_bits() as i64);
         let cofactor_b = (m[1][0].to_bits() as i64) * (m[2][2].to_bits() as i64)
@@ -216,7 +216,7 @@ impl Basis {
 
     /// The inverse rotation, which for an orthonormal matrix is the transpose.
     ///
-    /// Free — nine moves and no arithmetic — which is why untransforming a
+    /// Free -- nine moves and no arithmetic -- which is why untransforming a
     /// point costs exactly what transforming one costs.
     #[must_use]
     #[inline]
@@ -315,7 +315,7 @@ pub(crate) const fn clamp_q30(bits: i64) -> i64 {
 /// One matrix entry: a Q60 intermediate rounded into [`I2F30`], saturating.
 ///
 /// A rotation's entries live in `[-1, 1]` and never come near the clamp. The
-/// clamp is here because the alternative — a bare `as i32` — *wraps*, and a
+/// clamp is here because the alternative -- a bare `as i32` -- *wraps*, and a
 /// wrapped entry reads as a plausible rotation of the opposite sign rather
 /// than as the garbage it is. Saturating keeps the failure legible for input
 /// that never went through [`Basis::from_rows`] or `Versor::from_xyzw`.
@@ -349,12 +349,12 @@ pub(crate) const fn signed_from_q30(bits: i32) -> Signed32 {
 impl Basis {
     /// Rotates a near-field offset.
     ///
-    /// `i32 × i32 → i64` throughout. The row sum is bounded by
-    /// `√3 · 2^30 · 2^31 = 3.99e18` against `i64::MAX`'s 9.22e18 — a 131%
-    /// margin — and the bound is Cauchy–Schwarz, `|m·v| ≤ |m||v|` with
+    /// `i32 x i32 -> i64` throughout. The row sum is bounded by
+    /// `sqrt(3) * 2^30 * 2^31 = 3.99e18` against `i64::MAX`'s 9.22e18 -- a 131%
+    /// margin -- and the bound is Cauchy-Schwarz, `|m*v| <= |m||v|` with
     /// `|m| = 1`, so it holds **only because basis rows are unit-length**.
     /// That is what [`from_rows`](Self::from_rows) exists to guarantee. Partial
-    /// sums obey the same bound with `√2` in place of `√3`, so the accumulation
+    /// sums obey the same bound with `sqrt(2)` in place of `sqrt(3)`, so the accumulation
     /// order is free.
     ///
     /// The *result* can still leave [`FinePoint`]'s range, because a rotation
@@ -397,11 +397,11 @@ impl Basis {
 
     /// Rotates a near-field offset into a world-scale one, without saturating.
     ///
-    /// The `i64` bound says the row sum reaches at most `√3 · 2^30 · 2^31`, so
-    /// the *result* can be up to `√3 ×` longer than [`FinePoint`] holds even
+    /// The `i64` bound says the row sum reaches at most `sqrt(3) * 2^30 * 2^31`, so
+    /// the *result* can be up to `sqrt(3) x` longer than [`FinePoint`] holds even
     /// though the accumulation never overflows. Widening the output rather than
-    /// the input keeps the arithmetic at `i32 × i32 → i64` and loses nothing —
-    /// which is what lets `corvid_transform`'s local→world conversion stay off
+    /// the input keeps the arithmetic at `i32 x i32 -> i64` and loses nothing --
+    /// which is what lets `corvid_transform`'s local->world conversion stay off
     /// the `i128` path that [`rotate_global_fine`](Self::rotate_global_fine)
     /// takes.
     ///
@@ -425,7 +425,7 @@ impl Basis {
         self.inverse().checked_rotate_fine(v)
     }
 
-    /// Rotates an object-scale offset. `i32 × i32 → i64`, as
+    /// Rotates an object-scale offset. `i32 x i32 -> i64`, as
     /// [`rotate_fine`](Self::rotate_fine).
     #[must_use]
     #[inline]
@@ -471,9 +471,9 @@ impl Basis {
 
     /// Rotates a world-scale offset. **The documented slow path.**
     ///
-    /// `i64 × i32 → i128`, because the operand is 64 bits wide. The fast
+    /// `i64 x i32 -> i128`, because the operand is 64 bits wide. The fast
     /// pattern subtracts first and rotates the near-field difference, which is
-    /// what `corvid_transform`'s world→local conversions do.
+    /// what `corvid_transform`'s world->local conversions do.
     #[must_use]
     #[inline]
     pub const fn rotate_global_fine(self, v: GlobalFinePoint) -> GlobalFinePoint {
@@ -489,7 +489,7 @@ impl Basis {
     /// Rotates a world-scale offset, or `None` if the result leaves range.
     ///
     /// The wide tier's `checked` form. A rotation can make an in-range offset
-    /// up to `√3 ×` longer, and `I48F16` has no wider type to widen into — so
+    /// up to `sqrt(3) x` longer, and `I48F16` has no wider type to widen into -- so
     /// this is the only way to tell a saturated answer from a real one at
     /// world scale.
     #[must_use]
@@ -550,8 +550,8 @@ impl Basis {
 
 /// Generates one row-times-vector reduction.
 ///
-/// Every one of these is the same three statements — three `to_bits` products
-/// summed at `$acc`, one `round_shift` back from Q30, and one narrowing — so
+/// Every one of these is the same three statements -- three `to_bits` products
+/// summed at `$acc`, one `round_shift` back from Q30, and one narrowing -- so
 /// the rounding rule and the accumulation order live in exactly one place. The
 /// parameters carry the only real differences: the accumulator width, and
 /// whether leaving the output type's range saturates or reports.
@@ -584,7 +584,7 @@ macro_rules! define_row_fn {
     };
 }
 
-/// `row · (x, y, z)` at Q60, accumulated at `$acc`.
+/// `row * (x, y, z)` at Q60, accumulated at `$acc`.
 macro_rules! row_sum {
     ($acc:ty, $row:expr, $x:expr, $y:expr, $z:expr) => {
         ($row[0].to_bits() as $acc) * ($x.to_bits() as $acc)
@@ -658,7 +658,7 @@ impl core::fmt::Debug for Basis {
 
 /// One basis row against three `I16F16` components, widened into `I48F16`.
 ///
-/// The accumulation is the same `i32 × i32 → i64` the near-field rotation uses;
+/// The accumulation is the same `i32 x i32 -> i64` the near-field rotation uses;
 /// only the output type is wider, which is what removes the saturation without
 /// touching the arithmetic.
 #[inline]

@@ -1,8 +1,8 @@
 //! The encoding is what stops two different values from agreeing.
 //!
-//! Each test here names one way an encoding can lose information — a missing
+//! Each test here names one way an encoding can lose information -- a missing
 //! length, a missing discriminant, a sign that was never extended, a string
-//! that could be mistaken for the bytes it holds — and proves this one does
+//! that could be mistaken for the bytes it holds -- and proves this one does
 //! not.
 
 #![allow(
@@ -52,7 +52,7 @@ fn a_discriminant_is_absorbed_before_its_payload() {
 
 #[test]
 fn a_signed_integer_is_its_two_s_complement_at_its_own_width() {
-    // Signedness is not in the encoding — the width is. `-1i8` and `255u8` are
+    // Signedness is not in the encoding -- the width is. `-1i8` and `255u8` are
     // one byte of `0xff` each, and they agree; `-1i8` and `-1i32` are one byte
     // and four, and they do not.
     assert_eq!(digest(&-1i8), digest(&255u8));
@@ -101,7 +101,7 @@ fn an_integer_is_absorbed_at_its_declared_width() {
     assert_eq!(word.digest(), digest(&1u64));
 }
 
-/// A float at eight fractional bits, which is `I24F8`'s scale — spelled out
+/// A float at eight fractional bits, which is `I24F8`'s scale -- spelled out
 /// here rather than reached for, so this file keeps depending on nothing.
 #[expect(
     clippy::cast_possible_truncation,
@@ -137,7 +137,7 @@ fn a_float_that_was_converted_is_hashed_as_what_it_was_converted_to() {
 fn a_string_is_its_bytes_and_a_terminator() {
     assert_eq!(digest("crow"), digest(&String::from("crow")));
     // The owned string is the borrowed one, on an input where an implementation
-    // that counted something other than bytes would part company with `str` —
+    // that counted something other than bytes would part company with `str` --
     // which for ASCII alone it never would.
     assert_eq!(digest("na\u{ef}ve"), digest(&String::from("na\u{ef}ve")));
     assert_eq!(
@@ -150,7 +150,7 @@ fn a_string_is_its_bytes_and_a_terminator() {
 
     // Spelled out. A string absorbs its bytes packed eight to a word and then a
     // `0xff` byte, which is what keeps a concatenation from being mistaken for
-    // a pair — `0xff` is one of the bytes no UTF-8 sequence contains, so no
+    // a pair -- `0xff` is one of the bytes no UTF-8 sequence contains, so no
     // string's own bytes can spell the terminator.
     let mut text = Hasher::new();
     text.write(b"ab");

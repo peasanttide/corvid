@@ -5,8 +5,8 @@
 //! ```
 //!
 //! The `f32` baseline is what tells us whether determinism costs anything.
-//! Each case runs over a fixed table of pseudo-random inputs — so branch
-//! prediction cannot cheat — and reports the best of several rounds. Results
+//! Each case runs over a fixed table of pseudo-random inputs -- so branch
+//! prediction cannot cheat -- and reports the best of several rounds. Results
 //! are summed into a `black_box` so nothing is optimized away.
 
 #![allow(
@@ -66,7 +66,7 @@ fn random_quaternion(rng: &mut Rng) -> [f64; 4] {
     [r1 * t1.sin(), r1 * t1.cos(), r2 * t2.sin(), r2 * t2.cos()]
 }
 
-/// An `f32` 3×3 matrix, the baseline this crate is measured against.
+/// An `f32` 3x3 matrix, the baseline this crate is measured against.
 type Matrix32 = [[f32; 3]; 3];
 
 /// The `f32` matrix of a quaternion.
@@ -115,7 +115,7 @@ fn bench(name: &str, baseline: Option<f64>, mut body: impl FnMut() -> u64) -> f6
 ///
 /// Consuming one component is not enough. These operations are `#[inline]` and
 /// return a plain struct, so LLVM scalarizes the result and deletes the work
-/// behind whichever components nothing reads — two of three here, eight of nine
+/// behind whichever components nothing reads -- two of three here, eight of nine
 /// for a `Basis::compose`. `black_box` on the *inputs* does not stop it, and
 /// the `f32` baselines below are immune only because they compute one scalar to
 /// begin with. Measured understatement before this was fixed: 4.8x on

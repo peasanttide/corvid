@@ -12,8 +12,8 @@
 //! happy to write, and the reader then asks the bytes what they are, which is
 //! the one question they cannot answer.
 //!
-//! Both are findings rather than false alarms — a snapshot is sent compactly,
-//! and neither of these can be — but they are found at different times, and one
+//! Both are findings rather than false alarms -- a snapshot is sent compactly,
+//! and neither of these can be -- but they are found at different times, and one
 //! of them produces a byte string that exists and cannot be read.
 
 #![allow(
@@ -70,7 +70,7 @@ fn an_untagged_enum_writes_down_and_cannot_be_read_back() {
 
     // This half succeeds, and that is the whole hazard. Two bytes exist, they
     // are a perfectly good pair of `u32`s, and nothing about them says which
-    // variant wrote them — so the *only* thing that could have told them apart
+    // variant wrote them -- so the *only* thing that could have told them apart
     // is the name this format does not carry.
     let bytes = encode(&value).unwrap();
     assert_eq!(bytes, [0x07, 0x09]);

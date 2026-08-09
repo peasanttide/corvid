@@ -4,8 +4,8 @@
 //! cargo run --release --example bench
 //! ```
 //!
-//! Each case runs over a fixed table of pseudo-random inputs — so branch
-//! prediction cannot cheat — and reports the best of several rounds, which is the
+//! Each case runs over a fixed table of pseudo-random inputs -- so branch
+//! prediction cannot cheat -- and reports the best of several rounds, which is the
 //! most repeatable statistic on a machine with other things running. Results are
 //! summed into a `black_box` so nothing is optimized away.
 
@@ -291,7 +291,7 @@ fn main() {
     // it is one rounding instead of two, and it runs neither the `isqrt` loop
     // nor the wide divide.
     //
-    // These three rows share one input domain — values near 1, where a
+    // These three rows share one input domain -- values near 1, where a
     // reciprocal square root has an answer worth computing. The `sqrt` row
     // above sweeps the whole type instead, where `1/sqrt(x)` underflows to zero
     // for most of the range and would flatter `rsqrt` by measuring a branch
@@ -401,7 +401,7 @@ fn main() {
         acc
     });
 
-    // The reciprocal square root, over positive inputs only — the negatives
+    // The reciprocal square root, over positive inputs only -- the negatives
     // and zero take an early return that would otherwise flatter both tiers.
     let positives: Vec<i32> = phases.iter().map(|&p| ((p >> 1) | 1) as i32).collect();
 

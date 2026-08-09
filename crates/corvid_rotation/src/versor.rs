@@ -13,7 +13,7 @@ const ONE: i64 = 1 << 30;
 /// bits.
 ///
 /// The same figure as `Basis`'s `ORTHONORMAL_TOLERANCE` and for the same
-/// reason — room for a rotation that arrived over a wire as `f32` — but **not
+/// reason -- room for a rotation that arrived over a wire as `f32` -- but **not
 /// the same window**: a basis entry is quadratic in these components, so the
 /// two gates disagree on inputs from about half the tolerance up, and a versor
 /// this accepts can produce a basis `Basis::from_rows` rejects.
@@ -22,15 +22,15 @@ const UNIT_TOLERANCE: i64 = 1 << 14;
 /// How close two versors must be, in Q30 last bits of their dot product,
 /// before [`Versor::slerp`] hands over to [`Versor::nlerp`].
 ///
-/// `1 << 12` is a dot product of `1 - 3.8e-6`, which is `0.316°` apart. Below
-/// that the `sin(θ)` the slerp weights divide by has lost most of its
+/// `1 << 12` is a dot product of `1 - 3.8e-6`, which is `0.316 deg` apart. Below
+/// that the `sin(theta)` the slerp weights divide by has lost most of its
 /// significant bits, and the two interpolations agree to well under a last bit
 /// anyway.
 const SLERP_FALLBACK: i64 = 1 << 12;
 
 /// A rotation as a unit quaternion of four [`I2F30`] components: 16 bytes.
 ///
-/// Composing is 16 multiplies against a [`Basis`]'s 27, at 44% of the size —
+/// Composing is 16 multiplies against a [`Basis`]'s 27, at 44% of the size --
 /// measured at 17.6 ns against the matrix's 35.6 ns. Rotating a *point* goes
 /// through the matrix form and so costs strictly more than using a [`Basis`]
 /// directly: 38.5 ns against 12.6 ns. Compose as a versor, rotate as a basis.
@@ -120,7 +120,7 @@ impl Versor {
     /// [`from_xyzw`](Self::from_xyzw)'s unit test has passed, so it sees the
     /// very components that test exists to reject: four squares of
     /// `I2F30::MAX` reach `1.85e19`, past `i64::MAX`, and any four components
-    /// of `1.5` — a legal `I2F30` — already overflow. Clamping back into `i64`
+    /// of `1.5` -- a legal `I2F30` -- already overflow. Clamping back into `i64`
     /// loses nothing near unit norm and keeps a wild input outside the
     /// tolerance window.
     #[inline]
@@ -158,7 +158,7 @@ impl Versor {
     /// # It corrects with a deadband, not to a last bit
     ///
     /// A versor is already near unit, so the sum of squares this reduces always
-    /// lands within a step of `1.0` — where the approximation happens to be
+    /// lands within a step of `1.0` -- where the approximation happens to be
     /// exact. The consequence is not the error you would expect from `3.2e-5`;
     /// it is a **deadband**. The scale factor is quantized at `2^-15`, so any
     /// drift finer than that is invisible and passes through untouched, and the
@@ -166,13 +166,13 @@ impl Versor {
     ///
     /// A million composes, each followed by a renormalize, measured:
     ///
-    /// | | worst `|‖q‖² − 1|` |
+    /// | | worst `abs(||q||^2 - 1)` |
     /// |---|---|
     /// | no renormalize | `8.3e-4` |
     /// | `renormalize_fast` | `1.5e-5` |
     /// | [`renormalize`](Self::renormalize) | `3.7e-9` |
     ///
-    /// So it does bound the drift — it does not diverge — but it bounds it four
+    /// So it does bound the drift -- it does not diverge -- but it bounds it four
     /// orders of magnitude looser, and **at the edge of what
     /// [`from_xyzw`](Self::from_xyzw) accepts**. In that same loop the first
     /// output to fail `from_xyzw`'s unit test appeared after 18,619 composes.
@@ -197,7 +197,7 @@ impl Versor {
     pub const fn conjugate(self) -> Self {
         let q = self.components;
         // `saturating_neg` rather than `-bits`: a component of `I2F30::MIN` is
-        // a representable value — and reachable through `bytemuck` — whose
+        // a representable value -- and reachable through `bytemuck` -- whose
         // plain negation overflows.
         Self {
             components: [
@@ -218,7 +218,7 @@ impl Versor {
 
     /// The negated versor, which denotes the *same* rotation.
     ///
-    /// The double cover: `q` and `−q` name one rotation, which is why the
+    /// The double cover: `q` and `-q` name one rotation, which is why the
     /// packed forms canonicalize a sign.
     #[must_use]
     #[inline]
@@ -237,7 +237,7 @@ impl Versor {
     /// Composes two rotations, applying `rhs` **first**, then `self`.
     ///
     /// Sixteen multiplies and no `rsqrt`, which is what makes this the cheapest
-    /// composition in the crate — a [`Basis`]'s costs twenty-seven multiplies.
+    /// composition in the crate -- a [`Basis`]'s costs twenty-seven multiplies.
     ///
     /// **Does not renormalize.** Each composition rounds at the last bit of
     /// [`I2F30`], so a long chain drifts slowly off the unit sphere; call
@@ -275,7 +275,7 @@ impl Versor {
 
     /// Returns `true` if every component is within `tolerance` of `other`'s.
     ///
-    /// Compares components, not rotations: `q` and `−q` are the same rotation
+    /// Compares components, not rotations: `q` and `-q` are the same rotation
     /// and will *not* compare equal here. Use
     /// [`angle_to`](crate::Versor::angle_to) to compare rotations.
     #[must_use]
@@ -404,8 +404,8 @@ impl Versor {
 
     /// The versor form of a rotation matrix.
     ///
-    /// Branches on the largest of the four candidate denominators — the same
-    /// chart idea the 32-bit codec uses — so the division is never by a value
+    /// Branches on the largest of the four candidate denominators -- the same
+    /// chart idea the 32-bit codec uses -- so the division is never by a value
     /// near zero. The `normalize4` at the end absorbs the rounding.
     #[must_use]
     #[inline]
@@ -421,7 +421,7 @@ impl Versor {
         let m21 = r[2][1].to_bits() as i64;
         let m22 = r[2][2].to_bits() as i64;
 
-        // The four candidates are `4w²`, `4x²`, `4y²`, `4z²` minus one, at Q30.
+        // The four candidates are `4w^2`, `4x^2`, `4y^2`, `4z^2` minus one, at Q30.
         // Whichever is largest names the component that is safely far from
         // zero, and the other three follow from the off-diagonal sums. Because
         // `normalize4` only cares about ratios, the four expressions below need
@@ -458,7 +458,7 @@ impl Versor {
     /// A component-wise lerp followed by one renormalize. Its departure from
     /// constant angular velocity is not observable over the few degrees a frame
     /// actually spans, and it costs one `rsqrt` where [`slerp`](Self::slerp)
-    /// costs an `acos` and two `sin`s — the two slowest functions in
+    /// costs an `acos` and two `sin`s -- the two slowest functions in
     /// `corvid_fixed`.
     ///
     /// Interpolates along the short way round: if the two versors are more than
@@ -534,7 +534,7 @@ impl Versor {
     /// cover and `cosine` the non-negative dot product between them.
     ///
     /// Both public entry points already hold those two values, and `acos` is
-    /// the slowest function the crate has — [`rotate_towards`](Self::rotate_towards)
+    /// the slowest function the crate has -- [`rotate_towards`](Self::rotate_towards)
     /// paid for a second one, a third of its cost, before this existed.
     #[inline]
     pub(crate) const fn slerp_canonical(self, to: Self, weight: Factor32, cosine: i64) -> Self {
@@ -550,7 +550,7 @@ impl Versor {
             return self.nlerp_canonical(to, weight);
         }
 
-        // The two weights, `sin((1-t)θ)/sin(θ)` and `sin(tθ)/sin(θ)`.
+        // The two weights, `sin((1-t)theta)/sin(theta)` and `sin(ttheta)/sin(theta)`.
         let t = weight.to_bits() as u64;
         let full = Factor32::MAX.to_bits() as u64;
         let scaled = ((theta.to_bits() as u64) * t / full) as u32;
@@ -561,7 +561,7 @@ impl Versor {
         let mut mixed = [0i64; 4];
         let mut i = 0;
         while i < 4 {
-            // Scale-free: `normalize4` divides the common `1/sin(θ)` out.
+            // Scale-free: `normalize4` divides the common `1/sin(theta)` out.
             mixed[i] = round_shift_i64(a[i] * from_weight + b[i] * to_weight, 31);
             i += 1;
         }

@@ -39,55 +39,55 @@ assert_eq!(FineRotation::from_versor(q), FineRotation::from_versor(q.negate()));
 Right-handed, **+X right, +Y forward, +Z up**.
 
 - Yaw rotates about **+Z**, pitch about **+X**, roll about **+Y**.
-- Euler composition is **ZXY intrinsic** — yaw, then pitch, then roll.
-- `right = forward × up`, consistent with `X × Y = Z`.
+- Euler composition is **ZXY intrinsic** -- yaw, then pitch, then roll.
+- `right = forward x up`, consistent with `X x Y = Z`.
 - Identity faces **+Y** with **+Z** up.
-- `a.compose(b)` applies **`b` first**, then `a` — matrix multiplication order,
+- `a.compose(b)` applies **`b` first**, then `a` -- matrix multiplication order,
   and `glam`'s `Mul`.
 
 ## The four types
 
 | Type | Size | Role |
 |---|---|---|
-| [`Rotation`] | 4 B | Packed, 32-bit tier: 0.0784° mean, 0.1832° max |
-| [`FineRotation`] | 8 B | Packed, 64-bit tier: 0.0017° mean, 0.0033° max |
-| [`Basis`] | 36 B | Working 3×3 matrix; rotating many points, free inverse |
+| [`Rotation`] | 4 B | Packed, 32-bit tier: 0.0784 deg mean, 0.1832 deg max |
+| [`FineRotation`] | 8 B | Packed, 64-bit tier: 0.0017 deg mean, 0.0033 deg max |
+| [`Basis`] | 36 B | Working 3x3 matrix; rotating many points, free inverse |
 | [`Versor`] | 16 B | Working unit quaternion; cheap composition |
 
 The packed forms are canonical, so working types never accumulate drift across
 frames: anything long-lived round-trips through [`Rotation`] or
 [`FineRotation`].
 
-### `Rotation` — 32 bits, Gibbs linear 2+10+10+10
+### `Rotation` -- 32 bits, Gibbs linear 2+10+10+10
 
 A 2-bit chart index selects the largest-magnitude quaternion component; the
-other three are divided by it, giving the Gibbs vector `t = tan(θ/2)·axis`,
-which lies in exactly the cube `[-1, 1]³`. Three 10-bit fields store `t`.
+other three are divided by it, giving the Gibbs vector `t = tan(theta/2)*axis`,
+which lies in exactly the cube `[-1, 1]^3`. Three 10-bit fields store `t`.
 
-**0.0784° mean, 0.1832° max** over uniform SO(3) — inside the 1/5° budget, and
+**0.0784 deg mean, 0.1832 deg max** over uniform SO(3) -- inside the 1/5 deg budget, and
 the cheapest decode in the family. Alternatives measured and rejected, all
 figures from `examples/rotation_quality.rs` over 200,000 uniform samples with an
 `f64` reference and the chord metric:
 
 | codec | mean | max | decode work beyond the shared normalize |
 |---|---|---|---|
-| **gibbs linear 2+10+10+10** | 0.0784° | **0.1832°** | none |
-| gibbs bcc linear 2+1+29 | 0.0766° | 0.1528° | 2 int div/mod by N=812 |
-| smallest-three (baseline) | 0.0844° | 0.2423° | — misses the budget |
+| **gibbs linear 2+10+10+10** | 0.0784 deg | **0.1832 deg** | none |
+| gibbs bcc linear 2+1+29 | 0.0766 deg | 0.1528 deg | 2 int div/mod by N=812 |
+| smallest-three (baseline) | 0.0844 deg | 0.2423 deg | -- misses the budget |
 
 Every rejected codec performs the same normalize and then strictly more work, so
 the ranking holds regardless of what the integer costs turn out to be. The BCC
 variant buys 17% of the worst case for two integer divisions and two modulos per
 decode; the crate declines that trade because the budget is already met.
 
-The angular metric is the chord form `4·asin(chord/2)`, never `2·acos(|q₁·q₂|)`
-— the `acos` form has a noise floor that at `FineRotation`'s error would be
+The angular metric is the chord form `4*asin(chord/2)`, never `2*acos(|q1*q2|)`
+-- the `acos` form has a noise floor that at `FineRotation`'s error would be
 measuring the harness rather than the codec.
 
-### `FineRotation` — 64 bits, 4×`Signed16` quaternion
+### `FineRotation` -- 64 bits, 4x`Signed16` quaternion
 
-Four SNORM components, no chart and no warp: **0.0017° mean, 0.0033° max**,
-against a 1/128° (0.0078°) budget. At 64 bits the chart machinery stops paying
+Four SNORM components, no chart and no warp: **0.0017 deg mean, 0.0033 deg max**,
+against a 1/128 deg (0.0078 deg) budget. At 64 bits the chart machinery stops paying
 for itself: the redundancy of four numbers for three degrees of
 freedom costs about one bit, and the budget is there.
 
@@ -98,7 +98,7 @@ index. Without this the double cover gives one rotation two bit patterns and
 ### `Basis` and `Versor`
 
 `Basis` rotates a point in 9 multiplies, 6 adds and 3 shifts, and its inverse is
-the transpose — so untransforming costs exactly what transforming costs. That
+the transpose -- so untransforming costs exactly what transforming costs. That
 wins when many points go through one rotation, which is the earth-scale VR case.
 `Versor` composes more cheaply and is 44% of the size, but goes through the
 matrix form to rotate a point.
@@ -109,19 +109,19 @@ determinism costs:
 | operation | `f32` matrix | `Basis` | `Versor` |
 |---|---|---|---|
 | rotate a point | 1.93 ns | **12.6 ns** | 38.5 ns |
-| unrotate a point | — | 12.2 ns | — |
+| unrotate a point | -- | 12.2 ns | -- |
 | compose | 4.80 ns | 35.6 ns | **17.6 ns** |
 
-**Compose as a versor, rotate as a basis.** Determinism costs about 6.5× on the
-rotation and 3.7× on the composition.
+**Compose as a versor, rotate as a basis.** Determinism costs about 6.5x on the
+rotation and 3.7x on the composition.
 
 Every column computes the *whole* result. That is worth saying because it was
 once not true: consuming a single component let the optimizer delete the work
-behind the other two — eight of a compose's nine entries — and understated the
-fixed-point rows by up to 6.9×, the `f32` baselines along with them.
+behind the other two -- eight of a compose's nine entries -- and understated the
+fixed-point rows by up to 6.9x, the `f32` baselines along with them.
 
-Packing and unpacking are dominated by the shared normalize — 28 ns to pack and
-49 ns to unpack a `Rotation` — which is why they belong once per frame, not once
+Packing and unpacking are dominated by the shared normalize -- 28 ns to pack and
+49 ns to unpack a `Rotation` -- which is why they belong once per frame, not once
 per point.
 
 **`nlerp` is the default, `slerp` is opt-in.** True slerp needs `acos` and
@@ -131,16 +131,16 @@ actually spans its departure from constant angular velocity is not observable.
 
 ## `Basis` cannot be built from arbitrary entries
 
-Rotating a `FinePoint` by an `I2F30` basis row is `i32 × i32 → i64`:
+Rotating a `FinePoint` by an `I2F30` basis row is `i32 x i32 -> i64`:
 
 | entry type | worst-case row sum | vs `i64::MAX` |
 |---|---|---|
-| `I2F30` (chosen) | `√3 × 2^30 × 2^31` = 3.99e18 | **131% margin** |
-| `Signed32` (rejected) | `√3 × (2^31−1) × 2^31` = 7.99e18 | 15% margin |
+| `I2F30` (chosen) | `sqrt(3) x 2^30 x 2^31` = 3.99e18 | **131% margin** |
+| `Signed32` (rejected) | `sqrt(3) x (2^31-1) x 2^31` = 7.99e18 | 15% margin |
 
-The bound is Cauchy–Schwarz — `|m·v| ≤ |m||v|` with `|m| = 1` — and it holds
+The bound is Cauchy-Schwarz -- `|m*v| <= |m||v|` with `|m| = 1` -- and it holds
 **only because basis rows are unit-length**. Partial sums obey the same bound
-with `√2` in place of `√3`, so there is no ordering hazard and no need to fix an
+with `sqrt(2)` in place of `sqrt(3)`, so there is no ordering hazard and no need to fix an
 accumulation order.
 
 A row longer than one lifts that sum past `i64::MAX`, so **the ordinary way in
@@ -186,12 +186,12 @@ The `bytemuck` feature is the exception, and it is deliberate: `Pod` makes any
 36 bytes a `Basis` and any 16 a `Versor`, bypassing both checks. Bytes that did
 not come from this crate should go through `Basis::from_rows`/
 `Versor::from_xyzw`, or through [`Rotation`]/[`FineRotation`], whose every bit
-pattern is a valid rotation by construction — a forged `Basis` with rows longer
+pattern is a valid rotation by construction -- a forged `Basis` with rows longer
 than one breaks the `i64` bound above.
 
-Rotating a `GlobalFinePoint` directly is `i64 × i32 → i128` and is the
+Rotating a `GlobalFinePoint` directly is `i64 x i32 -> i128` and is the
 documented slow path. The fast pattern subtracts first, which is what
-`corvid_transform`'s world→local conversions do.
+`corvid_transform`'s world->local conversions do.
 
 ## Where `Option` appears
 
@@ -208,7 +208,7 @@ Every integration is optional and off by default.
 | `mint` | `From`/`Into` for `mint::Quaternion` |
 | `nalgebra` | Conversions to `Matrix3` and `UnitQuaternion` |
 | `serde` | `Serialize`/`Deserialize`; the packed types transparently as their integer |
-| `bytemuck` | `Pod` and `Zeroable` — see the note below |
+| `bytemuck` | `Pod` and `Zeroable` -- see the note below |
 | `arbitrary` | `Arbitrary`, for fuzzing (links `std`) |
 | `std` | Forwards `std` to whichever of the above are enabled |
 

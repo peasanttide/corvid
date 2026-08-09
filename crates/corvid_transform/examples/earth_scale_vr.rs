@@ -1,4 +1,4 @@
-//! The target scenario: 10,000 objects converted world→eye at 90 Hz, with the
+//! The target scenario: 10,000 objects converted world->eye at 90 Hz, with the
 //! camera 6371 km from the origin.
 //!
 //! ```sh
@@ -99,7 +99,7 @@ fn bench(name: &str, baseline: Option<f64>, mut body: impl FnMut() -> u64) -> f6
 /// Consuming one component is not enough. These conversions are `#[inline]` and
 /// return a plain struct, so LLVM scalarizes the result and deletes the work
 /// behind the two components nothing reads. `black_box` on the *inputs* does
-/// not stop it — and the `to_fine_global` baseline happens to be immune,
+/// not stop it -- and the `to_fine_global` baseline happens to be immune,
 /// because its `Option` depends on all three axes, so the cases compared
 /// against it were the only ones being shortened. Measured understatement
 /// before this was fixed: 2.8x on the `i64` path and 3.0x on the `i128` one,
@@ -140,7 +140,7 @@ fn main() {
         )),
     );
 
-    // Objects scattered through a 20 km cube around the camera — the near field
+    // Objects scattered through a 20 km cube around the camera -- the near field
     // a renderer actually draws.
     let scene: Vec<GlobalFinePoint> = (0..OBJECTS)
         .map(|_| {

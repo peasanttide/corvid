@@ -6,7 +6,7 @@ use core::time::Duration;
 /// A source of elapsed real time.
 ///
 /// The simulation is never handed one. Nothing offers a game the time, so a
-/// game that wants it has to go looking — and a simulation that read a clock
+/// game that wants it has to go looking -- and a simulation that read a clock
 /// would produce a different state on a slower machine, so every save, replay
 /// and peer would disagree.
 ///
@@ -24,7 +24,7 @@ use core::time::Duration;
 /// # Implementing one
 ///
 /// [`elapsed`](Elapsed::elapsed) returns the time since the previous call, not
-/// a timestamp — the loop wants an interval, and an implementation that has to
+/// a timestamp -- the loop wants an interval, and an implementation that has to
 /// subtract two absolute times is the one place a clock going backwards can
 /// turn into a negative interval. Returning an interval directly means the
 /// answer is unsigned all the way through.
@@ -83,10 +83,10 @@ enum Mode {
 /// [`stepping`](Self::stepping) is what a headless test wants: one period per
 /// call, forever, so the loop it drives ticks exactly once per iteration and a
 /// test about the thousandth tick is about the thousandth tick rather than
-/// about how long the machine took to get there. It still takes a nudge —
+/// about how long the machine took to get there. It still takes a nudge --
 /// [`advance`](Self::advance) adds to the next reading either way.
 ///
-/// [`still`](Self::still) with [`advance`](Self::advance) is the other case —
+/// [`still`](Self::still) with [`advance`](Self::advance) is the other case --
 /// handing the loop an irregular sequence of frame times on purpose, to test
 /// what it does with a long one.
 ///
@@ -126,7 +126,7 @@ enum Mode {
 // No `Hash`, and that is the derive doing what the documentation promises
 // rather than the documentation asking. `corvid_hash::digest` takes anything
 // that implements `Hash`, so a derived one here would have made
-// `digest(&Clock::wall())` compile — a reading of this machine's monotonic
+// `digest(&Clock::wall())` compile -- a reading of this machine's monotonic
 // clock, absorbed into a value two machines compare. It answered differently
 // on two calls a millisecond apart.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -177,7 +177,7 @@ impl Clock {
 
     /// Queues `by` to be added to the next [`elapsed`](Elapsed::elapsed).
     ///
-    /// Calls accumulate, so two advances between two reads are one interval —
+    /// Calls accumulate, so two advances between two reads are one interval --
     /// which is what a real clock would have reported, and what keeps a test
     /// from having to read the clock to keep it honest.
     ///

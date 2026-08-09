@@ -7,7 +7,7 @@
 //! regression bounds: they are what the implementation currently achieves, so
 //! any loss of accuracy shows up as a failure rather than a silent drift.
 //!
-//! [`Angle32`] is out of `f64`'s reach — its last bit is 4.7e-10, and forming
+//! [`Angle32`] is out of `f64`'s reach -- its last bit is 4.7e-10, and forming
 //! the argument in `f64` already costs a millionth of that. So it gets a sampled
 //! sweep at one-bit tolerance to catch gross breakage, and a table of values
 //! computed in 80-digit arithmetic to pin correct rounding where it is actually
@@ -142,8 +142,8 @@ fn sin_and_cos_are_within_one_bit_for_angle32() {
 /// Phases whose sine and cosine were computed in 80-digit decimal arithmetic,
 /// as `(phase, sin bits, cos bits)` for [`Signed32`].
 ///
-/// Every octant boundary, a spread of ordinary phases, and — the point of the
-/// table — fourteen deliberately hunted near-ties, phases whose scaled sine
+/// Every octant boundary, a spread of ordinary phases, and -- the point of the
+/// table -- fourteen deliberately hunted near-ties, phases whose scaled sine
 /// lands within `3e-4` of a halfway case. Those are the only inputs where a
 /// rounding can go wrong, and they are exactly the ones a sampled sweep is least
 /// likely to visit. `2688335011` is the phase that caught the old seven-term
@@ -340,7 +340,7 @@ fn fast_trigonometry_is_exact_at_the_quarter_turns() {
 
 #[test]
 fn fast_sine_is_exactly_odd_and_fast_cosine_exactly_even() {
-    // Not "within a bit of odd" — exactly odd, because the phase is folded about
+    // Not "within a bit of odd" -- exactly odd, because the phase is folded about
     // the peak rather than shifted one-sidedly. Worth pinning: the property is
     // free from that fold and would be silently lost by a refactor that reached
     // for the cheaper-looking arithmetic.
@@ -403,7 +403,7 @@ fn fast_atan2_survives_extreme_coordinates() {
 
     // Walk the ratio domain end to end. With a divisor of exactly 2^15 the
     // normalization is a no-op and the quotient is the numerator, so this drives
-    // the internal ratio through every value it can take — and with it the
+    // the internal ratio through every value it can take -- and with it the
     // `r * (1 - r)` wedge, whose product with the correction weight is the
     // widest intermediate in the function.
     for y in 0..=32_768 {

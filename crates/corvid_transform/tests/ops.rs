@@ -273,7 +273,7 @@ fn the_fine_tier_has_the_same_family() {
 /// Every other case here runs at metres, where `GlobalFinePoint` has range to
 /// spare. These run at `1e14` m with the two points on opposite sides of the
 /// origin, which is where a saturating difference and a saturating `distance`
-/// stop telling the truth — and where `FineTransform`'s widen-then-subtract is
+/// stop telling the truth -- and where `FineTransform`'s widen-then-subtract is
 /// a no-op, because it already *is* the wide type.
 #[test]
 fn the_fine_tier_is_exact_at_the_far_corners() {
@@ -286,7 +286,7 @@ fn the_fine_tier_is_exact_at_the_far_corners() {
         )
     };
 
-    // A bearing across the whole span: (2e14, 1e14) is 26.565°, not 45°.
+    // A bearing across the whole span: (2e14, 1e14) is 26.565 deg, not 45 deg.
     let here = at(-1.0e14, -5.0e13);
     let there = at(1.0e14, 5.0e13);
     let bearing = here.direction_to(there.position()).expect("distinct");

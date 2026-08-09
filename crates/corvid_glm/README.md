@@ -21,8 +21,8 @@ the way to the device.
 That is a claim about byte *order* and not about alignment, and the two are
 worth keeping apart. `Mat4` is sixty-four bytes aligned to four; a WGSL matrix
 is aligned to sixteen, and so are `vec3` and `vec4` against this crate's `Vec3`
-and `Vec4`. Written at an offset that is already sixteen-aligned — the start of
-a buffer, or a binding of its own — the difference cannot be observed, which is
+and `Vec4`. Written at an offset that is already sixteen-aligned -- the start of
+a buffer, or a binding of its own -- the difference cannot be observed, which is
 why the ordinary case just works. Put one inside a `#[repr(C)]` struct and cast
 the struct to bytes and it can be: Rust places the field on four, the shader
 reads it on sixteen, and they disagree from the first field that does not land
@@ -60,7 +60,7 @@ The impls behind the first two are nalgebra's own, switched on through its
 `convert-bytemuck` and `mint` features. This crate writes neither, and could
 not have: the workspace forbids `unsafe_code`.
 
-The crate is `no_std` under every feature, `std` included — the inner attribute
+The crate is `no_std` under every feature, `std` included -- the inner attribute
 is unconditional, because type aliases and a `const` have nothing an allocator
 could be needed for. `std` exists so a downstream that is already linking it can
 say so to the graph underneath, rather than leave nalgebra and bytemuck in the
@@ -68,8 +68,8 @@ say so to the graph underneath, rather than leave nalgebra and bytemuck in the
 
 ## What belongs here
 
-Types, and one value. `IDENTITY` is the 4×4 identity as a `const`, which
-`Matrix4::identity` cannot be — it is a function, so a default camera or a model
+Types, and one value. `IDENTITY` is the 4x4 identity as a `const`, which
+`Matrix4::identity` cannot be -- it is a function, so a default camera or a model
 matrix a game overwrites per instance would otherwise have to be built at
 runtime.
 

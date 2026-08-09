@@ -2,7 +2,7 @@
 
 /// How much of a signal's history one consumer has already read.
 ///
-/// It is a sequence number and nothing else — eight bytes, `Copy`, and holding
+/// It is a sequence number and nothing else -- eight bytes, `Copy`, and holding
 /// no reference to the signal it was read against. A consumer keeps one per
 /// [`Watch`](crate::Watch) it polls and passes it back by `&mut` every time.
 ///
@@ -17,7 +17,7 @@
 /// # What the caller owes
 ///
 /// A `Seen` means something only against the `Watch` it was polled with. The
-/// type system does not enforce that — there is no lifetime or channel
+/// type system does not enforce that -- there is no lifetime or channel
 /// parameter on it, deliberately, so that a consumer can keep an array of them
 /// beside an array of watches. Poll a `Seen` against a different signal and it
 /// answers about a sequence number that signal assigned to something else: a

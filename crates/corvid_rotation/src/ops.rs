@@ -1,19 +1,19 @@
 //! The rotation operation family: axis-angle, Euler, `look_to`, arcs and steps.
 //!
 //! Everything is written once against [`Versor`] and forwarded from [`Basis`],
-//! except where the matrix form is strictly better — [`Basis::look_to`] and
+//! except where the matrix form is strictly better -- [`Basis::look_to`] and
 //! [`Basis::from_yaw_pitch_roll`] build the matrix directly, because their
 //! answer *is* a set of axes.
 //!
 //! # Conventions this module nails down
 //!
 //! Yaw rotates about **+Z**, pitch about **+X**, roll about **+Y**, and Euler
-//! composition is **ZXY intrinsic**: `R = Rz(yaw) · Rx(pitch) · Ry(roll)`. Yaw
+//! composition is **ZXY intrinsic**: `R = Rz(yaw) * Rx(pitch) * Ry(roll)`. Yaw
 //! and roll take [`Angle32`] because they wrap; pitch takes [`Pitch32`] because
-//! it clamps, which is exactly right for a head pose — looking too far up
+//! it clamps, which is exactly right for a head pose -- looking too far up
 //! leaves you looking up rather than upside down.
 //!
-//! `right = forward × up`, consistent with `X × Y = Z`.
+//! `right = forward x up`, consistent with `X x Y = Z`.
 
 use corvid_fixed::{Angle32, I2F30, Pitch32, Signed32};
 use corvid_vector::Direction;
@@ -25,20 +25,20 @@ use crate::versor::Versor;
 /// `1.0` at the Q30 scale.
 const ONE: i64 = 1 << 30;
 
-/// How close `sin(pitch)` must come to `±1` before yaw and roll are treated as
+/// How close `sin(pitch)` must come to `+/-1` before yaw and roll are treated as
 /// degenerate, in Q30 last bits.
 ///
 /// Derived rather than picked. Outside the branch `to_yaw_pitch_roll` reads
 /// yaw off `atan2(-m01, m11)`, whose two arguments are both `cos(pitch)` times
 /// something bounded by one; the quantization floor is a Q30 last bit, so the
-/// bearing carries about `log2(cos(pitch) · 2^30)` bits. With
-/// `|m21| = 1 − k/2^30`, `cos(pitch) ≈ √(2k)·2^-15`, so `k = 1 << 7` leaves
-/// `cos(pitch) ≥ 4.9e-4` — 19 bits, an angular floor near `1e-4°`, comfortably
-/// under the `0.005°` the codec itself carries.
+/// bearing carries about `log2(cos(pitch) * 2^30)` bits. With
+/// `|m21| = 1 - k/2^30`, `cos(pitch) ~= sqrt(2k)*2^-15`, so `k = 1 << 7` leaves
+/// `cos(pitch) >= 4.9e-4` -- 19 bits, an angular floor near `1e-4 deg`, comfortably
+/// under the `0.005 deg` the codec itself carries.
 ///
-/// The previous `1 << 12` fired from **89.84°**, where `cos(pitch)` is still
+/// The previous `1 << 12` fired from **89.84 deg**, where `cos(pitch)` is still
 /// `2.8e-3` and roll is fully determined; discarding it and attributing the
-/// whole turn to yaw cost `0.30°` of round-trip error — 60× the codec floor —
+/// whole turn to yaw cost `0.30 deg` of round-trip error -- 60x the codec floor --
 /// in a band head tracking passes through routinely.
 const POLE_MARGIN: i64 = 1 << 7;
 
@@ -149,13 +149,13 @@ impl Versor {
         // from `from`.
         //
         // The test is on `dot` alone. Also requiring the cross product to be
-        // *exactly* zero — as this once did — narrowed the branch to exactly
+        // *exactly* zero -- as this once did -- narrowed the branch to exactly
         // opposite inputs and nothing else: at the edge of this window the two
-        // are `0.04°` from opposite, where the cross is still about `2^19` at
+        // are `0.04 deg` from opposite, where the cross is still about `2^19` at
         // Q30. Everything between there and exact opposition fell through to
         // the formula below, where `1 + dot` has underflowed to a handful of
         // last bits and the cross carries as few, and came back a rotation
-        // missing `to` by degrees — 2.8° at `0.006°` of separation, over 100°
+        // missing `to` by degrees -- 2.8 deg at `0.006 deg` of separation, over 100 deg
         // below that.
         if dot <= -ONE + (1 << 8) {
             let axis = perpendicular_to(f);
@@ -183,7 +183,7 @@ impl Versor {
     /// The rotation looking along `forward` with `up` overhead.
     ///
     /// Returns `None` when `forward` and `up` are parallel **or when either is
-    /// zero-length** — a zero vector has no direction to normalize, and the
+    /// zero-length** -- a zero vector has no direction to normalize, and the
     /// parallel test alone would not catch it.
     #[must_use]
     #[inline]
@@ -201,15 +201,16 @@ impl Versor {
     /// # Precision near zero
     ///
     /// This is the `acos` form, and `acos` is ill-conditioned at `1`: near
-    /// zero the answer goes as `√(2ε)` in the dot product's error, so a last
-    /// bit of `I2F30` — `9.3e-10` — becomes about **0.0025°** of reported
-    /// angle. Two rotations this function calls 0.002° apart may be bit-
+    /// zero the answer goes as `sqrt(2 * epsilon)` in the dot product's error, so a
+    /// last
+    /// bit of `I2F30` -- `9.3e-10` -- becomes about **0.0025 deg** of reported
+    /// angle. Two rotations this function calls 0.002 deg apart may be bit-
     /// identical.
     ///
-    /// That is fine for what the operation is for — steering, thresholds,
-    /// [`rotate_towards`](Self::rotate_towards) — but it makes `angle_to` the
+    /// That is fine for what the operation is for -- steering, thresholds,
+    /// [`rotate_towards`](Self::rotate_towards) -- but it makes `angle_to` the
     /// wrong tool for *measuring* a codec, which is why the crate's own error
-    /// statistics use the chord form `4·asin(chord/2)` in `f64` instead. To
+    /// statistics use the chord form `4*asin(chord/2)` in `f64` instead. To
     /// compare two rotations for near-equality, reach for
     /// [`abs_diff_eq`](Self::abs_diff_eq) on the components.
     #[must_use]
@@ -228,7 +229,7 @@ impl Versor {
     #[inline]
     pub const fn rotate_towards(self, target: Self, max_step: Angle32) -> Self {
         // One dot and one `acos` for the whole call. Going through `angle_to`
-        // and then `slerp` computed both twice — and `acos` is the slowest
+        // and then `slerp` computed both twice -- and `acos` is the slowest
         // function in `corvid_fixed`, so on a per-entity-per-frame steering
         // call that second one was about a third of the cost.
         let signed = self.dot(target).to_bits() as i64;
@@ -305,7 +306,7 @@ impl Basis {
     }
 
     /// Builds a rotation from yaw, pitch and roll. **ZXY intrinsic**:
-    /// `R = Rz(yaw) · Rx(pitch) · Ry(roll)`.
+    /// `R = Rz(yaw) * Rx(pitch) * Ry(roll)`.
     ///
     /// Yaw is about **+Z**, pitch about **+X**, roll about **+Y**. All three
     /// zero gives [`IDENTITY`](Self::IDENTITY), which faces +Y with +Z up.
@@ -335,7 +336,7 @@ impl Basis {
         let m12 = sy * sr - mul3(cy, sp, cr);
 
         let m20 = -(cp * sr);
-        // `sin(pitch)` outright — the one entry that is not already a product,
+        // `sin(pitch)` outright -- the one entry that is not already a product,
         // so it needs a `* ONE` to reach the Q60 the others land at.
         let m21 = sp * ONE;
         let m22 = cp * cr;
@@ -349,7 +350,7 @@ impl Basis {
 
     /// The yaw, pitch and roll of this rotation. **ZXY intrinsic.**
     ///
-    /// At the poles — pitch at ±a quarter turn — yaw and roll are degenerate;
+    /// At the poles -- pitch at +/-a quarter turn -- yaw and roll are degenerate;
     /// roll is reported as zero and the whole turn attributed to yaw.
     #[must_use]
     #[inline]
@@ -367,9 +368,9 @@ impl Basis {
         // Near the poles `cos(pitch)` vanishes and only a combination of yaw and
         // roll is determined; give the whole turn to yaw and report zero roll.
         //
-        // Which combination it is depends on which pole: at `+90°` the free
+        // Which combination it is depends on which pole: at `+90 deg` the free
         // parameter is `yaw + roll` and the top row reads `(cos, 0, sin)` of
-        // it; at `-90°` it is `yaw − roll` and the sine comes back negated.
+        // it; at `-90 deg` it is `yaw - roll` and the sine comes back negated.
         if m21.abs() >= ONE - POLE_MARGIN {
             let m00 = m[0][0].to_bits() as i64;
             let m02 = m[0][2].to_bits() as i64;
@@ -388,7 +389,7 @@ impl Basis {
 
     /// The rotation looking along `forward` with `up` overhead.
     ///
-    /// `right = forward × up`, then `up = right × forward` — so the returned
+    /// `right = forward x up`, then `up = right x forward` -- so the returned
     /// basis has `forward` as column 1 and a genuinely orthonormal frame even
     /// when the supplied `up` was not perpendicular.
     ///
@@ -474,15 +475,15 @@ const fn axis_entry(value: Signed32) -> I2F30 {
     I2F30::from_bits(q30_from_signed(value) as i32)
 }
 
-/// `a × b`, normalized, without the round trip through a unit-scaled
+/// `a x b`, normalized, without the round trip through a unit-scaled
 /// [`Direction`].
 ///
 /// [`Direction::cross`] divides its `i64` cross terms back onto `Signed32`'s
-/// `±1` before returning, which keeps only the bits *above* the cross product's
-/// own magnitude. For two nearly parallel directions that magnitude is tiny —
-/// it goes as the sine of the angle between them — so almost nothing survives
+/// `+/-1` before returning, which keeps only the bits *above* the cross product's
+/// own magnitude. For two nearly parallel directions that magnitude is tiny --
+/// it goes as the sine of the angle between them -- so almost nothing survives
 /// the division, and the `normalize` that follows amplifies what is left of the
-/// rounding rather than a direction. At `0.006°` of separation that made
+/// rounding rather than a direction. At `0.006 deg` of separation that made
 /// [`Basis::look_to`] hand back a frame skewed by a third of a degree, and a
 /// tenth of that separation cost ten.
 ///
@@ -490,7 +491,7 @@ const fn axis_entry(value: Signed32) -> I2F30 {
 /// `i64` products carried; [`Direction::normalize`] cares only about ratios, so
 /// the shift costs nothing at all.
 ///
-/// `None` when the two are parallel — including when either is zero — which is
+/// `None` when the two are parallel -- including when either is zero -- which is
 /// the only case with no answer.
 #[inline]
 const fn cross_normalized(a: Direction, b: Direction) -> Option<Direction> {

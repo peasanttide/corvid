@@ -3,8 +3,8 @@
 //! A pitch is an [angle](super::angle) that stops instead of wrapping:
 //! [`MAX`](Pitch16::MAX) is exactly `+pi/2` and [`MIN`](Pitch16::MIN) is exactly
 //! `-pi/2`, both inclusive, and arithmetic saturates at them. That is what a
-//! camera's vertical look wants — pitch past straight up should stay at straight
-//! up, not flip the world over — and equally what a latitude, an elevation, or a
+//! camera's vertical look wants -- pitch past straight up should stay at straight
+//! up, not flip the world over -- and equally what a latitude, an elevation, or a
 //! slope wants.
 //!
 //! # Units shared with yaw
@@ -17,10 +17,10 @@
 //! the same code the wrapping angles use.
 //!
 //! The cost is one bit of the storage type: [`Pitch16`] only ever holds
-//! `-16384 ..= 16384` of `i16`'s range. Bit patterns outside that are accepted —
+//! `-16384 ..= 16384` of `i16`'s range. Bit patterns outside that are accepted --
 //! keeping [`from_bits`](Pitch16::from_bits) the exact inverse of
-//! [`to_bits`](Pitch16::to_bits), so `bytemuck` and `serde` stay faithful — and
-//! read as `±pi/2`, exactly as though they had been clamped. Arithmetic
+//! [`to_bits`](Pitch16::to_bits), so `bytemuck` and `serde` stay faithful -- and
+//! read as `+/-pi/2`, exactly as though they had been clamped. Arithmetic
 //! canonicalizes, so no operation ever produces one.
 
 use super::angle::{Angle8, Angle16, Angle32};
@@ -266,7 +266,7 @@ macro_rules! define_pitch {
             /// Free: the two types share a scale, so for every value in range
             /// this is the identity on the bit pattern. A bit pattern from
             /// *outside* the range is clamped first, exactly as
-            /// [`canonicalize`](Self::canonicalize) would — this reads the
+            /// [`canonicalize`](Self::canonicalize) would -- this reads the
             /// pitch's value, so it cannot hand on a phase the type does not
             /// mean. Round-tripping raw bytes is [`to_bits`](Self::to_bits)'s
             /// job, not this one.
@@ -297,7 +297,7 @@ macro_rules! define_pitch {
 
             #[doc = concat!("The sine, as a [`", stringify!($signed), "`].")]
             ///
-            /// Correctly rounded, and exactly `±1` at `±pi/2`. Spans the whole
+            /// Correctly rounded, and exactly `+/-1` at `+/-pi/2`. Spans the whole
             /// output range, since pitch covers a full quarter turn either way.
             #[must_use]
             #[inline]
@@ -370,7 +370,7 @@ macro_rules! define_pitch {
             /// The inverse of [`sin`](Self::sin), and the reason this type's range
             /// is what it is: arcsine's output is exactly a quarter turn either
             /// side of zero, so every result is representable and nothing clamps.
-            /// Exact at `±1`, which map to `±pi/2`.
+            /// Exact at `+/-1`, which map to `+/-pi/2`.
             ///
             /// The phase arrives already signed, so the negative half needs no
             /// wrapping reinterpretation on the way into this type's storage.

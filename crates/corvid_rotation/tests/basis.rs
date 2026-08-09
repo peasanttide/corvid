@@ -124,7 +124,7 @@ fn composition_is_associative() {
 
 #[test]
 fn compose_applies_the_right_hand_operand_first() {
-    // a.compose(b) applies b first, then a — matrix multiplication order and
+    // a.compose(b) applies b first, then a -- matrix multiplication order and
     // glam's Mul. This test fails if the order is ever flipped.
     let yaw = Basis::from_yaw_pitch_roll(Angle32::from_degrees(90.0), Pitch32::ZERO, Angle32::ZERO);
     let pitch =
@@ -232,7 +232,7 @@ fn versor_composition_matches_matrix_composition() {
 
 #[test]
 fn repeated_composition_drifts_slowly_and_renormalize_fixes_it() {
-    // `compose` deliberately does not renormalize — folding an `rsqrt` into it
+    // `compose` deliberately does not renormalize -- folding an `rsqrt` into it
     // would cost an order of magnitude and hand the win back to the matrix. The
     // price is a slow drift off the unit sphere, and this test states its size.
     let mut rng = Rng::new(0xD21F_0013);
@@ -283,7 +283,7 @@ fn negating_a_versor_names_the_same_rotation() {
     for _ in 0..20_000 {
         let q = common::random_versor(&mut rng);
         // The matrix form is the sign-free statement of "same rotation", and
-        // it is exact — unlike `angle_to`, whose `acos` cannot resolve zero.
+        // it is exact -- unlike `angle_to`, whose `acos` cannot resolve zero.
         assert_eq!(q.to_basis(), q.negate().to_basis());
         assert_eq!(q.negate().negate(), q);
         assert!(q.angle_to(q.negate()).to_degrees() < 0.01);

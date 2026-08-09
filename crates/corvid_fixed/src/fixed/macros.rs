@@ -8,8 +8,8 @@
 //! and the `num-traits` glue.
 //!
 //! The generated types are separate structs rather than aliases of one generic
-//! type. That keeps the families from mixing — a [`Factor16`](crate::Factor16)
-//! cannot be added to an [`Angle16`](crate::Angle16) — and keeps rustdoc showing
+//! type. That keeps the families from mixing -- a [`Factor16`](crate::Factor16)
+//! cannot be added to an [`Angle16`](crate::Angle16) -- and keeps rustdoc showing
 //! concrete signatures.
 //!
 //! # Contract
@@ -29,8 +29,8 @@
 ///
 /// Comparison, hashing, and formatting are deliberately not derived:
 /// [`impl_shared`] routes them through `cmp_key`, so that the signed-normalized
-/// family's two encodings of `-1.0` — and a pitch's bit patterns from outside
-/// `MIN ..= MAX` — behave as the one value they denote.
+/// family's two encodings of `-1.0` -- and a pitch's bit patterns from outside
+/// `MIN ..= MAX` -- behave as the one value they denote.
 macro_rules! define_newtype {
     (
         $(#[$attr:meta])*
@@ -77,13 +77,13 @@ macro_rules! impl_shared {
 
             /// Returns the lesser of two values.
             ///
-            /// The result is canonical. Where `cmp_key` folds — the
-            /// signed-normalized denormal, a pitch's out-of-range bits — the
+            /// The result is canonical. Where `cmp_key` folds -- the
+            /// signed-normalized denormal, a pitch's out-of-range bits -- the
             /// folded pattern is what comes back, so a bit pattern the type does
             /// not mean cannot leave through `min`, `max`, or `clamp`.
             /// [`Ord`]'s same-named methods forward here rather than using their
             /// defaults, so generic `T: Ord` code gets the same guarantee.
-            /// Picking a value out some other way — [`Iterator::max`], a sort —
+            /// Picking a value out some other way -- [`Iterator::max`], a sort --
             /// hands back the element as it was given, bits and all.
             #[must_use]
             #[inline]
@@ -313,8 +313,8 @@ macro_rules! impl_num_traits_shared {
         impl ::num_traits::ToPrimitive for $name {
             /// The integer part, truncated toward zero.
             ///
-            /// Routed through `f64`, so for [`I48F16`](crate::I48F16) — whose
-            /// [`to_f64`](Self::to_f64) is lossy — the answer can be one
+            /// Routed through `f64`, so for [`I48F16`](crate::I48F16) -- whose
+            /// [`to_f64`](Self::to_f64) is lossy -- the answer can be one
             /// greater than the true integer part, and can exceed the type's
             /// own range. Reach for `to_bits() >> FRAC_BITS` when that
             /// matters.

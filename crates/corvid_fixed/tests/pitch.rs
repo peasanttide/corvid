@@ -131,7 +131,7 @@ fn min_max_and_clamp_return_canonical_bits() {
         assert_eq!(result.to_bits(), Pitch16::MAX.to_bits());
     }
 
-    // Every width, and the low end too — through `min` and `max` directly as
+    // Every width, and the low end too -- through `min` and `max` directly as
     // well as through the `clamp` built on them.
     let low8 = Pitch8::from_bits(i8::MIN);
     assert_eq!(low8.clamp(Pitch8::MIN, Pitch8::MAX).to_bits(), -64);
@@ -192,7 +192,7 @@ fn the_ord_trait_path_canonicalizes_too() {
 
     // The edge of the guarantee: selecting an element rather than computing a
     // result hands back what it was given. `Iterator::max` compares with `cmp`
-    // and returns the element, so a raw pattern survives — the caller wanting
+    // and returns the element, so a raw pattern survives -- the caller wanting
     // canonical bits asks for them.
     let picked = [raw, Pitch16::ZERO].into_iter().max();
     assert_eq!(picked.map(Pitch16::to_bits), Some(30_000));

@@ -3,7 +3,7 @@
 Deterministic fixed-point 3-vectors for
 [Corvid](https://github.com/peasanttide/corvid), built on
 [`corvid_fixed`](https://docs.rs/corvid_fixed). Four concrete types, no
-generics, every operation `const` and integer-only — so the same inputs give
+generics, every operation `const` and integer-only -- so the same inputs give
 the same bits on every machine running the simulation.
 
 ```rust
@@ -24,7 +24,7 @@ let offset = target - camera;
 assert_eq!(offset.x().to_bits(), I48F16::from_f64(0.001).to_bits());
 
 // Squared lengths come back in the widened intermediate, not the component
-// type — see below for why that is not a mistake.
+// type -- see below for why that is not a mistake.
 let p = GlobalPoint::new(I24F8::from_f64(3.0), I24F8::from_f64(4.0), I24F8::ZERO);
 assert_eq!(p.length(), I24F8::from_f64(5.0));
 
@@ -38,9 +38,9 @@ assert!((unit.x().to_f64() - 0.6).abs() < 1e-6);
 
 | Type | Component | Range | Resolution | Role |
 |---|---|---|---|---|
-| [`GlobalFinePoint`] | `I48F16` | ±1.407e14 m | 15.26 µm | Camera and VR pose position |
-| [`GlobalPoint`] | `I24F8` | ±8388 km | 3.9 mm | Object position; everyday offset |
-| [`FinePoint`] | `I16F16` | ±32.7 km | 15.26 µm | Render and VR near-field |
+| [`GlobalFinePoint`] | `I48F16` | +/-1.407e14 m | 15.26 um | Camera and VR pose position |
+| [`GlobalPoint`] | `I24F8` | +/-8388 km | 3.9 mm | Object position; everyday offset |
+| [`FinePoint`] | `I16F16` | +/-32.7 km | 15.26 um | Render and VR near-field |
 | [`Direction`] | `Signed32` | unit | 4.7e-10 | Unit directions and rotation axes |
 
 The names read as two independent axes: *Global* means wide range, *Fine* means
@@ -48,7 +48,7 @@ high resolution. [`GlobalFinePoint`] is both, and pays for it in width;
 [`GlobalFinePoint`] and [`FinePoint`] share a resolution and differ only in
 range.
 
-Points double as offsets. There is no separate point/vector distinction — the
+Points double as offsets. There is no separate point/vector distinction -- the
 same choice Godot and Unity make, and a separate `GlobalPointOffset` would
 double the API for no caught bug.
 
@@ -58,14 +58,14 @@ every operation here is `const`.
 
 ## Squared length does not return the component type
 
-The obvious signature is a trap. [`GlobalPoint`]'s components reach ±8388608,
-so the raw sum of three squares reaches `3 × 2^62` — **past `i64::MAX`** — and
+The obvious signature is a trap. [`GlobalPoint`]'s components reach +/-8388608,
+so the raw sum of three squares reaches `3 x 2^62` -- **past `i64::MAX`** -- and
 expressing the result back in `I24F8` would saturate for any vector longer than
 **1672 m**. A `length_squared` that silently returns `MAX` for a 2 km offset is
 worse than no `length_squared` at all.
 
 So squared magnitudes return the widened *unsigned* intermediate, in units of
-`DELTA²`:
+`DELTA^2`:
 
 ```rust
 use corvid_fixed::I24F8;
@@ -78,7 +78,7 @@ assert_eq!(p.length_squared(), 3 * (component * component) as u64);
 
 `GlobalPoint::length_squared` and `FinePoint::length_squared` return `u64`;
 `GlobalFinePoint::length_squared` returns `u128`. This is lossless over the
-whole range and answers the question the operation is actually for — comparing
+whole range and answers the question the operation is actually for -- comparing
 and sorting distances without a square root.
 
 `length` and `distance` do return the component type, computed the way
@@ -97,7 +97,7 @@ let coarse = GlobalPoint::splat(I24F8::from_f64(1234.5));
 assert_eq!(coarse.to_global_fine().to_global(), Some(coarse));
 
 // Total but lossy: I16F16's whole range fits I24F8, at 3.9 mm instead of
-// 15.26 um. Rounded once — half a coarse step rounds up.
+// 15.26 um. Rounded once -- half a coarse step rounds up.
 let half_step = FinePoint::new(I16F16::from_bits(128), I16F16::ZERO, I16F16::ZERO);
 assert_eq!(half_step.to_global().x().to_bits(), 1);
 
@@ -117,7 +117,7 @@ assert_eq!(far.to_fine(), None);
 | `GlobalPoint::to_fine` | range-checked, exact |
 
 [`GlobalFinePoint::to_fine`] is the important one. Because both types carry 16
-fractional bits, it is a **pure range check on the integer part — `i64 as i32`
+fractional bits, it is a **pure range check on the integer part -- `i64 as i32`
 after a bounds test, with no rounding at all**. The near-field conversion a
 renderer runs thousands of times per frame is exact by construction, not exact
 within a tolerance.
@@ -125,16 +125,16 @@ within a tolerance.
 ## Normalizing
 
 [`normalize`](GlobalPoint::normalize) returns `Option<Direction>`, and `None`
-only for the zero vector — which has no direction, and is the sole failure.
+only for the zero vector -- which has no direction, and is the sole failure.
 
 Only the ratios of the components matter, so one implementation serves all four
 widths without ever touching the component scale. Rescaling is a shift rather
 than a divide, so the same direction at two magnitudes can differ in the last
-bit or two — deterministic, not magnitude-independent to the bit. It costs one
+bit or two -- deterministic, not magnitude-independent to the bit. It costs one
 [`I2F30::rsqrt`](corvid_fixed::I2F30::rsqrt), three multiplies and a few
 shifts, with no division anywhere. The reduction it performs is why `I2F30`
 has the shape it does: the sum of squares relative to the largest component
-lands in `[0.25, 3]`, which does not fit a type that stops at `±2`, but an
+lands in `[0.25, 3]`, which does not fit a type that stops at `+/-2`, but an
 even shift always brings it into `[0.25, 1)`, and `rsqrt` of *that* lands in
 `(1, 2]`, which fits exactly.
 

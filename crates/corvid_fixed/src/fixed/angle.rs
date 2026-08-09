@@ -29,13 +29,13 @@
 //!   [`atan2_fast`](Angle16::atan2_fast) trade accuracy for speed: worst-case
 //!   error is `1.2e-3` for sine and `4.4e-3` radians for arctangent.
 //!   Exact enough for [`Angle8`]/[`Signed8`], coarse for the
-//!   wider types. They are also 32-bit clean — no 64-bit intermediate, and no
-//!   operation `WGSL` lacks — so they transcribe directly into a shader, which
+//!   wider types. They are also 32-bit clean -- no 64-bit intermediate, and no
+//!   operation `WGSL` lacks -- so they transcribe directly into a shader, which
 //!   is why [`atan2_fast`](Angle16::atan2_fast) takes `i32` coordinates where
 //!   [`atan2`](Angle16::atan2) takes `i64`.
 //!
 //! Both tiers are `const` and use only integer arithmetic, so results are
-//! bit-identical on every target — a requirement for the deterministic
+//! bit-identical on every target -- a requirement for the deterministic
 //! simulation this crate exists to serve.
 
 use super::factor::{Factor8, Factor16, Factor32};
@@ -107,7 +107,7 @@ macro_rules! define_angle {
             pub const fn from_turns(turns: f64) -> Self {
                 // Discard whole turns before scaling. `turns * Self::TURN`
                 // alone leaves the `i64` the cast goes through once `|turns|`
-                // reaches `2^(63 - BITS)` — only `2^31` turns for `Angle32` —
+                // reaches `2^(63 - BITS)` -- only `2^31` turns for `Angle32` --
                 // and the cast would then saturate instead of wrapping,
                 // silently returning an angle near a full turn for an input
                 // that should have wrapped to a quarter of one. The remainder
@@ -200,8 +200,8 @@ macro_rules! define_angle {
             ///
             /// Accepts exactly what lands on a bit pattern of the *same* turn:
             /// `-0.5` of a step below zero up to half a step below a full turn.
-            /// A value inside `0.0 .. 1.0` that rounds up onto the full turn —
-            /// `0.999` for an [`Angle8`], whose steps are `1/256` — is
+            /// A value inside `0.0 .. 1.0` that rounds up onto the full turn --
+            /// `0.999` for an [`Angle8`], whose steps are `1/256` -- is
             /// therefore rejected, because the angle it produces is `ZERO`
             /// rather than anything near the input.
             ///
@@ -267,7 +267,7 @@ macro_rules! define_angle {
             #[doc = concat!("Interpolates toward `to` along the shortest arc, using a [`", stringify!($factor), "`] weight.")]
             ///
             /// The wrapped difference between two angles, read as a signed
-            /// offset, *is* the shortest arc — so interpolation takes the short
+            /// offset, *is* the shortest arc -- so interpolation takes the short
             /// way around with no special cases. When the two are exactly
             /// opposite there is no shorter way, and the tie breaks
             /// **clockwise**: a half-turn difference reads as
@@ -326,8 +326,8 @@ macro_rules! define_angle {
 
             /// The sine, approximately.
             ///
-            /// Worst-case error is `1.2e-3` — measured at `1.1111e-3`, over
-            /// every one of the 2^32 phases — from a parabola corrected by a
+            /// Worst-case error is `1.2e-3` -- measured at `1.1111e-3`, over
+            /// every one of the 2^32 phases -- from a parabola corrected by a
             /// second parabola in its own output. Exact at multiples of a
             /// quarter turn, and exactly odd in the phase. Within a bit for
             /// [`Signed8`] outputs; about 36 bits coarse for [`Signed16`].
@@ -378,12 +378,12 @@ macro_rules! define_angle {
             /// the positive `x` axis.
             ///
             /// Scale invariant: only the ratio matters, so any consistent units
-            /// work — raw fixed-point bits, integer grid coordinates, pixel
+            /// work -- raw fixed-point bits, integer grid coordinates, pixel
             /// offsets. Both arguments must be in the *same* units. `(0, 0)`
             /// returns [`ZERO`](Self::ZERO).
             ///
-            /// Computed by CORDIC, which needs only shifts and adds — no
-            /// division — and lands within one bit of this type.
+            /// Computed by CORDIC, which needs only shifts and adds -- no
+            /// division -- and lands within one bit of this type.
             #[must_use]
             #[inline]
             pub const fn atan2(y: i64, x: i64) -> Self {
@@ -453,7 +453,7 @@ define_angle! {
     /// | Range | one full turn |
     /// | Resolution | `1/256` turn, or 1.40625 degrees |
     ///
-    /// Coarse, but a whole heading in one byte — and coarse enough that
+    /// Coarse, but a whole heading in one byte -- and coarse enough that
     /// [`sin_fast`](Self::sin_fast) is already accurate to the last bit of its
     /// [`Signed8`] output.
     ///
@@ -540,8 +540,8 @@ define_angle! {
     /// | Resolution | `1/2^32` turn, or about `8.4e-8` degrees |
     ///
     /// Finer than `f32` can represent anywhere on the circle. Trigonometry costs
-    /// the same as the narrower angles — the shared core computes every result
-    /// at 60 fractional bits regardless — but the wider [`Signed32`] output is
+    /// the same as the narrower angles -- the shared core computes every result
+    /// at 60 fractional bits regardless -- but the wider [`Signed32`] output is
     /// what makes that precision visible.
     ///
     /// # Examples

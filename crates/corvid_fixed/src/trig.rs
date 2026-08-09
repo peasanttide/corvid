@@ -9,7 +9,7 @@
 //!
 //! # Internal representation
 //!
-//! Values are `i64` in Q60 — an integer `v` denotes `v / 2^60`. That leaves 60
+//! Values are `i64` in Q60 -- an integer `v` denotes `v / 2^60`. That leaves 60
 //! fractional bits against the 4.7e-10 resolution of
 //! [`Signed32`](crate::Signed32), so rounding noise in the pipeline lands about
 //! nine orders of magnitude below the last bit of the widest output.
@@ -31,14 +31,14 @@
 //! Q60 is not enough to round the sine correctly at 32-bit output. Deciding which
 //! way a value lands needs it known to better than the closest a true sine gets to
 //! a rounding boundary, and over 2^32 arguments against a 2^31 output range that
-//! is around `2^-63` — three orders of magnitude past the `2^-44` the seven-term
+//! is around `2^-63` -- three orders of magnitude past the `2^-44` the seven-term
 //! Q60 polynomial achieves.
 //!
 //! So [`sin_snorm`] runs two stages. The Q60 path answers first, and its result is
 //! accepted unless it lands within its own proven error bound of a rounding
 //! boundary, which happens for about one 32-bit phase in 256. Those few recompute
 //! in [`sin_q_wide`], a Q100 mirror of the same algorithm whose error sits near
-//! `2^-87` — some 24 bits of margin over the closest approach. Q100 needs 200-bit
+//! `2^-87` -- some 24 bits of margin over the closest approach. Q100 needs 200-bit
 //! products, which is what [`mul_shift`] is for; there is no 256-bit integer type
 //! to lean on.
 //!
@@ -131,7 +131,7 @@ const TURNS_PER_RADIAN: i64 = (((ONE as i128) << Q) / (TWO_PI as i128)) as i64;
 /// Number of CORDIC rotations performed by [`atan2_bits`].
 ///
 /// The residual angle after `n` rotations is bounded by `atan(2^-n)`, so 40
-/// rotations leave under 1e-12 radians of error — three orders of magnitude finer
+/// rotations leave under 1e-12 radians of error -- three orders of magnitude finer
 /// than the 1.5e-9 radian last bit of [`Angle32`](crate::Angle32).
 const CORDIC_ITERS: usize = 40;
 
@@ -141,7 +141,7 @@ const CORDIC_ITERS: usize = 40;
 /// the vector magnitude reaches `2^61 * sqrt(2)` on the diagonal. The rotations
 /// then grow it by the CORDIC gain, about 1.647, and the working scale needs
 /// headroom above both: `2^61 * sqrt(2) * 1.647` still fits `i64`. Precision
-/// below is not a concern — each rotation's truncation costs one unit against a
+/// below is not a concern -- each rotation's truncation costs one unit against a
 /// magnitude of `2^61`.
 const CORDIC_SCALE_BITS: u32 = 61;
 
@@ -203,7 +203,7 @@ const fn horner(x2: i64, coefficients: &[i64; TERMS]) -> i64 {
 /// Evaluates `sin(x)` in Q60 for `0 <= x <= pi/4`.
 ///
 /// Seven terms. The first omitted term is `x^15 / 15!`, which peaks at 2.0e-14
-/// over this interval — four orders of magnitude below the last bit of the widest
+/// over this interval -- four orders of magnitude below the last bit of the widest
 /// output type.
 const fn sin_poly(x: i64) -> i64 {
     mulq(x, horner(mulq(x, x), &SIN_COEFFICIENTS))
@@ -260,7 +260,7 @@ pub(crate) const fn cos_q(phase: u32) -> i64 {
 /// Returns `sin(2*pi * phase / 2^32)` in Q30 using a cheap approximation.
 ///
 /// A parabola through the sine's zeros and peak, corrected by a second parabola
-/// in its own output — the classic `0.775 * y + 0.225 * y * |y|` refinement. The
+/// in its own output -- the classic `0.775 * y + 0.225 * y * |y|` refinement. The
 /// values at multiples of a quarter turn are exact.
 ///
 /// # Thirty-two bits
@@ -302,7 +302,7 @@ pub(crate) const fn sin_fast_q30(phase: u32) -> i32 {
     // and the cosine an exactly even one, which a one-sided shift of the phase
     // cannot manage. Written with `abs` rather than the equivalent comparison
     // because the phase is unpredictable, so the branch it compiles to is one
-    // the processor cannot call — measured 20% off the whole function — and a
+    // the processor cannot call -- measured 20% off the whole function -- and a
     // shader would pay more again for the divergence.
     let half = (phase & (HALF_TURN - 1)) as i32;
     let folded = QUARTER_TURN - (half - QUARTER_TURN).abs();
@@ -341,7 +341,7 @@ pub(crate) const fn sin_fast_q30(phase: u32) -> i32 {
 /// available here, so the scale is split by width. Up to sixteen bits the value
 /// is halved to Q15 first, leaving a product of two 16-bit numbers. At 32 bits
 /// `max` is `2^31 - 1`, so the answer is `2v - v/2^30` and the second term is
-/// zero or one — evaluated in `u32`, where `2v` still has somewhere to live.
+/// zero or one -- evaluated in `u32`, where `2v` still has somewhere to live.
 pub(crate) const fn q30_to_snorm(v: i32, max: i32, bits: u32) -> i32 {
     let magnitude = v.unsigned_abs();
     let scaled = if bits >= 32 {
@@ -371,7 +371,7 @@ pub(crate) const fn q_to_snorm(v: i64, max: i64) -> i64 {
 /// One over a signed-normalized scale, in Q60 with 32 guard bits.
 ///
 /// [`asin_bits`] takes this rather than computing it, because a caller can
-/// evaluate it as a `const` — its scale is always a type's `MAX` — and a runtime
+/// evaluate it as a `const` -- its scale is always a type's `MAX` -- and a runtime
 /// 128-bit division would otherwise cost more than the rest of the arcsine put
 /// together.
 ///
@@ -399,7 +399,7 @@ const LIMB: u128 = u64::MAX as u128;
 ///
 /// Rust has no 256-bit integer, so the product is assembled from four 64-bit
 /// limbs by hand. Signs are stripped first and reapplied at the end, which keeps
-/// the limb arithmetic unsigned and makes the truncation symmetric about zero —
+/// the limb arithmetic unsigned and makes the truncation symmetric about zero --
 /// the same convention [`q_to_snorm`] already rounds under.
 const fn mul_shift(a: i128, b: i128, shift: u32) -> i128 {
     let negative = (a < 0) != (b < 0);
@@ -528,7 +528,7 @@ const fn sin_q_wide(phase: u32) -> i128 {
 ///
 /// [`mul_shift`] truncates, so the product is taken this many bits finer than the
 /// answer needs and the discarded remainder is worth at most `2^-60` of a last
-/// bit — far below the polynomial's own error, and far below the closest a true
+/// bit -- far below the polynomial's own error, and far below the closest a true
 /// sine comes to a rounding boundary.
 const WIDE_GUARD: u32 = 60;
 
@@ -549,7 +549,7 @@ const fn q_to_snorm_wide(v: i128, max: i64) -> i64 {
 /// Worst-case error of [`sin_q`], in Q60 units.
 ///
 /// Dominated by the cosine polynomial's first omitted term, `x^14 / 14!`, which
-/// peaks at 3.9e-13 over the first octant — about `2^18.8` here. The rest is
+/// peaks at 3.9e-13 over the first octant -- about `2^18.8` here. The rest is
 /// small change: seven truncations inside [`horner`], one in the argument
 /// reduction, and the error carried by [`TWO_PI`] itself, together under thirty
 /// units. Rounding up to `2^20` leaves better than a factor of two in hand.
@@ -563,7 +563,7 @@ const SIN_Q_ERROR: i64 = 1 << 20;
 /// trusted to land on the right side; those recompute in Q100. The window covers
 /// `2^-8` of the phase space, so about one call in 256 takes the slow path, which
 /// costs the 32-bit sine roughly a tenth of its time overall. The narrower
-/// outputs skip the test entirely — see the comment below.
+/// outputs skip the test entirely -- see the comment below.
 ///
 /// Inlining is not optional here. `max` is a constant at every call site, and the
 /// width test turns into nothing at all once it is one; left out of line, the
@@ -574,7 +574,7 @@ pub(crate) const fn sin_snorm(phase: u32, max: i64) -> i64 {
 
     // Outputs of sixteen bits or fewer never need the exact tier. The Q60 error
     // is 2^-44, nine orders of magnitude below their last bit, and their whole
-    // domain is small enough to prove it rather than argue it — which
+    // domain is small enough to prove it rather than argue it -- which
     // `the_narrow_widths_never_need_the_exact_tier` does, by walking every phase
     // either type can hold and finding Q60 and Q100 already in agreement. `max`
     // is a constant at every call site, so this test costs them nothing at all.
@@ -630,7 +630,7 @@ pub(crate) const fn tan_i24f8(phase: u32) -> i32 {
     let cos = cos_q(phase);
 
     // Dividing by `cos >> 8` yields `sin * 256 / cos` while keeping both operands
-    // inside i64 — `sin << 8` would not fit. The shift leaves the divisor 52
+    // inside i64 -- `sin << 8` would not fit. The shift leaves the divisor 52
     // significant bits, so the quotient stays accurate well past I24F8's
     // resolution everywhere the result is not already saturating.
     let divisor = cos >> 8;
@@ -651,8 +651,8 @@ pub(crate) const fn tan_i24f8(phase: u32) -> i32 {
 ///
 /// The result lies in `-2^(bits-1) ..= 2^(bits-1)`, the phase read as a signed
 /// offset from zero rather than as a position on `0 .. 2^bits`. Casting it to
-/// the caller's storage type — signed for a [pitch](crate::pitch), unsigned
-/// for an [angle](crate::angle) — keeps the `bits` bits that matter and
+/// the caller's storage type -- signed for a [pitch](crate::pitch), unsigned
+/// for an [angle](crate::angle) -- keeps the `bits` bits that matter and
 /// discards the sign extension, which is exactly the wrapping the phase space
 /// wants. Staying signed all the way to that cast is what lets the pitch types
 /// hold the result without a mask-then-reinterpret round trip.
@@ -717,7 +717,7 @@ const fn atan2_q(y: i64, x: i64, iters: usize) -> i64 {
     };
 
     // CORDIC only converges over the right half plane. Rotating a left-half point
-    // by a half turn moves it there, at the cost of a half turn in the result —
+    // by a half turn moves it there, at the cost of a half turn in the result --
     // added back with the sign that keeps the answer in (-pi, pi].
     let base = if px < 0 {
         let half = if py >= 0 { PI } else { -PI };
@@ -758,8 +758,8 @@ pub(crate) const fn atan2_bits(y: i64, x: i64, bits: u32) -> i32 {
 /// over. `max` must be positive, `|value|` must not exceed it, and `reciprocal`
 /// must be [`snorm_reciprocal(max)`](snorm_reciprocal).
 ///
-/// The result is signed, so it drops straight into a [pitch](crate::pitch) —
-/// whose range is exactly the arcsine's — without a wrapping reinterpretation.
+/// The result is signed, so it drops straight into a [pitch](crate::pitch) --
+/// whose range is exactly the arcsine's -- without a wrapping reinterpretation.
 pub(crate) const fn asin_bits(value: i64, max: i64, reciprocal: i128, bits: u32) -> i32 {
     let quarter = 1_i32 << (bits - 2);
 
@@ -1194,7 +1194,7 @@ mod tests {
     ///
     /// This is one half of the correct-rounding argument. It shows the two-stage
     /// dispatch never lets the fast path answer where the fast path is not
-    /// trustworthy — that the shipped sine is, everywhere, the rounding of the
+    /// trustworthy -- that the shipped sine is, everywhere, the rounding of the
     /// Q100 value. The other half is `tests/trig.rs`'s `EXACT` table, which pins
     /// the Q100 value itself against 80-digit arithmetic at the hardest phases
     /// the search could find. Cosine needs no separate pass: it is the sine a

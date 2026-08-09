@@ -73,7 +73,7 @@ macro_rules! define_fixed_point {
                 let low = <$repr>::MIN as f64;
                 // `low - 0.5` is exact only while the repr is narrower than
                 // `f64`'s mantissa. At `i64` it collapses back onto `low`, and
-                // the strict `>` would then reject `MIN` itself — an exactly
+                // the strict `>` would then reject `MIN` itself -- an exactly
                 // representable value. `|| scaled >= low` restores that one
                 // endpoint without loosening any other width: where
                 // `low - 0.5` *is* representable the second test is implied by
@@ -391,18 +391,18 @@ macro_rules! define_fixed_point {
 
             /// The reciprocal square root, correctly rounded.
             ///
-            /// One rounding, from a full-width intermediate — unlike
+            /// One rounding, from a full-width intermediate -- unlike
             /// `x.sqrt().recip()`, which rounds at the square root and again at
             /// the reciprocal, and whose intermediate can saturate on its own
             /// for small `x`. There is no division and no `isqrt` loop: the
             /// estimate is seeded from `leading_zeros` and refined by
-            /// Newton–Raphson, then an exact integer comparison picks between
+            /// Newton-Raphson, then an exact integer comparison picks between
             /// the two neighbouring results.
             ///
             /// Zero and negatives saturate to [`MAX`](Self::MAX), matching how
             /// [`recip`](Self::recip) treats zero. Results above
-            /// [`MAX`](Self::MAX) saturate too, which for [`I0F8`] — whose
-            /// values are all under `0.5` — is every input.
+            /// [`MAX`](Self::MAX) saturate too, which for [`I0F8`] -- whose
+            /// values are all under `0.5` -- is every input.
             #[must_use]
             #[inline]
             pub const fn rsqrt(self) -> Self {
@@ -483,7 +483,7 @@ macro_rules! define_fixed_point {
             /// [`MAX`](Self::MAX).
             ///
             /// The reciprocal of zero saturates to [`MAX`](Self::MAX), and for
-            /// [`I0F8`] — whose values are all under `0.5` in magnitude — the
+            /// [`I0F8`] -- whose values are all under `0.5` in magnitude -- the
             /// result always saturates.
             #[must_use]
             #[inline]
@@ -523,7 +523,7 @@ macro_rules! define_fixed_point {
             ///
             /// The product is kept at full width and the addend folded in before
             /// rounding, so this is more accurate than multiplying and then adding
-            /// — the same reason `f64::mul_add` exists. Saturates.
+            /// -- the same reason `f64::mul_add` exists. Saturates.
             #[must_use]
             #[inline]
             pub const fn mul_add(self, factor: Self, addend: Self) -> Self {
@@ -605,7 +605,7 @@ const fn round_f64(scaled: f64) -> f64 {
 /// Separate from [`define_fixed_point`] because it does not apply to the whole
 /// family: the kernel behind it is 32-bit clean, so it can only serve types
 /// whose bit pattern fits a `u32`. [`I48F16`] stores an `i64` and gets no
-/// `rsqrt_fast` — narrowing its input first would be a 64-bit operation, which
+/// `rsqrt_fast` -- narrowing its input first would be a 64-bit operation, which
 /// is the one thing this tier promises not to do.
 macro_rules! define_rsqrt_fast {
     ($name:ident, $wide:ty, $frac:expr) => {
@@ -614,7 +614,7 @@ macro_rules! define_rsqrt_fast {
             ///
             /// The result is within `3.2e-5` relative of the true reciprocal
             /// square root, plus the half step that landing on this type's
-            /// resolution costs — about 15 significant bits, measured
+            /// resolution costs -- about 15 significant bits, measured
             /// exhaustively. What that comes to in last bits depends on how
             /// fine the type is: [`I0F8`] agrees with [`rsqrt`](Self::rsqrt) on
             /// every input, [`I8F8`] and [`I24F8`] are never more than one step
@@ -624,19 +624,19 @@ macro_rules! define_rsqrt_fast {
             ///
             /// Every intermediate fits 32 bits and no product needs a widening
             /// multiply, so this is the version that transcribes into a shader
-            /// — and, on a CPU, the version that skips the 128-bit multiplies
+            /// -- and, on a CPU, the version that skips the 128-bit multiplies
             /// [`rsqrt`](Self::rsqrt) spends on its final step and its exact
             /// rounding correction. That is worth about 3.7x on a 64-bit host;
             /// `cargo run --release --example bench` measures it.
             ///
             /// Fifteen bits is not a step count that could be raised; it is
-            /// where 32-bit arithmetic stops. Newton's residual `1 - n q²` is a
+            /// where 32-bit arithmetic stops. Newton's residual `1 - n q^2` is a
             /// product of two values that must each fit an operand, so it
             /// carries about 15 bits however many times it is iterated. Reach
             /// for [`rsqrt`](Self::rsqrt) when the last bits matter.
             ///
             /// Zero and negatives saturate to [`MAX`](Self::MAX), and results
-            /// past [`MAX`](Self::MAX) saturate too — matching
+            /// past [`MAX`](Self::MAX) saturate too -- matching
             /// [`rsqrt`](Self::rsqrt) in both cases.
             #[must_use]
             #[inline]
@@ -773,9 +773,9 @@ define_fixed_point! {
     /// | Range | `-32768.0 ..= 32767.9999847412109375` |
     /// | Resolution | `1/65536`, or about `15.26e-6` |
     ///
-    /// The near-field type: 15.26 µm is about 30× finer than the ~0.5 mm
+    /// The near-field type: 15.26 um is about 30x finer than the ~0.5 mm
     /// threshold at which a headset's wearer perceives a position error, and
-    /// ±32.7 km covers anything a renderer draws at once.
+    /// +/-32.7 km covers anything a renderer draws at once.
     ///
     /// Shares its 16 fractional bits with [`I48F16`], so converting between the
     /// two is a range check on the integer part with no rounding whatsoever.
@@ -809,9 +809,9 @@ define_fixed_point! {
     /// | Range | `-1.407e14 ..= 1.407e14` |
     /// | Resolution | `1/65536`, or about `15.26e-6` |
     ///
-    /// Both range and resolution, and it pays for both in width. ±1.407e14 m is
-    /// roughly 940 AU — past the Kuiper belt — while the last bit stays at
-    /// 15.26 µm. This is the type world-space positions widen into before a
+    /// Both range and resolution, and it pays for both in width. +/-1.407e14 m is
+    /// roughly 940 AU -- past the Kuiper belt -- while the last bit stays at
+    /// 15.26 um. This is the type world-space positions widen into before a
     /// subtraction, which is what makes near-field geometry exact at earth
     /// scale.
     ///
@@ -827,7 +827,7 @@ define_fixed_point! {
     /// let camera = I48F16::from_f64(6_371_000.0);
     /// let target = camera + I48F16::from_f64(0.001);
     ///
-    /// // The difference is exact — the range is spent on the absolute value,
+    /// // The difference is exact -- the range is spent on the absolute value,
     /// // not on the offset.
     /// assert_eq!((target - camera).to_bits(), I48F16::from_f64(0.001).to_bits());
     /// ```
@@ -850,13 +850,13 @@ define_fixed_point! {
     ///
     /// The rotation-matrix entry type. [`Signed32`](crate::Signed32) is the
     /// obvious choice for a unit-range value and is not the right one: `SNORM`
-    /// divides by `2^31 − 1`, which is not a power of two, so every rotated
+    /// divides by `2^31 - 1`, which is not a power of two, so every rotated
     /// vector component would pay a constant division. `I2F30` pays a single
-    /// `>> 30` instead, spending one bit of range it does not need — rotation
-    /// entries live in `[-1, 1]` and this type reaches `±2` — to buy it.
+    /// `>> 30` instead, spending one bit of range it does not need -- rotation
+    /// entries live in `[-1, 1]` and this type reaches `+/-2` -- to buy it.
     ///
     /// `1.0` is exactly `2^30`, so the identity basis is exact, and the last
-    /// bit corresponds to about `5e-8°` of angular error.
+    /// bit corresponds to about `5e-8 deg` of angular error.
     ///
     /// # Examples
     ///

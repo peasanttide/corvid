@@ -18,7 +18,7 @@ assert!((DIAGONAL - 1.414_213_5).abs() < 1e-6);
 
 `f32::sqrt`, `f32::sin` and the rest are compiler intrinsics. An intrinsic
 cannot be called in a const context, so a projection matrix whose focal length
-is a `tan` cannot be a `const` — and in a workspace where a frustum, a colour
+is a `tan` cannot be a `const` -- and in a workspace where a frustum, a colour
 and a gain are all things a game writes down once and never changes, that is a
 constant that has to be computed at every startup instead.
 
@@ -29,7 +29,7 @@ crate is making: the values it is asked for are overwhelmingly the ones a
 `const` wants.
 
 Slower, not different. `sqrt`, `floor`, `ceil`, `trunc`, `round`, `abs` and
-`copysign` come back bit-for-bit what the intrinsic returns — asserted on the
+`copysign` come back bit-for-bit what the intrinsic returns -- asserted on the
 bits, over a sweep that visits every exponent an `f32` has, subnormals and
 `MAX` included. `sin`, `cos` and `powi` land within one representable value of
 the intrinsic and `tan`, being two of those divided by each other, within two.
@@ -44,7 +44,7 @@ is for.
 ## What it is not
 
 It is not the workspace's arithmetic. Everything a Corvid simulation hashes,
-sends or replays is fixed-point — `corvid_fixed` — because two machines have to
+sends or replays is fixed-point -- `corvid_fixed` -- because two machines have to
 agree on it bit for bit and floating point does not give that across
 architectures. This crate is for the other side of the boundary: the matrices,
 the texture coordinates and the gains that reach a device, where nothing is

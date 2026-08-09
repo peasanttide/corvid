@@ -28,7 +28,7 @@ mint = ["dep:mint", "corvid_vector/mint"]
 # `UnitQuaternion::new_normalize` needs `f64: RealField`, which nalgebra gates
 # on one of its own float backends. The workspace pins nalgebra with
 # `default-features = false`, so without `libm` here this feature does not
-# compile on its own — only under `--all-features`, where `std` supplies it.
+# compile on its own -- only under `--all-features`, where `std` supplies it.
 nalgebra = ["dep:nalgebra", "nalgebra/libm", "corvid_vector/nalgebra"]
 serde = ["dep:serde", "corvid_vector/serde", "corvid_fixed/serde"]
 bytemuck = ["dep:bytemuck", "corvid_vector/bytemuck", "corvid_fixed/bytemuck"]

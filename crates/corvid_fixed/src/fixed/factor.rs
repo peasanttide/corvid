@@ -5,8 +5,8 @@
 //! `Unorm8`/`Unorm16` vertex and texture formats, so factors cross the graphics
 //! boundary without conversion.
 //!
-//! The alternative convention — dividing by `2^BITS` so that conversion is a
-//! shift — buys cheaper arithmetic but cannot represent `1.0`, which makes a
+//! The alternative convention -- dividing by `2^BITS` so that conversion is a
+//! shift -- buys cheaper arithmetic but cannot represent `1.0`, which makes a
 //! blend weight of "fully on" impossible to express. Being exact at both ends
 //! matters more here than saving a multiply, so multiplication pays for an
 //! exact `round(a * b / MAX)` correction instead.
@@ -130,7 +130,7 @@ macro_rules! define_factor {
                 Self(self.0.saturating_sub(rhs.0))
             }
 
-            /// Multiplies. Exact and total — the unit interval is closed under
+            /// Multiplies. Exact and total -- the unit interval is closed under
             /// multiplication, so there is nothing to saturate or check.
             ///
             /// The product is formed at full width and rounded once, giving the
@@ -315,7 +315,7 @@ define_factor! {
     /// | Resolution | about `2.3e-10` |
     ///
     /// Multiplication and division use a 128-bit intermediate, so they cost
-    /// more than the narrower factors. Round-tripping through `f32` is lossy —
+    /// more than the narrower factors. Round-tripping through `f32` is lossy --
     /// use `f64`.
     ///
     /// # Examples

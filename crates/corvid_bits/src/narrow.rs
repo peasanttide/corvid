@@ -6,7 +6,7 @@
 //! is the step back down.
 //!
 //! Two answers, because two are wanted. A camera whose position has run past
-//! what an `i32` reaches should clamp — the far edge of the representable world
+//! what an `i32` reaches should clamp -- the far edge of the representable world
 //! is a truer answer than a wrap, and it is what a `Transform` does when it
 //! brings a world-scale position back into the tier its own position type sits
 //! in. A conversion that is being *checked* should say so instead, which is

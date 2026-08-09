@@ -7,7 +7,7 @@
 //! hex helper.
 //!
 //! [`check_digests`] and [`check_text`] are here for the same reason and not
-//! because either is a format this crate defines — they are the other two of the
+//! because either is a format this crate defines -- they are the other two of the
 //! three tables the README's blindness table calls for, and each is blind where
 //! the others see. `check_digests` takes and returns plain `u64`, so nothing here
 //! depends on `corvid_hash`.
@@ -23,7 +23,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{Error, decode, encode};
 
-/// One row: a label, and what the value was recorded as — hex for [`check`],
+/// One row: a label, and what the value was recorded as -- hex for [`check`],
 /// and the written text for [`check_text`].
 ///
 /// The label is for the person reading the failure. It is not part of the
@@ -33,7 +33,7 @@ pub type Row<'a> = (&'a str, &'a str);
 
 /// One row of a digest table: a label, and the digest it was recorded as.
 ///
-/// A digest table is not this crate's format — the digest belongs to
+/// A digest table is not this crate's format -- the digest belongs to
 /// `corvid_hash`, and the two encodings are independent, which is exactly why a
 /// crate needs both tables. Only the comparison is shared.
 pub type DigestRow<'a> = (&'a str, u64);
@@ -44,7 +44,7 @@ pub type DigestRow<'a> = (&'a str, u64);
 /// without both. That today's encoder writes the recorded bytes is what says a
 /// capture taken now will still be readable by the build that recorded them.
 /// That the recorded bytes still read back as the value they were recorded from
-/// is what says a capture taken *then* is readable now — which is the direction
+/// is what says a capture taken *then* is readable now -- which is the direction
 /// a game actually depends on when it opens a save file, and the one a decoder
 /// is under no obligation to satisfy merely because the encoder is unchanged.
 ///
@@ -134,7 +134,7 @@ where
 /// One direction only, because a digest has only one: there is nothing to read a
 /// digest back into, which is the difference between this and [`check`]. What a
 /// digest table catches is an encoding that still tells two values apart and
-/// tells them apart *differently* than when the row was recorded — invisible to
+/// tells them apart *differently* than when the row was recorded -- invisible to
 /// any test that compares one of today's outputs against another of today's
 /// outputs.
 ///
@@ -201,7 +201,7 @@ pub fn check_digests(what: &str, table: &[DigestRow<'_>], digests: &[u64]) -> Re
 ///
 /// What it catches that a byte table cannot is a field or a variant renamed, two
 /// same-typed fields swapped when their recorded values are equal, and a field
-/// added that writes no bytes — this encoding carries no names, so all four are
+/// added that writes no bytes -- this encoding carries no names, so all four are
 /// invisible to it. `tests/blind.rs` measures the last two.
 ///
 /// ```
@@ -290,7 +290,7 @@ pub fn hex(bytes: &[u8]) -> String {
 ///
 /// Whitespace is ignored and means nothing, which is what lets a long row be
 /// written in groups. [`None`] when what is left is not whole pairs of hex
-/// digits — a row that has lost a character is a mistake in the table rather
+/// digits -- a row that has lost a character is a mistake in the table rather
 /// than a wire-format break, and the two should not look alike.
 #[must_use]
 pub fn unhex(text: &str) -> Option<Vec<u8>> {
@@ -316,7 +316,7 @@ pub fn unhex(text: &str) -> Option<Vec<u8>> {
 /// A raw string is terminated by a quote followed by as many hashes as opened
 /// it, so the number of hashes has to exceed the longest run already inside the
 /// text. JSON is exactly where this bites: a recorded row for a struct with a
-/// `String` field holding `"#` closes a `r#"…"#` early, and the report a person
+/// `String` field holding `"#` closes a `r#"..."#` early, and the report a person
 /// was told to paste does not compile.
 fn raw(text: &str) -> String {
     let mut longest = 0_usize;
@@ -369,7 +369,7 @@ const fn value(digit: u8) -> Option<u8> {
 ///
 /// `Debug` prints what `Display` prints. That is deliberate rather than lazy: a
 /// table is checked from a test, a test says `unwrap` or `?`, and both of those
-/// print the `Debug` form — so a derived one would put the report a person needs
+/// print the `Debug` form -- so a derived one would put the report a person needs
 /// behind a wall of field names on the one occasion they need to read it.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Moved {
@@ -394,7 +394,7 @@ impl fmt::Display for Moved {
         write!(
             f,
             "{}: {} of {} recorded rows moved, which is a wire-format break and \
-             not a test to regenerate — everything recorded under the old rows \
+             not a test to regenerate -- everything recorded under the old rows \
              now means something else:",
             self.what,
             self.findings.len(),
@@ -425,8 +425,8 @@ enum Finding {
     /// The value would not encode at all.
     Refused { label: String, why: Error },
     /// The row is something else now. `now` is the replacement literal, already
-    /// written the way the table writes it — quoted hex for a byte table, a
-    /// grouped `0x…` for a digest table — so that the report is pasted rather
+    /// written the way the table writes it -- quoted hex for a byte table, a
+    /// grouped `0x...` for a digest table -- so that the report is pasted rather
     /// than transcribed.
     Rewritten { label: String, now: String },
     /// The recorded bytes no longer decode.
@@ -453,12 +453,12 @@ impl fmt::Display for Finding {
                 "    ({label:?}, {recorded:?}), is not whole bytes of hex",
             ),
             Self::Refused { label, why } => {
-                write!(f, "    ({label:?}, …), would not encode: {why}")
+                write!(f, "    ({label:?}, ...), would not encode: {why}")
             }
             Self::Rewritten { label, now } => write!(f, "    ({label:?}, {now}),"),
             Self::Unreadable { label, why } => write!(
                 f,
-                "    ({label:?}, …), the recorded bytes no longer read back: {why}",
+                "    ({label:?}, ...), the recorded bytes no longer read back: {why}",
             ),
             Self::Changed {
                 label,
@@ -466,7 +466,7 @@ impl fmt::Display for Finding {
                 recorded_for,
             } => write!(
                 f,
-                "    ({label:?}, …), the recorded bytes now read back as {read} \
+                "    ({label:?}, ...), the recorded bytes now read back as {read} \
                  and were recorded from {recorded_for}",
             ),
         }

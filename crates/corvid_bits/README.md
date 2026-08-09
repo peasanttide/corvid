@@ -41,5 +41,5 @@ times across four crates and the narrowing six times with four different
 signatures, which is six chances to get a boundary wrong and six sets of tests
 that each cover it a little differently.
 
-Being a leaf with no dependencies is what lets `corvid_fixed` — the crate
-everything else here is built on — depend on it.
+Being a leaf with no dependencies is what lets `corvid_fixed` -- the crate
+everything else here is built on -- depend on it.

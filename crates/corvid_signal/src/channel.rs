@@ -9,7 +9,7 @@ use crate::Seen;
 
 /// The sequence number the cell's initial value carries.
 ///
-/// One rather than zero, so that `Seen::default()` — which is zero — has not
+/// One rather than zero, so that `Seen::default()` -- which is zero -- has not
 /// seen it. A consumer's first poll then reports the state that was already
 /// there, which is the whole reason a latest-value cell is not a queue.
 const FIRST: u64 = 1;
@@ -40,8 +40,8 @@ struct State<T> {
     /// `T` itself is then read outside the lock by whoever wanted it.
     value: Arc<T>,
     /// Bumped by every publication. Consumers compare it against their [`Seen`]
-    /// rather than comparing values, so a `T` that is not `PartialEq` — or one
-    /// whose equality is expensive — still works, and so does a publication
+    /// rather than comparing values, so a `T` that is not `PartialEq` -- or one
+    /// whose equality is expensive -- still works, and so does a publication
     /// that happened to write the value that was already there.
     ///
     /// The bump wraps rather than checks. Overflow checks are on in the dev
@@ -51,7 +51,7 @@ struct State<T> {
     /// `u64::MAX` is numbered zero, which is what a `Seen::default()` says it
     /// has already read, so one consumer that had never polled would miss one
     /// publication. At a publication every nanosecond that is five hundred and
-    /// eighty years out, and the saturating alternative is worse — a counter
+    /// eighty years out, and the saturating alternative is worse -- a counter
     /// that stopped moving would stop reporting changes for everybody, for
     /// good.
     sequence: u64,
@@ -60,9 +60,9 @@ struct State<T> {
 impl<T> Shared<T> {
     /// The lock, with poisoning ignored.
     ///
-    /// A poisoned mutex here means a [`modify`](Emitter::modify) closure — or
+    /// A poisoned mutex here means a [`modify`](Emitter::modify) closure -- or
     /// the `T::clone` its copy-on-write step may take first, or in the one race
-    /// that page describes, the `T::drop` that race lets in — panicked while
+    /// that page describes, the `T::drop` that race lets in -- panicked while
     /// the lock was held. Those are the only caller code that runs under it at
     /// all; a [`set`](Emitter::set)'s allocation, the drop of the value a `set`
     /// replaced and a consumer's own copy of what it read all happen outside.
@@ -82,7 +82,7 @@ impl<T> Shared<T> {
 /// parameter rather than something optional because a span named after nothing
 /// is a span nobody can read: a trace of six subsystems publishing state has to
 /// say *which* of them published. Give it the name the state has in the program
-/// — `"surface"`, `"peers"`, `"audio devices"` — rather than the type's name,
+/// -- `"surface"`, `"peers"`, `"audio devices"` -- rather than the type's name,
 /// since two signals may well carry the same type.
 ///
 /// The initial value is a value and not a `None`. A consumer reading this
@@ -125,7 +125,7 @@ pub fn channel<T>(label: &'static str, initial: T) -> (Emitter<T>, Watch<T>) {
 
 /// The publishing end of a signal.
 ///
-/// Cheap to clone, and every clone publishes to the same cell — a subsystem
+/// Cheap to clone, and every clone publishes to the same cell -- a subsystem
 /// that has two threads reporting the same state hands one to each. Publishing
 /// never waits for a consumer and never queues, so a value published while
 /// nobody is looking is the value the next consumer to look will see, and every
@@ -150,7 +150,7 @@ impl<T> Clone for Emitter<T> {
 ///
 /// Reading the value would mean taking the lock, and the two places a `Debug`
 /// is most likely to be called from are a `modify` closure and a panic message
-/// — the first of which already holds it.
+/// -- the first of which already holds it.
 impl<T> fmt::Debug for Emitter<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Emitter")
@@ -175,8 +175,8 @@ impl<T> Emitter<T> {
     ///
     /// It is left *before* the value this publication replaced is dropped, and
     /// that omission is deliberate rather than an accident of where a local
-    /// ends. Freeing a large `T` — a device list is four hundred thousand
-    /// deallocations — is most of what a `set` costs by the clock and none of
+    /// ends. Freeing a large `T` -- a device list is four hundred thousand
+    /// deallocations -- is most of what a `set` costs by the clock and none of
     /// what it costs anybody else, because it happens with the lock released
     /// and nothing waiting on it. A span that counted it would report a
     /// publisher's own bookkeeping as time some consumer spent behind this
@@ -186,14 +186,14 @@ impl<T> Emitter<T> {
     ///
     /// A pointer swap and an integer increment, and nothing else. The `Arc` is
     /// built before the lock is taken and the value it replaced is dropped after
-    /// the lock is released, so no line of a `T`'s own code — no allocation, no
-    /// `Drop`, no `Clone` — runs while a consumer could be waiting on it. That
+    /// the lock is released, so no line of a `T`'s own code -- no allocation, no
+    /// `Drop`, no `Clone` -- runs while a consumer could be waiting on it. That
     /// is what makes "a publication never waits for a consumer" a statement
     /// about the implementation rather than about the condition variable alone.
     ///
     /// Dropping outside the lock also makes one re-entrant path work: a `T`
-    /// whose `Drop` publishes to this same signal — a value that owns an
-    /// [`Emitter`] and reports its own retirement — does not deadlock. That is
+    /// whose `Drop` publishes to this same signal -- a value that owns an
+    /// [`Emitter`] and reports its own retirement -- does not deadlock. That is
     /// one path made to work rather than a general promise. The
     /// [`modify`](Self::modify) closure still runs *under* the lock, and
     /// touching this signal from inside it deadlocks; `std`'s `Mutex` is not
@@ -256,7 +256,7 @@ impl<T: Clone> Emitter<T> {
     /// what the consumers are doing rather than on what the caller wrote.
     /// `Arc::make_mut` edits the value where it lies when this emitter's cell
     /// holds the only reference to it, and clones the whole `T` first when a
-    /// consumer is still holding the value about to be edited — that consumer
+    /// consumer is still holding the value about to be edited -- that consumer
     /// has a snapshot, and a snapshot that changed underneath its reader would
     /// be worse than a copy.
     ///
@@ -270,19 +270,19 @@ impl<T: Clone> Emitter<T> {
     /// # What the caller owes
     ///
     /// `f` runs with the lock held, and so does the clone `Arc::make_mut` may
-    /// take first, so everything waiting on this signal — every other
+    /// take first, so everything waiting on this signal -- every other
     /// publication, every [`get`](Watch::get), every
-    /// [`changed_since`](Watch::changed_since) — waits for both. Keep `f` to the
+    /// [`changed_since`](Watch::changed_since) -- waits for both. Keep `f` to the
     /// edit. Touching this signal from inside `f`, by any handle, deadlocks.
     ///
     /// One more thing can run under that lock, and no caller chooses when.
     /// `Arc::make_mut` lets go of the reference it copied away from, and if the
     /// consumer holding the other one let go in the same instant, that release
-    /// is the last and the old `T` is dropped where it stands — inside the
+    /// is the last and the old `T` is dropped where it stands -- inside the
     /// lock. [`set`](Self::set) drops what it replaced after releasing the lock
     /// and says so; `modify` cannot promise the same. So the one re-entrant
-    /// shape `set` is written to survive — a `T` whose `Drop` publishes to this
-    /// signal — is not a shape `modify` survives, and it deadlocks on a race
+    /// shape `set` is written to survive -- a `T` whose `Drop` publishes to this
+    /// signal -- is not a shape `modify` survives, and it deadlocks on a race
     /// rather than every time, which is the worse of the two ways to find out.
     /// Such a `T` is published with `set` and edited nowhere.
     ///
@@ -292,7 +292,7 @@ impl<T: Clone> Emitter<T> {
     /// would be a signal whose behaviour depended on the game's `PartialEq`.
     ///
     /// If `f` panics, the edit it had made so far stays in the cell and is
-    /// **not** published — the sequence number is bumped after `f` returns, so
+    /// **not** published -- the sequence number is bumped after `f` returns, so
     /// consumers polling [`changed_since`](Watch::changed_since) are not told,
     /// while [`get`](Watch::get) returns the half-edited value. A consumer that
     /// was holding the previous value still holds the previous value, because
@@ -410,7 +410,7 @@ impl<T> Watch<T> {
     /// [`None`] if it has not.
     ///
     /// Returns `Some` exactly once per publication a consumer has not caught up
-    /// with — not once per publication. Three publications between two polls
+    /// with -- not once per publication. Three publications between two polls
     /// are one `Some` carrying the third value; the first two are gone.
     ///
     /// Emits a `TRACE` event called `corvid_signal.observed` when it returns
@@ -443,7 +443,7 @@ impl<T> Watch<T> {
 
     /// Parks this thread until something is published, and returns it.
     ///
-    /// Returns immediately, without parking, when `seen` is already behind —
+    /// Returns immediately, without parking, when `seen` is already behind --
     /// the sequence number is read under the same lock a publication takes, so
     /// a publication that landed between two calls is not slept through.
     ///
@@ -459,7 +459,7 @@ impl<T> Watch<T> {
     /// tick-rate path may call it.** A frame loop that parks here is a frame
     /// loop whose pacing is set by whichever subsystem publishes next, and a
     /// tick loop that parks here has handed the fixed step to a producer that
-    /// knows nothing about it — the two paths that must own their own clock are
+    /// knows nothing about it -- the two paths that must own their own clock are
     /// exactly the two that must poll [`changed_since`](Self::changed_since)
     /// instead. Nothing here can tell which thread it is on and nothing here
     /// enforces this.
@@ -467,7 +467,7 @@ impl<T> Watch<T> {
     /// When every [`Emitter`] for this signal has been dropped, this parks
     /// forever: the signature returns a value and there is none to invent, so
     /// there is nothing it could return instead. A thread that must be able to
-    /// exit needs a way out that does not come through this call — its own
+    /// exit needs a way out that does not come through this call -- its own
     /// shutdown flag, and a last publication from whoever sets that flag to
     /// wake it.
     pub fn blocking_wait(&self, seen: &mut Seen) -> Arc<T> {

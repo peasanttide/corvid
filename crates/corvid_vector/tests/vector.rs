@@ -130,7 +130,7 @@ fn clamp_is_component_wise_and_cannot_panic() {
 #[test]
 fn length_squared_is_lossless_where_the_component_type_would_saturate() {
     // 2 km on each axis. The sum of squares in DELTA^2 units is 7.9e17, which
-    // I24F8 cannot hold — the u64 return is exact anyway.
+    // I24F8 cannot hold -- the u64 return is exact anyway.
     let p = GlobalPoint::splat(I24F8::from_f64(2000.0));
     let component = i64::from(I24F8::from_f64(2000.0).to_bits());
     assert_eq!(p.length_squared(), 3 * (component * component) as u64);
@@ -292,7 +292,7 @@ fn a_normalized_vector_has_unit_length() {
 
 #[test]
 fn normalize_depends_only_on_the_ratios_of_the_components() {
-    // Scaling the input by 100 does not change the direction — to within the
+    // Scaling the input by 100 does not change the direction -- to within the
     // last bit or two, which is all the shift-based rescale promises. It is
     // deterministic, not magnitude-independent to the bit.
     let coarse = GlobalPoint::new(
@@ -358,7 +358,7 @@ fn normalize_fast_returns_none_exactly_where_normalize_does() {
     assert_eq!(Direction::ZERO.normalize_fast(), None);
 
     // The axis-aligned cases are taken by hand before the `rsqrt`, so they stay
-    // exactly `±1` in this tier too.
+    // exactly `+/-1` in this tier too.
     let tiny = GlobalPoint::new(I24F8::DELTA, I24F8::ZERO, I24F8::ZERO);
     assert_eq!(tiny.normalize_fast().map(Direction::x), Some(Signed32::MAX));
 
@@ -443,7 +443,7 @@ fn the_signed32_denormal_computes_as_the_value_it_denotes() {
     // `SNORM` spends `i32::MIN` and `-(2^31 - 1)` on the same `-1.0`, and
     // `corvid_fixed` resolves that by comparing, hashing and calculating on the
     // canonical form. Everything here reads bit patterns directly, so it has to
-    // fold the denormal too — otherwise two `Direction`s that compare equal and
+    // fold the denormal too -- otherwise two `Direction`s that compare equal and
     // hash alike come back with different lengths and different normalized
     // directions, which is precisely the `Hash`/`Eq` disagreement the
     // convention exists to prevent.

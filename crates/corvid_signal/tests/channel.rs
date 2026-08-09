@@ -291,7 +291,7 @@ fn a_watcher_parked_in_blocking_wait_does_not_hold_up_an_emitter() {
 
     // Everything below is teardown; the assertion above has been made. The
     // parked threads exit on the flag, and only notice it when something wakes
-    // them, so something has to keep publishing until they are all out — which
+    // them, so something has to keep publishing until they are all out -- which
     // is the shutdown the documentation says a thread parked here needs.
     stop.store(1, Ordering::SeqCst);
     let all_out = Arc::new(AtomicUsize::new(0));
@@ -357,7 +357,7 @@ fn blocking_wait_does_not_park_when_it_is_already_behind() {
 /// A value whose `Drop` publishes to the signal it was published on.
 ///
 /// The shape this stands in for is a resource handle that reports its own
-/// retirement — the thing being dropped is what knows it is gone. It is the one
+/// retirement -- the thing being dropped is what knows it is gone. It is the one
 /// re-entrant path `set` is written to survive, by dropping the value it
 /// replaced after releasing the lock rather than while holding it.
 struct Retiring {
@@ -517,7 +517,7 @@ fn modify_copies_the_value_only_while_a_consumer_is_holding_it() {
     );
 
     // One copy per publication and no more, however long the consumer keeps
-    // reading — the second edit lands in the copy the first one made, which
+    // reading -- the second edit lands in the copy the first one made, which
     // the consumer is not holding.
     emit.modify(|_| {});
     assert_eq!(clones.load(Ordering::SeqCst), 1, "and not once per edit");
@@ -540,7 +540,7 @@ fn modify_copies_the_value_only_while_a_consumer_is_holding_it() {
 /// The `Debug` half is not decoration. Both implementations name the signal and
 /// deliberately stop there, because reading the value means taking the lock and
 /// the likeliest place a handle gets formatted is a `modify` closure that is
-/// already holding it — so a `Debug` that reached for the value would turn a
+/// already holding it -- so a `Debug` that reached for the value would turn a
 /// log line into a deadlock. Formatting both handles from inside one is the
 /// only way to assert that rather than describe it, and the backstop is what
 /// turns the deadlock it is looking for into a message instead of a hang.
@@ -621,7 +621,7 @@ fn one_publication_wakes_everybody(publish: impl FnOnce(&Emitter<u32>)) {
     //
     // The counter and not a `Barrier`: a barrier is the one wait in this file
     // that cannot be given a deadline, so a thread that panicked before
-    // reaching it would park the test thread for good — which is exactly the
+    // reaching it would park the test thread for good -- which is exactly the
     // failure this file exists to stop shipping. Incrementing after the `Seen`
     // is taken carries the same ordering the barrier did, because nothing here
     // proceeds until the count reaches `PARKED`.
@@ -638,7 +638,7 @@ fn one_publication_wakes_everybody(publish: impl FnOnce(&Emitter<u32>)) {
         .collect();
 
     // Every thread has taken its `Seen` and reached the call. The wait is for
-    // the parking itself, which no thread can announce from the inside — a
+    // the parking itself, which no thread can announce from the inside -- a
     // thread that had not parked yet would return on the sequence number rather
     // than on the wakeup, and would pass this test for the wrong reason.
     once("all eight threads reaching the call", || {
@@ -671,8 +671,8 @@ const SLOW_CLONE: Duration = Duration::from_millis(300);
 ///
 /// `modify` copies on write through `Arc::make_mut`, and it does that under the
 /// lock every read also takes. Nothing in this crate can be timed reliably
-/// against a real payload — an audio-device list clones in microseconds and the
-/// scheduler is noisier than that — so the payload is rigged instead, and the
+/// against a real payload -- an audio-device list clones in microseconds and the
+/// scheduler is noisier than that -- so the payload is rigged instead, and the
 /// figure the test reports is the rig's own.
 #[derive(Debug)]
 struct SlowToClone {
@@ -698,7 +698,7 @@ impl Clone for SlowToClone {
 /// the honest column is qualified. A publication never holds a reader up:
 /// `set` builds its value before the lock and drops the old one after, so no
 /// line of a `T`'s own code runs inside. `modify` is the exception, and it is
-/// the one the table has to say so about — `Arc::make_mut` clones the whole `T`
+/// the one the table has to say so about -- `Arc::make_mut` clones the whole `T`
 /// under the lock when a consumer is holding the value being edited, and a
 /// reader that arrives during that clone waits for all of it.
 #[test]

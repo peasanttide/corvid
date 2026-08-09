@@ -6,7 +6,7 @@ state, the same on every machine, every process, and every run.
 
 One `u64` of state, one bijective mixer, and a `core::hash::Hasher` whose answer
 does not depend on the target. No allocation, no buffer, no `std`, and no
-dependencies — this crate is a leaf, and everything else in the workspace hashes
+dependencies -- this crate is a leaf, and everything else in the workspace hashes
 through it.
 
 ```rust
@@ -37,8 +37,8 @@ enable, no proc-macro crate in the build graph, and every type in `core` and
 `std`'s is randomized per process. A save written on Tuesday would not load on
 Wednesday, two peers would disagree on the first tick, a replay would not match
 the run it recorded, and a regression test would compare two numbers that mean
-nothing. Every feature this workspace is built around — save, load, replay,
-rollback, desync detection, golden traces — is the same feature, which is that
+nothing. Every feature this workspace is built around -- save, load, replay,
+rollback, desync detection, golden traces -- is the same feature, which is that
 the same inputs produce the same state, and a randomized hash cannot witness it.
 
 SipHash-2-4 is the obvious fixed-key answer and can be checked against published
@@ -62,7 +62,7 @@ provide.
 
 **A fixed width for every write.** The default methods on `core::hash::Hasher`
 forward to `write` in *native* endian, and `write_usize` is as wide as the
-target's pointer — so a `Vec`'s length prefix absorbs four bytes on `wasm32` and
+target's pointer -- so a `Vec`'s length prefix absorbs four bytes on `wasm32` and
 eight on `x86_64`, and a browser peer desyncs from a native one on the first
 tick. Every `write_*` here is overridden: integers absorb little-endian at their
 declared width, and `usize` and `isize` absorb as sixty-four bits whatever the
@@ -82,7 +82,7 @@ assert_eq!(narrow.digest(), wide.digest());
 keeps `-1isize` from colliding with the largest index a 32-bit target can name.
 
 That reaches every pointer-sized integer a `Hash` implementation routes through
-`write_usize` — every scalar one, and every container's length prefix. It does
+`write_usize` -- every scalar one, and every container's length prefix. It does
 not reach a `usize` stored as an *element* of a slice, which `core` hashes by a
 route no `Hasher` is shown; "What the overrides do not reach", below, is about
 that and about the one other thing in the same position.
@@ -92,22 +92,22 @@ that and about the one other thing in the same position.
 | Stage | What happens | Why |
 |---|---|---|
 | Seed | `state = 0x9e37_79b9_7f4a_7c15` | Any non-zero start works; the golden ratio's fractional part has no structure that interacts with the mixer |
-| Absorb | `state = mix(state ^ word)` | Merkle–Damgård: one word of state, one round per word, so a gigabyte costs no memory |
+| Absorb | `state = mix(state ^ word)` | Merkle-Damgard: one word of state, one round per word, so a gigabyte costs no memory |
 | Count | `len += 8`, or the true byte count for `write` | The one thing the chain alone cannot tell you |
 | Digest | `mix(state ^ len)` | Injects the count, and diffuses the last word absorbed as thoroughly as the first |
 
 `mix` is three rounds of xor-shift and multiply by an odd constant. Both halves
-are bijections modulo `2^64` — multiplication by an odd constant because it is
-invertible, xor-shift because it is its own family of inverses — so the whole
+are bijections modulo `2^64` -- multiplication by an odd constant because it is
+invertible, xor-shift because it is its own family of inverses -- so the whole
 function is one, and *the mixing step* discards nothing: distinct words in give
 distinct words out. That is a property of `mix` alone and does not extend to the
 chain around it. `state = mix(state ^ word)` takes 128 bits and answers 64, so
 absorbing is many-to-one by counting and no arrangement of a bijection can make
-it otherwise — which is what "Collisions" below says, and this paragraph is not
+it otherwise -- which is what "Collisions" below says, and this paragraph is not
 a quieter promise to the contrary. What bijectivity buys is narrower and still
 worth having: no single round collapses the state on its own. The
 shift distances alternate between 32 and 29 so a bit folded down by one round is
-folded across an unrelated boundary by the next rather than back onto itself —
+folded across an unrelated boundary by the next rather than back onto itself --
 which is a reason for the choice rather than a measured property of it, and
 "What is tested, rather than claimed" says how far the measurement actually
 reaches.
@@ -131,19 +131,19 @@ do it. `finish`, which `core::hash::Hasher` requires, is the same number as a
 ## The encoding is the wire format
 
 A digest crosses the network, goes into save files, and is compared against
-traces recorded by older builds — so what a value turns into is as much a
+traces recorded by older builds -- so what a value turns into is as much a
 published format as the bytes `serde` writes. The rows below are what `core`'s
 `Hash` implementations emit through this hasher, in order:
 
 | Value | Absorbed as |
 |---|---|
 | `bool`, `u8`, `i8` | one byte |
-| `u16` … `u128`, `i16` … `i128`, `char` | as many bytes as the type is wide, little-endian |
+| `u16` ... `u128`, `i16` ... `i128`, `char` | as many bytes as the type is wide, little-endian |
 | `usize`, `isize` | eight bytes, whatever the target's pointer width is |
 | `()`, `PhantomData<T>` | nothing at all, because a type with one value carries no information |
-| Tuples, structs | each field in declaration order, no count — the arity is in the type |
+| Tuples, structs | each field in declaration order, no count -- the arity is in the type |
 | `str`, `String` | the bytes packed eight to a word, then a `0xff` byte, which is a byte no UTF-8 sequence contains |
-| `[T]`, `[T; N]`, `Vec<T>` | the element count as eight bytes, then the elements — each by its own encoding, *unless* `T` is a primitive integer, for which `core` packs the whole slice as raw bytes and the next section applies |
+| `[T]`, `[T; N]`, `Vec<T>` | the element count as eight bytes, then the elements -- each by its own encoding, *unless* `T` is a primitive integer, for which `core` packs the whole slice as raw bytes and the next section applies |
 | `BTreeMap<K, V>`, `BTreeSet<T>` | the element count, then each entry in key order |
 | `Option<T>`, `Result<T, E>`, a plain enum | the variant index as eight bytes, then the payload |
 | an enum carrying a `#[repr(u8)]` or any other integer `repr` | the variant index at the width that `repr` names, then the payload |
@@ -158,7 +158,7 @@ elements do not. A type whose shape can vary absorbs a discriminant first, so
 
 The sequence types and the string types are two encodings, and anything
 reimplementing this format has to keep them apart. A string packs its bytes and
-appends a terminator; a slice counts elements and then hands the elements over —
+appends a terminator; a slice counts elements and then hands the elements over --
 each by its own encoding, *except* where the element is a primitive integer, in
 which case `core`'s specialised `Hash::hash_slice` reinterprets the whole run as
 bytes and passes it to `write` in one call, past every override this crate
@@ -206,7 +206,7 @@ golden tables across this workspace exist to catch.
 
 `core` implements `Hash::hash_slice` for every primitive integer by
 reinterpreting the whole slice as bytes and calling `write` once, and a `Hasher`
-cannot intercept it — `write` is handed bytes and is not told what they were. So
+cannot intercept it -- `write` is handed bytes and is not told what they were. So
 a slice of primitives does not hand its elements over one at a time. It hands
 over `size_of_val` bytes, packed eight to an absorbed word, with the element
 boundaries already gone. Two things follow from that, and neither is a footnote.
@@ -219,7 +219,7 @@ names is little-endian, and choosing a big-endian one should be a decision taken
 deliberately rather than discovered from a desync.
 
 **Pointer width.** The same specialisation covers `usize` and `isize`, and the
-bytes it hands over are the target's — four per element in a browser, eight on a
+bytes it hands over are the target's -- four per element in a browser, eight on a
 native server. A `Vec<usize>` in hashed state therefore desyncs a `wasm32` peer
 from a native one, in precisely the way the overridden `write_usize` exists to
 prevent, and the override cannot reach past `hash_slice` to stop it. Refusing to
@@ -250,9 +250,9 @@ hashed state; their order is a property of the keys rather than of the run. If a
 sorted sequence, and write down why.
 
 What to reach for in place of a float is `corvid_fixed`, which is eighteen types
-of fixed-point arithmetic — `I24F8` for world positions, `I16F16` for the near
+of fixed-point arithmetic -- `I24F8` for world positions, `I16F16` for the near
 field, `Factor32` for a weight, `Signed16` for a normalized axis, `Angle16` for
-a heading — every one of them an integer under the skin and therefore the same
+a heading -- every one of them an integer under the skin and therefore the same
 number on every target. Convert at the edge where a float is genuinely what a
 value is, and hash what the conversion produced. That is a cost paid once, at a
 place a person chose.
@@ -277,7 +277,7 @@ assert_eq!(SCHEMA.to_string().len(), 16);
 seed from the state means a coincidence between the two says nothing. And
 because the const interpreter and the CPU are separate implementations of the
 same arithmetic, `tests/golden.rs` runs one chain both ways and asserts they
-agree — which is real evidence that nothing here depends on how the host happens
+agree -- which is real evidence that nothing here depends on how the host happens
 to compute.
 
 ## What is tested, rather than claimed
@@ -285,16 +285,16 @@ to compute.
 | File | Covers |
 |---|---|
 | `tests/avalanche.rs` | The strict avalanche criterion cell by cell, for the mixer alone and for absorb-and-digest; 102 400 two-word inputs collide zero times; word order matters; a trailing zero word is not free; the empty digest is not zero |
-| `tests/encoding.rs` | Length prefixes, discriminants, integer widths, a float that was converted to a fixed-point integer first — including the two zeroes becoming one value on the way — nesting versus flattening, the string encoding against the slice encoding, markers costing no word, insertion-order independence for the ordered collections, pointers digesting as their pointee |
-| `tests/width.rs` | That `write_usize` and `write_u64` of one value agree, that `write_isize` is sign-extended to sixty-four bits, and that a `Vec`'s digest is a sixty-four-bit length prefix and its elements — the three claims a `wasm32` peer's agreement with a native one rests on — and then the one place that agreement does not hold anyway, a slice whose elements are themselves pointer-sized |
-| `tests/golden.rs` | Twenty-seven frozen inputs and their exact digests — words, byte runs and strings, four of the strings not ASCII — plus structured values, a second seed, and `const` evaluation against runtime evaluation |
+| `tests/encoding.rs` | Length prefixes, discriminants, integer widths, a float that was converted to a fixed-point integer first -- including the two zeroes becoming one value on the way -- nesting versus flattening, the string encoding against the slice encoding, markers costing no word, insertion-order independence for the ordered collections, pointers digesting as their pointee |
+| `tests/width.rs` | That `write_usize` and `write_u64` of one value agree, that `write_isize` is sign-extended to sixty-four bits, and that a `Vec`'s digest is a sixty-four-bit length prefix and its elements -- the three claims a `wasm32` peer's agreement with a native one rests on -- and then the one place that agreement does not hold anyway, a slice whose elements are themselves pointer-sized |
+| `tests/golden.rs` | Twenty-seven frozen inputs and their exact digests -- words, byte runs and strings, four of the strings not ASCII -- plus structured values, a second seed, and `const` evaluation against runtime evaluation |
 | `tests/derive.rs` | `#[derive(Hash)]`: field order as the encoding, a struct's fields at their declared widths, an enum's variant index before its payload and the width a `repr` narrows it to, the typed-identifier pattern, and generics with lifetimes and const parameters mixed in |
 | doctests | Every Rust block in this file and in the crate's documentation |
 
 The avalanche test measures the strict avalanche criterion per cell. For each
-of the 64 × 64 pairs of an input bit and an output bit it runs 16 384 samples
+of the 64 x 64 pairs of an input bit and an output bit it runs 16 384 samples
 and requires that output bit to flip between 45.3% and 54.7% of the time,
-which is six standard deviations either side of half — wide enough that the
+which is six standard deviations either side of half -- wide enough that the
 worst of four thousand cells does not trip it by luck, and narrow enough to be
 worth asserting. The test runs it twice: once against the mixer on its own,
 reachable from outside the crate because a hasher digested without absorbing
@@ -306,7 +306,7 @@ whole sample count rather than by a hair, with cells pinned at zero or at
 16 384.
 
 Be exact about what that does not reach. Cutting the mixer from three rounds to
-two — deleting a round outright, or neutering one of the three multiplies —
+two -- deleting a round outright, or neutering one of the three multiplies --
 passes, because a two-round xor-shift-multiply mixer is genuinely a good mixer:
 measured at a million samples per cell it stays inside four standard deviations
 of half, which is where four thousand fair coins sit anyway. Separating two
@@ -317,7 +317,7 @@ here.
 
 The shift distances are in the same position, and the alternation between 32 and
 29 that the construction section justifies is not something this test can see.
-Setting all four shifts to 32 — removing the alternation outright — measures a
+Setting all four shifts to 32 -- removing the alternation outright -- measures a
 worst cell 3.86 standard deviations from half at 16 384 samples and 3.75 at a
 million, against 3.75 and 3.52 for the real mixer, which is the same picture the
 worst of four thousand fair coins paints. What the test does catch is a distance
@@ -326,8 +326,8 @@ worst of four thousand fair coins paints. What the test does catch is a distance
 
 It does not catch the mirror image. Sweeping the uniform-shift mixer across the
 whole range, the test as written is red at 16 and below, green from 17 to 54,
-red at 55, green again at 56, and red from 57 up. So 48 — as far above half a
-word as 16 is below — sails through at 3.62 standard deviations, against 3.75
+red at 55, green again at 56, and red from 57 up. So 48 -- as far above half a
+word as 16 is below -- sails through at 3.62 standard deviations, against 3.75
 for the real mixer. The window this suite leaves open is 17 to 54, which is most
 of the word. What is witnessed is that a distance at or below a quarter of a
 word is broken and that one within a hair of the word width is broken;
@@ -335,7 +335,7 @@ everything between is indistinguishable here.
 
 The mixer is in fact biased over more of that window than the test can see. At a
 million samples per cell, 17 strays 23.7 standard deviations and 53 strays 30.8,
-against 3.52 for the real mixer — so the shifts near the edges of the green band
+against 3.52 for the real mixer -- so the shifts near the edges of the green band
 are genuinely worse and the test is simply not looking hard enough to say so. It
 is not made to look harder because a million samples per cell is thirty seconds
 per assertion, and separating 29 from 31 would need far more than that. So
@@ -357,13 +357,13 @@ word is a composition of bijections and therefore injective by construction, so
 finding no collisions among a hundred thousand single words proves nothing
 whatever about the mixer. Two absorbed words are the first place 128 bits of
 input are squeezed into 64 bits of state and the map is honestly many-to-one,
-which is why the test walks every ordered pair from a 320 × 320 grid and demands
+which is why the test walks every ordered pair from a 320 x 320 grid and demands
 102 400 distinct digests.
 
 **Changing a value in `tests/golden.rs` is a wire-format break.** An algorithm
 that drifts produces a desync or a refused save rather than a compile error, so
 the outputs are written down as literals and a change to one is a change to the
-format — a major version, and every golden in the workspace regenerated at once.
+format -- a major version, and every golden in the workspace regenerated at once.
 
 ## Features
 

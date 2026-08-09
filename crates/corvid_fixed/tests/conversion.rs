@@ -355,7 +355,7 @@ fn the_angle_checked_conversion_rejects_only_what_needed_wrapping() {
         Some(Angle16::from_bits(65_529))
     );
 
-    // A full turn is the next turn's zero, so it is rejected — and so is
+    // A full turn is the next turn's zero, so it is rejected -- and so is
     // anything inside `0.0 .. 1.0` that rounds up onto it. An Angle8 step is
     // 1/256, so 0.999 rounds to 256, which *is* zero.
     assert_eq!(Angle8::checked_from_f64(1.0), None);

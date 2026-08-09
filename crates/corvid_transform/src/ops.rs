@@ -1,6 +1,6 @@
 //! The game-dev operation family: aiming, interpolating and stepping.
 //!
-//! `Option` appears only on genuinely degenerate cases — `look_at` with forward
+//! `Option` appears only on genuinely degenerate cases -- `look_at` with forward
 //! parallel to up, `direction_to` on coincident points, and the range-checked
 //! narrowings. Everything else is total, as the workspace's `panic = "deny"`
 //! requires.
@@ -26,7 +26,7 @@ macro_rules! impl_ops {
             ///
             /// Returns `None` when the direction to the target is parallel to
             /// `up`, when `up` is zero-length, or when `eye` and `target`
-            /// coincide — all three being cases where there is no rotation to
+            /// coincide -- all three being cases where there is no rotation to
             /// name rather than a rotation we decline to compute.
             #[must_use]
             #[inline]
@@ -35,8 +35,8 @@ macro_rules! impl_ops {
                 // difference in a position type and normalizing that clamps
                 // each axis independently, which does not preserve a bearing:
                 // two points 8388 km apart in x and 4194 km in y would come
-                // back as a 45° heading. Widening to `I48F16` first fixes that
-                // for this tier only — `GlobalFinePoint` *is* the wide type
+                // back as a 45 deg heading. Widening to `I48F16` first fixes that
+                // for this tier only -- `GlobalFinePoint` *is* the wide type
                 // and has no headroom to widen into.
                 match eye.to_global_fine().direction_to(target.to_global_fine()) {
                     Some(direction) => Self::looking_to(eye, direction, up),
@@ -101,7 +101,7 @@ macro_rules! impl_ops {
                     // Straight in and out of versor form. Going through
                     // `basis()` would decode each rotation to a matrix and
                     // rebuild a versor from it, then do it once more on the
-                    // way out — three `rsqrt` normalizes that cancel.
+                    // way out -- three `rsqrt` normalizes that cancel.
                     $rotation::from_versor(
                         self.rotation()
                             .to_versor()
@@ -121,7 +121,7 @@ macro_rules! impl_ops {
                 if max_distance.is_negative() {
                     // Not a distance. Going on would divide a negative
                     // numerator and wrap it into a near-full weight through
-                    // `as u32` — a step of `-1 m` would travel almost the whole
+                    // `as u32` -- a step of `-1 m` would travel almost the whole
                     // way. Staying put is the honest answer.
                     return self;
                 }
@@ -166,12 +166,12 @@ macro_rules! impl_ops {
 ///
 /// [`GlobalFinePoint::distance`](corvid_vector::GlobalFinePoint::distance)
 /// answers in `I48F16` and so saturates at `I48F16::MAX`, which opposite
-/// corners of the world reach — `√3 × 1.407e14` is past the type's own range.
+/// corners of the world reach -- `sqrt(3) x 1.407e14` is past the type's own range.
 /// `move_towards` divides by this, and a too-small denominator overshoots.
 ///
 /// The component difference is exact at `i128`. Three squares must still fit
 /// `u128`, so a difference wider than 62 bits is shifted down first and the
-/// root shifted back — the reduction is a power of two, so it costs at most a
+/// root shifted back -- the reduction is a power of two, so it costs at most a
 /// last bit of a distance already past `1.4e14` m.
 #[inline]
 const fn wide_distance(a: GlobalFinePoint, b: GlobalFinePoint) -> i128 {
@@ -198,7 +198,7 @@ const fn wide_distance(a: GlobalFinePoint, b: GlobalFinePoint) -> i128 {
     let squared = x * x + y * y + z * z;
     let root = squared.isqrt();
     // Round up when the true root is past the halfway point, which happens
-    // exactly when the remainder exceeds the root — the rule `length` uses.
+    // exactly when the remainder exceeds the root -- the rule `length` uses.
     let rounded = if squared - root * root > root {
         root + 1
     } else {

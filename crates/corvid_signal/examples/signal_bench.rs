@@ -12,14 +12,14 @@
 //! publishing with nobody watching and publishing while one consumer reads and
 //! copies every value. That difference is what "a publication never waits for a
 //! consumer" is worth, and it is the figure that moves if the value ever goes
-//! back to being cloned under the lock — which is what this crate did before the
+//! back to being cloned under the lock -- which is what this crate did before the
 //! cell held an `Arc`.
 //!
 //! The subject is a `Vec<String>` of 400 000 entries, which stands in for the
 //! audio-device list the documentation reaches for. Nothing here is a benchmark
 //! harness: it times loops with `Instant` and prints, because the comparison
 //! between two rows is the point and it is not a close call. Building the list
-//! is left outside every timed region — 400 000 `format!`s dwarf everything
+//! is left outside every timed region -- 400 000 `format!`s dwarf everything
 //! else, and they are the publisher's own work rather than the handoff's.
 
 #![allow(
