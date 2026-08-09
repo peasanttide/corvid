@@ -41,14 +41,13 @@ impl<S: State> Session<S> {
     /// every state restored out of the ring — see
     /// [`Data`](corvid_behavior::Data).
     ///
-    /// There used to be a second obligation here, about a `Scratch` being a
-    /// memo rather than an accumulator, and this was the call site that made it
-    /// load-bearing: a seek re-simulates from whichever snapshot survived one
-    /// machine's memory budget, so a tick reading accumulated history out of a
-    /// scratch answered differently here than it had when the session ran —
-    /// from the same log, on the same machine. `Scratch` is gone, and with it
-    /// the only obligation in the contract that a replay could violate on its
-    /// own.
+    /// That is the whole of what a seek asks of a game, and it is worth saying
+    /// why there is nothing else: a seek re-simulates from whichever snapshot
+    /// survived one machine's memory budget, so any channel into a tick that
+    /// accumulated across ticks would answer differently here than it did when
+    /// the session ran — from the same log, on the same machine. A tick takes
+    /// `self` by value and has no such channel, so a replay cannot violate the
+    /// contract on its own.
     ///
     /// # How much of the session it had to run again
     ///
@@ -58,9 +57,9 @@ impl<S: State> Session<S> {
     /// from — which is the property `tests/seek.rs` exists to check — so
     /// nothing about the state could ever say whether the ring was consulted.
     ///
-    /// It used to be counted by the game, in a `Scratch` that ticked an
-    /// odometer nothing read. `Scratch` is gone, and this is the thing that
-    /// odometer was actually for.
+    /// Counting it here rather than in the game is what keeps it out of the
+    /// hashed state: an odometer a tick incremented would be a column on the
+    /// wire that exists for a measurement.
     ///
     /// # What comes back, and what it costs
     ///

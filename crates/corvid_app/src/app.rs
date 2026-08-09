@@ -38,8 +38,8 @@ use crate::{
 /// times and because `Box<dyn Fn(&S, Tick) -> bool>` is
 /// not a thing to read twice.
 ///
-/// A newtype rather than the alias it used to be, so that the two structs
-/// holding one can derive [`Debug`]. A closure has nothing to print, but
+/// A newtype rather than a bare alias, so that the two structs holding one can
+/// derive [`Debug`]. A closure has nothing to print, but
 /// "there is a predicate here" is a fact about a run's settings worth keeping
 /// in the line that prints them.
 pub(crate) struct Stop<S>(Predicate<S>);
@@ -1345,8 +1345,7 @@ where
         settings: Settings<G>,
     ) -> Result<Outcome<G>, Error> {
         let renderer = corvid_render::Renderer::offscreen(size).map_err(Error::Drew)?;
-        // The pipelines are built here because here is where the device
-        // is, which is the whole of what `Setup` used to be for.
+        // The pipelines are built here because here is where the device is.
         let graphics = G::Render::new(
             corvid_render::Opened {
                 device: renderer.device(),
@@ -1436,10 +1435,10 @@ where
     /// without one and compares the traces.
     ///
     /// `const`, and it is worth saying why that is possible: asking for a
-    /// window is one `bool` now. It used to also build the game's drawing half
-    /// and box it, because this was the only context that knew `G: Render` — and
-    /// [`run`](Self::run) takes that bound itself now, so there is nothing to
-    /// capture here.
+    /// window is one `bool`. Building the game's drawing half here instead
+    /// would mean boxing it, since this would be the only context knowing
+    /// `G: Render` — and [`run`](Self::run) carries that bound itself, so there
+    /// is nothing to capture.
     #[cfg(feature = "window")]
     #[must_use]
     pub const fn window(mut self) -> Self {

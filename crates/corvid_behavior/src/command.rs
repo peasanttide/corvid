@@ -71,9 +71,9 @@ bounded_name! {
     /// so a line that does not fit is an error where it was built rather than a
     /// quietly shorter line on one machine.
     ///
-    /// It used to have to be boxed into a sixteen-byte `Command` variant as
-    /// well. [`Command`] is a trait now, so an argument costs what it costs and
-    /// nothing else pays for this one being wide.
+    /// Sixty-four bytes is affordable because [`Command`] is a trait: an
+    /// argument costs what it costs, and no other request pays for this one
+    /// being wide.
     PresenceText, 64
 }
 
@@ -91,18 +91,15 @@ bounded_name! {
 
 /// Who a request is addressed to: the session, or one machine.
 ///
-/// # Why this survived the enum it used to describe
+/// # Why this is a value and not an accessor
 ///
-/// [`Command`] used to be a closed, `#[non_exhaustive]` enum, and this was
-/// handed over by a `scope()` accessor. The accessor existed because a match on
-/// a non-exhaustive enum is forced to write a fallback arm, and that arm was
-/// holding an unknown request with no way to ask what kind it was.
+/// Nothing asks a request what scope it has. [`Command`] is one method per
+/// effect, and a method's scope is known where it is defined — so there is no
+/// fallback arm to hold an unknown request and nothing to interrogate.
 ///
-/// One method per effect makes that problem disappear rather than solving it:
-/// there is no fallback arm and no unknown request, because every effect is a
-/// method whose scope is known where it is defined. So the accessor is gone and
-/// this is not, because a runtime still records which kind of thing it routed —
-/// and a record of a decision is worth more than a record of the input to it.
+/// This exists anyway because the runtime records which kind of thing it
+/// routed, and a record of a decision is worth more than a record of the input
+/// to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Scope {
     /// About the session, so every peer emits it and every peer has to act on
@@ -130,13 +127,12 @@ pub enum Scope {
 /// Two things, and the second is the one that mattered.
 ///
 /// **A tick that asks for nothing allocates nothing.** That is almost all of
-/// them. The old shape returned `Vec<Command<R>>` from every tick, and although
-/// an empty `Vec` does not allocate, every element of every non-empty one was
-/// as wide as the widest request — which is why the payloads that did not fit
-/// beside a discriminant were boxed, and why this crate used to carry a doctest
-/// asserting `size_of::<Command<()>>() <= 16`. None of that is needed now: an
-/// argument list has no uniform width, so `set_presence` costs what a
-/// `PresenceText` costs and every other method costs nothing.
+/// them. Returning `Vec<Command<R>>` from every tick would not allocate for the
+/// empty case either, but every element of every non-empty one would be as wide
+/// as the widest request — so a payload that did not fit beside a discriminant
+/// would have to be boxed, and the whole enum would need a size assertion to
+/// keep it honest. An argument list has no uniform width: `set_presence` costs
+/// what a `PresenceText` costs and every other method costs nothing.
 ///
 /// **A test can be a `Vec`.** The sink is whatever the caller passes, so a test
 /// passes a recorder and asserts on what it was told, and the runtime passes
@@ -188,9 +184,9 @@ pub trait Command {
     /// # No bytes
     ///
     /// What a save writes is the session and the state, both of which the
-    /// runtime holds. The blob a tick used to hand over here had no route back
-    /// into a simulation on reload — nothing read it, and nothing could have —
-    /// so it was a `Vec<u8>` allocated on every save and dropped on every load.
+    /// runtime holds. A blob handed over here would have no route back into a
+    /// simulation on reload — nothing would read it, and nothing could — so it
+    /// would be a `Vec<u8>` allocated on every save and dropped on every load.
     fn save(&mut self, _slot: SaveSlot) {}
 
     /// Ask whether there is a save in a slot, which is what a menu of them

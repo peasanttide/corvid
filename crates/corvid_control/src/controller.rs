@@ -100,12 +100,12 @@ pub struct Updating<'a, S: State> {
 /// often, at a rate nobody chose and nothing records.
 ///
 /// **That split is the point.** One method mutates and three read, so a `look`
-/// that moved the camera it was reporting stops being expressible. The
-/// arrangement this replaced had a `View` bounded by `Default` and nothing
-/// else — and a `Default` type may hold a
-/// [`Cell`](core::cell::Cell), so every one of the three functions handed a
-/// `&View` could write through it. That the view moved in one place was owed
-/// rather than enforced, and it took four paragraphs to say so.
+/// that moved the camera it was reporting stops being expressible. Handing all
+/// four a shared `&View` instead would only owe that discipline rather than
+/// enforce it: a type bounded by `Default` may hold a
+/// [`Cell`](core::cell::Cell), so every one of the reading functions could
+/// write through it, and "the view moves in one place" would be a paragraph
+/// instead of a signature.
 ///
 /// # What goes on the wire is the action, not what it read
 ///
@@ -145,10 +145,11 @@ pub trait Controller<S: State> {
     ///
     /// **Required, with no default, and that is the whole point of it.** The
     /// declaration is what a snapshot is sized from and what a binding table is
-    /// written against. Before it was required, a game played through the
-    /// universal `main` ran with an empty declaration, which binds no key and
+    /// written against. Defaulting it would let a game played through the
+    /// universal `main` run with an empty declaration, which binds no key and
     /// no axis and answers [`Digital::RELEASED`](corvid_input::Digital) to
-    /// every query for the length of the run.
+    /// every query for the length of the run — a silent failure with nothing
+    /// anywhere pointing at the missing line.
     ///
     /// A controller with genuinely no actions writes `&[]` and means it, which
     /// is what a scripted one does.

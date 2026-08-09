@@ -36,11 +36,11 @@ bottom two fifteen times a second and the top two nine or ten times as often, at
 a rate nobody chose and nothing records.
 
 **That split is the point.** One method mutates and three read, so a `look` that
-moved the camera it was reporting stops being expressible. What this replaced
-was a `View` bounded by `Default` and nothing else — and a `Default` type may
-hold a `Cell`, so all three of the functions handed a `&View` could write
-through it. That the view moved in exactly one place was owed rather than
-enforced, and it took four paragraphs to say so.
+moved the camera it was reporting stops being expressible. Handing all four a
+shared `&View` instead would only owe that discipline rather than enforce it: a
+type bounded by `Default` may hold a `Cell`, so every one of the reading
+functions could write through it, and "the view moves in exactly one place"
+would be a paragraph instead of a signature.
 
 ## Nothing here compiles a graphics stack
 

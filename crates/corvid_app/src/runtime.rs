@@ -51,9 +51,8 @@ pub(crate) struct Plan<S: State> {
     pub(crate) bots: Vec<PlayerId>,
     /// The transport the other machines are behind, for a run that has any.
     ///
-    /// [`None`] is one seat and no network, which is what every example did
-    /// before this existed and what a run that never calls
-    /// [`App::transport`](crate::App::transport) still does.
+    /// [`None`] is one seat and no network, which is what a run that never
+    /// calls [`App::transport`](crate::App::transport) plays.
     #[cfg(feature = "net")]
     pub(crate) transport: Option<Box<dyn corvid_net::Transport>>,
     /// How far ahead of the agreed frontier this machine will play, for a run
@@ -280,12 +279,11 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// Builds the loop's state from a session that is already at its opening.
     ///
     /// A [`Frame`] holds two states and there is only one before the first
-    /// tick, so both ends of the run's opening pair are the same handle. That
-    /// used to be two whole clones of the origin state; it is now two
-    /// increments of one refcount, and the state itself is the one the opening
-    /// already holds. The alternative — a `previous` that is an [`Option`] —
-    /// would still put a branch in front of every extractor for the sake of the
-    /// first frame.
+    /// tick, so both ends of the run's opening pair are the same handle: two
+    /// increments of one refcount rather than two clones of the origin state,
+    /// and the state itself is the one the opening already holds. The
+    /// alternative — a `previous` that is an [`Option`] — would put a branch in
+    /// front of every extractor for the sake of the first frame.
     ///
     /// # Errors
     ///
@@ -590,10 +588,9 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// tick that ran, and no tick after it does.
     /// # No alpha
     ///
-    /// This used to be handed the display's interpolation weight, because
-    /// `action` was given a `Frame` that carried one. A `Controller::action` is
-    /// given neither: interpolation is the renderer's and happens in a shader,
-    /// so a tick's action cannot depend on where the display happens to sit.
+    /// A `Controller::action` is handed no interpolation weight and no frame:
+    /// interpolation is the renderer's and happens in a shader, so a tick's
+    /// action cannot depend on where the display happens to sit.
     fn advance(&mut self) -> Result<Flow, Error> {
         let asked = self.at;
         // The count is checked on both sides of the tick, and each side is
@@ -1013,12 +1010,9 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         // atomic increments and no copy of a state, which is what a `Frame` of
         // handles buys and is why this is not worth writing any other way.
         //
-        // It used to be one value passed three times because a `Frame` was
-        // `Copy`, and the reason it could be built before the three calls at
-        // all was that its borrows were disjoint fields of `self`. Neither
-        // applies now: an owned frame borrows nothing, so `frame` is an
-        // ordinary method call and the three calls below are free to take
-        // `&mut self.view` in whatever order they like.
+        // An owned frame borrows nothing, so building one is an ordinary method
+        // call and the three calls below are free to take `&mut self` in
+        // whatever order they like.
         let time = self.now();
         self.controller.update(Updating {
             state: &self.current,
