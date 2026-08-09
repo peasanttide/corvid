@@ -25,6 +25,8 @@
 /// - `bits` names the reader that turns a component into its bit pattern. It is
 ///   not simply `to_bits`, because [`Signed32`] has a redundant encoding -- see
 ///   [`signed32_bits`].
+/// - `build` is the lowercase free function that builds the type from three
+///   things that convert into its component, so `finepoint(1, 2, 3)` reads.
 macro_rules! define_point {
     (
         $(#[$attr:meta])*
@@ -34,6 +36,7 @@ macro_rules! define_point {
             one: $one:expr,
             neg: $neg:ident,
             bits: $bits:ident,
+            build: $build:ident,
         }
     ) => {
         $(#[$attr])*
@@ -251,6 +254,23 @@ macro_rules! define_point {
                     self.0[2].lerp(to.0[2], weight),
                 ])
             }
+        }
+
+        #[doc = ::core::concat!("A [`", ::core::stringify!($name), "`] from three components.")]
+        ///
+        /// The short spelling, for the places a vector literal is what the code
+        /// is about: a test fixture, a table of geometry, a call site with
+        /// three numbers in it. Not `const`, unlike everything above it, because
+        /// [`Into`] is what lets the three be written as bare integers and a
+        /// trait bound is what a `const fn` cannot take.
+        #[must_use]
+        #[inline]
+        pub fn $build(
+            x: impl Into<$scalar>,
+            y: impl Into<$scalar>,
+            z: impl Into<$scalar>,
+        ) -> $name {
+            $name([x.into(), y.into(), z.into()])
         }
     };
 }

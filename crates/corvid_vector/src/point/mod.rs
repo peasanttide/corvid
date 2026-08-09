@@ -75,6 +75,7 @@ define_point! {
         one: 65_536,
         neg: saturating_neg,
         bits: i48f16_bits,
+        build: globalfinepoint,
     }
 }
 
@@ -95,6 +96,7 @@ define_point! {
         one: 256,
         neg: saturating_neg,
         bits: i24f8_bits,
+        build: globalpoint,
     }
 }
 
@@ -118,6 +120,7 @@ define_point! {
         one: 65_536,
         neg: saturating_neg,
         bits: i16f16_bits,
+        build: finepoint,
     }
 }
 
@@ -143,11 +146,29 @@ define_point! {
         one: 2_147_483_647,
         neg: neg,
         bits: signed32_bits,
+        build: direction,
     }
 }
 
 define_point_geometry!(Direction, Signed32, i64, u64, signed32_bits);
 define_point_traits!(Direction, Signed32);
+
+impl Direction {
+    /// Right, in the workspace's right-handed +X right, +Y forward, +Z up
+    /// convention.
+    ///
+    /// Written as a constant rather than reached through
+    /// [`normalize`](Direction::normalize), which answers an [`Option`]
+    /// because it has to: an axis is known to be a unit vector, and a caller
+    /// naming one should not be handed a `None` arm it can never take.
+    pub const X: Self = Self([Signed32::MAX, Signed32::ZERO, Signed32::ZERO]);
+
+    /// Forward.
+    pub const Y: Self = Self([Signed32::ZERO, Signed32::MAX, Signed32::ZERO]);
+
+    /// Up.
+    pub const Z: Self = Self([Signed32::ZERO, Signed32::ZERO, Signed32::MAX]);
+}
 
 /// Normalizes three raw bit patterns into a unit [`Direction`].
 ///

@@ -143,6 +143,21 @@ macro_rules! define_angle {
                 self.to_turns()
             }
 
+            /// Half the angle, as a signed offset from zero.
+            ///
+            /// The answer is a [`Pitch32`](crate::Pitch32) rather than another
+            /// angle because halving is the one operation whose result is not
+            /// a phase: a full turn halves to half a turn, and on a wrapping
+            /// type that is indistinguishable from halving zero. A pitch
+            /// covers half a turn either way and cannot wrap, so the two cases
+            /// stay apart -- which is what a field of view or a cone half
+            /// angle needs.
+            #[must_use]
+            #[inline]
+            pub const fn half(self) -> $crate::Pitch32 {
+                $crate::Pitch32::from_f64(self.to_f64() / 2.0)
+            }
+
             /// Converts from turns, wrapping into range.
             ///
             /// Named for consistency with the other families, where the natural

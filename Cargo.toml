@@ -50,6 +50,7 @@ corvid_hash = { version = "0.1.0", path = "crates/corvid_hash" }
 corvid_macros = { version = "0.1.0", path = "crates/corvid_macros" }
 corvid_net = { version = "0.1.0", path = "crates/corvid_net" }
 corvid_net_mock = { version = "0.1.0", path = "crates/corvid_net_mock" }
+corvid_shape = { version = "0.1.0", path = "crates/corvid_shape" }
 corvid_rotation = { version = "0.1.0", path = "crates/corvid_rotation" }
 corvid_signal = { version = "0.1.0", path = "crates/corvid_signal" }
 corvid_time = { version = "0.1.0", path = "crates/corvid_time" }
