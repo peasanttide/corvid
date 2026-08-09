@@ -92,8 +92,8 @@ jobs:
           echo "== corvid_time --features $feature"
           cargo build -p corvid_time --no-default-features --features "$feature"
         done
-    # A target with no operating system is the check with teeth. Five crates here
-    # declare `#![no_std]`, and nothing so far has held them to it: every arm
+    # A target with no operating system is the check with teeth. Seven crates
+    # here declare `#![no_std]`, and nothing so far has held them to it: every arm
     # above builds for the host, where a crate that quietly reached for `std`
     # compiles and passes, and the discovery is left to whoever first builds a
     # dedicated server or a console port. `corvid_wire` is the sharpest case,
@@ -116,36 +116,8 @@ jobs:
           echo "== $crate"
           cargo build -p "$crate" --no-default-features --target thumbv7em-none-eabi
         done
-    # `rust-version` is a promise to a downstream, and every other job here runs
-  # on whatever stable the runner has — so a crate reaching past the declared
-  # floor compiles green here and breaks the first person who believed the
-  # manifest. This is the only arm that would notice.
-  #
-  # `--all-targets`, because a test target is where it slips in: nothing a
-  # downstream compiles, and nothing any other arm holds to the floor.
-  #
-  # The version is read out of the manifest rather than written here twice,
-  # since two copies of a number are one copy and one stale copy.
-  msrv:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
 
-    steps:
-    - uses: actions/checkout@v4
-    - uses: mozilla-actions/sccache-action@v0.0.9
-    - uses: Swatinem/rust-cache@v2
-      with:
-        cache-targets: false
-    - name: The oldest toolchain the manifest promises
-      run: |
-        set -eu
-        floor=$(cargo metadata --format-version 1 --no-deps \
-          | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["rust_version"])')
-        echo "rust-version is $floor"
-        rustup toolchain install "$floor" --profile minimal
-        cargo "+$floor" check --workspace --all-targets --all-features
-
-  # `corvid_hash` overrides `write_usize` and `write_isize` so a `Vec`'s
+    # `corvid_hash` overrides `write_usize` and `write_isize` so a `Vec`'s
     # length prefix is eight bytes on every target rather than the pointer
     # width, which is the one thing standing between a `wasm32` browser peer and
     # a native server agreeing on a digest. Every arm above runs on the 64-bit
@@ -192,3 +164,28 @@ jobs:
       env:
         RUSTDOCFLAGS: -D warnings
       run: cargo doc --workspace --no-deps --all-features
+
+  # `rust-version` is a promise to a downstream, and every other job here runs
+  # on whatever stable the runner has — so a crate reaching past the declared
+  # floor compiles green here and breaks the first person who believed the
+  # manifest. This is the only arm that would notice.
+  #
+  # `--all-targets`, because a test target is where it slips in: nothing a
+  # downstream compiles, and nothing any other arm holds to the floor.
+  #
+  # The version is read out of the manifest rather than written here twice,
+  # since two copies of a number are one copy and one stale copy.
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: The oldest toolchain the manifest promises
+      run: |
+        set -eu
+        floor=$(cargo metadata --format-version 1 --no-deps \
+          | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["rust_version"])')
+        echo "rust-version is $floor"
+        rustup toolchain install "$floor" --profile minimal
+        cargo "+$floor" check --workspace --all-targets --all-features
