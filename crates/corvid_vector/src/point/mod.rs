@@ -186,6 +186,10 @@ impl Direction {
 /// nothing else. It is a literal at every call site, so the branch folds away
 /// and neither tier pays for the other's existence.
 #[inline]
+#[allow(
+    clippy::redundant_pub_crate,
+    reason = "`oct` is the second caller and lives in a sibling module, so this cannot be private -- and `unreachable_pub` is what refuses the bare `pub` clippy suggests instead"
+)]
 pub(crate) const fn normalize_bits(bits: [i128; 3], fast: bool) -> Option<Direction> {
     // 1. Rescale so the largest component sits just under 2^30. Shifting rather
     //    than dividing costs at most a last bit of the smallest component,
