@@ -146,7 +146,7 @@ copy-on-write through `Arc::make_mut`, which takes its copy *under the lock a
 read also takes* -- so a `modify` that has to copy holds every reader up for one
 whole `T::clone`. On a 400 000-entry `Vec<String>` whose copy costs 19 ms, a
 `get` issued once that copy had begun came back after 23 ms;
-`examples/signal_bench.rs` measures it and `tests/channel.rs` pins it with a
+`examples/signal_bench.rs` measures it and `tests/lock.rs` pins it with a
 payload whose `Clone` is rigged to take 300 ms, so the property is asserted
 rather than timed. A `modify` that does not have to copy -- nobody holding the
 value -- costs a reader nothing.
@@ -212,12 +212,12 @@ a consumer is holding the value about to be edited. So a device list that gained
 one entry is still one push on a signal nobody is reading right now, and a push
 plus a copy of the list on one that somebody is -- at most one copy per
 publication however many consumers there are, and never more work than the
-clone-edit-`set` it replaces. `tests/channel.rs` counts the copies.
+clone-edit-`set` it replaces. `tests/lock.rs` counts the copies.
 
 That copy is the one place in the crate where a `T`'s own code runs inside the
 lock, so it is the one place a reader waits: a `get` that arrives during it
 waits the length of the clone, which the table near the top of this file says
-and `tests/channel.rs` asserts. A publisher that cannot afford to hold readers
+and `tests/lock.rs` asserts. A publisher that cannot afford to hold readers
 up for a copy of the value should reach for `set`, which never takes one -- the
 trade is that `set` needs a whole new value and `modify` needs only an edit.
 
@@ -240,7 +240,7 @@ for a signal has been dropped, `blocking_wait` parks forever -- the signature
 returns a `T` and there is no value to invent, so there is nothing else it could
 do. A thread that has to be able to exit needs a way out that does not come
 through that call: its own shutdown flag, and a last publication from whoever
-sets it, which is exactly the shape `tests/channel.rs` uses to shut its own
+sets it, which is exactly the shape `tests/blocking.rs` uses to shut its own
 threads down.
 
 ## Every publication opens a span
@@ -345,7 +345,7 @@ build and what somebody has to keep true.
 | Both handles are `Send + Sync` exactly when `T: Send + Sync` | the compiler, and the four blocks above |
 | A consumer never observes a value assembled out of two publications | one `Mutex` around one pointer, swapped whole; a reader takes the pointer and never the parts |
 | A publication never waits for a consumer | nothing a consumer does runs under the lock -- no `Clone`, no `Drop`, no allocation -- and nothing on the publishing path waits on the condition variable |
-| One publication wakes every parked consumer, not one of them | `notify_all`, and `tests/channel.rs` parks eight threads on one publication for each of the two publishing calls |
+| One publication wakes every parked consumer, not one of them | `notify_all`, and `tests/blocking.rs` parks eight threads on one publication for each of the two publishing calls |
 | A signal never grows | the cell holds one `Arc<T>`, and a publication drops the one it replaced |
 | A value handed to a consumer does not change underneath it | the `Arc` it was handed, and `modify`'s copy-on-write step |
 | Only state travels here, never actions or packets or commands | **the caller.** Nothing checks, and the failure is a desync |
@@ -388,7 +388,9 @@ cargo test -p corvid_signal
 
 | File | Covers |
 |---|---|
-| `tests/channel.rs` | latest-value semantics; that three publications between two polls are one observation of the third; that a consumer that never polls and eight consumers parked in `blocking_wait` neither hold up nor grow a publisher; that a consumer half a second into copying the value does not hold one up either; that one publication -- by `set` and by `modify` -- wakes all eight parked consumers rather than one; that `blocking_wait` wakes, and that it returns without parking when it is already behind; that the value a publication replaced is dropped outside the lock; that `modify` copies the value exactly when a consumer is holding it and never otherwise; that a value handed out does not change underneath its reader; that both handles name the signal and print nothing of the value, formatted from inside a `modify` closure that is holding the lock; and what a panicking `modify` leaves in the cell, does not publish, and does not break |
+| `tests/channel.rs` | Latest-value semantics: that three publications between two polls are one observation of the third; that a poll reports a change exactly once and two watchers keep their own place; that a value handed out does not change underneath its reader; that both handles name the signal and print nothing of the value, formatted from inside a `modify` closure that is holding the lock; and what a panicking `modify` leaves in the cell, does not publish, and does not break |
+| `tests/blocking.rs` | That a consumer that never polls and eight consumers parked in `blocking_wait` neither hold up nor grow a publisher; that one publication -- by `set` and by `modify` -- wakes all eight parked consumers rather than one; and that `blocking_wait` wakes, and returns without parking when it is already behind |
+| `tests/lock.rs` | What runs outside the lock: that the value a publication replaced is dropped there; that a consumer half a second into copying the value holds no publisher up; and that `modify` copies the value exactly when a consumer is holding it and never otherwise |
 | `tests/threads.rs` | eight publishing threads and eight observing threads on one signal, half of them parked and half polling, checking every observation against a seal over its own fields, against the range of values anybody published, and against a ticket that climbs for every author -- plus the check that the seal really does reject a reading assembled out of two publications |
 | `tests/tracing.rs` | a recording subscriber, reading back that a publication opens a span carrying the signal's label, level and sequence number, that an observation leaves the matching event at the level the table above gives it, and that a poll which saw nothing leaves nothing |
 | `examples/signal_bench.rs` | the four figures in the table above, on whatever host runs it |
