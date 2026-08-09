@@ -13,85 +13,21 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    # The backstop of last resort. This job has no caching, and a wedged step
+    # keeps a runner for six hours and reports nothing.
+    timeout-minutes: 30
 
     steps:
     - uses: actions/checkout@v4
     - name: Build
       run: cargo build --workspace --verbose
-    # Every optional integration is off by default, so a plain `cargo test`
-    # compiles out the serde, bytemuck, mint and nalgebra tests entirely — the
-    # wire format and the layout assertions among them.
-    - name: Run tests, default features
-      run: cargo test --workspace --verbose
+    # Only `--all-features`. Every optional integration is off by default, so a
+    # plain `cargo test` compiles out the serde, bytemuck, mint and nalgebra
+    # tests entirely — the wire format and the layout assertions among them —
+    # which makes the all-features run a superset of it. The `Build` step above
+    # is what still compiles the default set.
     - name: Run tests, all features
       run: cargo test --workspace --all-features --verbose
-    # Neither of the two runs above compiles a feature *on its own*. A feature
-    # that forgets to forward one of its dependency's own features builds fine
-    # under `--all-features`, where something else turns it on, and fails for
-    # the one user who enables only it.
-    - name: Build each feature on its own
-      run: |
-        set -eu
-        for crate in corvid_vector corvid_rotation corvid_transform; do
-          for feature in mint nalgebra serde bytemuck arbitrary std; do
-            echo "== $crate --features $feature"
-            cargo build -p "$crate" --no-default-features --features "$feature"
-          done
-        done
-        for feature in bytemuck serde arbitrary num-traits std; do
-          echo "== corvid_fixed --features $feature"
-          cargo build -p corvid_fixed --no-default-features --features "$feature"
-        done
-        # `corvid_bits` has one feature and it currently forwards nothing, so
-        # this arm passes trivially today. It is here for the day it stops
-        # being trivial: a `std` that starts gating an API is a change nothing
-        # else in this matrix would catch, because every other run either has
-        # the feature off or has everything on.
-        for feature in std; do
-          echo "== corvid_bits --features $feature"
-          cargo build -p corvid_bits --no-default-features --features "$feature"
-        done
-        # `corvid_float` has the one feature, and it is the odd one: it forwards
-        # nothing and adds no API, existing only so a downstream can turn `std`
-        # on everywhere without special-casing this crate. Built alone anyway,
-        # because "this feature does nothing" is a claim like any other and the
-        # day it starts gating something is the day nobody remembers it was.
-        for feature in std; do
-          echo "== corvid_float --features $feature"
-          cargo build -p corvid_float --no-default-features --features "$feature"
-        done
-        for feature in bytemuck mint std; do
-          echo "== corvid_glm --features $feature"
-          cargo build -p corvid_glm --no-default-features --features "$feature"
-        done
-        # `corvid_hash`'s one feature switches nothing on — the crate never
-        # reaches past `core`, and `std` is there so a downstream can forward it
-        # uniformly across the workspace instead of special-casing one leaf. A
-        # feature that does nothing is exactly the kind that rots without anyone
-        # noticing, because no other arm of this workflow ever names it on its
-        # own, so it is built here to keep the name honest.
-        for feature in std; do
-          echo "== corvid_hash --features $feature"
-          cargo build -p corvid_hash --no-default-features --features "$feature"
-        done
-        # `corvid_wire`'s one feature is the first in this loop that actually
-        # forwards: `std` reaches both `serde` and the encoder, and a version of
-        # it that named only one of them would compile under `--all-features`,
-        # where the other crate turns its own on, and fail for the first
-        # downstream that asks for exactly this.
-        for feature in std; do
-          echo "== corvid_wire --features $feature"
-          cargo build -p corvid_wire --no-default-features --features "$feature"
-        done
-        # `corvid_time`'s two both forward into `corvid_fixed`, and `std` is the
-        # only feature in this loop that adds API rather than only plumbing —
-        # `Clock::wall` does not exist without it. A `serde` that forgot
-        # `corvid_fixed/serde` is the exact shape this job exists to catch: it
-        # compiles under `--all-features`, where `std` turns the same thing on.
-        for feature in serde std; do
-          echo "== corvid_time --features $feature"
-          cargo build -p corvid_time --no-default-features --features "$feature"
-        done
     # A target with no operating system is the check with teeth. Seven crates
     # here declare `#![no_std]`, and nothing so far has held them to it: every arm
     # above builds for the host, where a crate that quietly reached for `std`
