@@ -1,0 +1,41 @@
+[package]
+name = "corvid_net_mock"
+description = "A network that lies on purpose: peers linked in-process with scriptable latency, jitter, loss and reorder, all drawn from a seed."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["networking", "deterministic", "transport", "simulation", "gamedev"]
+categories = ["network-programming", "game-development", "simulation"]
+
+[dependencies]
+# The vocabulary this crate implements.
+corvid_net = { workspace = true }
+# The roster is published rather than returned, as `Transport` asks.
+corvid_signal = { workspace = true }
+# `Factor16` is what a loss curve is written in: a share of one, exact at both
+# ends, and the same type a game already tunes with. It is in `Schedule`'s
+# public fields, so it is a public dependency.
+corvid_fixed = { workspace = true }
+# `ChaCha8Rng`, keyed per scheduling decision. Only the `chacha` feature: no
+# `getrandom`, no `thread_rng`, so this crate cannot reach a system RNG even by
+# accident, which is what its reproducibility rests on.
+rand = { version = "0.10.2", default-features = false, features = ["chacha"] }
+
+[dev-dependencies]
+# Freezing a conversation as a digest, which is a test's way of noticing that a
+# schedule moved. Not an RNG: the draws themselves are `rand`'s.
+corvid_hash = { workspace = true }
+
+[features]
+# There are none. Everything here reaches `std` and nothing here reaches
+# further, so there is no axis to put behind a flag.
+default = []
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

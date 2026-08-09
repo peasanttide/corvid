@@ -2,18 +2,18 @@
 //!
 //! A macro that declares a type has an unusual test surface: there is no
 //! function to feed edge cases to, so what is worth asserting is the *shape* of
-//! what comes out — the wire form, the digest, the ordering and the display —
+//! what comes out -- the wire form, the digest, the ordering and the display --
 //! at the boundaries of each repr rather than in its middle.
 //!
 //! Two of the assertions are made by this file compiling at all rather than by
 //! an `assert!`, and are recorded here so a later reader does not delete them
 //! as decoration. The declarations below sit at module scope in an ordinary
 //! crate, which is where callers will write them and which the README's
-//! doctest — a function body — does not exercise. And every one of them carries
+//! doctest -- a function body -- does not exercise. And every one of them carries
 //! a doc comment, which is the `$(#[$meta])*` passthrough test: the workspace
 //! sets `missing_docs = "deny"`, and that meta is the only route a doc comment
 //! has into the declared type, so deleting one stops the build. The field doc
-//! is load-bearing in a duller way — `$field_doc` is a required position in the
+//! is load-bearing in a duller way -- `$field_doc` is a required position in the
 //! matcher, so a caller cannot forget it, only pass an empty string.
 
 #![allow(
@@ -50,7 +50,7 @@ id_type! {
 }
 
 /// A struct with an identifier in it, to see the encoding in the position it
-/// will actually be read from — a field of a message — rather than alone.
+/// will actually be read from -- a field of a message -- rather than alone.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct Seating {
     seat: SeatId,
@@ -81,16 +81,19 @@ fn digest<T: Hash>(value: &T) -> u64 {
 #[test]
 fn the_field_is_public_and_display_is_the_integer() {
     assert_eq!(SeatId(3).0, 3);
-    assert_eq!(SeatId(3).to_string(), "3");
+    assert_eq!(SeatId(3).to_string(), "SeatId(3)");
 
     // The ends of each repr, where a `Display` written by hand would be most
     // likely to have gone through a narrower intermediate.
-    assert_eq!(SeatId(u16::MIN).to_string(), "0");
-    assert_eq!(SeatId(u16::MAX).to_string(), "65535");
-    assert_eq!(AccountId(u64::MAX).to_string(), "18446744073709551615");
-    assert_eq!(Offset(i8::MIN).to_string(), "-128");
-    assert_eq!(Offset(-1).to_string(), "-1");
-    assert_eq!(Offset(i8::MAX).to_string(), "127");
+    assert_eq!(SeatId(u16::MIN).to_string(), "SeatId(0)");
+    assert_eq!(SeatId(u16::MAX).to_string(), "SeatId(65535)");
+    assert_eq!(
+        AccountId(u64::MAX).to_string(),
+        "AccountId(18446744073709551615)"
+    );
+    assert_eq!(Offset(i8::MIN).to_string(), "Offset(-128)");
+    assert_eq!(Offset(-1).to_string(), "Offset(-1)");
+    assert_eq!(Offset(i8::MAX).to_string(), "Offset(127)");
 
     // `Copy`, so passing one does not move it. This is a compile-time claim
     // dressed as a runtime one; it fails to build rather than to assert.
@@ -177,7 +180,7 @@ fn the_digest_is_the_integer_and_no_type_tag() {
     // Same width, different kind: the README's claim, and the reason the
     // second `u16` identifier above exists.
     assert_eq!(digest(&SeatId(3)), digest(&SlotId(3)));
-    // And it is the bare integer's digest, which is the stronger statement —
+    // And it is the bare integer's digest, which is the stronger statement --
     // nothing at all is fed to the hasher besides the number.
     assert_eq!(digest(&SeatId(3)), digest(&3_u16));
     assert_eq!(digest(&AccountId(3)), digest(&3_u64));
@@ -188,7 +191,7 @@ fn the_digest_is_the_integer_and_no_type_tag() {
     // Nothing is asserted about what comes back out, on purpose: the three
     // above already fix each identifier's digest to its repr's, which is the
     // whole of the claim, and a `!=` between two digests would be a test
-    // asserting the absence of a collision — which no `Hasher` promises, so
+    // asserting the absence of a collision -- which no `Hasher` promises, so
     // it would be pinning this hasher's luck rather than this crate's
     // behaviour.
 }
@@ -213,5 +216,5 @@ fn an_identifier_keys_a_map() {
 fn a_declaration_survives_a_module_without_the_prelude() {
     let bare = without_the_prelude::BareId(7);
     assert_eq!(bare.0, 7);
-    assert_eq!(bare.to_string(), "7");
+    assert_eq!(bare.to_string(), "BareId(7)");
 }

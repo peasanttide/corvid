@@ -1,0 +1,40 @@
+[package]
+name = "corvid_net"
+description = "The transport contract: bytes to a peer, bytes from a peer, and a published roster."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["networking", "transport", "gamedev"]
+categories = ["network-programming", "game-development"]
+
+[dependencies]
+# `id_type!` for `PeerId` and `named_enum!` for `Channel` and `Lost` -- the
+# newtype, the `ALL`, the names and both `Display`s. A `macro_rules!` crate
+# with no dependencies of its own, so it adds a path entry and nothing to the
+# build below it. What it does add is `serde`, which `id_type!`'s expansion
+# names.
+corvid_macros = { workspace = true }
+# The only dependency a backend inherits by speaking this vocabulary, which is
+# the point of the crate being this small. `Watch` is in `Transport::peers`'s
+# signature, so it is a public dependency.
+corvid_signal = { workspace = true }
+# Named by `id_type!`'s expansion rather than used directly here: `PeerId`
+# encodes as the bare number under `#[serde(transparent)]`.
+serde = { workspace = true, features = ["derive"] }
+# `Display` and `Error` for `SendError`, written on the variants rather than in
+# a `match` a new variant can be added without touching.
+thiserror.workspace = true
+
+[features]
+# There are none. A contract with a feature flag is two contracts, and a caller
+# generic over `Transport` would have to know which one its backend compiled.
+default = []
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

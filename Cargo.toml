@@ -37,6 +37,16 @@ publish = true
 license = "GPL-2.0-or-later"
 
 [workspace.dependencies]
+# The workspace's own crates, so a member names a sibling as
+# `corvid_x = { workspace = true }` and the version and the path are written
+# here once. Only the crates a member already names are listed; the rest of
+# the workspace still spells its siblings by path.
+corvid_fixed = { version = "0.1.0", path = "crates/corvid_fixed" }
+corvid_hash = { version = "0.1.0", path = "crates/corvid_hash" }
+corvid_macros = { version = "0.1.0", path = "crates/corvid_macros" }
+corvid_net = { version = "0.1.0", path = "crates/corvid_net" }
+corvid_signal = { version = "0.1.0", path = "crates/corvid_signal" }
+
 thiserror = "2"
 serde = { version = "1", default-features = false, features = ["derive"] }
 bytemuck = { version = "1", features = ["derive"] }

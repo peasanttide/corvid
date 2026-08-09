@@ -1,7 +1,7 @@
 # `corvid_macros`
 
 The declarative macros [Corvid](https://github.com/peasanttide/corvid)'s crates
-share. One so far.
+share.
 
 ```rust
 use corvid_macros::id_type;
@@ -14,7 +14,10 @@ id_type! {
 // A number, with the field public, because an identifier is a number.
 let seat = SeatId(3);
 assert_eq!(seat.0, 3);
-assert_eq!(seat.to_string(), "3");
+
+// The display names the type, because which kind of identifier a number is
+// is the thing the newtype exists to keep straight.
+assert_eq!(seat.to_string(), "SeatId(3)");
 
 // And it encodes as one. `#[serde(transparent)]` is part of what `id_type!`
 // declares, so nothing on the wire records that the number was wrapped.
@@ -36,8 +39,8 @@ takes(AccountId(3));
 
 Because a macro only one crate can reach is a pattern the next crate
 reimplements slightly differently. This workspace has already had to unpick one
-round of that — the same type reachable by four paths, with nothing to say which
-was meant — and two spellings of "a numbered identifier" is the same shape of
+round of that -- the same type reachable by four paths, with nothing to say which
+was meant -- and two spellings of "a numbered identifier" is the same shape of
 problem one size down.
 
 ## Why `macro_rules!` rather than a proc macro
@@ -52,7 +55,7 @@ below the simulation ring, to produce a newtype and a `Display`.
 
 A macro emits tokens; the crate that *expands* them is the one that has to be
 able to name what they mention. So every path in an expansion that leaves the
-prelude is absolute — `::core::fmt::Display`, `::serde::Serialize` — and a
+prelude is absolute -- `::core::fmt::Display`, `::serde::Serialize` -- and a
 caller of `id_type!` depends on `serde` while this crate depends on nothing.
 The nine built-in derives are left bare, as they are in the newtype macros in
 `corvid_fixed` and `corvid_vector`, because a prelude name needs no help: they
@@ -79,7 +82,7 @@ fine, because nothing ever hashes one out of context.
 
 Two of *different* widths feed the hasher different bytes, and the pair in the
 example above is exactly that case: `Hash for u16` writes two where `Hash for
-u64` writes eight. That is a claim about the input and not about the digest —
+u64` writes eight. That is a claim about the input and not about the digest --
 a `Hasher` is free to collide on any two inputs and none of them promises
 otherwise, so "these two cannot come out alike" is not something this crate or
 `Hash` will tell you. Read the difference in what is written as an accident of
