@@ -1,7 +1,7 @@
 //! Three points, and the cast that picks a face out of a mesh.
 
 use crate::{Aabb, Cast, Hit, Ray};
-use corvid_vector::{Direction, GlobalPoint, WideOffset};
+use corvid_vector::{Direction, GlobalPoint};
 
 /// A triangle, wound in the order given.
 ///
@@ -37,12 +37,12 @@ impl Triangle {
     /// case [`cast`](Cast::cast) reports as a miss.
     #[must_use]
     pub fn normal(&self) -> Option<Direction> {
-        // Wide from the corners, not from their narrowed difference. Both
-        // edges and the cross product itself leave a component's range for a
-        // triangle spanning much of the world, and narrowing any of them first
-        // does not lose precision so much as answer a different direction.
-        let first = WideOffset::between(self.b, self.a);
-        let second = WideOffset::between(self.c, self.a);
+        // `cross_direction` rather than `cross().normalize()`: the cross of two
+        // edges reaches `2^62` and the narrower one divides it back into a
+        // component's range first, which does not lose precision so much as
+        // answer a different direction.
+        let first = self.b.checked_sub(self.a)?;
+        let second = self.c.checked_sub(self.a)?;
         first.cross_direction(second)
     }
 
@@ -70,10 +70,11 @@ impl Triangle {
 /// det = e1 . (direction x e2)
 /// u   = s  . (direction x e2)     inside when 0 <= u <= det
 /// v   = e1 . (direction x s)      inside when 0 <= v <= det
-/// t   = e2 . (s x e1)  over det   the distance, once the unit is paid back
+/// hit = a + e1 (u/det) + e2 (v/det)
+/// t   = (hit - origin) . direction
 /// ```
 ///
-/// Two things about it are decisions rather than transcription.
+/// Three things about it are decisions rather than transcription.
 ///
 /// **The barycentric tests do not divide.** `u` and `v` are compared against
 /// zero and against `det` with the sign of `det` folded in, rather than being
@@ -85,36 +86,46 @@ impl Triangle {
 /// is a legitimate hit, and this crate does not decide otherwise. A caller that
 /// wants culling compares [`align`](corvid_vector::Direction::align) of the
 /// normal against the ray's direction, which is one line.
+///
+/// **The distance comes from the point rather than a fourth determinant.** The
+/// textbook fourth is `e2 . (s x e1)` over the same `det`, and it is a volume
+/// where the other three are areas -- a whole metre of scale further out, which
+/// is what used to make this the one place in the workspace needing an
+/// accumulator past a word. Once `u` and `v` are known the hit is located
+/// already, so walking to it and projecting back onto the ray answers the same
+/// distance out of quantities that are all in range.
 impl Cast for Triangle {
     fn cast(&self, ray: Ray) -> Option<Hit> {
-        // Wide from the start. `self.b - self.a` saturates each component, so
-        // a triangle spanning more than one component's range would run the
-        // arithmetic below against edges that are not its own.
-        let first = WideOffset::between(self.b, self.a);
-        let second = WideOffset::between(self.c, self.a);
+        // `checked_sub` throughout: an edge or a ray origin further from the
+        // first corner than an `I24F8` reaches has no offset in this type, and
+        // a saturated one would run the arithmetic below against a triangle
+        // that is not this one. A miss is the honest answer.
+        let first = self.b.checked_sub(self.a)?;
+        let second = self.c.checked_sub(self.a)?;
+        let to_origin = ray.origin.checked_sub(self.a)?;
 
-        let determinant = first.volume_across(ray.direction, second);
+        let determinant = first.volume(ray.direction, second);
         if determinant.is_zero() {
             return None;
         }
 
-        let to_origin = WideOffset::between(ray.origin, self.a);
-        let u = to_origin.volume_across(ray.direction, second);
+        let u = to_origin.volume(ray.direction, second);
         if u.is_outside(determinant) {
             return None;
         }
 
-        let v = first.volume_across(ray.direction, to_origin);
+        let v = first.volume(ray.direction, to_origin);
         if v.is_outside(determinant) || u.add(v).is_outside(determinant) {
             return None;
         }
 
-        // The determinant carries one factor of the direction's unit that the
-        // numerator does not, and paying it back is what turns the ratio into a
-        // distance. It can overflow only for geometry spanning most of the
-        // world, which this reports as a miss rather than as a wrapped
-        // distance.
-        let distance = second.volume(to_origin, first).distance_over(determinant)?;
+        // Inside, so the two ratios are weights along the two edges and the
+        // hit is where they put it. This is the only division in the routine
+        // and it happens after every decision has been made, which is the
+        // point of the comparisons above.
+        let hit = self.a.lerp(self.b, u.ratio(determinant))
+            + GlobalPoint::ZERO.lerp(second, v.ratio(determinant));
+        let distance = hit.checked_sub(ray.origin)?.project(ray.direction);
         if distance.is_negative() {
             return None;
         }

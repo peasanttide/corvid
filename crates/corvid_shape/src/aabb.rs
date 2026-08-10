@@ -2,10 +2,13 @@
 
 use corvid_fixed::I24F8;
 
-use corvid_fixed::Signed32;
+use corvid_fixed::{Factor32, Signed32};
 
 use crate::{Cast, Hit, Ray};
-use corvid_vector::{Direction, GlobalPoint, WideOffset};
+use corvid_vector::{Direction, GlobalPoint};
+
+/// One half, exactly, for the midpoint of a pair of corners.
+const HALF: Factor32 = Factor32::from_f64(0.5);
 
 /// An axis-aligned box, given by two corners.
 ///
@@ -73,31 +76,34 @@ impl Aabb {
         min[0] > max[0] || min[1] > max[1] || min[2] > max[2]
     }
 
-    /// Half the width on each axis.
-    #[must_use]
-    #[inline]
-    pub fn half_extent(&self) -> GlobalPoint {
-        // Widened before halving, not after. A box may legitimately be wider
-        // than one component's range -- `[-6000 km, 6000 km]` is 12 000 km on
-        // a component that stops at 8 388 -- and `self.max - self.min` would
-        // clamp that to the range before the halving ever saw it, answering
-        // 4 194 km for a box whose half extent is 6 000.
-        WideOffset::between(self.max, self.min).half()
-    }
-
     /// The middle.
     ///
-    /// Derived from the low corner and the half extent rather than averaging
-    /// the two corners, so that a box and the box `around` its own centre and
-    /// half extent agree.
-    /// Plain point arithmetic, because the sum cannot leave the range: the
-    /// centre lies between the corners, and both of those are points already.
-    /// Only the *extent* needs widening, which is
-    /// [`half_extent`](Self::half_extent)'s business rather than this one's.
+    /// A box may legitimately be wider than one component's range --
+    /// `[-6000 km, 6000 km]` is 12 000 km on a component that stops at 8 388 --
+    /// so `(self.min + self.max)` halved is not available: the sum saturates
+    /// before the halving sees it, and the answer comes back 1 800 km off.
+    ///
+    /// Interpolating halfway between the corners takes the same route without
+    /// the intermediate. A midpoint lies between two points that are in range,
+    /// so it is in range, and [`lerp`](GlobalPoint::lerp) is exact at both ends
+    /// and never leaves the interval -- there is nothing here to overflow at
+    /// any width.
     #[must_use]
     #[inline]
     pub fn centre(&self) -> GlobalPoint {
-        self.min + self.half_extent()
+        self.min.lerp(self.max, HALF)
+    }
+
+    /// Half the width on each axis.
+    ///
+    /// Derived from the middle rather than from the corners, for the same
+    /// reason and with the same consequence: half of a 12 000 km box is 6 000,
+    /// which is a perfectly ordinary [`GlobalPoint`] even though the box itself
+    /// is not.
+    #[must_use]
+    #[inline]
+    pub fn half_extent(&self) -> GlobalPoint {
+        self.centre() - self.min
     }
 
     /// Whether a point is inside, boundary included.

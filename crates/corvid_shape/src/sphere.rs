@@ -3,7 +3,7 @@
 use corvid_fixed::I24F8;
 
 use crate::{Cast, Hit, Ray};
-use corvid_vector::{GlobalPoint, WideOffset};
+use corvid_vector::GlobalPoint;
 
 /// A ball: a centre and a radius.
 ///
@@ -41,9 +41,10 @@ impl Sphere {
             return false;
         }
         // Squared on both sides, so there is no square root and no floating
-        // point -- and wide on the left, because the point may be further from
-        // the centre than a component reaches.
-        WideOffset::between(point, self.centre).length_squared() <= self.radius.squared()
+        // point. A point further from the centre than an `I24F8` reaches
+        // answers the largest squared distance there is, which is above every
+        // radius -- so the comparison is still an answer out there.
+        point.distance_squared(self.centre) <= self.radius.squared()
     }
 }
 
@@ -65,12 +66,10 @@ impl Sphere {
 /// scaling step to get wrong and no floating point anywhere.
 ///
 /// `miss` is asked for directly rather than assembled from its two terms, which
-/// is what keeps a cast from the far side of the world honest. Both `|oc|^2`
-/// and `along^2` reach `2^64` there and their difference is small, so
-/// subtracting them here would be subtracting two large numbers to get a small
-/// one -- and the small one is what decides hit from miss. `rejection_squared`
-/// takes it in one step instead, so whether a ray finds the sphere at all stays
-/// exact even when the distance it answers has to clamp.
+/// is what keeps a cast at the far edge of the range honest. Both `|oc|^2` and
+/// `along^2` reach `2^62` there and their difference is small, so subtracting
+/// them here would be subtracting two large numbers to get a small one -- and
+/// the small one is what decides hit from miss.
 ///
 /// The near root is taken when it is in front of the origin and the far one
 /// when it is not, which is what makes a ray that starts inside answer the wall
@@ -84,7 +83,12 @@ impl Cast for Sphere {
         // direction the `along` term is zero, so an origin *inside* the sphere
         // leaves a positive discriminant and the quadratic reports a hit at a
         // distance the ray never travels.
-        let offset = WideOffset::between(ray.origin, self.centre);
+
+        // A sphere further from the origin than an `I24F8` reaches has no hit
+        // distance this could report, so it is a miss rather than a clamp --
+        // and `checked_sub` rather than the saturating one is what makes that
+        // the answer instead of a hit at a place the ray does not pass.
+        let offset = ray.origin.checked_sub(self.centre)?;
         let discriminant = self
             .radius
             .squared()

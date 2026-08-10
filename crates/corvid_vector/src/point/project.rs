@@ -22,10 +22,16 @@
 //! `tests/project.rs` searches for that corner rather than taking the algebra's
 //! word for it.
 //!
-//! What does **not** fit is the difference of two far-apart points, whose
-//! components reach `2^32` rather than `2^31` -- that is
-//! [`WideOffset`](super::WideOffset)'s business, and it is the only place in
-//! this workspace that needs a wider accumulator.
+//! Every product below is bounded the same way, by Cauchy-Schwarz against a
+//! unit direction, and every one of them fits. Nothing here is wider than an
+//! `i64`, and the two sums of squares that would be are taken unsigned, where
+//! `3 * 2^62` still fits.
+//!
+//! A difference of two points is a [`GlobalPoint`] like any other, which is a
+//! constraint rather than an observation: two points more than 8388 km apart
+//! have no offset in this type, and
+//! [`checked_sub`](GlobalPoint::checked_sub) is how a caller finds that out
+//! rather than being handed a saturated one.
 //!
 //! # Why they divide by [`UNIT`] rather than shifting by 31
 //!
@@ -51,7 +57,7 @@ const UNIT: i64 = i32::MAX as i64;
 /// shortfall into a whole step in the last place. Every scaling here goes
 /// through this instead.
 #[inline]
-const fn divide(numerator: i64, denominator: i64) -> i64 {
+pub(super) const fn divide(numerator: i64, denominator: i64) -> i64 {
     let half = (denominator.unsigned_abs() / 2) as i64;
     let bump = if numerator < 0 { -half } else { half };
     (numerator + bump) / denominator

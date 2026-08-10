@@ -52,16 +52,14 @@ const fn signed32_bits(value: Signed32) -> i32 {
 }
 mod base;
 mod geometry;
+mod measure;
 mod project;
 mod traits;
-mod volume;
-mod wide;
 
 use base::define_point;
 use geometry::define_point_geometry;
+pub use measure::Volume;
 use traits::define_point_traits;
-pub use volume::Volume;
-pub use wide::WideOffset;
 
 define_point! {
     /// A world-space position at both wide range and high resolution.
@@ -179,16 +177,18 @@ impl Direction {
     ///
     /// The scale cancels, so what these mean is a *ratio*: `[2, 0, 0]` and
     /// `[2_000_000, 0, 0]` are the same direction, and neither number has to
-    /// fit a component. That is the whole point of taking a width no component
-    /// has.
+    /// fit a component.
     ///
-    /// This exists for the caller whose vector is a cross product, a
-    /// difference of far-apart points, or anything else that has already left
-    /// a component's range. Normalizing such a vector by first narrowing it to
-    /// a [`GlobalPoint`] and calling
-    /// [`normalize`](GlobalPoint::normalize) saturates each component on the
-    /// way, which does not merely lose precision -- it changes the direction,
-    /// and the answer can point somewhere the input did not.
+    /// **A cross product is what needs the extra width, and it is the only
+    /// thing that does.** Two [`GlobalPoint`]s crossed is a product of two Q8
+    /// bit patterns, which reaches `2^62` -- a word, and nothing narrower.
+    /// [`cross_direction`](GlobalPoint::cross_direction) is that caller, and
+    /// anything else with a ratio already in range can hand it over as it is.
+    /// What a caller must *not* do is narrow such a vector to a
+    /// [`GlobalPoint`] and call [`normalize`](GlobalPoint::normalize) on it:
+    /// that saturates each component independently, which does not merely lose
+    /// precision -- it changes the direction, and the answer can point
+    /// somewhere the input did not.
     ///
     /// ```
     /// use corvid_vector::Direction;

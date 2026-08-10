@@ -49,22 +49,23 @@ an `I16F16`, a `Direction` or a `GlobalPoint`, and every operation on them is
 named for the geometry rather than for the width it needs: a projection, an
 alignment, a squared length, a squared closest approach, a signed volume.
 
-That is a deliberate boundary rather than a tidiness. Casting geometry at the
-scale of a world needs accumulators wider than the values going into it -- a
-projection needs an `i64`, a triangle's scalar triple product needs more than
-that -- and getting the bound wrong is not a rounding error. A cast that wrapped
-would answer a hit *behind* the eye, which is a build cursor on the other side
-of the world. So the widening belongs to the crates that own the scales:
-`corvid_fixed` for the scalars and `corvid_vector` for the points, both of which
-say in their own documentation how wide each operation goes and why.
+That is a deliberate boundary rather than a tidiness. Casting geometry needs
+accumulators wider than the values going into it -- a projection of a Q8
+position onto a Q31 direction is a Q39 -- and getting the bound wrong is not a
+rounding error. A cast that wrapped would answer a hit *behind* the eye, which
+is a build cursor on the other side of the world. So the widening belongs to the
+crates that own the scales: `corvid_fixed` for the scalars and `corvid_vector`
+for the points, both of which say in their own documentation how wide each
+operation goes and why.
+
+**An offset is a `GlobalPoint` like any other**, which is a constraint rather
+than an observation. Two points more than 8388 km apart have no offset in this
+type, and every method here that needs one takes it with `checked_sub` and
+answers a miss when there is none. A saturated difference would be worse than no
+answer: it clamps one axis and not the next, so what comes back is a different
+bearing rather than a shorter one.
 
 What that leaves here is the geometry, which is the part worth reading.
-
-The one thing this crate does have to know is that a difference of two points
-can be wider than either of them. `WideOffset` is that difference, and every
-method here that starts from a pair of far-apart points starts there --
-`GlobalPoint`'s own subtraction saturates each axis independently, so a box
-12 000 km across would come back with a centre 1 800 km off the middle.
 
 ## Three conventions worth knowing before reading a result
 

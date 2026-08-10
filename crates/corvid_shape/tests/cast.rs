@@ -327,28 +327,49 @@ fn a_sphere_does_not_swallow_the_far_side_of_the_world() {
     assert!(ball.contains(globalpoint(-far, I24F8::ZERO, I24F8::ZERO)));
 }
 
-/// A triangle spanning the world points where it actually points.
+/// A triangle spanning the range points where it actually points.
 ///
-/// Both edges leave a component's range, and narrowing them first does not
-/// merely lose precision -- it tilts the answer. With the edges saturated this
-/// face reported `(-0.707, 0, 0.707)`, a normal 31 degrees from the one its
-/// three corners describe.
+/// The cross product of two 8 000 km edges reaches `2^62`, and dividing it back
+/// into a component's range before normalizing does not merely lose precision
+/// -- it tilts the answer. With the cross narrowed this face reported
+/// `(-0.707, 0, 0.707)`, a normal 31 degrees from the one its corners describe.
 ///
-/// The expected value is the cross product worked by hand from the corners
-/// rather than whatever the implementation returns: edges `(12e6, 0, 3e6)` and
-/// `(0, 12e6, 0)` cross to `(-3.6e13, 0, 1.44e14)`.
+/// The expected value is worked by hand from the corners rather than taken from
+/// the implementation: edges `(8e6, 0, 2e6)` and `(0, 8e6, 0)` cross to
+/// `(-1.6e13, 0, 6.4e13)`.
 #[test]
-fn a_triangle_spanning_the_world_reports_the_normal_its_corners_describe() {
-    let six = I24F8::from_f64(6_000_000.0);
-    let three = I24F8::from_f64(3_000_000.0);
+fn a_triangle_spanning_the_range_reports_the_normal_its_corners_describe() {
+    let four = I24F8::from_f64(4_000_000.0);
+    let two = I24F8::from_f64(2_000_000.0);
     let face = Triangle::new(
-        globalpoint(-six, -six, I24F8::ZERO),
-        globalpoint(six, -six, three),
-        globalpoint(-six, six, I24F8::ZERO),
+        globalpoint(-four, -four, I24F8::ZERO),
+        globalpoint(four, -four, two),
+        globalpoint(-four, four, I24F8::ZERO),
     );
 
     assert_eq!(
         face.normal(),
-        Direction::from_ratio([-36_000_000_000_000, 0, 144_000_000_000_000]),
+        Direction::from_ratio([-16_000_000_000_000, 0, 64_000_000_000_000]),
     );
+}
+
+/// A triangle whose edges do not fit a `GlobalPoint` has no normal, rather than
+/// a saturated one.
+///
+/// This is the boundary the crate draws: an edge is an offset, an offset is a
+/// `GlobalPoint`, and two corners 16 000 km apart have none. Answering `None`
+/// is what keeps the tilted normal above from coming back as a plausible wrong
+/// direction instead of an admission.
+#[test]
+fn a_triangle_wider_than_an_offset_has_no_normal() {
+    let far = I24F8::from_f64(8_000_000.0);
+    let face = Triangle::new(
+        globalpoint(-far, -far, I24F8::ZERO),
+        globalpoint(far, -far, I24F8::ZERO),
+        globalpoint(-far, far, I24F8::ZERO),
+    );
+
+    assert_eq!(face.normal(), None);
+    let down = Ray::new(globalpoint(0, 0, 100), -Direction::Z);
+    assert!(down.cast_against(&face).is_none());
 }
