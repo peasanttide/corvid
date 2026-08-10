@@ -15,7 +15,7 @@
 //! it is worth saying that the tables below
 //! are now about the roster and the identifiers, which do cross a wire.
 
-use corvid_behavior::{Player, PlayerId, Presence, ProfileId};
+use corvid_behavior::{PlayerId, PlayerState, Presence, ProfileId};
 
 use corvid_time::Tick;
 
@@ -34,17 +34,19 @@ pub(crate) fn every_presence() -> Vec<Presence> {
 /// presence as part of a player rather than as something carried alongside one.
 ///
 /// Every field holds a different value from every other, which is what makes
-/// the order visible: a `Player` written backwards would still encode to
+/// the order visible: a [`PlayerState`] written backwards would still encode to
 /// something, and would still tell two players apart.
-pub(crate) fn every_player(action: &u32) -> Vec<Player<'_, u32>> {
-    let seat = Player {
-        id: PlayerId(2),
-        presence: Presence::Dropped { since: Tick(5) },
-        action,
-    };
-    let rejoined = Player {
-        presence: Presence::Active,
-        ..seat
-    };
-    vec![seat, rejoined]
+pub(crate) fn every_player(action: u32) -> Vec<PlayerState<u32>> {
+    vec![
+        PlayerState {
+            id: PlayerId(2),
+            presence: Presence::Dropped { since: Tick(5) },
+            action,
+        },
+        PlayerState {
+            id: PlayerId(2),
+            presence: Presence::Active,
+            action,
+        },
+    ]
 }

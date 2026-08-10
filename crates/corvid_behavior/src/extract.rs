@@ -1,20 +1,21 @@
 //! State into whatever a device wants.
 
-use crate::{State, Time};
+use corvid_time::Time;
+
+use crate::{PlayerId, State};
 
 /// What an extractor is handed.
 ///
 /// One struct rather than three arguments, so that a new thing to hand over is
 /// a field here and not a signature change in every implementation.
 ///
-/// [`Copy`], because two extractors are handed the same one per frame.
-///
-/// Written by hand rather than derived: a derive puts `S: Copy` on the impl,
-/// because it goes by which type parameters appear rather than by what the
-/// fields actually hold. Every field here is a shared reference or a `Time`,
-/// copy regardless of whether `S` is, and the state a game hands over is
-/// behind an `Arc` precisely so that it does not have to be.
-#[derive(Debug)]
+/// [`Copy`], because two extractors are handed the same one per frame. `Clone`
+/// is derived and `Copy` is not: the derive goes by which type parameters
+/// appear rather than by what the fields hold, so it would put `S: Copy` on the
+/// impl -- and a game's state is behind an `Arc` here precisely so that it does
+/// not have to be. `S: Clone` is no such imposition, since
+/// [`Data`](crate::Data) already demands it of every state.
+#[derive(Clone, Debug)]
 pub struct Extracting<'a, S: State> {
     /// The state to read.
     pub state: &'a S,
@@ -22,16 +23,20 @@ pub struct Extracting<'a, S: State> {
     pub level: &'a S::Level,
     /// Where the session is.
     pub time: Time,
-}
-
-#[allow(
-    clippy::expl_impl_clone_on_copy,
-    reason = "a derive would add S: Clone, which is not true of every game's state and not needed by any field here"
-)]
-impl<S: State> Clone for Extracting<'_, S> {
-    fn clone(&self) -> Self {
-        *self
-    }
+    /// Which seat this machine is drawing and sounding for.
+    ///
+    /// A renderer picks a camera with it, an auralizer picks a listener, and a
+    /// heads-up display picks whose ammunition to show. Without it every
+    /// extractor had to be told separately which of the players in the state
+    /// was the one sitting in front of it -- so it was already being passed,
+    /// just not here, and two halves of one frame could be told different
+    /// things.
+    ///
+    /// [`None`] for a machine with nobody in a seat: a dedicated server, a
+    /// spectator, a headless run recording a replay. Those draw the session
+    /// rather than a point of view, and an arbitrary seat would be a worse
+    /// answer than no seat.
+    pub player: Option<PlayerId>,
 }
 
 impl<S: State> Copy for Extracting<'_, S> {}

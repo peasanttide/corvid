@@ -7,11 +7,10 @@
 //! The smallest game there is, as the thing the contract is asserted against.
 //!
 //! Four types and one function, which is what a game owes now: a `Level` that
-//! reads itself out of a `Source`, a `State` that is the state rather than a
-//! marker pointing at one, and a `Command` sink that a test can be a `Vec`.
+//! reads itself out of a name, a `State` that is the state rather than a marker
+//! pointing at one, and a `Command` sink that a test can be a `Vec`.
 
-use corvid_behavior::{Command, ExitCode, Level, Player, PlayerId, Presence, State, Time};
-use corvid_files::{Malformed, Memory, Source};
+use corvid_behavior::{Command, ExitCode, Level, PlayerId, PlayerState, Presence, State};
 use serde::{Deserialize, Serialize};
 
 /// A level: one number, read out of one file's first byte.
@@ -20,17 +19,32 @@ struct Field {
     width: u16,
 }
 
-impl Level for Field {
-    type Reference = String;
+/// Why a field could not be read: the game has no field by that name, or the
+/// name is one it cannot make sense of.
+///
+/// A game's own error type, which is all the contract asks for -- this one is an
+/// enum because this game fails two ways, and a game that read files would have
+/// its filesystem's failures here instead.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+enum NoField {
+    #[error("no field is called {0}")]
+    Unknown(String),
+    #[error("a field is named by its width, and {0} is not a number")]
+    Unreadable(String),
+}
 
-    fn load(reference: &String, files: &dyn Source) -> Result<Self, Malformed> {
-        let bytes = files.read(reference)?;
-        let width = u16::from(
-            *bytes
-                .first()
-                .ok_or_else(|| Malformed::at(reference, "a field needs at least one byte"))?,
-        );
-        Ok(Self { width })
+/// A field is named by its width, so reading one is parsing its name.
+impl Level for Field {
+    type Error = NoField;
+
+    fn load(name: &str) -> Result<Self, NoField> {
+        let Some(width) = name.strip_prefix("field-") else {
+            return Err(NoField::Unknown(name.to_owned()));
+        };
+        width
+            .parse()
+            .map(|width| Self { width })
+            .map_err(|_| NoField::Unreadable(name.to_owned()))
     }
 }
 
@@ -64,9 +78,9 @@ impl State for Walk {
     fn tick(
         self,
         level: &Field,
-        players: &[Player<'_, Step>],
+        players: &[PlayerState<Step>],
         _rules: &(),
-        command: &mut impl Command<Reference = String>,
+        command: &mut impl Command,
     ) -> Self {
         let stepped = u16::try_from(players.iter().filter(|player| player.action.0).count())
             .unwrap_or(u16::MAX);
@@ -86,20 +100,18 @@ struct Recorder {
 }
 
 impl Command for Recorder {
-    type Reference = String;
-
     fn quit(&mut self, code: ExitCode) {
         self.quits.push(code);
     }
 
-    fn load(&mut self, reference: String) {
-        self.loads.push(reference);
+    fn load(&mut self, name: &str) {
+        self.loads.push(name.to_owned());
     }
 }
 
 /// One player who always steps.
-const fn walker(action: &Step) -> [Player<'_, Step>; 1] {
-    [Player {
+const fn walker(action: Step) -> [PlayerState<Step>; 1] {
+    [PlayerState {
         id: PlayerId(0),
         presence: Presence::Active,
         action,
@@ -107,28 +119,26 @@ const fn walker(action: &Step) -> [Player<'_, Step>; 1] {
 }
 
 #[test]
-fn a_level_loads_from_a_source() {
-    let mut files = Memory::new();
-    files.insert("field", vec![7]);
+fn a_level_loads_from_its_name() {
     assert_eq!(
-        Field::load(&"field".to_owned(), &files).expect("just inserted"),
+        Field::load("field-7").expect("a field this game has"),
         Field { width: 7 },
     );
 }
 
 #[test]
-fn a_level_that_is_not_there_is_malformed_rather_than_a_panic() {
-    let files = Memory::new();
-    let why = Field::load(&"field".to_owned(), &files).expect_err("nothing was inserted");
-    assert_eq!(why.path.as_deref(), Some("field"));
+fn a_level_that_is_not_there_is_an_error_rather_than_a_panic() {
+    let why = Field::load("meadow").expect_err("not a field");
+    assert_eq!(why, NoField::Unknown("meadow".to_owned()));
+    // And it names what was asked for, which is the half of a load failure a
+    // bug report has to carry.
+    assert!(why.to_string().contains("meadow"));
 }
 
 #[test]
 fn a_level_that_is_there_and_will_not_parse_says_so_differently() {
-    let mut files = Memory::new();
-    files.insert("field", vec![]);
-    let why = Field::load(&"field".to_owned(), &files).expect_err("no bytes to read a width from");
-    assert_eq!(why.why, "a field needs at least one byte");
+    let why = Field::load("field-wide").expect_err("a width that is not a number");
+    assert_eq!(why, NoField::Unreadable("field-wide".to_owned()));
 }
 
 #[test]
@@ -137,11 +147,11 @@ fn a_tick_advances_and_commands_through_the_sink() {
     let mut sink = Recorder::default();
     let step = Step(true);
 
-    let one = Walk::default().tick(&level, &walker(&step), &(), &mut sink);
+    let one = Walk::default().tick(&level, &walker(step), &(), &mut sink);
     assert_eq!(one.at, 1);
     assert_eq!(sink.quits, [], "not at the end yet");
 
-    let two = one.tick(&level, &walker(&step), &(), &mut sink);
+    let two = one.tick(&level, &walker(step), &(), &mut sink);
     assert_eq!(two.at, 2);
     assert_eq!(
         sink.quits,
@@ -155,13 +165,11 @@ fn a_tick_advances_and_commands_through_the_sink() {
 fn a_sink_that_implements_nothing_compiles_and_drops_everything() {
     #[derive(Debug)]
     struct Deaf;
-    impl Command for Deaf {
-        type Reference = String;
-    }
+    impl Command for Deaf {}
 
     let level = Field { width: 1 };
     let step = Step(true);
-    let walked = Walk::default().tick(&level, &walker(&step), &(), &mut Deaf);
+    let walked = Walk::default().tick(&level, &walker(step), &(), &mut Deaf);
     assert_eq!(walked.at, 1, "the tick ran; only the request went nowhere");
 }
 
@@ -172,7 +180,7 @@ fn a_tick_that_asks_for_nothing_records_nothing() {
     let level = Field { width: 10 };
     let mut sink = Recorder::default();
     let idle = Step(false);
-    let walked = Walk::default().tick(&level, &walker(&idle), &(), &mut sink);
+    let walked = Walk::default().tick(&level, &walker(idle), &(), &mut sink);
     assert_eq!(walked.at, 0);
     assert_eq!(sink, Recorder::default());
 }
@@ -206,8 +214,8 @@ fn a_game_that_does_nothing_needs_no_function_at_all() {
     struct Still;
 
     impl Level for Still {
-        type Reference = String;
-        fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> {
+        type Error = core::convert::Infallible;
+        fn load(_: &str) -> Result<Self, Self::Error> {
             Ok(Self)
         }
     }
@@ -225,18 +233,4 @@ fn a_game_that_does_nothing_needs_no_function_at_all() {
         Still,
         "the default tick is the identity",
     );
-}
-
-/// `Time` carries where the session is and nothing about interpolation.
-///
-/// The weight the GPU lerps with is `Render::draw`'s own argument, because it
-/// goes straight into a uniform and belongs beside the call that writes it.
-#[test]
-fn time_is_a_tick_and_a_wall_clock() {
-    let time = Time {
-        tick: corvid_time::Tick(42),
-        elapsed: core::time::Duration::from_secs(3),
-    };
-    assert_eq!(time.tick.0, 42);
-    assert_eq!(time.elapsed.as_secs(), 3);
 }

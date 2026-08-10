@@ -18,6 +18,7 @@
 
 use core::fmt;
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 /// Why a string could not become a name.
@@ -57,17 +58,26 @@ impl core::error::Error for InvalidName {}
 
 /// `N` bytes of name, NUL-padded.
 ///
-/// Private, because the capacity is part of each public name type's meaning
-/// rather than something a caller should be choosing at the use site.
+/// Public because [`bounded_name!`](crate::bounded_name) expands to a newtype
+/// over one and a macro cannot name what a caller cannot, but it is not the
+/// intended surface: the capacity is part of each name type's meaning rather
+/// than something to be chosen at a use site, and the macro is where that
+/// choice is written down once.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct Name<const N: usize>([u8; N]);
+pub struct Name<const N: usize>([u8; N]);
 
 impl<const N: usize> Name<N> {
     /// The empty name, which is what [`Default`] gives.
-    pub(crate) const EMPTY: Self = Self([0; N]);
+    pub const EMPTY: Self = Self([0; N]);
 
     /// Copies `name` in, or says why it does not fit.
-    pub(crate) const fn new(name: &str) -> Result<Self, InvalidName> {
+    ///
+    /// # Errors
+    ///
+    /// [`InvalidName::TooLong`] past `N` bytes, and
+    /// [`InvalidName::InteriorNul`] for a string holding the byte the padding
+    /// needs to itself.
+    pub const fn new(name: &str) -> Result<Self, InvalidName> {
         let bytes = name.as_bytes();
         if bytes.len() > N {
             return Err(InvalidName::TooLong {
@@ -88,7 +98,8 @@ impl<const N: usize> Name<N> {
     }
 
     /// How many bytes of the array the name occupies.
-    pub(crate) const fn len(&self) -> usize {
+    #[must_use]
+    pub const fn len(&self) -> usize {
         let mut at = 0;
         while at < N && self.0[at] != 0 {
             at += 1;
@@ -96,8 +107,15 @@ impl<const N: usize> Name<N> {
         at
     }
 
+    /// Whether the name is the empty one.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// The name, without its padding.
-    pub(crate) const fn as_str(&self) -> &str {
+    #[must_use]
+    pub const fn as_str(&self) -> &str {
         let (name, _padding) = self.0.as_slice().split_at(self.len());
         match core::str::from_utf8(name) {
             Ok(text) => text,
@@ -123,11 +141,23 @@ impl<const N: usize> fmt::Display for Name<N> {
     }
 }
 
+/// The text, quoted, rather than the array behind it.
+///
+/// Written rather than derived because the derive would print the padding: a
+/// sixty-four-byte name holding four characters would come back as sixty
+/// zeroes, which is the storage and not the value.
+impl<const N: usize> fmt::Debug for Name<N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.as_str())
+    }
+}
+
 /// A name serializes as the string it is, not as the array it is stored in.
 ///
 /// A captured session file is read by people, and a level named
 /// `"terminus"` should say so rather than list fifteen numbers. It also means
 /// the capacity can grow later without invalidating anything already written.
+#[cfg(feature = "serde")]
 impl<const N: usize> Serialize for Name<N> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(self.as_str())
@@ -136,6 +166,7 @@ impl<const N: usize> Serialize for Name<N> {
 
 /// Deserializing re-checks the bounds, because a file is not a `&str` this
 /// program built and a name that did not fit would otherwise be silently cut.
+#[cfg(feature = "serde")]
 impl<'de, const N: usize> Deserialize<'de> for Name<N> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_str(NameVisitor::<N>)
@@ -143,8 +174,10 @@ impl<'de, const N: usize> Deserialize<'de> for Name<N> {
 }
 
 /// Reads a name from a string, rejecting anything [`Name::new`] would reject.
+#[cfg(feature = "serde")]
 struct NameVisitor<const N: usize>;
 
+#[cfg(feature = "serde")]
 impl<const N: usize> de::Visitor<'_> for NameVisitor<N> {
     type Value = Name<N>;
 
@@ -157,49 +190,64 @@ impl<const N: usize> de::Visitor<'_> for NameVisitor<N> {
     }
 }
 
-/// Declares a public name type over a private [`Name`] of the given capacity.
+/// Declares a public name type over a [`Name`] of the given capacity.
 ///
 /// Every one of these types is the same code with a different bound and a
 /// different meaning, and writing them out would be five identical bugs waiting
 /// for one of the five copies to be fixed.
+///
+/// ```
+/// corvid_name::bounded_name! {
+///     /// What a save slot is called.
+///     SaveName, 32
+/// }
+///
+/// let name = SaveName::new("terminus").expect("eight bytes fit in thirty-two");
+/// assert_eq!(name.as_str(), "terminus");
+/// assert!(SaveName::new(&"x".repeat(33)).is_err());
+/// ```
+///
+/// # The encoding is the caller's feature
+///
+/// The derives are behind `#[cfg_attr(feature = "serde", ...)]`, and a `cfg` is
+/// read where it expands rather than where it is written -- so what turns them
+/// on is a `serde` feature on **the crate invoking this**, which is also the
+/// crate that has to depend on `serde` for the derive to resolve. That is the
+/// same arrangement [`id_type!`](../corvid_macros/macro.id_type.html) uses, and
+/// for the same reason: a macro crate cannot take a dependency on behalf of its
+/// caller.
+#[macro_export]
 macro_rules! bounded_name {
     (
         $(#[$meta:meta])*
         $name:ident, $capacity:literal
     ) => {
         $(#[$meta])*
-        #[derive(
-            Clone,
-            Copy,
-            Default,
-            PartialEq,
-            Eq,
-            PartialOrd,
-            Ord,
-            Hash,
-            ::serde::Serialize,
-            ::serde::Deserialize,
+        #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[cfg_attr(
+            feature = "serde",
+            derive(::serde::Serialize, ::serde::Deserialize),
+            serde(transparent)
         )]
-        #[serde(transparent)]
-        pub struct $name($crate::name::Name<$capacity>);
+        pub struct $name($crate::Name<$capacity>);
 
         impl $name {
             /// The most bytes a name of this kind may have.
             pub const CAPACITY: usize = $capacity;
 
             /// The empty name.
-            pub const EMPTY: Self = Self($crate::name::Name::EMPTY);
+            pub const EMPTY: Self = Self($crate::Name::EMPTY);
 
             /// Builds one, or says why the string does not fit.
             ///
             /// # Errors
             ///
-            /// [`InvalidName::TooLong`](crate::InvalidName::TooLong) if the
+            /// [`InvalidName::TooLong`]($crate::InvalidName::TooLong) if the
             /// string is longer than [`CAPACITY`](Self::CAPACITY), and
-            /// [`InvalidName::InteriorNul`](crate::InvalidName::InteriorNul)
+            /// [`InvalidName::InteriorNul`]($crate::InvalidName::InteriorNul)
             /// if it contains a NUL byte.
             pub const fn new(name: &str) -> ::core::result::Result<Self, $crate::InvalidName> {
-                match $crate::name::Name::new(name) {
+                match $crate::Name::new(name) {
                     Ok(name) => Ok(Self(name)),
                     Err(why) => Err(why),
                 }
@@ -238,5 +286,3 @@ macro_rules! bounded_name {
 
     };
 }
-
-pub(crate) use bounded_name;

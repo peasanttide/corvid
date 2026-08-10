@@ -2,11 +2,13 @@
 
 use corvid_macros::id_type;
 
-use crate::{PlayerId, name::bounded_name};
+use corvid_name::bounded_name;
+
+use crate::PlayerId;
 
 id_type! {
     /// What a process exits with.
-    ExitCode, u8, "The status the operating system is handed.", serde
+    ExitCode, u8, "The status the operating system is handed."
 }
 
 impl ExitCode {
@@ -27,12 +29,12 @@ id_type! {
     /// at the tick that asked, which the runtime already holds -- so a game
     /// implements nothing to have saves, and the number is the whole of what it
     /// says.
-    SaveSlot, u16, "Which slot.", serde
+    SaveSlot, u16, "Which slot."
 }
 
 id_type! {
     /// Which rumble effect, out of the set the game declared.
-    RumbleId, u16, "The effect's index in that set.", serde
+    RumbleId, u16, "The effect's index in that set."
 }
 
 id_type! {
@@ -44,18 +46,18 @@ id_type! {
     /// not of the simulation that earned the achievement -- and the simulation
     /// is the thing that has to digest identically on a peer published
     /// somewhere else.
-    AchievementId, u16, "The achievement's index in that set.", serde
+    AchievementId, u16, "The achievement's index in that set."
 }
 
 id_type! {
     /// Which tracked statistic, out of the set the game declared. Numbered for
     /// the same reason [`AchievementId`] is.
-    StatId, u16, "The statistic's index in that set.", serde
+    StatId, u16, "The statistic's index in that set."
 }
 
 id_type! {
     /// Which lobby, as the platform's networking layer names it.
-    LobbyId, u64, "The identifier the platform handed out.", serde
+    LobbyId, u64, "The identifier the platform handed out."
 }
 
 bounded_name! {
@@ -156,14 +158,8 @@ pub enum Scope {
 /// which is the same argument the camera and the pointer are client-local for,
 /// and it has the same answer.
 pub trait Command {
-    /// How the game names a level, which the two requests that name one carry.
-    ///
-    /// This is `<S::Level as Level>::Reference` at every real call site. It is
-    /// an associated type rather than a parameter so that a sink is written
-    /// against one game's levels and cannot be handed another's.
-    type Reference;
-
-    /// Load a level. **Global.**
+    /// Load a level, by the name [`Level::load`](crate::Level::load) reads.
+    /// **Global.**
     ///
     /// The simulation does not advance past this tick until the level is in
     /// hand. That rule is a function of the state, so every peer applies it and
@@ -171,10 +167,10 @@ pub trait Command {
     /// has stopped ticking submits no actions, so every other peer stalls
     /// inside its prediction window. The cross-peer barrier is the input
     /// dependency that was already there; nothing new goes on the wire.
-    fn load(&mut self, _reference: Self::Reference) {}
+    fn load(&mut self, _name: &str) {}
 
     /// Drop a level the simulation is finished with. **Global.**
-    fn unload(&mut self, _reference: Self::Reference) {}
+    fn unload(&mut self, _name: &str) {}
 
     /// Stop, with this status. **Global.**
     fn quit(&mut self, _code: ExitCode) {}
@@ -232,35 +228,27 @@ pub trait Command {
 /// For a test asserting on a state rather than on what was asked for, and for a
 /// caller replaying ticks whose effects have already happened.
 ///
-/// It is generic over the reference rather than being `impl Command for ()`,
-/// and that is not a stylistic choice: `()` could only ever have
-/// `Reference = ()`, so it would be a sink no game could use unless its levels
-/// were also `()`. The parameter is inferred at the call site from the state
-/// being ticked.
-///
 /// ```
 /// use corvid_behavior::Discard;
 ///
-/// let mut nobody = Discard::<String>::new();
+/// let mut nobody = Discard::new();
 /// # let _ = &mut nobody;
 /// ```
-#[derive(Debug)]
-pub struct Discard<R>(core::marker::PhantomData<fn() -> R>);
+///
+/// A named type rather than `impl Command for ()`, so that a call site says
+/// which of its arguments is the one nobody is listening to. `()` implements it
+/// as well, for the caller that would rather write nothing at all.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Discard;
 
-impl<R> Discard<R> {
+impl Discard {
     /// A sink that listens to nothing.
     #[must_use]
     pub const fn new() -> Self {
-        Self(core::marker::PhantomData)
+        Self
     }
 }
 
-impl<R> Default for Discard<R> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+impl Command for Discard {}
 
-impl<R> Command for Discard<R> {
-    type Reference = R;
-}
+impl Command for () {}

@@ -2,11 +2,11 @@
 //! has to come back the way it went in.
 
 use alloc::string::{String, ToString};
-use core::fmt;
+use core::fmt::{self, Debug};
+use core::hash::Hash;
 
 use corvid_hash::{Digest, digest};
-
-use crate::Data;
+use serde::{Serialize, de::DeserializeOwned};
 
 /// A value did not survive being written down and read back.
 ///
@@ -76,9 +76,9 @@ fn changed(before: &Digest, after: &Digest, f: &mut fmt::Formatter<'_>) -> fmt::
 /// Serializes `value`, deserializes it, and reports whether what came back is
 /// the same value -- by comparison and by digest.
 ///
-/// [`Data`] demands `Serialize + DeserializeOwned` and cannot demand that the
-/// two agree. A `#[serde(skip)]` on a field compiles, satisfies every other
-/// check this crate offers, and desyncs the first time the runtime sends a
+/// A bound can demand `Serialize` and `DeserializeOwned` and cannot demand
+/// that the two agree. A `#[serde(skip)]` on a field compiles, satisfies every other
+/// check a compiler offers, and desyncs the first time the runtime sends a
 /// snapshot: the peer that computed the state has the field and the peer that
 /// received it has `Default::default()`. A hand-written `Deserialize` that
 /// forgets a field, a `#[serde(into = "...")]` whose conversion is lossy, and a
@@ -102,7 +102,7 @@ fn changed(before: &Digest, after: &Digest, f: &mut fmt::Formatter<'_>) -> fmt::
 /// value most likely to survive anything because it is what a lost field decays
 /// to.
 ///
-/// It also checks one *format*: `corvid_wire`, which is the one a snapshot is
+/// It also checks one *format*: this crate's, which is the one a snapshot is
 /// written down in, and which carries no field names -- so a type that only
 /// survives a self-describing encoding reports as unfaithful here rather than
 /// passing and then failing on the wire. The failures that matter most -- a
@@ -111,7 +111,7 @@ fn changed(before: &Digest, after: &Digest, f: &mut fmt::Formatter<'_>) -> fmt::
 /// are the types that cannot be written down compactly at all.
 ///
 /// ```
-/// use corvid_behavior::round_trip_is_faithful;
+/// use corvid_wire::round_trip_is_faithful;
 /// use serde::{Deserialize, Serialize};
 ///
 /// #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -141,9 +141,12 @@ fn changed(before: &Digest, after: &Digest, f: &mut fmt::Formatter<'_>) -> fmt::
 /// [`Unfaithful::Read`] if the bytes could not be deserialized, and
 /// [`Unfaithful::Changed`] if the value that came back differs from the one that
 /// went in by comparison, by digest, or by both.
-pub fn round_trip_is_faithful<T: Data>(value: &T) -> Result<(), Unfaithful> {
-    let bytes = corvid_wire::encode(value).map_err(|why| Unfaithful::Wrote(why.to_string()))?;
-    let back: T = corvid_wire::decode(&bytes).map_err(|why| Unfaithful::Read(why.to_string()))?;
+pub fn round_trip_is_faithful<T>(value: &T) -> Result<(), Unfaithful>
+where
+    T: Serialize + DeserializeOwned + Hash + Eq + Debug,
+{
+    let bytes = crate::encode(value).map_err(|why| Unfaithful::Wrote(why.to_string()))?;
+    let back: T = crate::decode(&bytes).map_err(|why| Unfaithful::Read(why.to_string()))?;
 
     let before = digest(value);
     let after = digest(&back);

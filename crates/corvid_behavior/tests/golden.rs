@@ -108,8 +108,7 @@ fn every_presence_digests_to_its_recorded_value() {
 
 #[test]
 fn a_players_three_fields_digest_in_their_recorded_order() {
-    let action = 7_u32;
-    let digests: Vec<Digest> = every_player(&action).iter().map(digest).collect();
+    let digests: Vec<Digest> = every_player(7).iter().map(digest).collect();
     check("Player", GOLDEN_PLAYERS, &digests);
 }
 

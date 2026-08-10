@@ -9,6 +9,11 @@
 //! an `Action` whose default is genuinely idle, and a `Presence` the state has
 //! to react to.
 //!
+//! The derives are behind `cfg_attr` the way a real game's would be: this crate
+//! asks for an encoding only when its `serde` feature is on, so a game compiled
+//! without one derives nothing and still implements the contract. That is the
+//! arrangement being exercised rather than a detail of testing it.
+//!
 //! Both of the state's columns have to be reached for any of that to be
 //! evidence. A session played entirely out of `Presence::Active` never folds a
 //! profile in, so `roster` stays empty on every tick and a bug that emptied it
@@ -30,36 +35,36 @@ pub(crate) mod vocabulary;
 
 use std::sync::Arc;
 
-use corvid_behavior::{Command, Player, PlayerId, Presence, ProfileId, State as StateContract};
+use corvid_behavior::{
+    Command, PlayerId, PlayerState, Presence, ProfileId, State as StateContract,
+};
 
 use corvid_time::Tick;
-use serde::{Deserialize, Serialize};
-
-/// How this game names a level: by string, which is the shape a game with no
-/// fixed set of levels reaches for and the one `FromStr` is free on.
-pub(crate) type Ref = String;
 
 /// The level these tests open on.
 pub(crate) const TERMINUS: &str = "terminus";
 
 /// Authored and immutable within a session.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct Level {
     /// The name the runtime would have loaded this by.
-    pub(crate) name: Ref,
+    pub(crate) name: String,
     /// What the counter starts at when the session opens.
     pub(crate) start: i64,
 }
 
 /// Deterministic tuning every peer has to agree on.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct Rules {
     /// How far one bump moves the counter.
     pub(crate) step: i64,
 }
 
 /// Everything that cannot be recomputed quickly.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct State {
     /// The counter.
     pub(crate) count: i64,
@@ -71,7 +76,8 @@ pub(crate) struct State {
 }
 
 /// One player's intent for one tick.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) enum Action {
     /// The default, and what a dropped player submits forever.
     #[default]
@@ -83,22 +89,27 @@ pub(crate) enum Action {
     Leave,
 }
 
-/// The level reads itself out of one file: a name and a starting count.
-impl corvid_behavior::Level for Level {
-    type Reference = Ref;
+/// Why this game could not read a level: it does not have one by that name.
+///
+/// A game's own error type, which is the whole of what the contract asks for.
+/// This one has a single case because this game's levels are a fixed set; a
+/// game that read files would put its filesystem's failures here instead.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("no level is called {0}")]
+pub(crate) struct NoSuchLevel(String);
 
-    fn load(
-        reference: &Ref,
-        files: &dyn corvid_files::Source,
-    ) -> Result<Self, corvid_files::Malformed> {
-        let bytes = files.read(reference)?;
-        let start = i64::from(
-            *bytes
-                .first()
-                .ok_or_else(|| corvid_files::Malformed::at(reference, "a level needs a start"))?,
-        );
+/// The levels this game has, by the names they answer to.
+impl corvid_behavior::Level for Level {
+    type Error = NoSuchLevel;
+
+    fn load(name: &str) -> Result<Self, NoSuchLevel> {
+        let start = match name {
+            TERMINUS => 0,
+            "arrival" => 100,
+            _ => return Err(NoSuchLevel(name.to_owned())),
+        };
         Ok(Self {
-            name: reference.clone(),
+            name: name.to_owned(),
             start,
         })
     }
@@ -127,9 +138,9 @@ impl StateContract for State {
     fn tick(
         self,
         level: &Level,
-        players: &[Player<'_, Action>],
+        players: &[PlayerState<Action>],
         rules: &Rules,
-        command: &mut impl Command<Reference = Ref>,
+        command: &mut impl Command,
     ) -> Self {
         let mut count = self.count;
 
@@ -141,7 +152,7 @@ impl StateContract for State {
                     count += rules.step;
                     movers.push(player.id);
                 }
-                Action::Leave => command.unload(level.name.clone()),
+                Action::Leave => command.unload(&level.name),
             }
         }
 
@@ -185,7 +196,7 @@ pub(crate) const fn opening() -> State {
 ///
 /// Identity comes from here -- from the runtime -- and not from anything the
 /// game can read off an `Action`.
-pub(crate) fn active(actions: &[Action]) -> Vec<Player<'_, Action>> {
+pub(crate) fn active(actions: &[Action]) -> Vec<PlayerState<Action>> {
     seats(actions, |_| Presence::Active)
 }
 
@@ -197,7 +208,7 @@ pub(crate) fn active(actions: &[Action]) -> Vec<Player<'_, Action>> {
 /// every tick of every run -- and a test that reads a state built that way is
 /// reading one column of the two the game has. A dropped `roster` would be
 /// invisible.
-pub(crate) fn joining(actions: &[Action]) -> Vec<Player<'_, Action>> {
+pub(crate) fn joining(actions: &[Action]) -> Vec<PlayerState<Action>> {
     seats(actions, |index| Presence::Joining {
         profile: ProfileId(1000 + u64::try_from(index).unwrap_or(0)),
     })
@@ -205,14 +216,14 @@ pub(crate) fn joining(actions: &[Action]) -> Vec<Player<'_, Action>> {
 
 /// One seat per action, numbered from zero, with the presence this session is
 /// at.
-fn seats(actions: &[Action], presence: impl Fn(usize) -> Presence) -> Vec<Player<'_, Action>> {
+fn seats(actions: &[Action], presence: impl Fn(usize) -> Presence) -> Vec<PlayerState<Action>> {
     actions
         .iter()
         .enumerate()
-        .map(|(index, action)| Player {
+        .map(|(index, action)| PlayerState {
             id: PlayerId(u16::try_from(index).unwrap_or(u16::MAX)),
             presence: presence(index),
-            action,
+            action: *action,
         })
         .collect()
 }

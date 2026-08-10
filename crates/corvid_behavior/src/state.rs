@@ -4,9 +4,7 @@
 use core::fmt::Debug;
 use core::hash::Hash;
 
-use serde::{Serialize, de::DeserializeOwned};
-
-use crate::{Command, Level, Player};
+use crate::{Command, Level, PlayerState};
 
 /// What a value has to be to cross a wire, a disk or a digest.
 ///
@@ -20,7 +18,7 @@ use crate::{Command, Level, Player};
 /// bug in different clothes. The tick that produced the state is deterministic
 /// in every case, and the game still comes apart, because the state that
 /// arrives is not the state that left.
-/// [`round_trip_is_faithful`](crate::round_trip_is_faithful) is the mechanical
+/// [`round_trip_is_faithful`](../corvid_wire/fn.round_trip_is_faithful.html) is the mechanical
 /// form of it, at one value: point it at the states a session actually reaches
 /// and not at `State::default()`, which is the value a lost field decays to and
 /// so the value most likely to survive anything.
@@ -47,9 +45,43 @@ use crate::{Command, Level, Player};
 /// to rule out a mistake a fixed-width annotation already rules out. So it is
 /// an obligation rather than a bound, and it is written here because this is
 /// where an implementor is reading.
-pub trait Data: Serialize + DeserializeOwned + Hash + Eq + Clone + Debug {}
+///
+/// # The encoding is the `serde` feature's
+///
+/// `Serialize + DeserializeOwned` are part of this bound when the feature is
+/// on and absent when it is off. A game that never leaves one machine -- a
+/// single-seat build with no saves, a test harness, a crate being compiled for
+/// a target with no room for the format -- implements the trait without
+/// writing an encoding, and the compiler stops asking for one it has no use
+/// for.
+///
+/// What that costs is that the obligation above is not enforceable in such a
+/// build, because there is nothing to round-trip. It is also not *reachable*
+/// there: a state that is never written down cannot come back wrong. The
+/// moment a build turns the feature on -- which every networked, saving or
+/// replaying one does -- the bound is back and
+/// [`round_trip_is_faithful`](../corvid_wire/fn.round_trip_is_faithful.html) is what
+/// checks it.
+#[cfg(feature = "serde")]
+pub trait Data: serde::Serialize + serde::de::DeserializeOwned + Hash + Eq + Clone + Debug {}
 
-impl<T> Data for T where T: Serialize + DeserializeOwned + Hash + Eq + Clone + Debug {}
+#[cfg(feature = "serde")]
+impl<T> Data for T where
+    T: serde::Serialize + serde::de::DeserializeOwned + Hash + Eq + Clone + Debug
+{
+}
+
+/// What a value has to be to cross a digest, with no encoding asked for.
+///
+/// The `serde` feature is off, so this is the same bundle as the documented
+/// one minus `Serialize` and `DeserializeOwned`. See the other definition for
+/// what an implementor owes; everything there still applies except the round
+/// trip, which a build with no encoding cannot make.
+#[cfg(not(feature = "serde"))]
+pub trait Data: Hash + Eq + Clone + Debug {}
+
+#[cfg(not(feature = "serde"))]
+impl<T> Data for T where T: Hash + Eq + Clone + Debug {}
 
 /// The deterministic half of a game.
 ///
@@ -170,9 +202,9 @@ pub trait State: Default + Data {
     fn tick(
         self,
         _level: &Self::Level,
-        _players: &[Player<'_, Self::Action>],
+        _players: &[PlayerState<Self::Action>],
         _rules: &Self::Rules,
-        _command: &mut impl Command<Reference = <Self::Level as Level>::Reference>,
+        _command: &mut impl Command,
     ) -> Self {
         self
     }

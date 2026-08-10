@@ -39,37 +39,20 @@
 /// keep two inputs apart. It is not a distinction to lean on in either case:
 /// widen one of the two reprs and even the input is the same again.
 ///
-/// A crate whose serialization is not optional says so with a trailing
-/// `serde`, and the encoding is then derived unconditionally rather than
-/// behind a flag. That is for the caller that cannot offer the choice: a trait
-/// demanding `Serialize + DeserializeOwned` of its implementors leaves the
-/// crate declaring it with no build in which the encoding is absent, and a
-/// feature that has to be on to compile is a worse lie than no feature at all.
-///
-/// ```
-/// use corvid_macros::id_type;
-///
-/// id_type! {
-///     /// Which save to write.
-///     SlotId, u8, "The slot's index.", serde
-/// }
-///
-/// assert_eq!(SlotId(3).to_string(), "SlotId(3)");
-/// ```
-///
 /// [`Hasher`]: core::hash::Hasher
 #[macro_export]
 macro_rules! id_type {
-    // The shared expansion. The two public forms differ only in the attributes
-    // they put the encoding behind, so they hand them here rather than each
-    // repeating the struct and its `Display`.
     (
-        @declare
         $(#[$meta:meta])*
-        $name:ident, $repr:ty, $field_doc:literal
+        $name:ident, $repr:ty, $field_doc:literal $(,)?
     ) => {
         $(#[$meta])*
         #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[cfg_attr(
+            feature = "serde",
+            derive(::serde::Serialize, ::serde::Deserialize),
+            serde(transparent)
+        )]
         pub struct $name(
             #[doc = $field_doc]
             pub $repr,
@@ -79,33 +62,6 @@ macro_rules! id_type {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 ::core::write!(f, "{}({})", ::core::stringify!($name), self.0)
             }
-        }
-    };
-    (
-        $(#[$meta:meta])*
-        $name:ident, $repr:ty, $field_doc:literal, serde $(,)?
-    ) => {
-        $crate::id_type! {
-            @declare
-            #[derive(::serde::Serialize, ::serde::Deserialize)]
-            #[serde(transparent)]
-            $(#[$meta])*
-            $name, $repr, $field_doc
-        }
-    };
-    (
-        $(#[$meta:meta])*
-        $name:ident, $repr:ty, $field_doc:literal $(,)?
-    ) => {
-        $crate::id_type! {
-            @declare
-            #[cfg_attr(
-                feature = "serde",
-                derive(::serde::Serialize, ::serde::Deserialize),
-                serde(transparent)
-            )]
-            $(#[$meta])*
-            $name, $repr, $field_doc
         }
     };
 }

@@ -15,7 +15,7 @@
 mod common;
 
 use common::{Action, RULES, Rules, active, joining, level, opening};
-use corvid_behavior::{Discard, Player, PlayerId, Presence, ProfileId, State as _};
+use corvid_behavior::{Discard, PlayerId, PlayerState, Presence, ProfileId, State as _};
 use corvid_hash::{Digest, digest};
 use corvid_time::Tick;
 /// How many players every session below is played with.
@@ -122,7 +122,7 @@ fn a_roster_hashes_alongside_the_state() {
     let idle = Action::Idle;
 
     let seat = |id: u16, presence, action| {
-        vec![Player {
+        vec![PlayerState {
             id: PlayerId(id),
             presence,
             action,
@@ -133,27 +133,27 @@ fn a_roster_hashes_alongside_the_state() {
         profile: ProfileId(profile),
     };
 
-    let base = digest(&seat(0, Presence::Active, &bump)[..]);
-    assert_eq!(base, digest(&seat(0, Presence::Active, &bump)[..]));
-    assert_ne!(base, digest(&seat(1, Presence::Active, &bump)[..]));
-    assert_ne!(base, digest(&seat(0, Presence::Active, &idle)[..]));
+    let base = digest(&seat(0, Presence::Active, bump)[..]);
+    assert_eq!(base, digest(&seat(0, Presence::Active, bump)[..]));
+    assert_ne!(base, digest(&seat(1, Presence::Active, bump)[..]));
+    assert_ne!(base, digest(&seat(0, Presence::Active, idle)[..]));
     assert_ne!(
         base,
-        digest(&seat(0, Presence::Dropped { since: Tick(4) }, &bump)[..]),
+        digest(&seat(0, Presence::Dropped { since: Tick(4) }, bump)[..]),
     );
     assert_ne!(
-        digest(&seat(0, joining(1), &bump)[..]),
-        digest(&seat(0, joining(2), &bump)[..]),
+        digest(&seat(0, joining(1), bump)[..]),
+        digest(&seat(0, joining(2), bump)[..]),
     );
 
-    // Three fields and three fields only, named exhaustively. `Player` has no
-    // pose and must not grow one back: a pose is not in the action log, so a
+    // Three fields and three fields only, named exhaustively. `PlayerState` has
+    // no pose and must not grow one back: a pose is not in the action log, so a
     // replay would have nothing to rebuild it from and would silently reach a
     // different state than the session ran. Anything added here has to be
     // something a capture can reconstruct, and this pattern is what makes the
     // question unavoidable -- a fourth field stops it compiling.
-    let one = seat(0, Presence::Active, &bump);
-    let Player {
+    let one = seat(0, Presence::Active, bump);
+    let PlayerState {
         id: _,
         presence: _,
         action: _,

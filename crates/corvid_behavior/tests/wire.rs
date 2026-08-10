@@ -1,6 +1,11 @@
 //! The frozen serialized forms. **Changing a value in this file is a
 //! wire-format break.**
 //!
+//! The whole file is behind the `serde` feature, because the whole file is
+//! about what that feature produces. A build without it has no encoding to
+//! freeze -- the digest table in `tests/golden.rs` is the one that still
+//! applies, since a value is hashed either way.
+//!
 //! Two tables live here and a third lives in `tests/golden.rs`, and each is
 //! blind where the others see. The byte table is what `corvid_wire` writes,
 //! which carries no names at all; the text table below is what a
@@ -37,6 +42,7 @@
 //! test go green is never the right move -- the red test *is* the notification
 //! that a snapshot written by an older build has stopped loading as what it was.
 
+#![cfg(feature = "serde")]
 #![allow(
     clippy::unwrap_used,
     reason = "a failed unwrap in a test is a failed test, which is what a test is for"
