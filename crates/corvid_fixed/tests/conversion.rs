@@ -318,3 +318,27 @@ fn the_next_integer_up_would_not_have_fitted() {
     // `I48F16` holds an `i32` in an `i64`; an `i64` shifted by 16 is not one.
     assert!(i128::from(i64::MAX) << 16 > i128::from(i64::MAX));
 }
+
+/// The signed-normalized types take a whole number of units, saturating.
+///
+/// Unlike the fixed-point conversions above this one is **lossy**, and that is
+/// the whole design: the range is `-1.0 ..= 1.0`, so `-1`, `0` and `1` are the
+/// only integers it holds and everything else clamps to the nearer end. What
+/// it buys is the bare-number spelling at a call site.
+#[test]
+fn a_signed_normalized_value_takes_a_whole_number_of_units() {
+    assert_eq!(Signed32::from(1), Signed32::MAX);
+    assert_eq!(Signed32::from(0), Signed32::ZERO);
+    assert_eq!(Signed32::from(-1), Signed32::MIN);
+
+    // Saturating rather than wrapping, at both ends and at the extremes.
+    assert_eq!(Signed32::from(2), Signed32::MAX);
+    assert_eq!(Signed32::from(i32::MAX), Signed32::MAX);
+    assert_eq!(Signed32::from(-2), Signed32::MIN);
+    assert_eq!(Signed32::from(i32::MIN), Signed32::MIN);
+
+    // The whole family, not just the widest.
+    assert_eq!(Signed8::from(1), Signed8::MAX);
+    assert_eq!(Signed8::from(-4), Signed8::MIN);
+    assert_eq!(Signed16::from(0), Signed16::ZERO);
+}
