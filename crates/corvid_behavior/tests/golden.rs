@@ -40,7 +40,8 @@ mod common;
 
 use common::vocabulary::{every_player, every_presence};
 use corvid_behavior::{
-    ExitCode, LobbyId, PlayerId, PresenceText, ProfileId, RumbleId, SaveSlot, Url,
+    AchievementId, ExitCode, LobbyId, PlayerId, PresenceText, ProfileId, RumbleId, SaveSlot,
+    StatId, Url,
 };
 use corvid_hash::{Digest, digest};
 use corvid_wire::golden::{DigestRow, check_digests};
@@ -67,6 +68,14 @@ const GOLDEN_PLAYERS: &[DigestRow<'_>] = &[
 ];
 
 /// The identifiers, which absorb their integer and no type tag.
+///
+/// One row per *width* rather than one per type, because absorbing no type tag
+/// is exactly what makes the rest redundant: [`SaveSlot`], [`RumbleId`],
+/// [`AchievementId`] and [`StatId`] are all `u16` and all digest to whatever
+/// [`PlayerId`] does. Recording them as literals would freeze the same number
+/// five times and make a genuine `u16` change look like five breaks. The test
+/// below asserts that they do agree, which is the claim this table is standing
+/// on and the one that would fail first if a type tag ever appeared.
 ///
 /// The two named [`ExitCode`]s are rows here rather than in the `Command` table
 /// because they are the numbers that leave the process: swapping
@@ -130,8 +139,16 @@ fn the_identifiers_digest_to_their_recorded_values() {
     // which is the convention and not an accident: what establishes that two
     // peers are reading the same field is the opening's schema, not a tag on
     // every value.
-    assert_eq!(digest(&PlayerId(2)), digest(&SaveSlot(2)));
-    assert_eq!(digest(&PlayerId(2)), digest(&RumbleId(2)));
+    //
+    // Every `u16` identifier this crate defines is here, so the table above
+    // holding one row for the width covers all of them. An identifier that grew
+    // a type tag would fail here rather than pass quietly by not being in the
+    // table.
+    let seat = digest(&PlayerId(2));
+    assert_eq!(seat, digest(&SaveSlot(2)));
+    assert_eq!(seat, digest(&RumbleId(2)));
+    assert_eq!(seat, digest(&AchievementId(2)));
+    assert_eq!(seat, digest(&StatId(2)));
 }
 
 #[test]
