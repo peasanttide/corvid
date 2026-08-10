@@ -1,0 +1,97 @@
+[package]
+name = "corvid_behavior"
+description = "The State contract: the deterministic half of a Corvid game, as three data types and two functions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["deterministic", "simulation", "lockstep", "no-std", "gamedev"]
+categories = ["game-development", "no-std"]
+
+# Five, and every one of them appears in a signature or an expansion here. A
+# crate that defines what a simulation *is* should be reachable from a game that
+# has nothing else, so anything that turns out to be unused is removed rather
+# than kept for symmetry.
+[dependencies]
+# `Factor16`, which is what `Loading::progress` is.
+corvid_fixed = { workspace = true }
+# `id_type!`, which declares the numbered identifiers.
+corvid_macros = { workspace = true }
+# `bounded_name!`, which declares `PresenceText` and `Url`.
+corvid_name = { workspace = true }
+# `Tick`, which a `Presence::Dropped` records, and `Time`, which an extractor is
+# handed. No `serde` feature here: this crate forwards its own, below.
+corvid_time = { workspace = true }
+# The encoding, optional for the reason the `serde` feature below gives. Both
+# expansions above name `::serde` when that feature is on, so a build with it
+# needs the dependency present rather than merely reachable.
+#
+# `rc` because a game's state may hold an `Arc`, as a level does at the call
+# site, and without the feature an `Arc` has no implementation at all -- so the
+# trait would be unimplementable for exactly the shape this crate hands its
+# implementors. Named here rather than left to Cargo's unification across a
+# workspace, which is not the sort of thing to leave that resting on.
+serde = { workspace = true, default-features = false, features = [
+    "alloc",
+    "rc",
+], optional = true }
+
+[dev-dependencies]
+# The digest the golden table records and the round trip `corvid_wire` checks.
+# Neither is a runtime concern of this crate: it defines what a value has to be
+# in order to be hashed and sent, and hashes and sends nothing itself.
+corvid_hash = { workspace = true }
+corvid_wire = { workspace = true }
+# A self-describing format, for the half of the contract `corvid_wire` cannot
+# show. A varint carries no names, so a presence line that had lost one would
+# still round-trip through it; `tests/name.rs` writes the same line as text and
+# reads it back, which is where a renamed field stops being invisible.
+serde_json = "1"
+# `Level::Error` in the counter game, which is a game's own error type and so
+# derives its `Display` the way a game would.
+thiserror = { workspace = true }
+# `derive` for the counter game's state, which is what `Data` demands of an
+# implementor and what these tests are here to exercise.
+serde = { workspace = true, features = ["derive", "std"] }
+
+[features]
+default = []
+# The encoding. On, `Data` demands `Serialize + DeserializeOwned` of every
+# implementor and the identifiers and names declared here derive theirs; off,
+# `Data` is the same bundle without those two and a game implements the contract
+# without writing an encoding at all.
+#
+# It is a feature rather than an unconditional bound because the two are not the
+# same crate to a caller. A game that is networked, saved or replayed cannot
+# work without an encoding and turns this on; a single-seat build, a test
+# harness, or a target with no room for the format has no use for one, and
+# demanding it anyway would be this crate charging every implementor for a
+# capability only some of them reach.
+serde = [
+    "dep:serde",
+    "corvid_fixed/serde",
+    "corvid_macros/serde",
+    "corvid_name/serde",
+    "corvid_time/serde",
+]
+# Adds no API -- not here and not in anything reachable through here. It exists
+# so a downstream can forward `std` uniformly across the workspace without
+# special-casing this crate.
+#
+# `corvid_time/std` is deliberately not on that list. It is the one dependency
+# whose `std` feature adds a type, and the type it adds is `Wall`, a clock. A
+# game's simulation crate has no business being able to name one, and Cargo
+# unifies features across a build, so forwarding it here would hand every game
+# in the workspace a wall clock as a side effect of a downstream turning `std`
+# on for something else. The runtime that wants `Wall` depends on `corvid_time`
+# and asks for it there, where it is the loop's clock rather than the
+# simulation's.
+std = ["serde?/std", "corvid_fixed/std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
