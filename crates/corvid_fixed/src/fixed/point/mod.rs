@@ -10,10 +10,12 @@ use super::macros::{
     define_newtype, impl_binop, impl_neg, impl_num_traits_arith, impl_num_traits_shared,
     impl_num_traits_wrapping, impl_one, impl_shared,
 };
+mod hypot;
 mod macros;
 mod math;
 mod round;
 
+use hypot::define_fixed_point_hypot;
 use macros::define_fixed_point;
 use math::define_fixed_point_math;
 use round::define_fixed_point_round;
@@ -122,6 +124,7 @@ define_fixed_point! {
 
 define_fixed_point_math!(I0F8, i8, i32, u32, 8, Factor8);
 define_fixed_point_round!(I0F8, i8, i32, u32, 8, Factor8);
+define_fixed_point_hypot!(I0F8, i32, u64, 8, root_u64);
 
 define_fixed_point! {
     /// A signed fixed-point number with 8 integer bits and 8 fractional bits.
@@ -161,6 +164,7 @@ define_fixed_point! {
 
 define_fixed_point_math!(I8F8, i16, i32, u32, 8, Factor16);
 define_fixed_point_round!(I8F8, i16, i32, u32, 8, Factor16);
+define_fixed_point_hypot!(I8F8, i32, u64, 8, root_u64);
 
 define_fixed_point! {
     /// A signed fixed-point number with 24 integer bits and 8 fractional bits.
@@ -201,6 +205,7 @@ define_fixed_point! {
 
 define_fixed_point_math!(I24F8, i32, i64, u64, 8, Factor32);
 define_fixed_point_round!(I24F8, i32, i64, u64, 8, Factor32);
+define_fixed_point_hypot!(I24F8, i64, u64, 8, root_u64);
 
 define_fixed_point! {
     /// A signed fixed-point number with 16 integer bits and 16 fractional bits.
@@ -240,6 +245,7 @@ define_fixed_point! {
 
 define_fixed_point_math!(I16F16, i32, i64, u64, 16, Factor32);
 define_fixed_point_round!(I16F16, i32, i64, u64, 16, Factor32);
+define_fixed_point_hypot!(I16F16, i64, u64, 16, root_u64);
 
 define_fixed_point! {
     /// A signed fixed-point number with 48 integer bits and 16 fractional bits.
@@ -282,6 +288,7 @@ define_fixed_point! {
 
 define_fixed_point_math!(I48F16, i64, i128, u128, 16, Factor32);
 define_fixed_point_round!(I48F16, i64, i128, u128, 16, Factor32);
+define_fixed_point_hypot!(I48F16, i128, u128, 16, root_u128);
 
 define_fixed_point! {
     /// A signed fixed-point number with 2 integer bits and 30 fractional bits.
@@ -324,6 +331,7 @@ define_fixed_point! {
 
 define_fixed_point_math!(I2F30, i32, i64, u64, 30, Factor32);
 define_fixed_point_round!(I2F30, i32, i64, u64, 30, Factor32);
+define_fixed_point_hypot!(I2F30, i64, u64, 30, root_u64);
 
 impl_one!(I8F8, 256);
 impl_one!(I24F8, 256);

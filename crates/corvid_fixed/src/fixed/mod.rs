@@ -4,6 +4,7 @@
 //! generators live in [`macros`]. The types themselves are re-exported from the
 //! crate root, which is where they should be referred to from.
 
+mod hypot;
 mod macros;
 mod rsqrt;
 

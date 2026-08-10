@@ -1,8 +1,10 @@
-//! The roundings, the reciprocal, and the two composed operations.
+//! The roundings, the reciprocal, and the fused multiply-add.
 //!
 //! Each is held to a reference computed in `f64` and rounded once, which is
-//! what `mul_add` and `hypot` promise and what a naive composition of the
-//! primitive operations would fail.
+//! what `mul_add` promises and what a naive composition of the primitive
+//! operations would fail. The hypotenuses have a test binary of their own,
+//! because what they are held to is an integer reference rather than an `f64`
+//! one.
 
 #![allow(
     clippy::float_cmp,
@@ -167,43 +169,6 @@ fn mul_add_rounds_only_once() {
         );
         let expected = exact.clamp(f64::from(i16::MIN), f64::from(i16::MAX));
         assert_eq!(f64::from(a.mul_add(b, c).to_bits()), expected);
-    }
-}
-
-#[test]
-fn hypot_is_correct_and_never_overflows() {
-    assert_eq!(
-        I24F8::from_f64(3.0).hypot(I24F8::from_f64(4.0)).to_f64(),
-        5.0
-    );
-    assert_eq!(
-        I24F8::from_f64(-3.0).hypot(I24F8::from_f64(4.0)).to_f64(),
-        5.0
-    );
-    assert_eq!(
-        I24F8::from_f64(-3.0).hypot(I24F8::from_f64(-4.0)).to_f64(),
-        5.0
-    );
-    assert_eq!(I24F8::ZERO.hypot(I24F8::ZERO), I24F8::ZERO);
-    assert_eq!(I24F8::from_f64(5.0).hypot(I24F8::ZERO).to_f64(), 5.0);
-
-    // Two large squares would overflow the storage type. The sum is formed at
-    // double width, so the result merely saturates.
-    assert_eq!(I24F8::MAX.hypot(I24F8::MAX), I24F8::MAX);
-    assert_eq!(I24F8::MIN.hypot(I24F8::MIN), I24F8::MAX);
-    assert_eq!(I8F8::MAX.hypot(I8F8::MAX), I8F8::MAX);
-
-    let mut rng = Rng::new(0x2718_2818);
-    for _ in 0..20_000 {
-        let a = I8F8::from_bits((rng.next_u32() as i16) / 2);
-        let b = I8F8::from_bits((rng.next_u32() as i16) / 2);
-        let exact = round_half_away(f64::from(a.to_bits()).hypot(f64::from(b.to_bits())));
-        let expected = exact.min(f64::from(i16::MAX));
-        assert_eq!(
-            f64::from(a.hypot(b).to_bits()),
-            expected,
-            "hypot of {a} and {b}"
-        );
     }
 }
 

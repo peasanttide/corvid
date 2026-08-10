@@ -61,8 +61,8 @@ Everything is `const`, including `sin`, `atan2`, `asin` and the roots, so a
 table of geometry can be built at compile time. Floating point appears only in
 the conversions -- `from_f64`, `to_f64`, `from_degrees`, `Display` -- which are
 how a value gets in and out rather than how it is computed on. Multiplication,
-division, the roots and interpolation each round once from a full-width
-intermediate, and sine and cosine land on the bit pattern that rounding the true
+division, the roots, the hypotenuse and interpolation each round once from a
+full-width intermediate, and sine and cosine land on the bit pattern that rounding the true
 value would give.
 
 Trigonometry lives on the angle and pitch types, the only ones that know their

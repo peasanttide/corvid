@@ -20,7 +20,7 @@ use std::hint::black_box;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 
-use corvid_fixed::{Angle16, I2F30, I24F8, Pitch16, Signed16};
+use corvid_fixed::{Angle16, I2F30, I16F16, I24F8, I48F16, Pitch16, Signed16};
 
 mod common;
 
@@ -171,8 +171,113 @@ fn reciprocal_square_root(c: &mut Criterion) {
     group.finish();
 }
 
-/// The multiply every operation above is built out of, and the two composed
-/// forms that round once where a naive pair would round twice.
+/// The hypotenuse, against the platform's own and against the `isqrt` the
+/// kernel replaces.
+///
+/// The `isqrt` row is not a second implementation kept around: it is the
+/// obvious way to write the operation, and the reason the kernel exists is that
+/// it costs what its input's magnitude costs while the kernel is flat. Both
+/// rows walk the same table, so the ratio between them is the ratio at the
+/// operand width the table draws.
+fn hypotenuse(c: &mut Criterion) {
+    let input = Inputs::new();
+    let mut group = c.benchmark_group("hypot");
+    group.throughput(Throughput::Elements(SAMPLES));
+
+    group.bench_function("f64::hypot", |b| {
+        b.iter(|| {
+            let mut acc = 0_u64;
+            for &(y, x) in &input.coords_f {
+                acc = acc.wrapping_add(black_box(y).hypot(black_box(x)).to_bits());
+            }
+            acc
+        });
+    });
+    group.bench_function("I16F16::hypot", |b| {
+        b.iter(|| {
+            let mut acc = 0_i64;
+            for &(y, x) in &input.coords32 {
+                let (y, x) = (
+                    I16F16::from_bits(black_box(y)),
+                    I16F16::from_bits(black_box(x)),
+                );
+                acc = acc.wrapping_add(i64::from(y.hypot(x).to_bits()));
+            }
+            acc
+        });
+    });
+    group.bench_function("I16F16::hypot via isqrt", |b| {
+        b.iter(|| {
+            let mut acc = 0_i64;
+            for &(y, x) in &input.coords32 {
+                acc = acc.wrapping_add(isqrt_hypot(black_box(y), black_box(x)));
+            }
+            acc
+        });
+    });
+    group.bench_function("I16F16::hypot1", |b| {
+        b.iter(|| {
+            let mut acc = 0_i64;
+            for &(_, x) in &input.coords32 {
+                let x = I16F16::from_bits(black_box(x));
+                acc = acc.wrapping_add(i64::from(x.hypot1().to_bits()));
+            }
+            acc
+        });
+    });
+    group.bench_function("I48F16::hypot", |b| {
+        b.iter(|| {
+            let mut acc = 0_i64;
+            for &(y, x) in &input.coords {
+                let (y, x) = (
+                    I48F16::from_bits(black_box(y)),
+                    I48F16::from_bits(black_box(x)),
+                );
+                acc = acc.wrapping_add(y.hypot(x).to_bits());
+            }
+            acc
+        });
+    });
+    group.bench_function("I48F16::hypot via isqrt", |b| {
+        b.iter(|| {
+            let mut acc = 0_i64;
+            for &(y, x) in &input.coords {
+                acc = acc.wrapping_add(isqrt_hypot_wide(black_box(y), black_box(x)));
+            }
+            acc
+        });
+    });
+    group.finish();
+}
+
+/// The hypotenuse written the obvious way, for the row above to measure against.
+fn isqrt_hypot(y: i32, x: i32) -> i64 {
+    let (a, b) = (u64::from(y.unsigned_abs()), u64::from(x.unsigned_abs()));
+    let sum = a * a + b * b;
+    let root = sum.isqrt();
+    let rounded = if sum - root * root > root {
+        root + 1
+    } else {
+        root
+    };
+    rounded.min(i32::MAX as u64) as i64
+}
+
+/// The same one width up, where `isqrt` has a `u128` to work through.
+fn isqrt_hypot_wide(y: i64, x: i64) -> i64 {
+    let (a, b) = (u128::from(y.unsigned_abs()), u128::from(x.unsigned_abs()));
+    let sum = a * a + b * b;
+    let root = sum.isqrt();
+    let rounded = if sum - root * root > root {
+        root + 1
+    } else {
+        root
+    };
+    rounded.min(i64::MAX as u128) as i64
+}
+
+/// The multiply every operation above is built out of, and the composed form
+/// that rounds once where a naive pair would round twice.
 fn multiplication(c: &mut Criterion) {
     let input = Inputs::new();
     let mut group = c.benchmark_group("mul");
@@ -207,16 +312,6 @@ fn multiplication(c: &mut Criterion) {
             acc
         });
     });
-    group.bench_function("I24F8::hypot", |b| {
-        b.iter(|| {
-            let mut acc = 0_i64;
-            for &p in &input.positives {
-                let value = I24F8::from_bits(black_box(p));
-                acc = acc.wrapping_add(i64::from(value.hypot(value).to_bits()));
-            }
-            acc
-        });
-    });
     group.bench_function("Signed16::mul", |b| {
         b.iter(|| {
             let mut acc = 0_i64;
@@ -236,6 +331,7 @@ criterion_group!(
     arcsine,
     square_root,
     reciprocal_square_root,
+    hypotenuse,
     multiplication
 );
 criterion_main!(benches);

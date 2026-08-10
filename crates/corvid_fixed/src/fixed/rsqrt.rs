@@ -48,6 +48,40 @@ const INTERCEPT_LOW: u64 = ONE_NARROW + SLOPE_LOW;
 /// arithmetic can carry the estimate.
 const NARROW_STEPS: u32 = 3;
 
+/// `round(2^30 / sqrt(n))` for a Q30 `n` in `[0.5, 2]`, to Q30's own last bit.
+///
+/// The narrow phase both this module and [`hypot`](super::hypot) are built on.
+/// One binade either side of 1 is what the two-piece seed is fitted to, and
+/// normalizing into it is the caller's job: [`rsqrt_bits`] shifts by an even
+/// count so that its rescale stays a whole power of two, and the hypotenuse
+/// does the same so that its own does.
+#[inline]
+pub(super) const fn reciprocal_root_q30(n: u64) -> u64 {
+    // A straight line through the endpoints of each half.
+    let mut q = if n >= ONE_NARROW {
+        INTERCEPT_HIGH - ((n * SLOPE_HIGH) >> 30)
+    } else {
+        INTERCEPT_LOW - ((n * SLOPE_LOW) >> 30)
+    };
+
+    // Newton: q <- q (3 - n q^2) / 2. `q` stays under `1.5 * 2^30` and `n`
+    // under `2^31`, so every product here fits `u64`.
+    let mut step = 0;
+    while step < NARROW_STEPS {
+        let squared = (q * q) >> 30;
+        let scaled = (n * squared) >> 30;
+        // `n q^2` approaches 1 from either side and never reaches 1.1, so this
+        // subtraction cannot underflow.
+        q = (q * (3 * ONE_NARROW - scaled)) >> 31;
+        step += 1;
+    }
+
+    // Newton converges from below -- the error term is `-1.5 e^2` -- so the
+    // answer is a slight underestimate, which is what both callers' final
+    // exact correction is written for.
+    q
+}
+
 /// Bits of answer the narrow phase can be trusted for.
 ///
 /// Q30 arithmetic cannot carry a relative error below about `2^-29`, so an
@@ -74,7 +108,7 @@ const NARROW_BITS: u32 = 27;
 ///
 /// # Panics
 ///
-/// `frac` must be **even** and at most 30. The rescale in step 5 divides
+/// `frac` must be **even** and at most 30. The rescale in step 4 divides
 /// `3 * frac + shift_up` by two and the `& !1` in step 1 keeps `shift_up` even,
 /// so an odd `frac` loses half a bit there and every answer comes back a factor
 /// of `sqrt(2)` out -- a 41% error, silently. Both conditions are checked here rather
@@ -99,29 +133,13 @@ pub(super) const fn rsqrt_bits(x: u64, frac: u32) -> u64 {
 
     // `n` now lies in `[2^61, 2^63)`, so the value it denotes at Q62 is in
     // `[0.5, 2)` -- one binade either side of 1, which is what the two-piece
-    // seed below is fitted to.
+    // seed is fitted to.
 
-    // 2. Seed. A straight line through the endpoints of each half, at Q30.
+    // 2. The narrow phase, which is as far as Q30 arithmetic can carry it.
     let narrow = n >> 32;
-    let mut q = if narrow >= ONE_NARROW {
-        INTERCEPT_HIGH - ((narrow * SLOPE_HIGH) >> 30)
-    } else {
-        INTERCEPT_LOW - ((narrow * SLOPE_LOW) >> 30)
-    };
+    let q = reciprocal_root_q30(narrow);
 
-    // 3. Newton at Q30: q <- q (3 - n q^2) / 2. `q` stays under `1.5 * 2^30`
-    //    and `n` under `2^31`, so every product here fits `u64`.
-    let mut step = 0;
-    while step < NARROW_STEPS {
-        let squared = (q * q) >> 30;
-        let scaled = (narrow * squared) >> 30;
-        // `n q^2` approaches 1 from either side and never reaches 1.1, so this
-        // subtraction cannot underflow.
-        q = (q * (3 * ONE_NARROW - scaled)) >> 31;
-        step += 1;
-    }
-
-    // 4. One more step at Q62, which is where the 128-bit multiplies live --
+    // 3. One more step at Q62, which is where the 128-bit multiplies live --
     //    but only for the types that need it. The narrow phase carries about
     //    30 bits, and an answer of `3 * frac / 2` bits needs a couple more than
     //    that. `frac` is a literal at every call site, so this branch folds
@@ -133,11 +151,7 @@ pub(super) const fn rsqrt_bits(x: u64, frac: u32) -> u64 {
         q = (((q as u128) * ((3 * ONE - scaled) as u128)) >> 63) as u64;
     }
 
-    // Newton converges from below -- the error term is `-1.5 e^2` -- so `q` is a
-    // slight underestimate either way, which is what the floor in step 5 and
-    // the correction in step 6 are written for.
-
-    // 5. Rescale. With `n = x * 2^shift_up` and `q = 2^62 / sqrt(n)`, the
+    // 4. Rescale. With `n = x * 2^shift_up` and `q = 2^62 / sqrt(n)`, the
     //    answer is `q * 2^((3 * frac + shift_up - 186) / 2)`. That exponent is
     //    always negative -- `shift_up <= 62` and `3 * frac <= 90` -- so this is
     //    only ever a right shift, by 17 to 81 places. The truncating shift
@@ -146,7 +160,7 @@ pub(super) const fn rsqrt_bits(x: u64, frac: u32) -> u64 {
     let down = (186 - 3 * frac - shift_up) / 2;
     let candidate = if down >= u64::BITS { 0 } else { q >> down };
 
-    // 6. Correct exactly. Newton plus the truncating shift leaves `candidate`
+    // 5. Correct exactly. Newton plus the truncating shift leaves `candidate`
     //    either the correctly rounded answer or one below it. `candidate` is
     //    the answer exactly when `candidate + 0.5` exceeds the true value,
     //    which rearranges into a comparison of integers:

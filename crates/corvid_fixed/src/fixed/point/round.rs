@@ -1,4 +1,4 @@
-//! The generator for the roundings, the reciprocal and the three composed
+//! The generator for the roundings, the reciprocal and the two composed
 //! operations built on them.
 
 macro_rules! define_fixed_point_round {
@@ -117,22 +117,6 @@ macro_rules! define_fixed_point_round {
                 } else {
                     -((-sum + half) >> $frac)
                 })
-            }
-
-            /// The length of the hypotenuse, `sqrt(self^2 + other^2)`.
-            ///
-            /// Computed by integer square root of the exact sum of squares, so no
-            /// intermediate overflows the way a naive `(a*a + b*b).sqrt()` would.
-            /// Saturates at [`MAX`](Self::MAX).
-            #[must_use]
-            #[inline]
-            pub const fn hypot(self, other: Self) -> Self {
-                let a = self.0.unsigned_abs() as $uwide;
-                let b = other.0.unsigned_abs() as $uwide;
-                let sum = a * a + b * b;
-                let root = sum.isqrt();
-                let rounded = if sum - root * root > root { root + 1 } else { root };
-                Self::saturate(rounded as $wide)
             }
 
             #[doc = concat!("Linearly interpolates toward `to`, using a [`", stringify!($factor), "`] weight.")]
