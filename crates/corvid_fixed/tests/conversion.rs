@@ -325,6 +325,9 @@ fn the_next_integer_up_would_not_have_fitted() {
 /// the whole design: the range is `-1.0 ..= 1.0`, so `-1`, `0` and `1` are the
 /// only integers it holds and everything else clamps to the nearer end. What
 /// it buys is the bare-number spelling at a call site.
+///
+/// It takes an `i8`, which is the narrowest integer that spells those three
+/// values -- so the width says what the conversion is for.
 #[test]
 fn a_signed_normalized_value_takes_a_whole_number_of_units() {
     assert_eq!(Signed32::from(1), Signed32::MAX);
@@ -333,9 +336,9 @@ fn a_signed_normalized_value_takes_a_whole_number_of_units() {
 
     // Saturating rather than wrapping, at both ends and at the extremes.
     assert_eq!(Signed32::from(2), Signed32::MAX);
-    assert_eq!(Signed32::from(i32::MAX), Signed32::MAX);
+    assert_eq!(Signed32::from(i8::MAX), Signed32::MAX);
     assert_eq!(Signed32::from(-2), Signed32::MIN);
-    assert_eq!(Signed32::from(i32::MIN), Signed32::MIN);
+    assert_eq!(Signed32::from(i8::MIN), Signed32::MIN);
 
     // The whole family, not just the widest.
     assert_eq!(Signed8::from(1), Signed8::MAX);

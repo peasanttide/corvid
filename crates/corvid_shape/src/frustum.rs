@@ -316,12 +316,10 @@ impl Default for Frustum {
 /// half-height is measured in. Worked in Q32 and square-rooted back to Q16, so
 /// it is the same integer everywhere.
 fn inflate(radius: I16F16, slope: I16F16) -> I16F16 {
-    let m = i128::from(slope.to_bits());
-    let one = 1_i128 << 32;
-    // `1 + m^2` in Q32, square-rooted back to Q16.
-    let length = (one + m * m).isqrt();
-    let scaled = (i128::from(radius.to_bits()) * length) >> 16;
-    I16F16::from_bits(corvid_bits::narrow_i128(scaled))
+    // `sqrt(1 + m^2)` is the hypotenuse of the plane's normal, which
+    // `corvid_fixed` computes from the exact sum of squares -- so the widening
+    // this used to spell out by hand happens where the scale is known.
+    radius.saturating_mul(slope.hypot(I16F16::ONE))
 }
 
 /// The tangent of half an angle, in integers.
@@ -338,14 +336,8 @@ const fn slope_of(fov_y: Angle16) -> I16F16 {
     let Some(half) = fov_y.half() else {
         return I16F16::MAX;
     };
-    let (sine, cosine) = half.sin_cos();
-    // `as` rather than `i64::from`, which is not callable in a `const fn`:
-    // `From` is not a const trait yet. Both sources are `i32`, so the widening
-    // is exact either way.
-    let (sine, cosine) = (sine.to_bits() as i64, cosine.to_bits() as i64);
-    if cosine == 0 {
-        return I16F16::MAX;
-    }
-    // Q31 shifted into Q47 over Q31 is a Q16.
-    I16F16::from_bits(corvid_bits::narrow_i64((sine << 16) / cosine))
+    // `tan` saturates where the tangent is unbounded, so the quarter-turn case
+    // this used to test for by hand is the type's answer rather than this
+    // function's.
+    half.tan().to_i16f16()
 }

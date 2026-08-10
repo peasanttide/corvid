@@ -334,14 +334,15 @@ macro_rules! define_signed {
         /// What it buys is the bare-number spelling at a call site, so
         /// `direction(0, 1, 0)` reads as the axis it is.
         ///
-        /// `i32` and no other width, for the reason the point builders take
-        /// one integer type each: an unsuffixed literal reaches an
-        /// `impl Into<Self>` parameter as an inference variable and rustc
-        /// commits it only when exactly one candidate applies. A second impl
-        /// would make `direction(0, 1, 0)` stop compiling.
-        impl From<i32> for $name {
+        /// `i8` and no other width. It is the narrowest integer that spells
+        /// the three values this type actually holds, which is the honest
+        /// width for a conversion whose whole range is `-1 ..= 1` -- and one
+        /// impl rather than several is what lets an unsuffixed literal reach
+        /// an `impl Into<Self>` parameter at all, since rustc commits an
+        /// inference variable only when exactly one candidate applies.
+        impl From<i8> for $name {
             #[inline]
-            fn from(value: i32) -> Self {
+            fn from(value: i8) -> Self {
                 if value >= 1 {
                     Self::MAX
                 } else if value <= -1 {

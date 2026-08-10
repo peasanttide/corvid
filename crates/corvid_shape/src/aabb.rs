@@ -96,20 +96,14 @@ impl Aabb {
     /// Derived from the low corner and the half extent rather than averaging
     /// the two corners, so that a box and the box `around` its own centre and
     /// half extent agree.
+    /// Plain point arithmetic, because the sum cannot leave the range: the
+    /// centre lies between the corners, and both of those are points already.
+    /// Only the *extent* needs widening, which is
+    /// [`half_extent`](Self::half_extent)'s business rather than this one's.
     #[must_use]
     #[inline]
     pub fn centre(&self) -> GlobalPoint {
-        // Also wide: the sum is bounded by the corners themselves and so always
-        // fits, but the intermediate is what has to survive, and `min + half`
-        // in component arithmetic saturates on the way there.
-        let [lx, ly, lz] = self.min.to_array();
-        let [hx, hy, hz] = self.half_extent().to_array();
-        let middle = |low: I24F8, half: I24F8| {
-            I24F8::from_bits(narrow(
-                i128::from(low.to_bits()) + i128::from(half.to_bits()),
-            ))
-        };
-        GlobalPoint::from_array([middle(lx, hx), middle(ly, hy), middle(lz, hz)])
+        self.min + self.half_extent()
     }
 
     /// Whether a point is inside, boundary included.

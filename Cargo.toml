@@ -97,7 +97,6 @@ unreachable_pub = "warn"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-nursery = { level = "warn", priority = -1 }
 todo = "warn"
 panic = "deny"
 panic_in_result_fn = "deny"
