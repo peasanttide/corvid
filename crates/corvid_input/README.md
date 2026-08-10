@@ -244,10 +244,6 @@ which one it answers on with `Reading`. An action bound to a stick reads zero
 from `delta`, and one bound to a mouse or a wheel reads zero from `analog`:
 
 ```rust
-use core::num::NonZeroU32;
-use corvid_input::platform::{Axis, Bindings, Devices, Reading};
-use corvid_input::{Analog, Input};
-
 mod action {
     corvid_input::action_sets! {
         pub set Playing {
@@ -257,20 +253,30 @@ mod action {
 }
 
 # fn main() {
-let Some(span) = NonZeroU32::new(100) else { return };
-let mouse = Bindings::new().axis(Axis::MouseMotion, action::LOOK, span, Reading::Displacement);
+// The binding table is behind the `platform` feature, so this half of the
+// example is too. Everything above it is not: a declaration names no device.
+#[cfg(feature = "platform")]
+{
+    use core::num::NonZeroU32;
+    use corvid_input::platform::{Axis, Bindings, Devices, Reading};
+    use corvid_input::{Analog, Input};
 
-let mut devices = Devices::new();
-let mut input = Input::new(action::SETS);
-devices.moved(Axis::MouseMotion, 100, 0);
-devices.snapshot(&mouse, &mut input);
+    let Some(span) = NonZeroU32::new(100) else { return };
+    let mouse =
+        Bindings::new().axis(Axis::MouseMotion, action::LOOK, span, Reading::Displacement);
 
-// A full span of motion is a full sweep of the action...
-assert_ne!(input.delta(action::LOOK), Analog::ZERO);
-// ...and the deflection accessor stays where it was, because nothing here is a
-// deflection. Reading the wrong one is a value that does not move, which is a
-// mistake that finds itself.
-assert_eq!(input.analog(action::LOOK), Analog::ZERO);
+    let mut devices = Devices::new();
+    let mut input = Input::new(action::SETS);
+    devices.moved(Axis::MouseMotion, 100, 0);
+    devices.snapshot(&mouse, &mut input);
+
+    // A full span of motion is a full sweep of the action...
+    assert_ne!(input.delta(action::LOOK), Analog::ZERO);
+    // ...and the deflection accessor stays where it was, because nothing here
+    // is a deflection. Reading the wrong one is a value that does not move,
+    // which is a mistake that finds itself.
+    assert_eq!(input.analog(action::LOOK), Analog::ZERO);
+}
 # }
 ```
 
