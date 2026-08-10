@@ -105,6 +105,60 @@ jobs:
                 --headless --spectator --bots 2 --ticks 600
             done
 
+  # The same lints one more time, in the one form `-D warnings` cannot produce:
+  # a SARIF file, which lands in the repository's code scanning view as an
+  # annotated alert on the line it is about rather than as a line of log output
+  # in a job that has already stopped. The gate stays above -- this arm reports
+  # and never blocks -- so the findings survive a run that is red for some
+  # other reason, and a pull request carries them where they are read.
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # The only job here that writes anything back. `upload-sarif` needs
+    # `security-events` for the alerts and `actions` to read the status of the
+    # run it is reporting on, which is a permission only on a private
+    # repository.
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: mozilla-actions/sccache-action@v0.0.9
+    - uses: Swatinem/rust-cache@v2
+      with:
+        cache-targets: false
+    - name: System libraries the device halves link against
+      run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+
+    # Both are built from source, which is minutes the cache gives back:
+    # `rust-cache` keeps `~/.cargo/bin`, so every run after the first restores
+    # them instead of compiling them.
+    - name: The SARIF converter and its pretty printer
+      run: cargo install --locked clippy-sarif sarif-fmt
+
+    # The gate's invocation without its `-D warnings`, because a denied warning
+    # is an error that stops the compilation which would have reported the next
+    # one, and a report wants the whole list rather than the first entry of it.
+    # `clippy-sarif` reads the JSON diagnostics, `tee` leaves the file for the
+    # upload, and `sarif-fmt` renders the same findings into this log. The step
+    # does not fail on what it finds: whatever that is, is what the upload is
+    # for.
+    - name: Clippy, as SARIF
+      run: |
+        cargo clippy --workspace --all-targets --all-features \
+          --message-format=json \
+          | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+      continue-on-error: true
+
+    - name: The findings, to GitHub code scanning
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: rust-clippy-results.sarif
+        wait-for-processing: true
+
   # `rust-version` is a promise to a downstream, and the job above runs on
   # whatever stable the runner has -- so a crate reaching past the declared
   # floor compiles green there and breaks the first person who believed the
