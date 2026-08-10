@@ -2,7 +2,7 @@
 #![no_std]
 #![allow(
     clippy::redundant_pub_crate,
-    reason = "the modules here are private, so pub(crate) and pub are equivalent — pub(crate) is the one that says what is meant, and it is what rustc's unreachable_pub asks for"
+    reason = "the modules here are private, so pub(crate) and pub are equivalent -- pub(crate) is the one that says what is meant, and it is what rustc's unreachable_pub asks for"
 )]
 
 // No `extern crate alloc`. Every shape here is a fixed number of points, and a

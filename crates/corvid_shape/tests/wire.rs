@@ -9,9 +9,9 @@
     reason = "a failed assertion in a test is a failed test, which is what a test is for; the `Result` is how the encoding's own errors reach the runner"
 )]
 
-use corvid_fixed::I24F8;
+use corvid_fixed::{Angle16, I16F16, I24F8};
 use corvid_hash::digest;
-use corvid_shape::{Aabb, Plane, Ray, Sphere, Triangle};
+use corvid_shape::{Aabb, Frustum, Plane, Ray, Sphere, Triangle};
 use corvid_vector::{Direction, GlobalPoint, globalpoint};
 
 /// Every shape survives the workspace's encoding unchanged.
@@ -57,6 +57,18 @@ fn every_shape_round_trips() -> Result<(), corvid_wire::Error> {
     assert_eq!(
         corvid_wire::decode::<corvid_shape::Hit>(&corvid_wire::encode(&hit)?)?,
         hit
+    );
+
+    // A view volume is a shape too, and the one most recently made public --
+    // which is how it came to be missing from a test whose name says `every`.
+    let lens = Frustum::perspective(
+        Angle16::from_degrees(90.0),
+        I16F16::from_f64(0.1),
+        I16F16::from_f64(1000.0),
+    );
+    assert_eq!(
+        corvid_wire::decode::<Frustum>(&corvid_wire::encode(&lens)?)?,
+        lens
     );
 
     Ok(())

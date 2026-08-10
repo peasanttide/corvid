@@ -2,10 +2,10 @@
 //!
 //! # Why they all accumulate in `i128`
 //!
-//! A [`GlobalPoint`] component is an [`I24F8`] — a Q8 `i32`, reaching ±8388 km
-//! at 3.9 mm — and a [`Direction`] component is a [`Signed32`], a Q31 `i32`.
-//! Their product is Q39 and reaches 2⁶², so **three of them summed do not fit
-//! an `i64`**: 3 × 2⁶² is a half more than `i64::MAX`. That is not a
+//! A [`GlobalPoint`] component is an [`I24F8`] -- a Q8 `i32`, reaching +/-8388 km
+//! at 3.9 mm -- and a [`Direction`] component is a [`Signed32`], a Q31 `i32`.
+//! Their product is Q39 and reaches 2^62, so **three of them summed do not fit
+//! an `i64`**: 3 x 2^62 is a half more than `i64::MAX`. That is not a
 //! theoretical bound either. It is reached by a ray cast at a point near the
 //! edge of the world along a diagonal, which is a cursor pointed at the horizon
 //! from the far side of a planet.
@@ -16,9 +16,9 @@
 //!
 //! # Why they divide by [`UNIT`] rather than shifting by 31
 //!
-//! Because a unit [`Signed32`] is `i32::MAX`, which is 2³¹ − **1**. Shifting a
+//! Because a unit [`Signed32`] is `i32::MAX`, which is 2^31 - **1**. Shifting a
 //! product right by 31 therefore divides by one more than the scale it was
-//! multiplied by, and an arithmetic shift floors — so the sub-unit shortfall
+//! multiplied by, and an arithmetic shift floors -- so the sub-unit shortfall
 //! that leaves does not vanish, it takes a whole step in the last place with
 //! it. That error is small enough to look like rounding and is not: it is
 //! systematic, it is in the same direction every time, and a cursor cast at a
@@ -33,11 +33,52 @@ use corvid_fixed::{I24F8, Signed32};
 use corvid_vector::{Direction, GlobalPoint};
 /// What a unit [`Signed32`] is, as a wide integer.
 ///
-/// `i32::MAX`, and **not** 2³¹. Every scaling in this crate divides by this
+/// `i32::MAX`, and **not** 2^31. Every scaling in this crate divides by this
 /// rather than shifting, for the reason the module's own documentation gives.
 pub(crate) const UNIT: i128 = i32::MAX as i128;
 
-/// How far along `direction` an offset reaches: `offset · direction`, in
+/// The offset from `from` to `to`, as three component differences in `i128`.
+///
+/// The reason this exists rather than `to - from`: [`GlobalPoint`]'s
+/// subtraction saturates each component, so a difference wider than one
+/// component's range is clamped *before* any of the widening below can see it.
+/// Two points at opposite ends of the world are 16 777 km apart and a
+/// component reaches 8 388, so the clamp is reached by the very geometry the
+/// wide accumulators were written for -- and the answer that comes back is not
+/// merely imprecise, it is a different direction.
+///
+/// Everything in this crate that starts from the difference of two points
+/// starts here instead.
+pub(crate) fn offset_bits(to: GlobalPoint, from: GlobalPoint) -> [i128; 3] {
+    let [tx, ty, tz] = to.to_array();
+    let [fx, fy, fz] = from.to_array();
+    [
+        i128::from(tx.to_bits()) - i128::from(fx.to_bits()),
+        i128::from(ty.to_bits()) - i128::from(fy.to_bits()),
+        i128::from(tz.to_bits()) - i128::from(fz.to_bits()),
+    ]
+}
+
+/// [`project`], for an offset that is already wide. Answers a Q8.
+///
+/// Kept as an `i128` rather than narrowed to [`I24F8`], because a projection
+/// along a diagonal legitimately exceeds one component's range and the callers
+/// that want it square it before anything else.
+pub(crate) fn project_bits(offset: [i128; 3], direction: Direction) -> i128 {
+    let [dx, dy, dz] = direction.to_array();
+    // Q8 x Q31 = Q39; dividing by the unit takes it back to Q8.
+    let sum = offset[0] * i128::from(dx.to_bits())
+        + offset[1] * i128::from(dy.to_bits())
+        + offset[2] * i128::from(dz.to_bits());
+    divide(sum, UNIT)
+}
+
+/// The squared length of a wide offset, at the doubled scale: a Q16.
+pub(crate) const fn length_squared_bits(offset: [i128; 3]) -> i128 {
+    offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2]
+}
+
+/// How far along `direction` an offset reaches: `offset * direction`, in
 /// metres.
 ///
 /// Signed: an offset the other way answers a negative, and an offset across the
@@ -64,11 +105,11 @@ pub fn project(offset: GlobalPoint, direction: Direction) -> I24F8 {
     I24F8::from_bits(narrow(divide(sum, UNIT)))
 }
 
-/// How much two directions agree: `a · b`, from −1 to 1.
+/// How much two directions agree: `a * b`, from -1 to 1.
 ///
 /// One for the same direction, zero for perpendicular, minus one for opposite.
-/// A caller that wants back-face culling — which [`Triangle`](crate::Triangle)
-/// deliberately does not do for it — compares this against zero.
+/// A caller that wants back-face culling -- which [`Triangle`](crate::Triangle)
+/// deliberately does not do for it -- compares this against zero.
 ///
 /// ```
 /// use corvid_shape::align;
@@ -90,7 +131,7 @@ pub fn align(a: Direction, b: Direction) -> Signed32 {
     Signed32::from_bits(narrow(divide(sum, UNIT)))
 }
 
-/// A length along a direction: `direction × distance`, as an offset.
+/// A length along a direction: `direction x distance`, as an offset.
 ///
 /// What [`Ray::at`](crate::Ray::at) walks by, and what a hit's point is
 /// reconstructed with.
@@ -108,7 +149,7 @@ pub(crate) fn along(direction: Direction, distance: I24F8) -> GlobalPoint {
 /// A cross product of two wide triples, at the sum of their scales.
 ///
 /// Used by [`Triangle`](crate::Triangle) alone, where the operands are at two
-/// different scales and neither may be narrowed on the way — which is why this
+/// different scales and neither may be narrowed on the way -- which is why this
 /// takes bit patterns rather than points, and why it has no return type that
 /// says what it means.
 #[must_use]
@@ -124,7 +165,7 @@ pub(crate) const fn cross_wide(a: [i128; 3], b: [i128; 3]) -> [i128; 3] {
 /// A quotient, rounded to nearest with halves away from zero.
 ///
 /// Rust's integer division truncates towards zero, which on its own turns every
-/// sub-unit shortfall into a whole step in the last place — the failure the
+/// sub-unit shortfall into a whole step in the last place -- the failure the
 /// module's own documentation describes. Every scaling and every ratio in this
 /// crate goes through here instead.
 ///
@@ -135,7 +176,7 @@ pub(crate) const fn cross_wide(a: [i128; 3], b: [i128; 3]) -> [i128; 3] {
 #[must_use]
 #[inline]
 pub(crate) const fn divide(numerator: i128, denominator: i128) -> i128 {
-    // `unsigned_abs` rather than `abs`, which overflows on `i128::MIN` — a
+    // `unsigned_abs` rather than `abs`, which overflows on `i128::MIN` -- a
     // value no call site here can reach, and a panic the workspace forbids
     // being one branch away from is not worth the shorter spelling.
     let half = (denominator.unsigned_abs() / 2).cast_signed();

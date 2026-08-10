@@ -9,20 +9,20 @@ use corvid_vector::{Direction, GlobalPoint};
 ///
 /// The thing a cursor is. `Controller::look` builds one from the camera and the
 /// pointer, casts it at whatever the game can be pointed at, and puts the
-/// answer in its `View` — all of which is client-ring, none of which is hashed,
+/// answer in its `View` -- all of which is client-ring, none of which is hashed,
 /// and all of which happens on the display's frame rather than the
 /// simulation's, because that is what "feel is local" means.
 ///
-/// The origin is a [`GlobalPoint`] — **world space**, not an offset from the
+/// The origin is a [`GlobalPoint`] -- **world space**, not an offset from the
 /// eye. That is this crate's scale throughout: a shape is an object, and an
 /// object is somewhere in the world rather than somewhere relative to whoever
 /// happens to be looking at it.
 ///
-/// `I24F8` reaches ±8388 km at 3.9 mm an axis, which holds a planet ten
+/// `I24F8` reaches +/-8388 km at 3.9 mm an axis, which holds a planet ten
 /// thousand kilometres across at a resolution far finer than a cursor can
 /// distinguish. It is deliberately *not* `GlobalFinePoint`: that type's
 /// 1.4e14 m is for a camera pose, where the eye's own position has to survive
-/// being subtracted from — and paying its width in every shape a broad phase
+/// being subtracted from -- and paying its width in every shape a broad phase
 /// walks would double the size of every bound for range nothing casts across.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -64,9 +64,9 @@ impl Ray {
 
     /// Whether this ray goes nowhere.
     ///
-    /// [`Direction::ZERO`] is representable — every point type in
+    /// [`Direction::ZERO`] is representable -- every point type in
     /// `corvid_vector` has a `ZERO`, and a `normalize` that failed has to
-    /// answer *something* — so a ray built from one is a legal value that
+    /// answer *something* -- so a ray built from one is a legal value that
     /// denotes no half-line at all. Every [`Cast`] in this crate answers
     /// [`None`] for it, which is the contract that method documents.
     #[must_use]
@@ -89,7 +89,7 @@ impl Ray {
 
 /// Where a ray met a shape.
 ///
-/// The `point` is redundant with `distance` — it is [`Ray::at`] of it — and is
+/// The `point` is redundant with `distance` -- it is [`Ray::at`] of it -- and is
 /// carried anyway because every caller wants it and recomputing it is the same
 /// arithmetic the cast already did.
 #[repr(C)]
@@ -103,7 +103,7 @@ pub struct Hit {
     pub point: GlobalPoint,
     /// The surface normal there, turned to face the ray.
     ///
-    /// **Facing the ray**, always — a hit on the inside of a sphere or the back
+    /// **Facing the ray**, always -- a hit on the inside of a sphere or the back
     /// of a triangle answers the flipped normal rather than the geometric one.
     /// That is what a cursor decal and a rim light both want, and a caller that
     /// needs the geometric normal has the shape in hand to ask it for one.
@@ -138,7 +138,7 @@ pub(crate) fn facing(normal: Direction, ray: Ray) -> Direction {
 ///
 /// One method, because that is the whole of what this crate does with a shape.
 /// It is a trait rather than an enum so that a game can cast at its own
-/// geometry — a Goldberg cell, a swept capsule, a height field — through the
+/// geometry -- a Goldberg cell, a swept capsule, a height field -- through the
 /// same call, and so that [`Ray::cast_against`] works on it without this crate
 /// knowing it exists.
 pub trait Cast {

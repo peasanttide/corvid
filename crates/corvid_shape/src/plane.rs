@@ -57,12 +57,12 @@ impl Plane {
 /// fail to reach a plane.
 ///
 /// ```text
-/// denominator = normal · direction              Q31
-/// numerator   = offset − normal · origin        Q8
-/// t           = numerator ÷ denominator         Q8, after a scaling by the unit
+/// denominator = normal * direction              Q31
+/// numerator   = offset - normal * origin        Q8
+/// t           = numerator / denominator         Q8, after a scaling by the unit
 /// ```
 ///
-/// A zero denominator is a ray parallel to the surface, which never arrives —
+/// A zero denominator is a ray parallel to the surface, which never arrives --
 /// including the ray lying *in* the plane, which arrives everywhere and has no
 /// single distance to report. A negative `t` is a plane behind the origin.
 /// Neither is a division by zero and neither is a negative distance handed back
@@ -79,7 +79,7 @@ impl Cast for Plane {
                 .to_bits(),
         );
         // Multiplying by the unit is what turns a Q8 over a Q31 back into a
-        // Q8 — the unit rather than a shift of 31, for the reason `project`'s
+        // Q8 -- the unit rather than a shift of 31, for the reason `project`'s
         // own module documents.
         let distance = divide(numerator * UNIT, denominator);
         if distance < 0 {

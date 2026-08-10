@@ -321,6 +321,37 @@ macro_rules! define_signed {
             }
         }
 
+        /// Converts a whole number of units, saturating. `1` is `1.0`, `-1`
+        /// is `-1.0`, and anything further out is the nearer end.
+        ///
+        /// **This conversion is lossy, unlike most `From`.** The type covers
+        /// `-1.0 ..= 1.0`, so the only integers it holds exactly are `-1`, `0`
+        /// and `1`; every other one saturates. That is deliberate rather than
+        /// an oversight, and it is the same clamping the type does everywhere
+        /// else -- `SNORM` is a clamped range, not a wrapping one, and the
+        /// arithmetic above already saturates rather than wraps.
+        ///
+        /// What it buys is the bare-number spelling at a call site, so
+        /// `direction(0, 1, 0)` reads as the axis it is.
+        ///
+        /// `i32` and no other width, for the reason the point builders take
+        /// one integer type each: an unsuffixed literal reaches an
+        /// `impl Into<Self>` parameter as an inference variable and rustc
+        /// commits it only when exactly one candidate applies. A second impl
+        /// would make `direction(0, 1, 0)` stop compiling.
+        impl From<i32> for $name {
+            #[inline]
+            fn from(value: i32) -> Self {
+                if value >= 1 {
+                    Self::MAX
+                } else if value <= -1 {
+                    Self::MIN
+                } else {
+                    Self::ZERO
+                }
+            }
+        }
+
         impl_shared!($name, $repr, "");
         impl_binop!($name, Add::add, AddAssign::add_assign, saturating_add);
         impl_binop!($name, Sub::sub, SubAssign::sub_assign, saturating_sub);

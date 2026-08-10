@@ -51,8 +51,8 @@ fn projection_is_signed() {
 }
 
 /// The full range does not overflow. This is the case an `i64` accumulator gets
-/// wrong: three components at the top of a `GlobalPoint`'s range sum past 2⁶³, so
-/// a narrower accumulator answers a large negative — a hit behind the eye.
+/// wrong: three components at the top of a `GlobalPoint`'s range sum past 2^63, so
+/// a narrower accumulator answers a large negative -- a hit behind the eye.
 #[test]
 fn projection_survives_the_full_range() {
     let far = GlobalPoint::from_array([I24F8::MAX; 3]);
@@ -111,7 +111,7 @@ fn a_sphere_behind_the_ray_is_a_miss() {
     );
 }
 
-/// A ray starting inside a sphere hits the far wall, from the inside — and the
+/// A ray starting inside a sphere hits the far wall, from the inside -- and the
 /// normal it reports faces the ray rather than outwards.
 #[test]
 fn a_ray_inside_a_sphere_hits_the_far_wall() {
@@ -317,7 +317,7 @@ fn a_triangle_bounds_itself() {
     assert_eq!(bounds.max, globalpoint(1, 5, 1));
 }
 
-/// A ray with no direction is not a ray, and cannot hit anything — whatever it
+/// A ray with no direction is not a ray, and cannot hit anything -- whatever it
 /// is cast at.
 ///
 /// `Direction::ZERO` is representable, so a cast has to decide what it means.
@@ -325,7 +325,7 @@ fn a_triangle_bounds_itself() {
 /// read as a hit at the far edge of the world, and the sphere's quadratic
 /// reports a positive distance to an origin the ray never left. The plane and
 /// the triangle already answer `None`, because a zero direction makes each of
-/// their denominators zero — which is the same branch a parallel ray takes.
+/// their denominators zero -- which is the same branch a parallel ray takes.
 #[test]
 fn a_directionless_ray_hits_nothing() {
     let nowhere = Ray::new(GlobalPoint::ZERO, Direction::ZERO);
@@ -339,4 +339,46 @@ fn a_directionless_ray_hits_nothing() {
     // origin rather than nothing at all.
     let around = Sphere::new(GlobalPoint::ZERO, metres(5.0));
     assert!(nowhere.cast_against(&around).is_none());
+}
+
+/// A sphere at one end of the world does not contain a point at the other.
+///
+/// The separation here is 16 000 km and the radius 8 388, so the point is
+/// outside by nearly a whole radius. Subtracting in component arithmetic
+/// clamped the offset to the radius and answered that it was inside, which is
+/// the widening this crate is built on being skipped at the one input that
+/// needed it.
+#[test]
+fn a_sphere_does_not_swallow_the_far_side_of_the_world() {
+    let far = I24F8::from_f64(8_000_000.0);
+    let ball = Sphere::new(globalpoint(-far, I24F8::ZERO, I24F8::ZERO), I24F8::MAX);
+
+    assert!(!ball.contains(globalpoint(far, I24F8::ZERO, I24F8::ZERO)));
+    assert!(ball.contains(globalpoint(-far, I24F8::ZERO, I24F8::ZERO)));
+}
+
+/// A triangle spanning the world points where it actually points.
+///
+/// Both edges leave a component's range, and narrowing them first does not
+/// merely lose precision -- it tilts the answer. With the edges saturated this
+/// face reported `(-0.707, 0, 0.707)`, a normal 31 degrees from the one its
+/// three corners describe.
+///
+/// The expected value is the cross product worked by hand from the corners
+/// rather than whatever the implementation returns: edges `(12e6, 0, 3e6)` and
+/// `(0, 12e6, 0)` cross to `(-3.6e13, 0, 1.44e14)`.
+#[test]
+fn a_triangle_spanning_the_world_reports_the_normal_its_corners_describe() {
+    let six = I24F8::from_f64(6_000_000.0);
+    let three = I24F8::from_f64(3_000_000.0);
+    let face = Triangle::new(
+        globalpoint(-six, -six, I24F8::ZERO),
+        globalpoint(six, -six, three),
+        globalpoint(-six, six, I24F8::ZERO),
+    );
+
+    assert_eq!(
+        face.normal(),
+        Direction::from_ratio([-36_000_000_000_000, 0, 144_000_000_000_000]),
+    );
 }

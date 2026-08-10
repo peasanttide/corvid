@@ -811,7 +811,6 @@ dependencies = [
  "corvid_bits",
  "corvid_fixed",
  "corvid_hash",
- "corvid_transform",
  "corvid_vector",
  "corvid_wire",
  "serde",

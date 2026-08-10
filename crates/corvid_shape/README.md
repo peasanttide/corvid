@@ -5,12 +5,15 @@ Geometric primitives and the raycasts a cursor is resolved with, for a
 and integer-only: the same fixed-point arithmetic the simulation uses, which is
 what lets a picking test run with no GPU in the process.
 
-Everything here is **world space**, in `GlobalPoint` — `I24F8`, ±8388 km at
+The cast shapes are **world space**, in `GlobalPoint` -- `I24F8`, +/-8388 km at
 3.9 mm an axis. A shape is an object, and an object is somewhere in the world
-rather than somewhere relative to whoever happens to be looking at it. The
-near-field `FinePoint` a renderer works in is what a camera's own maths
-produces after the eye has been subtracted; it is not what a planet's cells are
-stored in.
+rather than somewhere relative to whoever happens to be looking at it.
+
+[`Frustum`] is the exception, and deliberately so: it is **eye space**, in
+`FinePoint`. A view volume is a property of whoever is looking, so its `contains`
+and `intersects_sphere` take positions with the eye already subtracted -- which
+is what a camera's own maths produces. Passing a world position to either is a
+type error rather than a wrong answer, since the two are different types.
 
 ```rust
 use corvid_shape::{Cast, Plane, Ray};
@@ -33,24 +36,25 @@ assert_eq!(hit.distance, I24F8::from_f64(10.0));
 | [`Ray`] | an origin and a unit direction, and `at` to walk it |
 | [`Hit`] | a distance, a point, and a normal turned to face the ray |
 | [`Cast`] | one method, so a game can cast at its own geometry too |
-| [`Sphere`] | a ball — the bounding volume for almost everything |
+| [`Sphere`] | a ball -- the bounding volume for almost everything |
 | [`Aabb`] | an axis-aligned box, and the slab test |
-| [`Plane`] | a normal and an offset — the ground, and half-spaces |
-| [`Triangle`] | Möller–Trumbore, for picking a face out of a mesh |
+| [`Plane`] | a normal and an offset -- the ground, and half-spaces |
+| [`Triangle`] | Moller-Trumbore, for picking a face out of a mesh |
+| [`Frustum`] | a view volume in eye space, and the culling tests |
 | [`project`], [`align`] | the mixed-width dot products the rest is built from |
 
 ## Why every accumulator is an `i128`
 
-A `GlobalPoint` component is an `I24F8` — a Q8 `i32` reaching ±8388 km at
-3.9 mm — and a `Direction` component is a `Signed32`, a Q31 `i32`. Their product
-is Q39 and reaches 2⁶², so **three of them summed do not fit an `i64`**: 3 × 2⁶² is a half
+A `GlobalPoint` component is an `I24F8` -- a Q8 `i32` reaching +/-8388 km at
+3.9 mm -- and a `Direction` component is a `Signed32`, a Q31 `i32`. Their product
+is Q39 and reaches 2^62, so **three of them summed do not fit an `i64`**: 3 x 2^62 is a half
 more than `i64::MAX`.
 
 That bound is not theoretical. It is reached by a ray cast from near the edge of
 the world along a diagonal, which is a cursor pointed at the horizon from the
 far side of a planet. So
 every dot and cross product here accumulates wide and narrows once, saturating
-rather than wrapping — because a cast that saturates answers a hit at the far
+rather than wrapping -- because a cast that saturates answers a hit at the far
 edge of the world, and one that wrapped would answer a hit *behind the
 eye*, which is a build cursor on the other side of the world.
 
@@ -74,13 +78,13 @@ to ask it for one.
 Every shape here is `#[repr(C)]` and has no padding, and under the `bytemuck`
 feature every one is `Pod` and `Zeroable`. A broad phase that culls on the GPU
 reads a list of `Aabb` or `Sphere` and nothing else, and this workspace forbids
-`unsafe_code` — so a bound that could not become bytes without it would be a
+`unsafe_code` -- so a bound that could not become bytes without it would be a
 bound a game could not cull with. The feature is off by default and pulls no
 `std`.
 
 ## What it does not do
 
-No culling — a cast at the inside of a planet's shell is a legitimate hit, and
+No culling -- a cast at the inside of a planet's shell is a legitimate hit, and
 `align(normal, ray.direction)` is the one line a caller writes if it disagrees.
 No broad phase, no BVH, no spatial index: `Aabb` is the bound those are built
 out of, and building them is a game's decision about its own world.

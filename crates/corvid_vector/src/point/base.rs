@@ -26,7 +26,10 @@
 ///   not simply `to_bits`, because [`Signed32`] has a redundant encoding -- see
 ///   [`signed32_bits`].
 /// - `build` is the lowercase free function that builds the type from three
-///   things that convert into its component, so `finepoint(1, 2, 3)` reads.
+///   things that convert into its component, so `finepoint(1, 2, 3)` and
+///   `direction(0, 1, 0)` both read. Every component type converts from `i32`,
+///   the signed-normalized one by saturating, so an integer literal works
+///   whichever point is being built.
 macro_rules! define_point {
     (
         $(#[$attr:meta])*

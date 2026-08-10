@@ -151,6 +151,7 @@ corvid_net = { version = "0.1.0", path = "crates/corvid_net" }
 corvid_net_mock = { version = "0.1.0", path = "crates/corvid_net_mock" }
 corvid_net_udp = { version = "0.1.0", path = "crates/corvid_net_udp" }
 corvid_rotation = { version = "0.1.0", path = "crates/corvid_rotation" }
+corvid_shape = { version = "0.1.0", path = "crates/corvid_shape" }
 corvid_signal = { version = "0.1.0", path = "crates/corvid_signal" }
 corvid_time = { version = "0.1.0", path = "crates/corvid_time" }
 corvid_transform = { version = "0.1.0", path = "crates/corvid_transform" }
@@ -212,10 +213,6 @@ corvid_audio = { version = "0.1.0", path = "crates/corvid_audio", default-featur
 # `LinearRgba` is four floats a game writes into its own uniform buffer, and
 # that crate has no opinion about which buffer that is.
 corvid_color = { version = "0.1.0", path = "crates/corvid_color", default-features = false }
-# Geometric primitives and the raycasts a cursor is resolved with. Client ring,
-# `no_std`, integer-only — the same arithmetic the simulation uses, which is
-# what lets a picking test run with no GPU in the process.
-corvid_shape = { version = "0.1.0", path = "crates/corvid_shape", default-features = false }
 # The ready-made cameras a `View` is composed out of. Client ring, `no_std`,
 # and holding fixed point rather than a matrix: the 4x4 `f32` a device binds is
 # `corvid_render::matrix`'s, which is the boundary and is the only place that

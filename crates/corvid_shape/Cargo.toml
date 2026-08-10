@@ -15,11 +15,12 @@ corvid_fixed = { workspace = true }
 corvid_vector = { workspace = true }
 corvid_bits = { workspace = true }
 bytemuck = { workspace = true, optional = true }
-corvid_hash = { workspace = true }
-corvid_transform = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
+# `tests/wire.rs` digests a value alongside its encoding. A test detail of
+# this crate, so it reaches no downstream.
+corvid_hash = { workspace = true, features = ["std"] }
 # The encoding a recorded byte string is recorded under, which is a
 # workspace-wide decision rather than this crate's. Naming it here rather than a
 # format crate is the point: a test file that named a format could name a
@@ -28,20 +29,20 @@ corvid_wire = { workspace = true }
 
 [features]
 default = []
-# Forwarded to `corvid_transform`, so a downstream that turns it on here gets
-# it on the positions and directions the shapes are built out of rather than
-# discovering halfway through a capture that the one thing it cannot serialize
-# is a `FinePoint`.
-serde = ["dep:serde", "corvid_transform/serde"]
+# Forwarded to the two crates the shapes are built out of, so a downstream that
+# turns it on here gets it on the positions and directions inside them rather
+# than discovering halfway through a capture that the one thing it cannot
+# serialize is a `GlobalPoint`.
+serde = ["dep:serde", "corvid_vector/serde", "corvid_fixed/serde"]
 # `Pod` and `Zeroable` on every shape, so a slice of bounds casts to the bytes
-# of a storage buffer without `unsafe`, which the workspace forbids — a broad
+# of a storage buffer without `unsafe`, which the workspace forbids -- a broad
 # phase that culls on the GPU reads a list of `Aabb` or `Sphere` and nothing
-# else. Forwarded to `corvid_transform`, because the points a shape is built out
-# of have to be `Pod` for the shape to be.
-bytemuck = ["dep:bytemuck", "corvid_transform/bytemuck"]
+# else. Forwarded for the same reason `serde` is: the points a shape is built
+# out of have to be `Pod` for the shape to be.
+bytemuck = ["dep:bytemuck", "corvid_vector/bytemuck", "corvid_fixed/bytemuck"]
 # Adds no API. It exists so a downstream can forward `std` uniformly across the
 # workspace without special-casing this crate.
-std = ["bytemuck?/extern_crate_std", "corvid_hash/std", "corvid_transform/std", "serde?/std"]
+std = ["bytemuck?/extern_crate_std", "serde?/std", "corvid_fixed/std"]
 
 [lints]
 workspace = true

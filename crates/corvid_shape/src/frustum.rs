@@ -7,13 +7,13 @@ use corvid_vector::FinePoint;
 /// the sides stop converging.
 ///
 /// **One type covers perspective and orthographic, and it needs no tag to say
-/// which.** The half-height at a forward distance `d` is a straight line —
+/// which.** The half-height at a forward distance `d` is a straight line --
 ///
 /// ```text
 /// h(d) = base + slope * d
 /// ```
 ///
-/// — and the two cases are the two ends of it. A perspective frustum has
+/// -- and the two cases are the two ends of it. A perspective frustum has
 /// `base == 0`: the sides meet at the eye, so the height is proportional to
 /// the distance. An orthographic box has `slope == 0`: the sides are parallel,
 /// so the height is the same everywhere. Neither is a special case of the
@@ -41,7 +41,7 @@ use corvid_vector::FinePoint;
 ///
 /// Every extent here is the **vertical** one. The horizontal follows from the
 /// viewport's aspect ratio when the matrix is built, so a wider window sees
-/// more sideways and the same amount up and down — which is what a player on
+/// more sideways and the same amount up and down -- which is what a player on
 /// an ultrawide monitor expects, and the opposite of what happens if the
 /// stored extent is the horizontal one.
 ///
@@ -103,7 +103,7 @@ impl Frustum {
 
     /// Ten centimetres to a kilometre, sixty degrees up and down.
     ///
-    /// The same value [`Default`] gives, as a `const` — which is what lets a
+    /// The same value [`Default`] gives, as a `const` -- which is what lets a
     /// camera's own `new` stay a `const fn`. It can be one because the
     /// workspace's trigonometry is integer arithmetic all the way down, so the
     /// tangent behind it evaluates at compile time.
@@ -114,7 +114,7 @@ impl Frustum {
     ///
     /// `fov_y` is the *vertical* field of view. The slope is its half-angle's
     /// tangent, computed from the workspace's integer sine and cosine rather
-    /// than from a `tan` — so a field of view of half a turn, whose tangent is
+    /// than from a `tan` -- so a field of view of half a turn, whose tangent is
     /// infinite, saturates at [`I16F16::MAX`] instead of dividing by zero.
     /// That is a frustum nobody wants and it is not a panic.
     #[must_use]
@@ -181,7 +181,7 @@ impl Frustum {
         self.half_height_at(self.far)
     }
 
-    /// Whether the sides are parallel — an orthographic box rather than a
+    /// Whether the sides are parallel -- an orthographic box rather than a
     /// perspective frustum.
     ///
     /// A question asked of the data rather than a tag stored beside it, which
@@ -264,23 +264,33 @@ impl Frustum {
     /// `aspect` means what it does in [`contains`](Self::contains).
     #[must_use]
     pub fn intersects_sphere(self, centre: FinePoint, radius: I16F16, aspect: I16F16) -> bool {
+        // A negative radius is an empty sphere, as it is for `Sphere::contains`
+        // and for casting at one. Without this a centre inside the frustum
+        // answers `true` for a ball that holds no points.
+        if radius.is_negative() {
+            return false;
+        }
         let [x, forward, z] = centre.to_array();
         if forward < self.near.saturating_sub(radius) || forward > self.far.saturating_add(radius) {
             return false;
         }
-        // The half-extents are taken at the sphere's own depth and widened by
-        // its radius. That is the conservative test: a sphere whose centre is
-        // outside the side planes but within a radius of them is kept.
         let clamped = if forward < self.near {
             self.near
         } else {
             forward
         };
-        let half = self.half_height_at(clamped).saturating_add(radius);
+        // The radius is inflated along each side plane's *normal* rather than
+        // straight up. A side plane leans by `slope`, so a sphere a radius from
+        // it is further than a radius in `z` -- by a factor of the normal's
+        // length -- and comparing against the vertical inflation culls a sphere
+        // that is partly inside. Which is the one thing this promises not to do.
+        let half = self
+            .half_height_at(clamped)
+            .saturating_add(inflate(radius, self.slope));
         let wide = self
             .half_height_at(clamped)
             .saturating_mul(aspect)
-            .saturating_add(radius);
+            .saturating_add(inflate(radius, self.slope.saturating_mul(aspect)));
         z.abs() <= half && x.abs() <= wide
     }
 }
@@ -289,7 +299,7 @@ impl Frustum {
 ///
 /// A view is built by `Default` before the first frame, so a frustum whose
 /// default is not a sensible one is a first frame drawn through whatever
-/// `Default` put there — and that first frame is the one a screenshot test
+/// `Default` put there -- and that first frame is the one a screenshot test
 /// takes.
 impl Default for Frustum {
     #[inline]
@@ -298,11 +308,27 @@ impl Default for Frustum {
     }
 }
 
+/// A radius, as the distance it reaches along a leaning plane's normal.
+///
+/// `radius * sqrt(1 + slope^2)`. A side plane with slope `m` has normal
+/// proportional to `(1, -m)`, whose length is `sqrt(1 + m^2)`; a sphere one
+/// radius from that plane is therefore that much further in the vertical the
+/// half-height is measured in. Worked in Q32 and square-rooted back to Q16, so
+/// it is the same integer everywhere.
+fn inflate(radius: I16F16, slope: I16F16) -> I16F16 {
+    let m = i128::from(slope.to_bits());
+    let one = 1_i128 << 32;
+    // `1 + m^2` in Q32, square-rooted back to Q16.
+    let length = (one + m * m).isqrt();
+    let scaled = (i128::from(radius.to_bits()) * length) >> 16;
+    I16F16::from_bits(corvid_bits::narrow_i128(scaled))
+}
+
 /// The tangent of half an angle, in integers.
 ///
 /// The one trigonometric quantity a frustum has. Computed from the workspace's
 /// integer sine and cosine and divided in Q16, so it is bit-identical on every
-/// target — and so that a half-angle of a quarter turn, whose tangent is
+/// target -- and so that a half-angle of a quarter turn, whose tangent is
 /// infinite, saturates instead of dividing by zero.
 ///
 /// A field of view past a half turn has no half a pitch can hold, and is not a
