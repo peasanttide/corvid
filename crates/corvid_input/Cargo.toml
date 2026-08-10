@@ -1,0 +1,61 @@
+[package]
+name = "corvid_input"
+description = "One frame of input as data: action sets, dense identifiers, and the snapshot a client turns into an action."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["input", "action-sets", "gamepad", "no-std", "gamedev"]
+categories = ["game-development", "no-std"]
+
+[dependencies]
+corvid_fixed = { workspace = true }
+corvid_vector = { workspace = true }
+corvid_bits = { workspace = true }
+# For `FineTransform`, which a tracked pose is, and for `Signed16`, which both
+# axes of an analog action are. Nothing else here needs the maths stack.
+corvid_transform = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Two of the three tables a binding file's encoding is frozen as. A
+# self-describing format, because the field names and their order can only be
+# shown by a format that writes them down; and `corvid_wire`, the workspace's one
+# encoding, because a field's *position* can only be shown by one that does not.
+corvid_wire = { workspace = true }
+serde_json = "1"
+# The third table, and the only one of the three that can see an integer's
+# width. Neither encoding above can: `corvid_wire` writes a varint, so a small
+# number is the same byte at every declared width, and a self-describing format
+# writes the same number. `corvid_hash` absorbs an integer as its declared bytes
+# and injects the count, so a `DigitalId` widened from `u16` to `u32` moves a
+# digest and nothing else in this crate. A dev-dependency because the library
+# hashes nothing -- an identifier reaches a hash trace inside somebody else's
+# state, and the crate that owns that state is the one that depends on the
+# hasher.
+corvid_hash = { workspace = true }
+
+[features]
+default = []
+# The identifiers and the two value types, written down. A saved binding file
+# and a recorded input log are the two things that carry them, and both are
+# somebody else's format -- this feature supplies the parts, not the file.
+serde = ["dep:serde", "serde?/alloc", "corvid_transform/serde"]
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+std = ["corvid_transform/std", "serde?/std"]
+# The half that faces devices: the control vocabulary, the binding table, and
+# the accumulator that works out the edges. It adds no dependency and forwards
+# no `std`, because none of it needs one. `src/platform/mod.rs` lists what is
+# here and what is not.
+platform = []
+
+[lints]
+workspace = true
+
+# Every optional integration is off by default, so a plain build documents none
+# of them.
+[package.metadata.docs.rs]
+all-features = true
