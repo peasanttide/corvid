@@ -299,9 +299,9 @@ fn a_wide_ratio_normalizes_at_any_scale() {
     assert_eq!(Direction::from_ratio([0, 5, 0]), Some(Direction::Y));
     assert_eq!(Direction::from_ratio([-1, 0, 0]), Some(-Direction::X));
 
-    // Far past what a component holds, and past an `i64` as well.
-    let huge = i128::from(i64::MAX) * 4;
-    assert_eq!(Direction::from_ratio([0, 0, huge]), Some(Direction::Z));
+    // Far past what a component holds, and up to the widest ratio there is.
+    assert_eq!(Direction::from_ratio([0, 0, i64::MAX]), Some(Direction::Z));
+    assert_eq!(Direction::from_ratio([0, 0, i64::MIN]), Some(-Direction::Z));
 
     assert_eq!(Direction::from_ratio([0, 0, 0]), None);
 }
@@ -316,7 +316,7 @@ fn a_wide_ratio_normalizes_at_any_scale() {
 #[test]
 fn scaling_a_ratio_by_a_power_of_two_does_not_move_the_direction() {
     for shift in 0..40 {
-        let scale = 1_i128 << shift;
+        let scale = 1_i64 << shift;
         assert_eq!(
             Direction::from_ratio([3 * scale, -4 * scale, 12 * scale]),
             Direction::from_ratio([3, -4, 12]),
@@ -334,7 +334,7 @@ fn scaling_a_ratio_by_a_power_of_two_does_not_move_the_direction() {
 #[test]
 fn any_other_scale_agrees_to_within_a_last_bit() {
     let unscaled = Direction::from_ratio([3, -4, 12]).expect("non-zero");
-    for scale in [7_i128, 1_000, 1_000_000_007] {
+    for scale in [7_i64, 1_000, 1_000_000_007] {
         let scaled = Direction::from_ratio([3 * scale, -4 * scale, 12 * scale]).expect("non-zero");
         for axis in 0..3 {
             let apart =

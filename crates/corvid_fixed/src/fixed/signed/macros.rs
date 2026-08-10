@@ -100,6 +100,18 @@ macro_rules! define_signed {
                 self.0 < -<$repr>::MAX
             }
 
+            #[doc = concat!("A wide bit pattern as a [`", stringify!($name), "`], clamping to `-1.0 ..= 1.0`.")]
+            ///
+            /// The narrowing an accumulator ends with, for the same reason the
+            /// fixed-point family has one: a dot product of two unit vectors
+            /// is mathematically inside the range and its rounding need not
+            /// be, so the last step clamps rather than wrapping.
+            #[must_use]
+            #[inline]
+            pub const fn saturating_from_bits(wide: $wide) -> Self {
+                Self::saturate(wide)
+            }
+
             /// Clamps a wide bit pattern into `MIN ..= MAX`.
             #[inline]
             const fn saturate(wide: $wide) -> Self {

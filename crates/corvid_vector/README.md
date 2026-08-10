@@ -34,6 +34,16 @@ assert_eq!(GlobalPoint::ZERO.normalize(), None);
 | [`FinePoint`] | `I16F16` | +/-32.7 km | 15.26 um | Render and VR near-field |
 | [`Direction`] | `Signed32` | unit | 4.7e-10 | Unit directions and rotation axes |
 
+[`WideOffset`] is a fifth thing and not a point: the difference of two
+[`GlobalPoint`]s, which is one bit wider than either. `GlobalPoint`'s own
+subtraction saturates each axis independently, so a difference past the range
+comes back as a different bearing rather than a shorter one -- and a caster whose
+ray starts on the far side of the world needs the bearing. It answers ordinary
+types ([`GlobalPoint`], `I24F8`, `I48F16`, [`Direction`]) and never a bit
+pattern, so the widening stays a property of the arithmetic rather than of the
+geometry. [`Volume`], the signed volume three offsets span, is the one quantity
+here with no fixed-point type to be, and it is opaque for exactly that reason.
+
 The names read as two independent axes: *Global* means wide range and *Fine*
 means high resolution. Points double as offsets, the same choice Godot and Unity
 make, because a separate offset type would double the API for no caught bug.
@@ -54,6 +64,16 @@ is checked and returns `None` only when the value does not fit -- never for
 magnitude quietly discarded. [`GlobalFinePoint::to_fine`] is the one a renderer
 runs thousands of times a frame, and because both types carry sixteen fractional
 bits it is a pure range check with no rounding at all.
+
+[`project`](GlobalPoint::project), [`align`](Direction::align) and
+[`along`](Direction::along) are the mixed-scale products a raycast is built
+from: how far along a direction an offset reaches, how much two directions
+agree, and a direction walked a distance. All three fit an `i64`, which takes an
+argument rather than a bound -- a `Direction` is a *unit* vector, so
+Cauchy-Schwarz holds the sum of three Q39 products to `sqrt(3) * 2^62` and not
+to `3 * 2^62`, and the difference between those two numbers is the difference
+between fitting and not. `tests/project.rs` goes looking for the corner of the
+world that reaches the bound rather than taking the algebra's word for it.
 
 [`normalize`](GlobalPoint::normalize) returns `Option<Direction>`, `None` only
 for the zero vector. Only the ratios of the components matter, so one

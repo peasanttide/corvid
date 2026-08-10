@@ -7,8 +7,8 @@
     reason = "a failed unwrap in a test is a failed test, which is what a test is for"
 )]
 
-use corvid_fixed::{I24F8, Signed32};
-use corvid_shape::{Plane, Ray, Sphere, Triangle, align, project};
+use corvid_fixed::I24F8;
+use corvid_shape::{Plane, Ray, Sphere, Triangle};
 use corvid_vector::{Direction, GlobalPoint, globalpoint};
 
 /// A metre, spelled once.
@@ -39,36 +39,6 @@ fn walking_nowhere_is_where_it_started() {
 fn a_ray_walks_backwards() {
     let ray = Ray::new(globalpoint(0, 5, 0), Direction::Y);
     assert_eq!(ray.at(metres(-2.0)), globalpoint(0, 3, 0));
-}
-
-/// `project` is a dot product: along gives the length, across gives zero,
-/// against gives a negative.
-#[test]
-fn projection_is_signed() {
-    assert_eq!(project(globalpoint(0, 4, 0), Direction::Y), metres(4.0));
-    assert_eq!(project(globalpoint(4, 0, 0), Direction::Y), I24F8::ZERO);
-    assert_eq!(project(globalpoint(0, -4, 0), Direction::Y), metres(-4.0));
-}
-
-/// The full range does not overflow. This is the case an `i64` accumulator gets
-/// wrong: three components at the top of a `GlobalPoint`'s range sum past 2^63, so
-/// a narrower accumulator answers a large negative -- a hit behind the eye.
-#[test]
-fn projection_survives_the_full_range() {
-    let far = GlobalPoint::from_array([I24F8::MAX; 3]);
-    let diagonal = globalpoint(1, 1, 1)
-        .normalize()
-        .expect("it is not the origin");
-    assert!(project(far, diagonal) > I24F8::ZERO);
-}
-
-/// `align` is the same product between two directions, and saturates to the
-/// unit at either end rather than wrapping.
-#[test]
-fn alignment_is_a_cosine() {
-    assert_eq!(align(Direction::Y, Direction::Y), Signed32::MAX);
-    assert_eq!(align(Direction::Y, Direction::X), Signed32::ZERO);
-    assert!(align(Direction::Y, -Direction::Y) < Signed32::ZERO);
 }
 
 // ------------------------------------------------------------- the sphere ---

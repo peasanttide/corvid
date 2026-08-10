@@ -2,11 +2,10 @@
 
 use corvid_fixed::I24F8;
 
-use crate::{
-    Cast, Hit, Ray,
-    project::{UNIT, divide, narrow, offset_bits},
-};
-use corvid_vector::{Direction, GlobalPoint};
+use corvid_fixed::Signed32;
+
+use crate::{Cast, Hit, Ray};
+use corvid_vector::{Direction, GlobalPoint, WideOffset};
 
 /// An axis-aligned box, given by two corners.
 ///
@@ -83,12 +82,7 @@ impl Aabb {
         // a component that stops at 8 388 -- and `self.max - self.min` would
         // clamp that to the range before the halving ever saw it, answering
         // 4 194 km for a box whose half extent is 6 000.
-        let [x, y, z] = offset_bits(self.max, self.min);
-        GlobalPoint::from_array([
-            I24F8::from_bits(narrow(x / 2)),
-            I24F8::from_bits(narrow(y / 2)),
-            I24F8::from_bits(narrow(z / 2)),
-        ])
+        WideOffset::between(self.max, self.min).half()
     }
 
     /// The middle.
@@ -180,33 +174,34 @@ impl Cast for Aabb {
         let origin = ray.origin.to_array();
         let direction = ray.direction.to_array();
 
-        // Q8, wide, because a bound minus an origin is two i32s apart.
-        let mut entry: i128 = i128::from(i32::MIN);
-        let mut exit: i128 = i128::from(i32::MAX);
+        // The interval starts as everything a distance can be, so the first
+        // axis that constrains anything narrows it.
+        let mut entry = I24F8::MIN;
+        let mut exit = I24F8::MAX;
         let mut entry_axis = 0usize;
         let mut exit_axis = 0usize;
 
         for axis in 0..3 {
-            let slope = i128::from(direction[axis].to_bits());
-            let start = i128::from(origin[axis].to_bits());
-            let (low, high) = (
-                i128::from(min[axis].to_bits()),
-                i128::from(max[axis].to_bits()),
-            );
+            let slope = direction[axis];
+            let start = origin[axis];
 
-            if slope == 0 {
-                if start < low || start > high {
+            if slope == Signed32::ZERO {
+                if start < min[axis] || start > max[axis] {
                     return None;
                 }
                 continue;
             }
 
-            // Multiplying by the unit is what turns a Q8 over a Q31 back into
-            // a Q8 -- the unit rather than a shift of 31, for the reason
-            // `project`'s own module documents.
-            let first = divide((low - start) * UNIT, slope);
-            let second = divide((high - start) * UNIT, slope);
-            let (near, far) = if slope < 0 {
+            // Both bounds are points, so each difference is a distance -- and
+            // one that saturates only for a box wider than the range, where
+            // every distance here is past what the answer could hold anyway.
+            let first = min[axis]
+                .saturating_sub(start)
+                .saturating_div_signed32(slope);
+            let second = max[axis]
+                .saturating_sub(start)
+                .saturating_div_signed32(slope);
+            let (near, far) = if slope.is_negative() {
                 (second, first)
             } else {
                 (first, second)
@@ -225,19 +220,15 @@ impl Cast for Aabb {
             }
         }
 
-        let (distance, axis) = if entry >= 0 {
+        let (distance, axis) = if !entry.is_negative() {
             (entry, entry_axis)
-        } else if exit >= 0 {
+        } else if !exit.is_negative() {
             (exit, exit_axis)
         } else {
             return None;
         };
 
-        Some(Hit::new(
-            ray,
-            I24F8::from_bits(narrow(distance)),
-            axis_normal(axis),
-        ))
+        Some(Hit::new(ray, distance, axis_normal(axis)))
     }
 }
 

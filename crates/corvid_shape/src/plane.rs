@@ -2,10 +2,7 @@
 
 use corvid_fixed::I24F8;
 
-use crate::{
-    Cast, Hit, Ray, align,
-    project::{UNIT, divide, narrow, project},
-};
+use crate::{Cast, Hit, Ray};
 use corvid_vector::{Direction, GlobalPoint};
 
 /// An infinite plane: a normal, and how far along it the plane sits.
@@ -41,7 +38,7 @@ impl Plane {
     #[must_use]
     #[inline]
     pub fn through(point: GlobalPoint, normal: Direction) -> Self {
-        Self::new(normal, project(point, normal))
+        Self::new(normal, point.project(normal))
     }
 
     /// How far a point is from the surface, signed: positive on the side the
@@ -49,7 +46,7 @@ impl Plane {
     #[must_use]
     #[inline]
     pub fn distance_to(&self, point: GlobalPoint) -> I24F8 {
-        project(point, self.normal).saturating_sub(self.offset)
+        point.project(self.normal).saturating_sub(self.offset)
     }
 }
 
@@ -69,26 +66,13 @@ impl Plane {
 /// to a caller that will use it to place a cursor.
 impl Cast for Plane {
     fn cast(&self, ray: Ray) -> Option<Hit> {
-        let denominator = i128::from(align(self.normal, ray.direction).to_bits());
-        if denominator == 0 {
+        let numerator = self.offset.saturating_sub(ray.origin.project(self.normal));
+        // `None` for a zero denominator, which is the parallel ray this method
+        // reports as a miss rather than dividing by.
+        let distance = numerator.checked_div_signed32(self.normal.align(ray.direction))?;
+        if distance.is_negative() {
             return None;
         }
-        let numerator = i128::from(
-            self.offset
-                .saturating_sub(project(ray.origin, self.normal))
-                .to_bits(),
-        );
-        // Multiplying by the unit is what turns a Q8 over a Q31 back into a
-        // Q8 -- the unit rather than a shift of 31, for the reason `project`'s
-        // own module documents.
-        let distance = divide(numerator * UNIT, denominator);
-        if distance < 0 {
-            return None;
-        }
-        Some(Hit::new(
-            ray,
-            I24F8::from_bits(narrow(distance)),
-            self.normal,
-        ))
+        Some(Hit::new(ray, distance, self.normal))
     }
 }

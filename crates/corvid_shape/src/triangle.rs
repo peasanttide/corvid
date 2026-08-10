@@ -1,12 +1,7 @@
 //! Three points, and the cast that picks a face out of a mesh.
 
-use corvid_fixed::I24F8;
-
-use crate::{
-    Aabb, Cast, Hit, Ray,
-    project::{UNIT, cross_wide, divide, narrow, offset_bits},
-};
-use corvid_vector::{Direction, GlobalPoint};
+use crate::{Aabb, Cast, Hit, Ray};
+use corvid_vector::{Direction, GlobalPoint, WideOffset};
 
 /// A triangle, wound in the order given.
 ///
@@ -46,9 +41,9 @@ impl Triangle {
         // edges and the cross product itself leave a component's range for a
         // triangle spanning much of the world, and narrowing any of them first
         // does not lose precision so much as answer a different direction.
-        let first = offset_bits(self.b, self.a);
-        let second = offset_bits(self.c, self.a);
-        Direction::from_ratio(cross_wide(first, second))
+        let first = WideOffset::between(self.b, self.a);
+        let second = WideOffset::between(self.c, self.a);
+        first.cross_direction(second)
     }
 
     /// The smallest axis-aligned box holding all three corners.
@@ -59,23 +54,23 @@ impl Triangle {
     }
 }
 
-/// Moller-Trumbore, with every intermediate in `i128` and no narrowing until
-/// the distance is handed back.
+/// Moller-Trumbore, written as the four signed volumes it actually is.
 ///
 /// The routine finds the barycentric coordinates and the distance in one pass,
-/// and it is written here as three wide dot products against two wide cross
-/// products:
+/// and every quantity in it is a scalar triple product -- the volume of the box
+/// three of the edges span. Writing it that way is what keeps the widening out
+/// of this crate: a volume of two world-spanning edges and a direction has no
+/// fixed-point type to be, so [`Volume`](corvid_vector::Volume) is opaque and
+/// the only things asked of it are the ones a barycentric test needs.
 ///
 /// ```text
-/// e1 = b - a                      Q8
-/// e2 = c - a                      Q8
-/// p  = direction x e2             Q39
-/// det = e1 * p                    Q47
-/// s  = origin - a                 Q8
-/// u  = (s * p) / det              dimensionless
-/// q  = s x e1                     Q16
-/// v  = (direction * q) / det      dimensionless
-/// t  = (e2 * q) / det             Q-23, scaled by the unit to reach Q8
+/// e1  = b - a
+/// e2  = c - a
+/// s   = origin - a
+/// det = e1 . (direction x e2)
+/// u   = s  . (direction x e2)     inside when 0 <= u <= det
+/// v   = e1 . (direction x s)      inside when 0 <= v <= det
+/// t   = e2 . (s x e1)  over det   the distance, once the unit is paid back
 /// ```
 ///
 /// Two things about it are decisions rather than transcription.
@@ -88,79 +83,42 @@ impl Triangle {
 ///
 /// **There is no back-face culling.** A cast at the inside of a planet's shell
 /// is a legitimate hit, and this crate does not decide otherwise. A caller that
-/// wants culling compares [`align`](crate::align) of the normal against the
-/// ray's direction, which is one line and is why that function is public.
+/// wants culling compares [`align`](corvid_vector::Direction::align) of the
+/// normal against the ray's direction, which is one line.
 impl Cast for Triangle {
     fn cast(&self, ray: Ray) -> Option<Hit> {
         // Wide from the start. `self.b - self.a` saturates each component, so
         // a triangle spanning more than one component's range would run the
         // arithmetic below against edges that are not its own.
-        let first = offset_bits(self.b, self.a);
-        let second = offset_bits(self.c, self.a);
+        let first = WideOffset::between(self.b, self.a);
+        let second = WideOffset::between(self.c, self.a);
 
-        let pitch = cross_wide(direction_bits(ray), second);
-        let determinant = dot_wide(first, pitch);
-        if determinant == 0 {
+        let determinant = first.volume_across(ray.direction, second);
+        if determinant.is_zero() {
             return None;
         }
 
-        let to_origin = offset_bits(ray.origin, self.a);
-        let u = dot_wide(to_origin, pitch);
-        if outside(u, determinant) {
+        let to_origin = WideOffset::between(ray.origin, self.a);
+        let u = to_origin.volume_across(ray.direction, second);
+        if u.is_outside(determinant) {
             return None;
         }
 
-        let across = cross_wide(to_origin, first);
-        let v = dot_wide(direction_bits(ray), across);
-        if outside(v, determinant) || outside(u + v, determinant) {
+        let v = first.volume_across(ray.direction, to_origin);
+        if v.is_outside(determinant) || u.add(v).is_outside(determinant) {
             return None;
         }
 
-        // The determinant carries one factor of the direction's unit, which the
-        // numerator does not -- so multiplying by the unit is what brings the
-        // ratio back to a Q8. It can overflow only for geometry spanning most
-        // of the world, which this reports as a miss rather than as a wrapped
+        // The determinant carries one factor of the direction's unit that the
+        // numerator does not, and paying it back is what turns the ratio into a
+        // distance. It can overflow only for geometry spanning most of the
+        // world, which this reports as a miss rather than as a wrapped
         // distance.
-        let scaled = dot_wide(second, across).checked_mul(UNIT)?;
-        let distance = divide(scaled, determinant);
-        if distance < 0 {
+        let distance = second.volume(to_origin, first).distance_over(determinant)?;
+        if distance.is_negative() {
             return None;
         }
 
-        Some(Hit::new(
-            ray,
-            I24F8::from_bits(narrow(distance)),
-            self.normal()?,
-        ))
+        Some(Hit::new(ray, distance, self.normal()?))
     }
-}
-
-/// Whether a barycentric numerator falls outside `0 ..= determinant`.
-///
-/// Written with the determinant's sign folded in rather than divided out, for
-/// the reason the routine's own documentation gives.
-#[must_use]
-#[inline]
-const fn outside(numerator: i128, determinant: i128) -> bool {
-    if determinant > 0 {
-        numerator < 0 || numerator > determinant
-    } else {
-        numerator > 0 || numerator < determinant
-    }
-}
-
-/// A ray's direction as wide integers.
-#[must_use]
-#[inline]
-fn direction_bits(ray: Ray) -> [i128; 3] {
-    ray.direction
-        .to_array()
-        .map(|value| i128::from(value.to_bits()))
-}
-
-/// A dot product of two wide triples, at the sum of their scales.
-#[must_use]
-#[inline]
-const fn dot_wide(a: [i128; 3], b: [i128; 3]) -> i128 {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }

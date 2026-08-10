@@ -200,6 +200,19 @@ macro_rules! define_fixed_point {
                 }
             }
 
+            #[doc = concat!("A wide bit pattern as a [`", stringify!($name), "`], clamping.")]
+            ///
+            /// The narrowing every accumulator in this workspace ends with. A
+            /// caller that has widened to hold an intermediate comes back
+            /// through here, and a value past the range clamps rather than
+            /// wrapping -- an offset that wrapped would come back pointing the
+            /// other way, which is worse than one that is merely far.
+            #[must_use]
+            #[inline]
+            pub const fn saturating_from_bits(wide: $wide) -> Self {
+                Self::saturate(wide)
+            }
+
             /// Clamps a wide bit pattern into range.
             #[inline]
             const fn saturate(wide: $wide) -> Self {

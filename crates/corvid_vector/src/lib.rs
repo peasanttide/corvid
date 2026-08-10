@@ -21,6 +21,6 @@ mod point;
 
 pub use convert::OutOfRange;
 pub use point::{
-    Direction, FinePoint, GlobalFinePoint, GlobalPoint, direction, finepoint, globalfinepoint,
-    globalpoint,
+    Direction, FinePoint, GlobalFinePoint, GlobalPoint, Volume, WideOffset, direction, finepoint,
+    globalfinepoint, globalpoint,
 };

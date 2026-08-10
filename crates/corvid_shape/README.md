@@ -41,22 +41,30 @@ assert_eq!(hit.distance, I24F8::from_f64(10.0));
 | [`Plane`] | a normal and an offset -- the ground, and half-spaces |
 | [`Triangle`] | Moller-Trumbore, for picking a face out of a mesh |
 | [`Frustum`] | a view volume in eye space, and the culling tests |
-| [`project`], [`align`] | the mixed-width dot products the rest is built from |
 
-## Why every accumulator is an `i128`
+## Why there is no integer in here
 
-A `GlobalPoint` component is an `I24F8` -- a Q8 `i32` reaching +/-8388 km at
-3.9 mm -- and a `Direction` component is a `Signed32`, a Q31 `i32`. Their product
-is Q39 and reaches 2^62, so **three of them summed do not fit an `i64`**: 3 x 2^62 is a half
-more than `i64::MAX`.
+Not one, and no bit pattern either. Every quantity in this crate is an `I24F8`,
+an `I16F16`, a `Direction` or a `GlobalPoint`, and every operation on them is
+named for the geometry rather than for the width it needs: a projection, an
+alignment, a squared length, a squared closest approach, a signed volume.
 
-That bound is not theoretical. It is reached by a ray cast from near the edge of
-the world along a diagonal, which is a cursor pointed at the horizon from the
-far side of a planet. So
-every dot and cross product here accumulates wide and narrows once, saturating
-rather than wrapping -- because a cast that saturates answers a hit at the far
-edge of the world, and one that wrapped would answer a hit *behind the
-eye*, which is a build cursor on the other side of the world.
+That is a deliberate boundary rather than a tidiness. Casting geometry at the
+scale of a world needs accumulators wider than the values going into it -- a
+projection needs an `i64`, a triangle's scalar triple product needs more than
+that -- and getting the bound wrong is not a rounding error. A cast that wrapped
+would answer a hit *behind* the eye, which is a build cursor on the other side
+of the world. So the widening belongs to the crates that own the scales:
+`corvid_fixed` for the scalars and `corvid_vector` for the points, both of which
+say in their own documentation how wide each operation goes and why.
+
+What that leaves here is the geometry, which is the part worth reading.
+
+The one thing this crate does have to know is that a difference of two points
+can be wider than either of them. `WideOffset` is that difference, and every
+method here that starts from a pair of far-apart points starts there --
+`GlobalPoint`'s own subtraction saturates each axis independently, so a box
+12 000 km across would come back with a centre 1 800 km off the middle.
 
 ## Three conventions worth knowing before reading a result
 
@@ -85,6 +93,6 @@ bound a game could not cull with. The feature is off by default and pulls no
 ## What it does not do
 
 No culling -- a cast at the inside of a planet's shell is a legitimate hit, and
-`align(normal, ray.direction)` is the one line a caller writes if it disagrees.
+`normal.align(ray.direction)` is the one line a caller writes if it disagrees.
 No broad phase, no BVH, no spatial index: `Aabb` is the bound those are built
 out of, and building them is a game's decision about its own world.

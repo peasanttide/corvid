@@ -2,7 +2,6 @@
 
 use corvid_fixed::I24F8;
 
-use crate::project::along;
 use corvid_vector::{Direction, GlobalPoint};
 
 /// A half-line: an origin and a unit direction.
@@ -59,7 +58,7 @@ impl Ray {
     #[must_use]
     #[inline]
     pub fn at(self, distance: I24F8) -> GlobalPoint {
-        self.origin + along(self.direction, distance)
+        self.origin + self.direction.along(distance)
     }
 
     /// Whether this ray goes nowhere.
@@ -127,7 +126,7 @@ impl Hit {
 #[must_use]
 #[inline]
 pub(crate) fn facing(normal: Direction, ray: Ray) -> Direction {
-    if crate::align(normal, ray.direction).is_positive() {
+    if normal.align(ray.direction).is_positive() {
         -normal
     } else {
         normal

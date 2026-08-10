@@ -2,11 +2,8 @@
 
 use corvid_fixed::I24F8;
 
-use crate::{
-    Cast, Hit, Ray,
-    project::{length_squared_bits, narrow, offset_bits, project_bits},
-};
-use corvid_vector::GlobalPoint;
+use crate::{Cast, Hit, Ray};
+use corvid_vector::{GlobalPoint, WideOffset};
 
 /// A ball: a centre and a radius.
 ///
@@ -43,8 +40,10 @@ impl Sphere {
         if self.radius.is_negative() {
             return false;
         }
-        let radius = i128::from(self.radius.to_bits());
-        length_squared_bits(offset_bits(point, self.centre)) <= radius * radius
+        // Squared on both sides, so there is no square root and no floating
+        // point -- and wide on the left, because the point may be further from
+        // the centre than a component reaches.
+        WideOffset::between(point, self.centre).length_squared() <= self.radius.squared()
     }
 }
 
@@ -54,16 +53,24 @@ impl Sphere {
 /// With `oc` the offset from the centre to the ray's origin:
 ///
 /// ```text
-/// b    = oc * direction                 Q8
-/// c    = |oc|^2 - radius^2                Q16
-/// disc = b^2 - c                         Q16
-/// root = sqrt(disc)                          Q8, because sqrt(Q16) is Q8
-/// t    = -b -/+ root
+/// along = oc . direction                     Q8
+/// miss  = |oc|^2 - along^2                   Q16, the squared closest approach
+/// disc  = radius^2 - miss                    Q16
+/// root  = sqrt(disc)                         Q8, because sqrt(Q16) is Q8
+/// t     = -along -/+ root
 /// ```
 ///
 /// Choosing the doubled scale as the working one is the whole trick: an
 /// integer square root of a Q16 value *is* the Q8 answer, so there is no
 /// scaling step to get wrong and no floating point anywhere.
+///
+/// `miss` is asked for directly rather than assembled from its two terms, which
+/// is what keeps a cast from the far side of the world honest. Both `|oc|^2`
+/// and `along^2` reach `2^64` there and their difference is small, so
+/// subtracting them here would be subtracting two large numbers to get a small
+/// one -- and the small one is what decides hit from miss. `rejection_squared`
+/// takes it in one step instead, so whether a ray finds the sphere at all stays
+/// exact even when the distance it answers has to clamp.
 ///
 /// The near root is taken when it is in front of the origin and the far one
 /// when it is not, which is what makes a ray that starts inside answer the wall
@@ -74,31 +81,30 @@ impl Cast for Sphere {
             return None;
         }
         // A degenerate ray is caught above rather than falling through: with no
-        // direction the `b` term is zero, so an origin *inside* the sphere
+        // direction the `along` term is zero, so an origin *inside* the sphere
         // leaves a positive discriminant and the quadratic reports a hit at a
         // distance the ray never travels.
-        let offset = offset_bits(ray.origin, self.centre);
-        let b = project_bits(offset, ray.direction);
-        let radius = i128::from(self.radius.to_bits());
-        let c = length_squared_bits(offset) - radius * radius;
-
-        let discriminant = b * b - c;
-        if discriminant < 0 {
+        let offset = WideOffset::between(ray.origin, self.centre);
+        let discriminant = self
+            .radius
+            .squared()
+            .saturating_sub(offset.rejection_squared(ray.direction));
+        if discriminant.is_negative() {
             return None;
         }
-        let root = discriminant.isqrt();
+        let root = discriminant.root();
 
-        let near = -b - root;
-        let far = -b + root;
-        let distance = if near >= 0 {
+        let centred = offset.project(ray.direction).saturating_neg();
+        let near = centred.saturating_sub(root);
+        let far = centred.saturating_add(root);
+        let distance = if !near.is_negative() {
             near
-        } else if far >= 0 {
+        } else if !far.is_negative() {
             far
         } else {
             return None;
         };
 
-        let distance = I24F8::from_bits(narrow(distance));
         let normal = (ray.at(distance) - self.centre).normalize()?;
         Some(Hit::new(ray, distance, normal))
     }

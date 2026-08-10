@@ -13,7 +13,6 @@ categories = ["game-development", "no-std"]
 [dependencies]
 corvid_fixed = { workspace = true }
 corvid_vector = { workspace = true }
-corvid_bits = { workspace = true }
 bytemuck = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 

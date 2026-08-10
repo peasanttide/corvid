@@ -3,6 +3,12 @@
 use corvid_fixed::{Angle16, I16F16};
 
 use corvid_vector::FinePoint;
+
+/// One half, for the viewport height an orthographic box is given whole.
+///
+/// Exact in Q16, so halving a height loses nothing a truncating shift would
+/// have kept.
+const HALF: I16F16 = I16F16::from_f64(0.5);
 /// The volume a camera sees: a truncated pyramid, or the box it becomes when
 /// the sides stop converging.
 ///
@@ -136,7 +142,7 @@ impl Frustum {
         Self {
             near,
             far,
-            base: I16F16::from_bits(height.to_bits() / 2),
+            base: height.saturating_mul(HALF),
             slope: I16F16::ZERO,
         }
     }
@@ -209,7 +215,10 @@ impl Frustum {
             i64::from(self.slope.to_bits()),
             i64::from(I16F16::ONE.to_bits()),
         );
-        Angle16::from_bits(half.to_bits().wrapping_mul(2))
+        // Doubled the way an angle doubles, which is wrapping: a half angle
+        // past a quarter turn has no whole angle under one, and the type says
+        // so rather than clamping to something it is not.
+        half.wrapping_add(half)
     }
 
     /// Whether a point in **eye space** is inside this volume.

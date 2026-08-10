@@ -8,7 +8,6 @@
 mod aabb;
 mod frustum;
 mod plane;
-mod project;
 mod ray;
 mod sphere;
 mod triangle;
@@ -16,7 +15,6 @@ mod triangle;
 pub use aabb::Aabb;
 pub use frustum::Frustum;
 pub use plane::Plane;
-pub use project::{align, project};
 pub use ray::{Cast, Hit, Ray};
 pub use sphere::Sphere;
 pub use triangle::Triangle;
