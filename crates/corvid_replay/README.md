@@ -23,14 +23,13 @@ use corvid_hash::digest;
 use corvid_replay::{ActionLog, HashTrace, Opening, Profile, Schema, Seed, Session, Snapshots};
 use corvid_time::Tick;
 # use corvid_behavior::{Command, Level as LevelContract, Player, State};
-# use corvid_files::{Malformed, Source};
+# use corvid_files::{};
 # use serde::{Deserialize, Serialize};
 #
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 # struct Level { ceiling: i64 }
 # impl LevelContract for Level {
-#     type Reference = String;
-#     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> { Ok(Self { ceiling: 100 }) }
+#     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self { ceiling: 100 }) }
 # }
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 # struct Rules { step: i64 }

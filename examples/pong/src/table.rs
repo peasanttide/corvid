@@ -8,53 +8,16 @@
 //! log reach the same bits, so a peer that guessed wrong about what the other
 //! player did can be corrected by re-running it.
 
-use std::{fmt, str::FromStr};
+use std::fmt;
 
-use corvid::{Command, FinePoint, I16F16, Player, PlayerId, State, Tick};
+use corvid::{Command, FinePoint, I16F16, PlayerId, PlayerState, State, Tick};
 use serde::{Deserialize, Serialize};
 
-/// How this game names a level. There is one court.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Level {
-    /// The court.
-    Court,
-}
-
-impl Level {
-    /// How it is spelled on a command line and in a save file.
-    pub const COURT: &'static str = "court";
-}
-
-impl fmt::Display for Level {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Court => f.write_str(Self::COURT),
-        }
-    }
-}
-
-impl FromStr for Level {
-    type Err = NoSuchLevel;
-
-    /// ```
-    /// use pong::Level;
-    ///
-    /// assert_eq!("court".parse(), Ok(Level::Court));
-    /// assert!("stadium".parse::<Level>().is_err());
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// [`NoSuchLevel`] for anything but `"court"`.
-    fn from_str(name: &str) -> Result<Self, NoSuchLevel> {
-        match name {
-            Self::COURT => Ok(Self::Court),
-            other => Err(NoSuchLevel {
-                name: other.to_owned(),
-            }),
-        }
-    }
-}
+/// What the one court is called, on a command line and in a save file.
+///
+/// A game with more than one level would have a name per level, or would read
+/// them off a disk and let the filesystem hold the list.
+pub const COURT: &str = "court";
 
 /// This game has no level by that name.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -67,9 +30,8 @@ impl fmt::Display for NoSuchLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{} is not a level this game has; the only one is {}",
+            "{} is not a level this game has; the only one is {COURT}",
             self.name,
-            Level::COURT,
         )
     }
 }
@@ -257,15 +219,31 @@ pub enum Move {
     Down,
 }
 
-/// The court is a constant, so it reads nothing.
+/// The court is written in the source, so reading one is checking the name.
 ///
-/// A game whose levels come off a disk reads them here; this one's is written
-/// in the source, which is why `load` ignores the `Source` it is handed.
+/// A game whose levels come off a disk opens the file here instead. Either way
+/// this crate never sees a filesystem: where the bytes come from is the game's,
+/// which is why the contract hands over a name and nothing else.
+///
+/// ```
+/// use corvid::Level as _;
+///
+/// assert!(pong::Court::load(pong::COURT).is_ok());
+/// assert!(pong::Court::load("stadium").is_err());
+/// ```
 impl corvid::Level for Court {
-    type Reference = Level;
+    type Error = NoSuchLevel;
 
-    fn load(_reference: &Level, _files: &dyn corvid::Source) -> Result<Self, corvid::Malformed> {
-        Ok(crate::court())
+    /// # Errors
+    ///
+    /// [`NoSuchLevel`] for anything but [`COURT`].
+    fn load(name: &str) -> Result<Self, NoSuchLevel> {
+        match name {
+            COURT => Ok(crate::court()),
+            other => Err(NoSuchLevel {
+                name: other.to_owned(),
+            }),
+        }
     }
 }
 
@@ -286,9 +264,9 @@ impl State for Table {
     fn tick(
         self,
         level: &Court,
-        players: &[Player<'_, Move>],
+        players: &[PlayerState<Move>],
         rules: &Play,
-        _command: &mut impl Command<Reference = Level>,
+        _command: &mut impl Command,
     ) -> Self {
         let mut table = self;
         table.now = table.now.next();
@@ -324,7 +302,7 @@ impl State for Table {
 }
 
 /// Moves each seated player's paddle, and clamps it to the court.
-fn move_paddles(table: &mut Table, level: &Court, rules: &Play, players: &[Player<'_, Move>]) {
+fn move_paddles(table: &mut Table, level: &Court, rules: &Play, players: &[PlayerState<Move>]) {
     let reach = level.reach();
     for player in players {
         let Some(paddle) = table.paddles.get_mut(usize::from(player.id.0)) else {

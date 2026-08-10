@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use common::{Action, Counter, Level, forward, opening, play, schema};
 use core::hash::Hash;
-use corvid_behavior::round_trip_is_faithful;
 use corvid_behavior::{PlayerId, ProfileId};
+use corvid_wire::round_trip_is_faithful;
 
 use corvid_hash::{Digest, Hasher, digest};
 use corvid_replay::{

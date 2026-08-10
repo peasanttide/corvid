@@ -33,12 +33,12 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Load {
-    /// A level reference, as the JSON of
-    /// [`LevelRef`](corvid_replay::LevelRef) — the type a game's own
-    /// [`Level::Reference`](corvid_behavior::Level::Reference) is.
+    /// A level's name, as the JSON of the string
+    /// [`Level::load`](corvid_behavior::Level::load) reads.
     ///
-    /// Kept as text rather than parsed here, because what it parses *into* is
-    /// the game's own type and this parser knows no game. [`App::run`] is what
+    /// Kept as JSON rather than taken bare, because a level name is a value in
+    /// a save file as well as a word on a command line, and quoting it once
+    /// means the two spell it the same way. [`App::run`] is what
     /// reads it, and a string that is not that game's level reference is
     /// [`Argument::NotALevel`] there.
     Level(String),
@@ -595,15 +595,15 @@ pub fn watch() {
 /// ```no_run
 /// # use std::sync::Arc;
 /// # use corvid_behavior::{Level, State};
-/// # use corvid_files::{Malformed, Source};
+/// # use corvid_files::{};
 /// # use corvid_replay::{Opening, Opens, Profile, Schema, Seed};
 /// # use corvid_time::Tick;
 /// # use serde::{Deserialize, Serialize};
 /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 /// # struct Nowhere;
 /// # impl Level for Nowhere {
-/// #     type Reference = String;
-/// #     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> { Ok(Self) }
+/// #     type Error = core::convert::Infallible;
+/// #     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self) }
 /// # }
 /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 /// # struct Server;

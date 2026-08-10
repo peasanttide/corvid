@@ -2,8 +2,8 @@
 
 use alloc::vec::Vec;
 
-use corvid_behavior::{Player, PlayerId, State};
-use corvid_replay::{LevelRef, Session};
+use corvid_behavior::{PlayerId, PlayerState, State};
+use corvid_replay::Session;
 use corvid_time::Tick;
 
 /// How far a rollback went.
@@ -67,9 +67,9 @@ pub(crate) fn step<S: State>(
     previous: &S,
     at: Tick,
     row: &[S::Action],
-    command: &mut impl corvid_behavior::Command<Reference = LevelRef<S>>,
+    command: &mut impl corvid_behavior::Command,
 ) -> S {
-    let mut roster: Vec<Player<'_, S::Action>> = Vec::with_capacity(session.opening.roster.len());
+    let mut roster: Vec<PlayerState<S::Action>> = Vec::with_capacity(session.opening.roster.len());
     for (seat, profile) in session.opening.roster.iter().enumerate() {
         // A roster longer than a `PlayerId` can address has seats no action can
         // be attributed to, and stopping is what `seek` does with one.
@@ -82,10 +82,10 @@ pub(crate) fn step<S: State>(
         let Some(action) = row.get(seat) else {
             continue;
         };
-        roster.push(Player {
+        roster.push(PlayerState {
             id: PlayerId(id),
             presence,
-            action,
+            action: action.clone(),
         });
     }
     S::clone(previous).tick(

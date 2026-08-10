@@ -4,11 +4,10 @@
 use crate::commands::Command;
 use corvid_behavior::Extract;
 use corvid_control::{Acting, Controller, Updating};
-use corvid_replay::LevelRef;
 use corvid_sound::{Auralizer, Hearing};
 use std::{mem, path::PathBuf, sync::Arc};
 
-use corvid_behavior::{ExitCode, Extracting, Player, PlayerId, SaveSlot, Time};
+use corvid_behavior::{ExitCode, Extracting, PlayerId, PlayerState, SaveSlot};
 use corvid_fixed::Factor16;
 use corvid_hash::digest;
 #[cfg(feature = "window")]
@@ -18,6 +17,7 @@ use corvid_replay::Session;
 use corvid_signal::Emitter;
 use corvid_sound::AudioFrame;
 use corvid_time::Duration;
+use corvid_time::Time;
 use corvid_time::{Elapsed, Step, Tick};
 
 use crate::{
@@ -123,6 +123,13 @@ enum Horizon<S: State> {
 /// run's session belongs to the [`Peer`](corvid_lockstep::Peer) — a rollback
 /// rewrites the action log and the mark trace, and a second owner of those
 /// would be a second answer to what the session is.
+#[cfg_attr(
+    feature = "net",
+    expect(
+        clippy::large_enum_variant,
+        reason = "boxing `Local` would put an allocation and a pointer chase on the single-seat path, which is the common one, to save stack on the linked one -- and `Linked` is already boxed, which is the arm that grows"
+    )
+)]
 enum Play<S: State> {
     /// One seat, no network, and the loop writes its own action into the log
     /// and simulates it. Every run that names no transport.
@@ -169,10 +176,7 @@ impl<S: State> Play<S> {
 /// An alias because it is written at both ends of the one call that produces
 /// it, and the second half is a list of a game's own requests rather than
 /// anything this crate has a shorter name for.
-type Ticked<G> = (
-    <G as Game>::State,
-    Vec<Command<LevelRef<<G as Game>::State>>>,
-);
+type Ticked<G> = (<G as Game>::State, Vec<Command<String>>);
 
 /// Whether the loop carries on.
 enum Flow {
@@ -250,7 +254,7 @@ pub(crate) struct Runtime<G: Game, B> {
     /// Where a displayed frame goes.
     backend: B,
     /// What the ticks asked the platform for.
-    sink: Sink<LevelRef<G::State>>,
+    sink: Sink<String>,
     /// Where a save is written and read.
     saves: Saves,
     /// The directory the settings file is written into, which is the one this
@@ -681,7 +685,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         &mut self,
         asked: Tick,
         action: Option<<G::State as State>::Action>,
-    ) -> Result<Vec<Command<LevelRef<G::State>>>, Error> {
+    ) -> Result<Vec<Command<String>>, Error> {
         self.play
             .session_mut()
             .log
@@ -782,7 +786,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     fn advance_linked(
         &mut self,
         action: Option<<G::State as State>::Action>,
-    ) -> Result<Vec<Command<LevelRef<G::State>>>, Error> {
+    ) -> Result<Vec<Command<String>>, Error> {
         let was = self.at;
         let Play::Linked(link) = &mut self.play else {
             // Reached only if this were called on a local run, which the one
@@ -968,7 +972,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// the simulation that no capture records.
     fn simulate(&self) -> Ticked<G> {
         let idle = <<G::State as State>::Action>::default();
-        let mut roster: Vec<Player<'_, <G::State as State>::Action>> = Vec::new();
+        let mut roster: Vec<PlayerState<<G::State as State>::Action>> = Vec::new();
         for (seat, profile) in self.play.session().opening.roster.iter().enumerate() {
             let Ok(seat) = u16::try_from(seat) else {
                 break;
@@ -977,10 +981,16 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             let Some(presence) = profile.presence_at(self.at) else {
                 continue;
             };
-            roster.push(Player {
+            roster.push(PlayerState {
                 id,
                 presence,
-                action: self.play.session().log.get(self.at, id).unwrap_or(&idle),
+                action: self
+                    .play
+                    .session()
+                    .log
+                    .get(self.at, id)
+                    .unwrap_or(&idle)
+                    .clone(),
             });
         }
 
@@ -1034,6 +1044,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             state: &*state,
             level: &*level,
             time,
+            player: Some(self.seating.watched()),
         };
         if let Some(graphics) = self.graphics.as_mut() {
             graphics.extract(extracting);

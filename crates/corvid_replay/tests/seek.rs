@@ -11,7 +11,7 @@
 mod common;
 
 use common::{Action, Counter, forward, play, scripted};
-use corvid_behavior::{Player, PlayerId, Presence, ProfileId};
+use corvid_behavior::{PlayerId, PlayerState, Presence, ProfileId};
 use corvid_hash::digest;
 use corvid_replay::{ActionLog, Profile, Session, Shape, Snapshots, Unreachable};
 use corvid_time::Tick;
@@ -506,8 +506,8 @@ fn the_ring_is_what_decides_how_much_a_seek_re_simulates() {
 
 #[test]
 fn every_input_a_tick_sees_is_one_a_replay_can_rebuild() {
-    // The pattern below names every field a `Player` has and binds each to
-    // where a replay gets it from. It is exhaustive on purpose: a `Player` that
+    // The pattern below names every field a `PlayerState` has and binds each to
+    // where a replay gets it from. It is exhaustive on purpose: a `PlayerState` that
     // grew a fourth field would stop this compiling, and whoever added it would
     // have to answer "where does `seek` get this from" before the suite is
     // green again. That question is the whole of the rule — an input a capture
@@ -517,12 +517,12 @@ fn every_input_a_tick_sees_is_one_a_replay_can_rebuild() {
     let seat = PlayerId(0);
     let profile = session.opening.seat(seat).unwrap();
 
-    let player = Player {
+    let player = PlayerState {
         id: seat,
         presence: profile.presence_at(Tick(1)).unwrap(),
         action: session.log.get(Tick(1), seat).unwrap_or(&idle),
     };
-    let Player {
+    let PlayerState {
         id: from_the_roster_order,
         presence: from_the_rosters_join_and_leave_ticks,
         action: from_the_log,

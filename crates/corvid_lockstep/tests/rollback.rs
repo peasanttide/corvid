@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::{Action, Swarm, beat, origin, peer, push, session};
-use corvid_behavior::Player;
+use corvid_behavior::PlayerState;
 use corvid_behavior::{PlayerId, Presence, State};
 use corvid_hash::{Digest, digest};
 use corvid_lockstep::{Budget, WINDOW};
@@ -314,10 +314,10 @@ fn six_rollback_ticks_over_fifty_thousand_entities_fit_in_one_frame() {
     let simulate = {
         let idle = Action::Idle;
         let roster: Vec<_> = (0..2)
-            .map(|seat| Player {
+            .map(|seat| PlayerState {
                 id: PlayerId(seat),
                 presence: Presence::Active,
-                action: &idle,
+                action: idle,
             })
             .collect();
         let level = Arc::clone(&peer.session.opening.content);

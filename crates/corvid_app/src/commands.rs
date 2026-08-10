@@ -43,8 +43,9 @@ pub enum Answer {
 
 /// One request a tick made, and what became of it.
 ///
-/// `R` is the game's [`Level::Reference`](corvid_behavior::Level::Reference),
-/// which is what the two requests that name a level carry.
+/// `R` is how a level is named -- a `String` at every real call site, since
+/// [`Level::load`](corvid_behavior::Level::load) reads one -- and it is what the
+/// two requests that name a level carry.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Request<R> {
     /// The tick that asked. This is the tick whose
@@ -236,24 +237,16 @@ impl<R: fmt::Debug> Sink<R> {
 ///
 /// A tick that asks for nothing leaves the `Vec` empty, and an empty `Vec` does
 /// not allocate, so the usual tick pays nothing for this.
-#[derive(Debug)]
-pub(crate) struct Asked<R>(pub(crate) Vec<Command<R>>);
+#[derive(Debug, Default)]
+pub(crate) struct Asked(pub(crate) Vec<Command<String>>);
 
-impl<R> Default for Asked<R> {
-    fn default() -> Self {
-        Self(Vec::new())
-    }
-}
-
-impl<R> corvid_behavior::Command for Asked<R> {
-    type Reference = R;
-
-    fn load(&mut self, reference: R) {
-        self.0.push(Command::Load(reference));
+impl corvid_behavior::Command for Asked {
+    fn load(&mut self, name: &str) {
+        self.0.push(Command::Load(name.to_owned()));
     }
 
-    fn unload(&mut self, reference: R) {
-        self.0.push(Command::Unload(reference));
+    fn unload(&mut self, name: &str) {
+        self.0.push(Command::Unload(name.to_owned()));
     }
 
     fn quit(&mut self, code: ExitCode) {

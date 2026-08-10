@@ -24,14 +24,13 @@ use corvid_time::Tick;
 use corvid_behavior::ProfileId;
 use corvid_replay::{Opening, Profile, Schema, Seed};
 # use corvid_behavior::{Command, Level as LevelContract, Player, State};
-# use corvid_files::{Malformed, Source};
+# use corvid_files::{};
 # use serde::{Deserialize, Serialize};
 #
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 # struct Level { ceiling: i64 }
 # impl LevelContract for Level {
-#     type Reference = String;
-#     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> {
+#     fn load(_: &str) -> Result<Self, core::convert::Infallible> {
 #         Ok(Self { ceiling: 1_000 })
 #     }
 # }

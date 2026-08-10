@@ -5,7 +5,7 @@ use core::fmt;
 
 use corvid_behavior::{PlayerId, State};
 use corvid_hash::{Digest, digest};
-use corvid_replay::{LevelRef, Refused, Session, Snapshots, Unreachable};
+use corvid_replay::{Refused, Session, Snapshots, Unreachable};
 use corvid_time::Tick;
 
 use crate::{
@@ -397,7 +397,7 @@ impl<S: State> Peer<S> {
     /// `State` and lets the client read it out of a confirmed tick.
     pub fn advance(
         &mut self,
-        command: &mut impl corvid_behavior::Command<Reference = LevelRef<S>>,
+        command: &mut impl corvid_behavior::Command,
     ) -> Result<Advanced, Halt> {
         let ceiling = self
             .frontier
@@ -736,10 +736,7 @@ impl<S: State> Peer<S> {
 
     /// One tick forward from wherever this peer is, against the row prediction
     /// makes.
-    fn simulate_one(
-        &mut self,
-        command: &mut impl corvid_behavior::Command<Reference = LevelRef<S>>,
-    ) {
+    fn simulate_one(&mut self, command: &mut impl corvid_behavior::Command) {
         row_at(&self.session.log, &self.frontier, self.tick, &mut self.row);
         // Whether this is the first time this tick has been simulated, read
         // before the tick moves. `reached` is the high-water mark rather than

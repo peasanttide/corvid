@@ -22,6 +22,6 @@ pub use log::{ActionLog, Refused};
 pub use open::Opens;
 pub use schema::Schema;
 pub use seek::Unreachable;
-pub use session::{Forget, LevelRef, Load, Opening, Profile, Seed, Session, Shape};
+pub use session::{Forget, Load, Opening, Profile, Seed, Session, Shape};
 pub use snapshots::Snapshots;
 pub use trace::HashTrace;

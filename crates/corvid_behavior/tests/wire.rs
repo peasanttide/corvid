@@ -1,6 +1,11 @@
 //! The frozen serialized forms. **Changing a value in this file is a
 //! wire-format break.**
 //!
+//! The whole file is behind the `serde` feature, because the whole file is
+//! about what that feature produces. A build without it has no encoding to
+//! freeze -- the digest table in `tests/golden.rs` is the one that still
+//! applies, since a value is hashed either way.
+//!
 //! Two tables live here and a third lives in `tests/golden.rs`, and each is
 //! blind where the others see. The byte table is what `corvid_wire` writes,
 //! which carries no names at all; the text table below is what a
@@ -8,12 +13,20 @@
 //! name and no width; and `tests/golden.rs` freezes what the derived [`Hash`]
 //! implementations produce under `corvid_hash`'s hasher.
 //!
-//! So: a field *renamed* moves the text table and neither of the other two,
-//! because a hasher absorbs values and never names and this crate's encoding
-//! writes none. A field reordered and a variant moved move all three. An
-//! identifier *widened* moves only the digest — a varint carries a small number
-//! the same at every width, and a self-describing format writes the same number
-//! too. None of the four is a compile error.
+//! So, taking the four changes one at a time:
+//!
+//! - A field or variant **renamed** moves the text table and neither of the
+//!   other two, because a hasher absorbs values and never names and this
+//!   crate's encoding writes none.
+//! - **Fields reordered** moves all three.
+//! - **Variants reordered** moves the byte table and the digest, and **not the
+//!   text table**: a self-describing format writes the variant's name, so
+//!   moving it from third place to first leaves the JSON identical.
+//! - An identifier **widened** moves only the digest -- a varint carries a small
+//!   number the same at every width, and a self-describing format writes the
+//!   same number too.
+//!
+//! None of the four is a compile error.
 //!
 //! Nor can a round trip see any of them. `round_trip_is_faithful` and the tests
 //! in `tests/contract.rs` write a value out and read it back with one build, so
@@ -23,20 +36,21 @@
 //! nothing symmetric is holding those bytes still.
 //!
 //! So the bytes are written down here, over the fixtures in
-//! `tests/common/vocabulary.rs` — the same values `tests/golden.rs` digests, so
+//! `tests/common/vocabulary.rs` -- the same values `tests/golden.rs` digests, so
 //! that the three tables are three views of one set of values rather than three
 //! suites. `corvid_wire::golden::check` compares the bytes both ways round: that
 //! today's encoder writes these bytes, and that these bytes still read back as
 //! the values they were recorded from. `check_text` compares the text one way
-//! round, which is all there is to compare — what a text table is for is the
+//! round, which is all there is to compare -- what a text table is for is the
 //! names, and a name that changed changed in the writing.
 //!
 //! If a change here is genuinely wanted, it is a new version of the format:
 //! bump the crate's major version, reissue every capture recorded under the old
 //! one, and say so in the changelog. Regenerating these literals to make a red
-//! test go green is never the right move — the red test *is* the notification
+//! test go green is never the right move -- the red test *is* the notification
 //! that a snapshot written by an older build has stopped loading as what it was.
 
+#![cfg(feature = "serde")]
 #![allow(
     clippy::unwrap_used,
     reason = "a failed unwrap in a test is a failed test, which is what a test is for"
@@ -53,7 +67,7 @@ use corvid_hash::digest;
 use corvid_wire::golden::{Row, check, check_text};
 
 /// Every [`Presence`](corvid_behavior::Presence), including the one with no
-/// payload — which is one byte of index and nothing else, and is what pins that
+/// payload -- which is one byte of index and nothing else, and is what pins that
 /// a payload-free variant still writes its number.
 const GOLDEN_PRESENCE: &[Row<'_>] = &[
     ("Joining(77)", "004d"),
@@ -67,14 +81,14 @@ const GOLDEN_PRESENCE: &[Row<'_>] = &[
 /// Three widths are represented and none of them is visible as a length. An
 /// [`ExitCode`] holding 2, a [`PlayerId`] holding 2 and a [`ProfileId`] holding
 /// 2 are all the single byte `02`, because a varint spells a small number the
-/// same however it was declared — so what this table pins is the *value* each
+/// same however it was declared -- so what this table pins is the *value* each
 /// identifier writes and the marker a large one takes, not its width.
 /// `PlayerId(u16::MAX)` and `LobbyId(u64::MAX)` are the rows where the marker
 /// shows: `fb` says two bytes follow and `fd` says eight.
 ///
 /// Widening one of these moves nothing here. It moves `tests/golden.rs`, where
 /// the digest is, because the hasher injects the count of bytes it absorbed and
-/// a wider integer absorbs more of them —
+/// a wider integer absorbs more of them --
 /// [`an_identifiers_width_is_in_the_digest_and_not_in_the_bytes`] is that pair
 /// of facts without the table.
 ///
@@ -110,7 +124,7 @@ const GOLDEN_NAMES: &[Row<'_>] = &[
     ),
 ];
 
-/// Every presence, by name — including `Active`, whose byte row is one index
+/// Every presence, by name -- including `Active`, whose byte row is one index
 /// and nothing else and whose name appears nowhere in it.
 const GOLDEN_PRESENCE_TEXT: &[Row<'_>] = &[
     ("Joining(77)", r#"{"Joining":{"profile":77}}"#),
@@ -174,7 +188,7 @@ fn an_identifiers_width_is_in_the_digest_and_not_in_the_bytes() {
 
     // The digest is where the width is. `corvid_hash` absorbs an integer as its
     // declared bytes and injects the total count at the end, so these three
-    // differ — and a peer comparing digests, which is what a peer actually
+    // differ -- and a peer comparing digests, which is what a peer actually
     // compares, is what refuses a build that widened one of them.
     assert_ne!(digest(&ExitCode(2)), digest(&PlayerId(2)));
     assert_ne!(digest(&ExitCode(2)), digest(&ProfileId(2)));

@@ -3,7 +3,7 @@
 use alloc::{sync::Arc, vec::Vec};
 use core::fmt;
 
-use corvid_behavior::{Discard, Player, PlayerId, State};
+use corvid_behavior::{Discard, PlayerId, PlayerState, State};
 use corvid_time::Tick;
 
 use crate::{Session, Snapshots};
@@ -109,7 +109,7 @@ impl<S: State> Session<S> {
     ///
     /// # What this does not reproduce
     ///
-    /// **Nothing about the inputs, which is why [`Player`] has three fields.**
+    /// **Nothing about the inputs, which is why [`PlayerState`] has three fields.**
     /// Every one of them comes from the session: the seat is the roster's order,
     /// the [`Presence`](corvid_behavior::Presence) is
     /// [`Profile::presence_at`](crate::Profile::presence_at) of the roster's
@@ -117,7 +117,7 @@ impl<S: State> Session<S> {
     /// rules a head-and-hands pose out of that struct: the log records actions
     /// and not poses, so there would be nothing here to rebuild one from and
     /// every player would be handed the identity, which makes a game that read
-    /// it replay to a different state than it ran. [`Player`] says so at
+    /// it replay to a different state than it ran. [`PlayerState`] says so at
     /// length.
     ///
     /// **A session whose parts were put out of step by hand.** The roster
@@ -159,7 +159,7 @@ impl<S: State> Session<S> {
         // a tick the log does not cover. It is a binding rather than a
         // temporary because the roster below borrows it.
         let idle = S::Action::default();
-        let mut roster: Vec<Player<'_, S::Action>> = Vec::new();
+        let mut roster: Vec<PlayerState<S::Action>> = Vec::new();
 
         while at < to {
             roster.clear();
@@ -177,10 +177,10 @@ impl<S: State> Session<S> {
                 let Some(presence) = profile.presence_at(at) else {
                     continue;
                 };
-                roster.push(Player {
+                roster.push(PlayerState {
                     id,
                     presence,
-                    action: self.log.get(at, id).unwrap_or(&idle),
+                    action: self.log.get(at, id).unwrap_or(&idle).clone(),
                 });
             }
 

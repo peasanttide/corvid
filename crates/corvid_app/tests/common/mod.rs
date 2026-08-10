@@ -59,8 +59,8 @@ use std::{
 };
 
 use corvid_behavior::{
-    AchievementId, Command, ExitCode, Extract, Extracting, Player, PlayerId, Presence, ProfileId,
-    SaveSlot,
+    AchievementId, Command, ExitCode, Extract, Extracting, PlayerId, PlayerState, Presence,
+    ProfileId, SaveSlot,
 };
 use corvid_control::{Acting, Controller, Updating};
 use corvid_hash::{Digest, digest};
@@ -254,7 +254,7 @@ pub(crate) struct View {
 }
 
 /// The commands this game's rules ask for at `now`.
-fn requests(rules: &Rules, now: Tick, command: &mut impl Command<Reference = Ref>) {
+fn requests(rules: &Rules, now: Tick, command: &mut impl Command) {
     if rules.save_at == Some(now) {
         command.save(SLOT);
     }
@@ -287,22 +287,28 @@ fn requests(rules: &Rules, now: Tick, command: &mut impl Command<Reference = Ref
 /// the source it is handed has none, and this loader stands in for the second
 /// without the fixture needing a file.
 impl corvid_behavior::Level for Level {
-    type Reference = Ref;
+    type Error = NoSuchLevel;
 
-    fn load(
-        reference: &Ref,
-        _files: &dyn corvid_files::Source,
-    ) -> Result<Self, corvid_files::Malformed> {
-        if reference == ELSEWHERE {
-            return Err(corvid_files::Malformed::at(
-                "level/elsewhere",
-                "there is nothing to read it from",
-            ));
+    fn load(name: &str) -> Result<Self, NoSuchLevel> {
+        if name == ELSEWHERE {
+            return Err(NoSuchLevel {
+                name: name.to_owned(),
+            });
         }
         Ok(Self {
-            name: reference.clone(),
+            name: name.to_owned(),
         })
     }
+}
+
+/// A loader that refused, which is what a game with a level it cannot read
+/// answers. The fixture needs one so that the runtime's refusal path is
+/// exercised, and a game's own error type is what the contract asks for.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("there is nothing to read it from")]
+pub(crate) struct NoSuchLevel {
+    /// What was asked for.
+    pub(crate) name: String,
 }
 
 impl corvid_behavior::State for Tally {
@@ -315,9 +321,9 @@ impl corvid_behavior::State for Tally {
     fn tick(
         self,
         _level: &Level,
-        players: &[Player<'_, Action>],
+        players: &[PlayerState<Action>],
         rules: &Rules,
-        command: &mut impl Command<Reference = Ref>,
+        command: &mut impl Command,
     ) -> Self {
         // Fresh every tick. The state owns this column and hands it to whoever
         // holds the state, and nothing gives it back.
@@ -512,7 +518,7 @@ impl corvid_render::Render<Tally> for Painted {
 
     fn configure(&mut self, (): ()) {}
 
-    fn draw(&mut self, drawing: corvid_render::Drawing<'_, Tally>) {
+    fn draw(&mut self, drawing: corvid_render::Drawing<'_>) {
         use corvid_render::wgpu;
 
         let target = drawing.target;
@@ -660,9 +666,9 @@ impl corvid_behavior::State for Attendance {
     fn tick(
         self,
         _level: &Level,
-        players: &[Player<'_, Mark>],
+        players: &[PlayerState<Mark>],
         _rules: &Rules,
-        _command: &mut impl Command<Reference = Ref>,
+        _command: &mut impl Command,
     ) -> Self {
         let mut rolls = self.rolls;
         rolls.push(Roll {

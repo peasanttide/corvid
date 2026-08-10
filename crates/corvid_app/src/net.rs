@@ -8,7 +8,6 @@
 //! and a game that does not are the same two implementations, which is the
 //! claim the whole lockstep design exists to support.
 
-use corvid_replay::LevelRef;
 use std::{collections::BTreeMap, vec::Vec};
 
 use corvid_behavior::{PlayerId, State};
@@ -464,7 +463,7 @@ impl<S: State> Link<S> {
     pub(crate) fn play(
         &mut self,
         action: Option<S::Action>,
-        command: &mut impl corvid_behavior::Command<Reference = LevelRef<S>>,
+        command: &mut impl corvid_behavior::Command,
     ) -> Result<(), crate::Error> {
         let mut traffic = TickTraffic::default();
 

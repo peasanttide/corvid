@@ -15,5 +15,5 @@ pub use play::{
     CHIME, Ears, FLASH, Hands, KNOCK, THUD, action, court, opening, origin, rules, schema,
 };
 pub use table::{
-    Ball, Contact, Court, Level, Move, NoSuchLevel, Paddle, Play, SEATS, Table, index,
+    Ball, COURT, Contact, Court, Move, NoSuchLevel, Paddle, Play, SEATS, Table, index,
 };

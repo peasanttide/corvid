@@ -27,14 +27,14 @@ use crate::Opening;
 /// use corvid_replay::{Opening, Opens, Profile, Schema, Seed, Session};
 /// use corvid_time::Tick;
 /// # use corvid_behavior::{Level, ProfileId, State};
-/// # use corvid_files::{Malformed, Source};
+/// # use corvid_files::{};
 /// # use serde::{Deserialize, Serialize};
 ///
 /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 /// # struct Only;
 /// # impl Level for Only {
-/// #     type Reference = String;
-/// #     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> { Ok(Self) }
+/// #     type Error = core::convert::Infallible;
+/// #     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self) }
 /// # }
 /// #
 /// #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -14,8 +14,8 @@
 //! use std::sync::Arc;
 //!
 //! use corvid::{
-//!     App, Level, Malformed, Opening, Opens, Profile, ProfileId, Schema, Seed, Source, State,
-//!     Tick, TickSpan, Ticks,
+//!     App, Level, Opening, Opens, Profile, ProfileId, Schema, Seed, State, Tick, TickSpan,
+//!     Ticks,
 //! };
 //! use serde::{Deserialize, Serialize};
 //!
@@ -24,8 +24,8 @@
 //! struct Nowhere;
 //!
 //! impl Level for Nowhere {
-//!     type Reference = String;
-//!     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> {
+//!     type Error = core::convert::Infallible;
+//!     fn load(_: &str) -> Result<Self, core::convert::Infallible> {
 //!         Ok(Self)
 //!     }
 //! }
@@ -86,14 +86,13 @@
 //!
 //! ```no_run
 //! # use std::sync::Arc;
-//! # use corvid::{Level, Malformed, Opening, Profile, ProfileId, Schema, Seed, Source, State,
-//! #     Tick, TickSpan};
+//! # use corvid::{Level, Opening, Profile, ProfileId, Schema, Seed, State, Tick, TickSpan};
 //! # use serde::{Deserialize, Serialize};
 //! # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 //! # struct Nowhere;
 //! # impl Level for Nowhere {
-//! #     type Reference = String;
-//! #     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> { Ok(Self) }
+//! #     type Error = core::convert::Infallible;
+//! #     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self) }
 //! # }
 //! # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 //! # struct Still;
@@ -175,7 +174,7 @@ pub use corvid_app::*;
 // The deterministic contract, and the digest a mark is.
 pub use corvid_behavior::{
     self as behavior, Command, Data, Discard, ExitCode, Extract, Extracting, Level, Loading,
-    Player, PlayerId, Presence, ProfileId, SaveSlot, Scope, State, Time,
+    PlayerId, PlayerState, Presence, ProfileId, SaveSlot, Scope, State,
 };
 // The filesystem a level is read through, named here rather than forwarded by
 // `corvid_behavior`. `Source` is in `Level::load`'s signature and `Malformed`
@@ -185,7 +184,7 @@ pub use corvid_files::{self as files, Malformed, Missing, Source};
 pub use corvid_hash::{self as hash, Digest, Hasher, digest};
 
 // The client-local half: what a player reads, hears and sees.
-pub use corvid_control::{self as control, Acting, Controller, LevelRef, Updating};
+pub use corvid_control::{self as control, Acting, Controller, Updating};
 pub use corvid_sound::{self as sound, AudioFrame, Auralizer, Cue, CueId, Hearing, SoundId};
 // Unconditional. Every `Controller` declares its input sets and is
 // handed an `Input`, whether or not there is a device to fill one — a headless
@@ -204,7 +203,7 @@ pub use corvid_replay::{
     self as replay, Opening, Opens, Profile, Schema, Seed, Session, Snapshots,
 };
 pub use corvid_signal::{self as signal, Emitter, Watch, channel};
-pub use corvid_time::{self as time, Clock, Duration, Elapsed, Tick, TickSpan, Ticks};
+pub use corvid_time::{self as time, Clock, Duration, Elapsed, Tick, TickSpan, Ticks, Time};
 
 // The maths stack, from the bits up. A game writing a position, an angle or a
 // colour names one crate for all of it.

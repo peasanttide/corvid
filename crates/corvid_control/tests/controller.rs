@@ -8,13 +8,13 @@
 
 use core::time::Duration;
 
-use corvid_behavior::{Level, PlayerId, State, Time};
+use corvid_behavior::{Level, PlayerId, State};
 use corvid_camera::Camera;
 use corvid_control::{Acting, Controller, Updating};
-use corvid_files::{Malformed, Source};
 use corvid_input::{Input, SetDescriptor};
 use corvid_rotation::FineRotation;
 use corvid_shape::Frustum;
+use corvid_time::Time;
 use corvid_transform::FineTransform;
 use corvid_vector::globalfinepoint;
 use serde::{Deserialize, Serialize};
@@ -23,8 +23,8 @@ use serde::{Deserialize, Serialize};
 struct Field;
 
 impl Level for Field {
-    type Reference = String;
-    fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> {
+    type Error = core::convert::Infallible;
+    fn load(_: &str) -> Result<Self, core::convert::Infallible> {
         Ok(Self)
     }
 }

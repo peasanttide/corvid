@@ -1,9 +1,9 @@
 //! The claim "a captured run replays to the same state", as one call.
 
 use corvid_app::{Game, Outcome};
-use corvid_behavior::{Discard, Player, State};
+use corvid_behavior::{Discard, PlayerState, State};
 use corvid_hash::digest;
-use corvid_replay::{HashTrace, LevelRef, Session};
+use corvid_replay::{HashTrace, Session};
 
 use crate::{Diverged, Failed, What, roster::seat};
 
@@ -62,7 +62,7 @@ use crate::{Diverged, Failed, What, roster::seat};
 /// the bytes did not read back as a session this build can replay, and
 /// [`Failed::Diverged`] naming the first tick the replay and the run disagree
 /// about.
-pub fn replays_to_itself<G: Game>(outcome: &Outcome<G>) -> Result<(), Failed<LevelRef<G::State>>> {
+pub fn replays_to_itself<G: Game>(outcome: &Outcome<G>) -> Result<(), Failed<String>> {
     let live = &outcome.session;
     let bytes = live.save().map_err(Failed::Wrote)?;
     let session: Session<G::State> =
@@ -84,7 +84,7 @@ pub fn replays_to_itself<G: Game>(outcome: &Outcome<G>) -> Result<(), Failed<Lev
     // allocate once per tick to hold something no second reader ever sees.
     let mut state = <G::State>::clone(&opening.origin());
     let idle = <<G::State as State>::Action>::default();
-    let mut roster: Vec<Player<'_, <G::State as State>::Action>> = Vec::new();
+    let mut roster: Vec<PlayerState<<G::State as State>::Action>> = Vec::new();
     let mut at = first;
 
     loop {
@@ -161,7 +161,7 @@ pub fn replays_to_itself<G: Game>(outcome: &Outcome<G>) -> Result<(), Failed<Lev
 fn survived_the_round_trip<S: State>(
     live: &Session<S>,
     decoded: &Session<S>,
-) -> Option<Diverged<LevelRef<S>>> {
+) -> Option<Diverged<String>> {
     if decoded.last() != live.last() {
         let ends = decoded.last().min(live.last());
         return Some(Diverged {
@@ -227,11 +227,8 @@ mod tests {
     struct Nowhere;
 
     impl corvid_behavior::Level for Nowhere {
-        type Reference = String;
-        fn load(
-            _reference: &String,
-            _files: &dyn corvid_files::Source,
-        ) -> Result<Self, corvid_files::Malformed> {
+        type Error = core::convert::Infallible;
+        fn load(_: &str) -> Result<Self, core::convert::Infallible> {
             Ok(Self)
         }
     }
@@ -250,9 +247,9 @@ mod tests {
         fn tick(
             self,
             _level: &Nowhere,
-            _players: &[corvid_behavior::Player<'_, ()>],
+            _players: &[corvid_behavior::PlayerState<()>],
             _rules: &(),
-            _command: &mut impl Command<Reference = String>,
+            _command: &mut impl Command,
         ) -> Self {
             Self(self.0 + 1)
         }

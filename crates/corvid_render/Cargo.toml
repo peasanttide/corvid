@@ -24,7 +24,10 @@ corvid_color = { workspace = true, features = ["std"] }
 # `Render` is the base of the client-local half now, so this is the whole of
 # what it needs above a device — `corvid_control` depends on this crate rather
 # than the other way round.
-corvid_behavior = { workspace = true, features = ["std"] }
+corvid_behavior = { workspace = true, features = ["std", "serde"] }
+# `Time`, which a frame is drawn against. It moved here out of
+# `corvid_behavior`, where it was a pair of this crate's values.
+corvid_time = { workspace = true, features = ["std"] }
 # The cameras, and the `f32` matrices they become. Both halves of the crossing
 # from fixed point to floating point live there now rather than here: it names
 # no graphics library, so a headless determinism check builds the same matrices

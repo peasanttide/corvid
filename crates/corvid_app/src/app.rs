@@ -18,7 +18,7 @@ use std::{
 use corvid_behavior::{ExitCode, Level, PlayerId, SaveSlot, State};
 use corvid_hash::Digest;
 use corvid_input::Input;
-use corvid_replay::{LevelRef, Opening, Opens, Refused, Session, Shape};
+use corvid_replay::{Opening, Opens, Refused, Session, Shape};
 use corvid_signal::Emitter;
 use corvid_time::{Clock, Elapsed, Step, Tick, TickSpan, Ticks};
 
@@ -138,7 +138,7 @@ pub struct Outcome<G: Game> {
     /// [`until`](App::until) said so.
     pub exit: ExitCode,
     /// Every request the ticks made, and what became of each.
-    pub requests: Requests<LevelRef<G::State>>,
+    pub requests: Requests<String>,
     /// What the netcode did over the whole run, for a run that had a
     /// [`transport`](App::transport).
     ///
@@ -938,19 +938,18 @@ where
     /// one: this crate has no files of a game's, and inventing a directory to
     /// look in would be inventing where a game keeps its levels.
     ///
-    /// So a game whose levels are self-describing — an enum, a name, anything
-    /// its `load` builds without reading — opens on the one named, content and
-    /// all. A game that reads its levels from files is **refused**, with what
-    /// its own loader said about the missing file. That is the honest pair of
-    /// answers: the alternative is a flag that appears to choose and does not.
+    /// So a game whose levels are self-describing — anything its `load` builds
+    /// without reading — opens on the one named, content and all. A game that
+    /// reads its levels from files is **refused**, with what its own loader
+    /// said. That is the honest pair of answers: the alternative is a flag that
+    /// appears to choose and does not.
     ///
     /// # Why JSON
     ///
-    /// The value is JSON of the game's own
-    /// [`Reference`](corvid_behavior::Level::Reference) rather than the
-    /// [`FromStr`](core::str::FromStr) that type also has, because a
-    /// `FromStr::Err` has no [`Display`](fmt::Display) bound on it and a
-    /// refusal nobody can print is not a refusal.
+    /// The value is the JSON of a string rather than the bare word, because a
+    /// level's name is a value in a save file as well as an argument on a
+    /// command line, and quoting it in one place means the two spell it
+    /// identically.
     ///
     /// # Errors
     ///
@@ -959,7 +958,7 @@ where
     /// the level will not load from nothing, and [`Error::Unopened`] if there
     /// is no opening to name a level in.
     fn open_on(mut self, json: &str) -> Result<Self, Error> {
-        let level: LevelRef<G::State> = serde_json::from_str(json).map_err(|why| {
+        let level: String = serde_json::from_str(json).map_err(|why| {
             Error::Argument(Argument::NotALevel {
                 value: json.to_owned(),
                 why: why.to_string(),
@@ -968,7 +967,7 @@ where
         // `&()` is the source with nothing in it, which `corvid_files`
         // implements for exactly this: a caller that has no files to offer says
         // so in the type rather than by handing over an empty directory.
-        let content = <<G::State as State>::Level as Level>::load(&level, &()).map_err(|why| {
+        let content = <<G::State as State>::Level as Level>::load(&level).map_err(|why| {
             Error::Argument(Argument::UnreadableLevel {
                 value: json.to_owned(),
                 why: why.to_string(),
@@ -993,9 +992,8 @@ where
     /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     /// # struct Nowhere;
     /// # impl corvid_behavior::Level for Nowhere {
-    /// #     type Reference = String;
-    /// #     fn load(_: &String, _: &dyn corvid_files::Source)
-    /// #         -> Result<Self, corvid_files::Malformed> { Ok(Self) }
+    /// #     type Error = core::convert::Infallible;
+    /// #     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self) }
     /// # }
     /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     /// # struct Bounce;

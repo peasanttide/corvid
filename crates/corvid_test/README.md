@@ -13,7 +13,7 @@ is four calls, and `examples/headless` makes all four.
 #
 # use corvid_app::{App, Error};
 # use corvid_behavior::{Command, Level, Player, ProfileId, State, Time};
-# use corvid_files::{Malformed, Source};
+# use corvid_files::{};
 # use corvid_control::Controller;
 # use corvid_input::Input;
 # use corvid_replay::{Opening, Opens, Profile, Schema, Seed};
@@ -23,8 +23,8 @@ is four calls, and `examples/headless` makes all four.
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 # struct Cliff;
 # impl Level for Cliff {
-#     type Reference = String;
-#     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> { Ok(Self) }
+#     type Error = core::convert::Infallible;
+#     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self) }
 # }
 #
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

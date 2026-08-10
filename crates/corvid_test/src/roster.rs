@@ -1,7 +1,7 @@
 //! Rebuilding the slice of players a tick sees, from the session and nothing
 //! else.
 
-use corvid_behavior::{Player, PlayerId, State};
+use corvid_behavior::{PlayerId, PlayerState, State};
 use corvid_replay::{ActionLog, Opening};
 use corvid_time::Tick;
 
@@ -18,7 +18,7 @@ pub(crate) fn seat<'a, S: State>(
     log: &'a ActionLog<S::Action>,
     at: Tick,
     idle: &'a S::Action,
-    into: &mut Vec<Player<'a, S::Action>>,
+    into: &mut Vec<PlayerState<S::Action>>,
 ) {
     into.clear();
     for (index, profile) in opening.roster.iter().enumerate() {
@@ -32,10 +32,10 @@ pub(crate) fn seat<'a, S: State>(
         let Some(presence) = profile.presence_at(at) else {
             continue;
         };
-        into.push(Player {
+        into.push(PlayerState {
             id,
             presence,
-            action: log.get(at, id).unwrap_or(idle),
+            action: log.get(at, id).unwrap_or(idle).clone(),
         });
     }
 }

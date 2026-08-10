@@ -4,33 +4,38 @@ The deterministic half of a Corvid game: three data types and two functions, on
 the state itself.
 
 Everything a peer, a save, a replay or a digest ever sees is here. Nothing here
-knows what a window, a device or a frame rate is — a dedicated server, a
+knows what a window, a device or a frame rate is -- a dedicated server, a
 determinism check in CI and a game's own `cargo test` link this crate and stop.
 
 ```rust
-use corvid_behavior::{Command, Level, Player, State};
-use corvid_files::{Malformed, Source};
+use corvid_behavior::{Command, Level, PlayerState, State};
 use serde::{Deserialize, Serialize};
 
-/// Authored, immutable within a session, read off a `Source`.
+/// Authored, immutable within a session.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 struct Field {
     width: u16,
 }
 
-impl Level for Field {
-    /// How this game names a level. An enum for a fixed set, a path for one
-    /// that loads from disk; this one uses a string.
-    type Reference = String;
+/// Why this game could not read a level. A game's own type: this one has a
+/// fixed set of fields, so the only way to miss is to ask for one it has not
+/// got. A game that read files would put its filesystem's failures here.
+#[derive(Debug, thiserror::Error)]
+#[error("no field is called {0}")]
+struct NoField(String);
 
-    fn load(reference: &String, files: &dyn Source) -> Result<Self, Malformed> {
-        let bytes = files.read(reference)?;
-        let width = u16::from(
-            *bytes
-                .first()
-                .ok_or_else(|| Malformed::at(reference, "a field needs a width"))?,
-        );
-        Ok(Self { width })
+impl Level for Field {
+        type Error = core::convert::Infallible;
+    type Error = NoField;
+
+    /// Where the bytes come from is the game's business. This one has its
+    /// levels in the binary; another opens a file, and neither is named here.
+    fn load(name: &str) -> Result<Self, NoField> {
+        match name {
+            "narrow" => Ok(Self { width: 4 }),
+            "wide" => Ok(Self { width: 64 }),
+            other => Err(NoField(other.to_owned())),
+        }
     }
 }
 
@@ -53,9 +58,9 @@ impl State for Walk {
     fn tick(
         self,
         level: &Field,
-        players: &[Player<'_, Step>],
+        players: &[PlayerState<Step>],
         _rules: &(),
-        command: &mut impl Command<Reference = String>,
+        command: &mut impl Command,
     ) -> Self {
         let stepped = players.iter().filter(|player| player.action.0).count();
         let at = self
@@ -78,7 +83,7 @@ The one argument for a marker type carrying five associated types is the orphan
 rule: an art crate cannot implement a Corvid trait for a simulation crate's
 type.
 
-It does not apply. A renderer implements nothing *for* the state —
+It does not apply. A renderer implements nothing *for* the state --
 it implements `Extract<S>` for **its own** type, which its own crate owns, and
 the state is a type parameter. So the marker went, and what is left is a trait
 you put on the struct you were already writing.
@@ -87,7 +92,7 @@ you put on the struct you were already writing.
 
 | | What it is |
 |---|---|
-| `Level` | Authored, immutable within a session. Read off a `Source`, never inside a tick. |
+| `Level` | Authored, immutable within a session. Read by name, never inside a tick. |
 | `Rules` | Deterministic tuning every peer must agree on. Feeds the hash. |
 | `Action` | One player's intent for one tick. Goes on the wire. `Default` is idle. |
 
@@ -95,8 +100,8 @@ The state is `Self`. There is no fourth type for it, and no fifth for a scratch.
 
 ## What became of `Scratch`
 
-It is gone. It was a memo channel into the tick, carrying an obligation — *a
-memo, never an accumulator* — that no type could state and that a rollback could
+It is gone. It was a memo channel into the tick, carrying an obligation -- *a
+memo, never an accumulator* -- that no type could state and that a rollback could
 silently violate. A scratch's value at tick N was a function of every tick
 before it, and the runtime does not preserve that chain: a seek restores a
 snapshot and re-simulates with whatever scratch its caller has, a rollback
@@ -106,23 +111,30 @@ from is a property of that machine rather than of the session.
 
 What replaces it is `self` by value. A tick that wants to reuse an allocation
 takes the `Vec` out of the state it was handed and puts it in the state it
-returns — the same move, without a channel that was invisible to the hash.
+returns -- the same move, without a channel that was invisible to the hash.
 
 ## A round trip has to give back what went in
 
-`Data` is the bundle of what a simulation's values owe: `Serialize`,
-`DeserializeOwned`, `Hash`, `Eq`, `Clone`, `Debug`. It is blanket-implemented,
-so no type ever names it, and it carries two obligations no bound can state.
+`Data` is the bundle of what a simulation's values owe: `Hash`, `Eq`, `Clone`,
+`Debug`, plus `Serialize` and `DeserializeOwned` when the `serde` feature is on.
+It is blanket-implemented, so no type ever names it, and it carries two
+obligations no bound can state.
+
+The encoding is a feature rather than an unconditional bound because the two are
+not the same crate to a caller. A game that is networked, saved or replayed
+turns it on and cannot work without it; a single-seat build or a test harness
+has no use for one, and demanding it anyway would charge every implementor for a
+capability only some of them reach.
 
 **A round trip has to be faithful.** A `Serialize` that skips a field its
 `Deserialize` expects, a `#[serde(skip)]` on something the state needs, a
-`#[serde(into = "…")]` whose conversion loses precision — these are one bug in
+`#[serde(into = "...")]` whose conversion loses precision -- these are one bug in
 different clothes. The tick that produced the state is deterministic in every
 case, and the game still comes apart, because the state that arrives is not the
 state that left.
 
 ```rust
-use corvid_behavior::round_trip_is_faithful;
+use corvid_wire::round_trip_is_faithful;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -134,12 +146,12 @@ assert!(round_trip_is_faithful(&Score { points: 7 }).is_ok());
 ```
 
 Point it at the states a session actually reaches, and **not** at
-`State::default()` — that is the value a lost field decays to, and so the value
+`State::default()` -- that is the value a lost field decays to, and so the value
 most likely to survive anything.
 
 **A clone has to be a copy.** `Clone` must give back a value that is `Eq` to its
 source and digests the same. The derive does this; a hand-written `Clone` that
-reseeds a field, resets a counter or drops a cache does not — and a snapshot
+reseeds a field, resets a counter or drops a cache does not -- and a snapshot
 taken by cloning a state is only a snapshot if the clone is one.
 
 ## `tick` takes `self` and returns `Self`
@@ -162,8 +174,8 @@ peers that are genuinely two processes comparing digests.
 
 *Read only your arguments* is the rule a reader infers from the signature, and it
 is too weak. `Arc::strong_count(level)` reads nothing but an argument and is
-still peer-local: a peer whose runtime holds a second handle — a deeper snapshot
-ring, a spectator feed, a recording — counts one more from the same level
+still peer-local: a peer whose runtime holds a second handle -- a deeper snapshot
+ring, a spectator feed, a recording -- counts one more from the same level
 *value*. `Arc::as_ptr`, `players.as_ptr()`, and any ordering derived from an
 address are the same hole.
 
@@ -186,8 +198,6 @@ struct Recorder {
 }
 
 impl Command for Recorder {
-    type Reference = String;
-
     fn quit(&mut self, code: ExitCode) {
         self.quits.push(code);
     }
@@ -204,54 +214,64 @@ assert_eq!(sink.quits, [ExitCode::SUCCESS]);
 ```
 
 Two things follow. **A tick that asks for nothing allocates nothing**, which is
-almost all of them — returning `Vec<Command<R>>` instead would make every
+almost all of them -- returning `Vec<Command<R>>` instead would make every
 element of every non-empty one as wide as the widest request, so the big
 payloads would have to be boxed. And **a test can be a `Vec`**, which is the
 reason this is a trait at all.
 
-A sink that wants none of it can be `Discard<R>`.
+A sink that wants none of it can be `Discard`, or `()`.
 
-The scope of each request — whether it is about the session or about one machine
-— is written on each method rather than answered by an accessor. An accessor is
+The scope of each request -- whether it is about the session or about one machine
+-- is written on each method rather than answered by an accessor. An accessor is
 what a `#[non_exhaustive]` enum would need, because a match on one is forced to
 write a fallback arm holding an unknown request with no way to ask what kind it
 is. One method per effect makes that problem disappear rather than solving it.
 
 ## Exactly one action per player, always
 
-A tick is handed a slice of `Player`, each carrying exactly one `Action`. A
+A tick is handed a slice of `PlayerState`, each carrying exactly one `Action`. A
 player who did nothing submits `Action::default()`, and a dropped player submits
-it forever — so a game never asks whether an action is present, and there is no
+it forever -- so a game never asks whether an action is present, and there is no
 `Option` to get wrong.
 
-Identity comes from the runtime, in `Player::id`, and never from anything the
-game can read off an action. A `Presence` says whether the seat is joining,
+Identity comes from the runtime, in `PlayerState::id`, and never from anything
+the game can read off an action. A `Presence` says whether the seat is joining,
 active or dropped, and it hashes alongside the state.
 
-### There is no pose on a `Player`
+A `PlayerState` owns its action rather than borrowing one, which makes it `Data`
+like everything else a tick sees: a roster can be written into a save, sent to a
+peer and digested on its own. That costs a clone per player per tick, of a type
+a game chose to be small enough to send over a network sixty times a second, and
+it buys the property that a desync report can show the roster as well as the
+state.
+
+### There is no pose on a `PlayerState`
 
 A headset's pose is client-local and arrives through the controller, not here.
-What crosses into the simulation is an `Action` the game named — never a
+What crosses into the simulation is an `Action` the game named -- never a
 number a device produced.
 
 ## Names, not indices
 
 `ExitCode`, `SaveSlot`, `RumbleId`, `AchievementId`, `StatId` and `LobbyId` are
 newtypes, so a rumble effect cannot be passed where an achievement was meant.
-`PresenceText` and `Url` are bounded at 64 and 256 bytes: the bound buys a fixed
-encoding, so the line digests identically on a peer whose platform would have
-truncated it somewhere else, and a refusal at the boundary rather than a quietly
-shorter line on one machine.
+`PresenceText` and `Url` are `corvid_name` bounded names at 64 and 256 bytes:
+the bound buys a fixed encoding, so the line digests identically on a peer whose
+platform would have truncated it somewhere else, and a refusal at the boundary
+rather than a quietly shorter line on one machine.
 
-## `Time`, `Loading` and `Extract` live here, and the client traits do not
+## `Loading` and `Extract` live here, and the client traits do not
 
-`Time` is where the session is — a tick and a wall clock. `Loading` is how far
-along one machine's bytes are. `Extract` is state into whatever a device wants.
+`Loading` is how far along one machine's bytes are. `Extract` is state into
+whatever a device wants, and what it is handed includes which seat this machine
+is drawing for -- `None` on a dedicated server or a spectator, which draw the
+session rather than a point of view.
 
-All three are named by more than one crate above this one, which is why they are
-here rather than beside the traits that use them: putting `Loading` next to
+Both are named by more than one crate above this one, which is why they are here
+rather than beside the traits that use them: putting `Loading` next to
 `Controller` would make the renderer depend on the controller's crate for a
-struct with two fields.
+struct with two fields. `Time` is `corvid_time`'s, where the rest of the
+workspace's clock vocabulary already lives.
 
 What is **not** here is `Controller`, `Render` or `Auralizer`. The line between
 the deterministic half and the client half is this crate's edge, and it is real:
@@ -260,11 +280,13 @@ exists.
 
 ## The two wire formats
 
-Everything here has two encodings that share nothing — a hand-written `Hash` and
-a derived `Serialize` — and `tests/golden.rs` and `tests/wire.rs` freeze both.
+Everything here has two encodings that share nothing -- a derived `Hash` and a
+derived `Serialize` -- and `tests/golden.rs` and `tests/wire.rs` freeze both.
 Two peers on different builds compare digests, so a field that changed its
 hashing order is a desync, and a field that changed its serialized form is a
 save that will not load.
 
-`Digestible` implementations are hand-written throughout, never derived: the
-derive links `syn`, and this crate is on the path of every build.
+Both are derived rather than written out. A hand-written `Hash` is a claim that
+the derived one is wrong and has to say how, and nothing here has that to say:
+the field order *is* the hashing order, which is exactly what the golden table
+freezes.

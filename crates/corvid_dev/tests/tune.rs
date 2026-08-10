@@ -11,8 +11,7 @@ use std::sync::Arc;
 
 use corvid_dev::{Inspect, Invalid, Proposal, Rows, Slider, Tunable, Tuning};
 
-use corvid_behavior::{Command, Level, Player, ProfileId, State};
-use corvid_files::{Malformed, Source};
+use corvid_behavior::{Command, Level, PlayerState, ProfileId, State};
 use corvid_fixed::I16F16;
 use corvid_hash::digest;
 use corvid_replay::{Opening, Profile, Schema, Seed, Session, Snapshots, Unreachable};
@@ -31,8 +30,8 @@ struct Rules {
 struct Nowhere;
 
 impl Level for Nowhere {
-    type Reference = String;
-    fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> {
+    type Error = core::convert::Infallible;
+    fn load(_: &str) -> Result<Self, core::convert::Infallible> {
         Ok(Self)
     }
 }
@@ -51,9 +50,9 @@ impl State for Counter {
     fn tick(
         self,
         _level: &Nowhere,
-        _players: &[Player<'_, ()>],
+        _players: &[PlayerState<()>],
         rules: &Rules,
-        _command: &mut impl Command<Reference = String>,
+        _command: &mut impl Command,
     ) -> Self {
         Self(self.0 + i64::from(rules.step.to_bits()))
     }

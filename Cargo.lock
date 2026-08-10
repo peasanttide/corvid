@@ -545,12 +545,11 @@ dependencies = [
 name = "corvid_behavior"
 version = "0.1.0"
 dependencies = [
- "corvid_files",
  "corvid_fixed",
  "corvid_hash",
  "corvid_macros",
+ "corvid_name",
  "corvid_time",
- "corvid_transform",
  "corvid_wire",
  "serde",
  "serde_json",
@@ -597,11 +596,11 @@ dependencies = [
  "corvid_behavior",
  "corvid_camera",
  "corvid_color",
- "corvid_files",
  "corvid_fixed",
  "corvid_input",
  "corvid_rotation",
  "corvid_shape",
+ "corvid_time",
  "corvid_transform",
  "corvid_vector",
  "serde",
@@ -612,7 +611,6 @@ name = "corvid_dev"
 version = "0.1.0"
 dependencies = [
  "corvid_behavior",
- "corvid_files",
  "corvid_fixed",
  "corvid_hash",
  "corvid_replay",
@@ -727,6 +725,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_name"
+version = "0.1.0"
+dependencies = [
+ "corvid_hash",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "corvid_net"
 version = "0.1.0"
 dependencies = [
@@ -764,6 +771,7 @@ dependencies = [
  "corvid_files",
  "corvid_fixed",
  "corvid_shape",
+ "corvid_time",
  "corvid_transform",
  "corvid_vector",
  "png",
@@ -950,6 +958,7 @@ dependencies = [
  "corvid_hash",
  "serde",
  "serde_json",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

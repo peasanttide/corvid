@@ -8,7 +8,6 @@ use corvid_behavior::{PlayerId, State};
 use corvid_hash::Digest;
 use corvid_hash::digest;
 use corvid_input::Input;
-use corvid_replay::LevelRef;
 use corvid_replay::{Opening, Opens};
 use corvid_time::{Tick, TickSpan, Ticks};
 
@@ -149,7 +148,7 @@ pub fn is_reproducible<S, C>(
     controls: &C::Config,
     input: &Input,
     ticks: u64,
-) -> Result<(), Failed<LevelRef<S>>>
+) -> Result<(), Failed<String>>
 where
     S: State + Opens,
     C: corvid_control::Controller<S>,
@@ -166,7 +165,7 @@ fn play<S, C>(
     controls: C::Config,
     input: Input,
     ticks: u64,
-) -> Result<Outcome<Twice<S, C>>, Failed<LevelRef<S>>>
+) -> Result<Outcome<Twice<S, C>>, Failed<String>>
 where
     S: State + Opens,
     C: corvid_control::Controller<S>,
@@ -202,10 +201,7 @@ where
 }
 
 /// The five comparisons, in the order the documentation gives.
-fn compare<G: Game>(
-    recorded: &Outcome<G>,
-    computed: &Outcome<G>,
-) -> Result<(), Diverged<LevelRef<G::State>>> {
+fn compare<G: Game>(recorded: &Outcome<G>, computed: &Outcome<G>) -> Result<(), Diverged<String>> {
     let first = recorded.session.first();
 
     if let Some(at) = recorded
@@ -260,10 +256,7 @@ fn compare<G: Game>(
 
 /// The first tick and seat the two logs disagree about, over the ticks both
 /// runs reached.
-fn actions<G: Game>(
-    recorded: &Outcome<G>,
-    computed: &Outcome<G>,
-) -> Option<Diverged<LevelRef<G::State>>> {
+fn actions<G: Game>(recorded: &Outcome<G>, computed: &Outcome<G>) -> Option<Diverged<String>> {
     let first = recorded.session.first().max(computed.session.first());
     let until = recorded.session.last().min(computed.session.last());
     // The narrower of the two, so that a roster this crate cannot produce — the
@@ -308,7 +301,7 @@ fn requests<G: Game>(
     recorded: &Outcome<G>,
     computed: &Outcome<G>,
     last: Tick,
-) -> Option<Diverged<LevelRef<G::State>>> {
+) -> Option<Diverged<String>> {
     let mut mine = recorded.requests.iter();
     let mut theirs = computed.requests.iter();
     loop {

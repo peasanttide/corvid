@@ -15,7 +15,7 @@ mod common;
 use std::sync::Arc;
 
 use common::{Action, Swarm, peer, push};
-use corvid_behavior::{Command, Player};
+use corvid_behavior::{Command, PlayerState};
 use corvid_behavior::{PlayerId, State};
 use corvid_hash::{Digest, digest};
 use corvid_lockstep::{Budget, Desync, FieldReport, Halt, Where};
@@ -372,11 +372,8 @@ struct Counted {
 struct Nowhere;
 
 impl corvid_behavior::Level for Nowhere {
-    type Reference = String;
-    fn load(
-        _reference: &String,
-        _files: &dyn corvid_files::Source,
-    ) -> Result<Self, corvid_files::Malformed> {
+    type Error = core::convert::Infallible;
+    fn load(_: &str) -> Result<Self, core::convert::Infallible> {
         Ok(Self)
     }
 }
@@ -391,9 +388,9 @@ impl State for Counted {
     fn tick(
         self,
         _level: &Nowhere,
-        players: &[Player<'_, ()>],
+        players: &[PlayerState<()>],
         _rules: &(),
-        _command: &mut impl Command<Reference = String>,
+        _command: &mut impl Command,
     ) -> Self {
         Self {
             count: self

@@ -25,10 +25,9 @@ use corvid_time::Tick;
 /// replay. Neither is the right one: being written down first is not evidence
 /// of anything.
 ///
-/// `R` is the game's [`Level::Reference`](corvid_behavior::Level::Reference),
-/// because two of the
-/// differences below hold requests the ticks made and a request that names a
-/// level names it in the game's own words.
+/// `R` is how a level is named, because two of the differences below hold
+/// requests the ticks made and a request that names a level carries the string
+/// [`Level::load`](corvid_behavior::Level::load) would read.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Diverged<R> {
     /// The last tick the two agreed about, or [`None`] when they disagree at

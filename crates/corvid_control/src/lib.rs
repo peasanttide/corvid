@@ -6,7 +6,7 @@
 
 mod controller;
 
-pub use controller::{Acting, Controller, LevelRef, Updating};
+pub use controller::{Acting, Controller, Updating};
 
 // `update`'s last argument, and the only wall-clock quantity in the whole
 // contract. Named through `core` rather than `std` because they are the same

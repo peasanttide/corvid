@@ -1,7 +1,8 @@
 //! What a game sounds like.
 
-use corvid_behavior::{Data, Extract, State, Time};
+use corvid_behavior::{Data, Extract, State};
 use corvid_camera::Camera;
+use corvid_time::Time;
 
 use crate::AudioFrame;
 

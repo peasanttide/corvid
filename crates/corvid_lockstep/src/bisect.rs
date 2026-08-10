@@ -18,12 +18,12 @@ use crate::{FieldReport, Where};
 /// ```
 /// # use corvid_lockstep::{Bisect, Probes};
 /// # use corvid_behavior::{Level, State};
-/// # use corvid_files::{Malformed, Source};
+/// # use corvid_files::{};
 /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 /// # struct Ground;
 /// # impl Level for Ground {
-/// #     type Reference = String;
-/// #     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> { Ok(Self) }
+/// #     type Error = core::convert::Infallible;
+/// #     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self) }
 /// # }
 /// #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 /// struct Towers { position: Vec<i32>, velocity: Vec<i32>, towers: Vec<i32> }

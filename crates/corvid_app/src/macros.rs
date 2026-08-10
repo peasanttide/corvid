@@ -63,9 +63,8 @@
 /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 /// # struct Nowhere;
 /// # impl corvid_behavior::Level for Nowhere {
-/// #     type Reference = String;
-/// #     fn load(_: &String, _: &dyn corvid_files::Source)
-/// #         -> Result<Self, corvid_files::Malformed> { Ok(Self) }
+/// #     type Error = core::convert::Infallible;
+/// #     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self) }
 /// # }
 /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 /// # struct Tally;
@@ -169,9 +168,8 @@ macro_rules! game {
 /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 /// # struct Nowhere;
 /// # impl corvid_behavior::Level for Nowhere {
-/// #     type Reference = String;
-/// #     fn load(_: &String, _: &dyn corvid_files::Source)
-/// #         -> Result<Self, corvid_files::Malformed> { Ok(Self) }
+/// #     type Error = core::convert::Infallible;
+/// #     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self) }
 /// # }
 /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 /// # struct Bounce;

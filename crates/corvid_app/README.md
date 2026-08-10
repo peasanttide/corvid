@@ -20,14 +20,14 @@ use corvid_behavior::{ProfileId, State};
 use corvid_replay::{Opening, Opens, Profile, Schema, Seed, Snapshots};
 use corvid_time::{Tick, TickSpan, Ticks};
 # use corvid_behavior::{Command, Level, Player};
-# use corvid_files::{Malformed, Source};
+# use corvid_files::{};
 # use serde::{Deserialize, Serialize};
 #
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 # struct Nowhere;
 # impl Level for Nowhere {
-#     type Reference = String;
-#     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> { Ok(Self) }
+#     type Error = core::convert::Infallible;
+#     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self) }
 # }
 #
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -414,15 +414,15 @@ run's files live, and who else is in the session. A setting only the game can
 know — its rules, its passes, its opening — is not here and should not be,
 because a flag for it would be a flag whose legal values only the game could
 list. `--level` is the near miss, and the reason it works is that what it
-carries is the game's *own* reference type as JSON: the parser holds a string,
-and `App::run` is what reads it into a `LevelRef` and hands it to
-[`Level::load`](corvid_behavior::Level::load).
+carries is a name rather than a level: the parser holds the JSON of a string,
+and `App::run` is what hands that string to
+[`Level::load`](corvid_behavior::Level::load) for the game to make sense of.
 
-The source that `load` is handed is the **empty** one, because a runtime has no
-files of a game's and inventing a directory to look in would be inventing where
-a game keeps its levels. So a game whose levels are self-describing — an enum, a
-name — opens on the one named, content and all; and a game that reads its levels
-from files is refused, with what its own loader said. Those are the two honest
+`load` is handed nothing but the name, because a runtime has no files of a
+game's and inventing a directory to look in would be inventing where a game
+keeps its levels. So a game whose levels are self-describing opens on the one
+named, content and all; and a game that reads its levels from somewhere the
+runtime cannot reach is refused, with what its own loader said. Those are the two honest
 answers, and the alternative to both is a flag that appears to choose the level
 and only renames it, since the reference is hashed into nothing and the content
 is what a tick is handed.

@@ -46,7 +46,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
-use corvid_behavior::{Command, Level, Player, ProfileId, StatId, State};
+use corvid_behavior::{Command, Level, PlayerState, ProfileId, StatId, State};
 use corvid_files::{Malformed, Source};
 use corvid_hash::Digest;
 use corvid_input::Input;
@@ -203,9 +203,8 @@ pub(crate) struct Hoard {
 
 /// The cliff reads nothing: this fixture's is a constant.
 impl Level for Cliff {
-    type Reference = String;
-
-    fn load(_reference: &String, _files: &dyn Source) -> Result<Self, Malformed> {
+    type Error = core::convert::Infallible;
+    fn load(_: &str) -> Result<Self, core::convert::Infallible> {
         Ok(Self::default())
     }
 }
@@ -220,9 +219,9 @@ impl State for Climb {
     fn tick(
         self,
         level: &Cliff,
-        players: &[Player<'_, Step>],
+        players: &[PlayerState<Step>],
         rules: &Rules,
-        command: &mut impl Command<Reference = String>,
+        command: &mut impl Command,
     ) -> Self {
         let previous = &self;
         // The tick number, which the state already carries rather than a

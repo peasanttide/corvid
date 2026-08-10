@@ -24,7 +24,8 @@
 use std::sync::Arc;
 
 use corvid_behavior::{
-    Command, Level as LevelContract, Player, PlayerId, Presence, ProfileId, State as StateContract,
+    Command, Level as LevelContract, PlayerId, PlayerState, Presence, ProfileId,
+    State as StateContract,
 };
 use corvid_hash::{Digest, digest};
 use corvid_replay::{ActionLog, HashTrace, Opening, Profile, Schema, Seed, Session};
@@ -94,18 +95,21 @@ pub(crate) enum Action {
     Reset,
 }
 
-/// The level reads its ceiling out of one file's first byte.
+/// The level reads its ceiling out of its own name, which is where a fixture's
+/// levels live now that the contract hands over a name and nothing else.
+///
+/// `"counter-40"` is a ceiling of forty. A game that read files would open one
+/// here instead, and the contract would look the same either way.
 impl LevelContract for Level {
-    type Reference = String;
+    type Error = core::convert::Infallible;
 
-    fn load(
-        reference: &String,
-        files: &dyn corvid_files::Source,
-    ) -> Result<Self, corvid_files::Malformed> {
-        let bytes = files.read(reference)?;
-        let ceiling = i64::from(*bytes.first().unwrap_or(&0));
+    fn load(name: &str) -> Result<Self, core::convert::Infallible> {
+        let ceiling = name
+            .rsplit_once('-')
+            .and_then(|(_, digits)| digits.parse().ok())
+            .unwrap_or(0);
         Ok(Self {
-            name: reference.clone(),
+            name: name.to_owned(),
             ceiling,
         })
     }
@@ -121,9 +125,9 @@ impl StateContract for State {
     fn tick(
         self,
         level: &Level,
-        players: &[Player<'_, Action>],
+        players: &[PlayerState<Action>],
         rules: &Rules,
-        _command: &mut impl Command<Reference = String>,
+        _command: &mut impl Command,
     ) -> Self {
         let mut count = self.count;
         let mut folded = self.folded;
@@ -307,17 +311,17 @@ pub(crate) fn forward(session: &Session<Counter>) -> (Vec<State>, HashTrace) {
     let idle = Action::default();
     let mut at = session.opening.first;
     while at < session.last() {
-        let players: Vec<Player<'_, Action>> = session
+        let players: Vec<PlayerState<Action>> = session
             .opening
             .roster
             .iter()
             .enumerate()
             .filter_map(|(seat, profile)| {
                 let id = PlayerId(u16::try_from(seat).expect("four seats fit in a u16"));
-                Some(Player {
+                Some(PlayerState {
                     id,
                     presence: profile.presence_at(at)?,
-                    action: session.log.get(at, id).unwrap_or(&idle),
+                    action: session.log.get(at, id).unwrap_or(&idle).clone(),
                 })
             })
             .collect();

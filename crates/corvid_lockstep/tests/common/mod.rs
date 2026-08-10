@@ -32,7 +32,7 @@ use corvid_hash::Digest;
 
 use corvid_lockstep::{Bisect, Budget, Datagram, Peer, Probes, Where};
 
-use corvid_behavior::{Command, Player, ProfileId, State as StateContract};
+use corvid_behavior::{Command, PlayerState, ProfileId, State as StateContract};
 use corvid_replay::Session;
 use corvid_replay::{Opening, Profile, Schema, Seed};
 use corvid_time::Tick;
@@ -91,12 +91,8 @@ pub(crate) enum Action {
 
 /// The level reads nothing: this fixture's is a constant.
 impl corvid_behavior::Level for Level {
-    type Reference = String;
-
-    fn load(
-        _reference: &String,
-        _files: &dyn corvid_files::Source,
-    ) -> Result<Self, corvid_files::Malformed> {
+    type Error = core::convert::Infallible;
+    fn load(_: &str) -> Result<Self, core::convert::Infallible> {
         Ok(Self {
             rows: 0,
             ceiling: 0,
@@ -114,16 +110,16 @@ impl StateContract for Swarm {
     fn tick(
         self,
         _level: &Level,
-        players: &[Player<'_, Action>],
+        players: &[PlayerState<Action>],
         rules: &Rules,
-        _command: &mut impl Command<Reference = String>,
+        _command: &mut impl Command,
     ) -> Self {
         let previous = &self;
         let mut folded = previous.folded;
         let mut force = 0_i32;
         let mut charge = 0_i32;
         for player in players {
-            let code = match *player.action {
+            let code = match player.action {
                 Action::Idle => 1,
                 Action::Push { force: by } => {
                     force = force.wrapping_add(i32::from(by));

@@ -9,7 +9,7 @@ use corvid::{
     sound::Listener,
 };
 
-use crate::table::{Contact, Court, Level, Move, Play, SEATS, Table};
+use crate::table::{COURT, Contact, Court, Move, Play, SEATS, Table};
 
 /// The one place this game's actions are named.
 ///
@@ -240,7 +240,7 @@ pub fn origin() -> Table {
 #[must_use]
 pub fn opening() -> Opening<Table> {
     Opening {
-        level: Level::Court,
+        level: COURT.to_owned(),
         content: Arc::new(court()),
         rules: Arc::new(rules()),
         roster: (0..SEATS)

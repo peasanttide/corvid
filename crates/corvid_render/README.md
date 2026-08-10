@@ -9,14 +9,14 @@ is a bet about which games exist, and this one is not in that business.
 
 ```rust
 use corvid_behavior::{Extract, Extracting, Level, State};
-use corvid_files::{Malformed, Source};
+use corvid_files::{};
 use corvid_render::{Drawing, Opened, Render};
 # use serde::{Deserialize, Serialize};
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 # struct Field;
 # impl Level for Field {
-#     type Reference = String;
-#     fn load(_: &String, _: &dyn Source) -> Result<Self, Malformed> { Ok(Self) }
+#     type Error = core::convert::Infallible;
+#     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self) }
 # }
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 # struct Game;

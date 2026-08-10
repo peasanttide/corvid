@@ -6,7 +6,7 @@
 //! implementation detail: a hash trace recorded by today's build is compared
 //! against one recorded by yesterday's, and against one recorded on another
 //! machine an hour ago. A variant renumbered, a field emitted in a different
-//! order, a tag moved behind its payload — none of those is a compile error,
+//! order, a tag moved behind its payload -- none of those is a compile error,
 //! and every one of them shows up as a desync or a refused save rather than as
 //! a red test, unless the outputs are written down.
 //!
@@ -18,16 +18,28 @@
 //!
 //! This is one of the crate's two frozen tables. `tests/wire.rs` is the other,
 //! and it freezes the *serialized bytes*, which are a different encoding over
-//! the same fixtures: widening an integer moves every byte row there and every
-//! digest row here, while renaming a field moves the JSON half of that table and
-//! no digest whatsoever. Neither table substitutes for the other, and the
-//! fixtures live in `tests/common/vocabulary.rs` so that both are talking about
-//! the same values.
+//! the same fixtures.
+//!
+//! Which table moves is worth getting right, because a maintainer reading a red
+//! one is about to decide what changed:
+//!
+//! - **Widening an integer** moves a digest row here and **no byte row there**.
+//!   A hasher absorbs the declared width, so `u16` becoming `u32` moves the
+//!   digest even when every recorded value stays in range -- while a varint is
+//!   written from the value, so the bytes are identical. This table is the only
+//!   one that catches it.
+//! - **Renaming a field** moves the self-describing half of that file and
+//!   nothing here, because a hasher absorbs values and never names.
+//! - **Reordering fields** moves everything.
+//!
+//! Neither table substitutes for the other, and the fixtures live in
+//! `tests/common/vocabulary.rs` so that both are talking about the same
+//! values.
 //!
 //! If a change here is genuinely wanted, it is a new version of the format:
 //! bump the crate's major version, reissue every trace recorded under the old
 //! one, and say so in the changelog. Regenerating these numbers to make a red
-//! test go green is never the right move — the red test *is* the notification
+//! test go green is never the right move -- the red test *is* the notification
 //! that peers on two builds have stopped agreeing.
 
 #![allow(
@@ -60,7 +72,7 @@ const GOLDEN_PRESENCE: &[DigestRow<'_>] = &[
 /// still digest to something, and would still distinguish two different
 /// players, and would still pass every relative test in this crate.
 ///
-/// These two rows were re-recorded when `Player::pose` was deleted — the field
+/// These two rows were re-recorded when `Player::pose` was deleted -- the field
 /// was emitted second, so removing it moved both of them.
 const GOLDEN_PLAYERS: &[DigestRow<'_>] = &[
     ("seat 2, dropped at 5, action 7", 0xbe69_4c26_70ec_04ca),
@@ -80,8 +92,8 @@ const GOLDEN_PLAYERS: &[DigestRow<'_>] = &[
 /// The two named [`ExitCode`]s are rows here rather than in the `Command` table
 /// because they are the numbers that leave the process: swapping
 /// `SUCCESS` and `FAILURE` is a change no relative comparison in this crate can
-/// see — everything else compares the two of them to each other, and a swap
-/// leaves every one of those comparisons undisturbed — and it would ship a game
+/// see -- everything else compares the two of them to each other, and a swap
+/// leaves every one of those comparisons undisturbed -- and it would ship a game
 /// that exits 1 on a clean quit.
 const GOLDEN_IDS: &[DigestRow<'_>] = &[
     ("PlayerId(0)", 0xa84f_c15c_a001_a03e),
@@ -108,8 +120,7 @@ fn every_presence_digests_to_its_recorded_value() {
 
 #[test]
 fn a_players_three_fields_digest_in_their_recorded_order() {
-    let action = 7_u32;
-    let digests: Vec<Digest> = every_player(&action).iter().map(digest).collect();
+    let digests: Vec<Digest> = every_player(7).iter().map(digest).collect();
     check("Player", GOLDEN_PLAYERS, &digests);
 }
 
@@ -127,8 +138,8 @@ fn the_identifiers_digest_to_their_recorded_values() {
     check("identifiers", GOLDEN_IDS, &digests);
 
     // Which number each of the two named codes actually is. The table above does
-    // catch a swap — `check` zips it positionally, so trading the two constants
-    // moves both rows — but it catches it as two wire-format breaks, and a
+    // catch a swap -- `check` zips it positionally, so trading the two constants
+    // moves both rows -- but it catches it as two wire-format breaks, and a
     // reader who came to a red golden test expecting a changed encoding is being
     // sent to the wrong question. These two lines name the failure: the
     // operating system reads the number, and it does not read it symmetrically.

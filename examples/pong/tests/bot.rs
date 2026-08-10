@@ -21,17 +21,17 @@ use std::sync::Arc;
 use corvid::FinePoint;
 use corvid::I16F16;
 use corvid::{Acting, Controller, Input, Time};
-use corvid::{Player, PlayerId, Presence, State};
+use corvid::{PlayerId, PlayerState, Presence, State};
 use pong::{
     Ball, Contact, Court, Move, Opponent, Paddle, Play, SEATS, Table, bot, court, origin, rules,
 };
 
 /// One tick, with both paddles played by whichever policy is given.
 fn step(table: &Table, level: &Arc<Court>, rules: &Play, actions: [Move; SEATS]) -> Table {
-    let players: Vec<Player<'_, Move>> = actions
-        .iter()
+    let players: Vec<PlayerState<Move>> = actions
+        .into_iter()
         .enumerate()
-        .map(|(seat, action)| Player {
+        .map(|(seat, action)| PlayerState {
             id: PlayerId(u16::try_from(seat).unwrap_or(0)),
             presence: Presence::Active,
             action,

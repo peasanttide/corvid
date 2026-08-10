@@ -1,9 +1,9 @@
 //! The drawing half of a game's client-local code, and what it is handed.
 
-use corvid_behavior::{Data, Extract, Loading, State, Time};
+use corvid_behavior::{Data, Extract, Loading, State};
 use corvid_camera::Camera;
-use corvid_control::LevelRef;
 use corvid_fixed::Factor16;
+use corvid_time::Time;
 
 use crate::icon::Icon;
 use crate::renderer::Extent;
@@ -81,14 +81,19 @@ pub struct Opened<'a> {
 ///
 /// One struct rather than five arguments, so that a new thing to hand over is
 /// a field here and not a signature change in every implementation.
+///
+/// Not generic over the state, because nothing in it is: a renderer reads the
+/// state through [`Extract`](../corvid_behavior/trait.Extract.html) into its
+/// own types, and by the time a frame is drawn what is left is a camera, a
+/// target and two numbers.
 #[derive(Debug)]
-pub struct Drawing<'a, S: State> {
+pub struct Drawing<'a> {
     /// Where the frame goes.
     pub target: Target<'a>,
     /// Whatever the controller's `look` answered.
     pub camera: &'a Camera,
     /// How far along this machine's bytes are, while a level is being read.
-    pub loading: Option<Loading<'a, LevelRef<S>>>,
+    pub loading: Option<Loading<'a>>,
     /// Where the session is.
     pub time: Time,
     /// The weight between the two extracted states: [`ZERO`](Factor16::ZERO)
@@ -176,7 +181,7 @@ pub trait Render<S: State>: Extract<S> {
     /// *is* loading is in the state, because every peer agrees about that;
     /// how far along one disk has got is nobody else's business, which is why
     /// it is here instead.
-    fn draw(&mut self, drawing: Drawing<'_, S>);
+    fn draw(&mut self, drawing: Drawing<'_>);
 
     /// The picture a platform puts in the title bar, the dock and the task
     /// switcher, or [`None`] to leave whatever the platform would have used.
@@ -208,5 +213,5 @@ impl<S: State> Render<S> for () {
 
     fn configure(&mut self, (): ()) {}
 
-    fn draw(&mut self, _drawing: Drawing<'_, S>) {}
+    fn draw(&mut self, _drawing: Drawing<'_>) {}
 }

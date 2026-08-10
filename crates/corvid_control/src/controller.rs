@@ -2,12 +2,12 @@
 
 use core::time::Duration;
 
-use corvid_behavior::{Data, Level, Loading, PlayerId, RumbleId, State, Time};
+use corvid_behavior::{Data, Loading, PlayerId, RumbleId, State};
 use corvid_camera::Camera;
 use corvid_input::{Cursor, Input, SetDescriptor, platform::Bindings};
+use corvid_time::Time;
 
 /// How a state's level names itself, spelled once.
-pub type LevelRef<S> = <<S as State>::Level as Level>::Reference;
 
 /// What a controller is handed when it is asked for an action.
 ///
@@ -58,7 +58,7 @@ pub struct Updating<'a, S: State> {
     /// What the devices say.
     pub input: &'a Input,
     /// How far along this machine's bytes are, while a level is being read.
-    pub loading: Option<Loading<'a, LevelRef<S>>>,
+    pub loading: Option<Loading<'a>>,
     /// Where the session is.
     pub time: Time,
     /// Real time since the last displayed frame.

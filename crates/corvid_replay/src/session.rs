@@ -4,19 +4,14 @@
 use alloc::{sync::Arc, vec::Vec};
 use core::{fmt, hash::Hash};
 
-use corvid_behavior::{Level, PlayerId, Presence, ProfileId, State};
+use alloc::string::String;
+
+use corvid_behavior::{PlayerId, Presence, ProfileId, State};
 use corvid_hash::Digest;
 use corvid_time::Tick;
 use serde::{Deserialize, Serialize};
 
 use crate::{ActionLog, HashTrace};
-
-/// How a state's level names itself, spelled once.
-///
-/// `<S::Level as Level>::Reference` appears in an opening, in a save and in
-/// every `Command::load`, and writing it out at each site buries what the field
-/// actually is.
-pub type LevelRef<S> = <<S as State>::Level as Level>::Reference;
 
 /// The number a game seeds its own randomness from.
 ///
@@ -141,7 +136,7 @@ pub struct Opening<S: State> {
     /// Which authored level, as the game names one. This is what a capture is
     /// identified by and what a [`Command::load`](corvid_behavior::Command::load)
     /// would name.
-    pub level: LevelRef<S>,
+    pub level: String,
     /// The level itself, so that a seek needs nothing but the session. This is
     /// the handle [`tick`](State::tick) is passed and the one a frame
     /// carries.
@@ -410,7 +405,7 @@ impl<S: State> Session<S> {
     /// Whatever the encoder reports. A `Session` whose parts all serialize
     /// cannot fail here; a game whose types cannot be written down compactly
     /// fails at the first one that cannot, and
-    /// [`round_trip_is_faithful`](corvid_behavior::round_trip_is_faithful) is
+    /// [`round_trip_is_faithful`](corvid_wire::round_trip_is_faithful) is
     /// where that is worth finding out.
     pub fn save(&self) -> Result<Vec<u8>, corvid_wire::Error> {
         corvid_wire::encode(self)
@@ -748,7 +743,7 @@ impl<S: State> Serialize for Opening<S> {
         #[derive(Serialize)]
         #[serde(bound = "")]
         struct Wire<'a, S: State> {
-            level: &'a LevelRef<S>,
+            level: &'a str,
             /// The value and not the handle, for this field and for `rules` and
             /// `origin` below.
             ///
@@ -799,7 +794,7 @@ impl<'de, S: State> Deserialize<'de> for Opening<S> {
         #[derive(Deserialize)]
         #[serde(bound = "")]
         struct Wire<S: State> {
-            level: LevelRef<S>,
+            level: String,
             content: S::Level,
             rules: S::Rules,
             roster: Vec<Profile>,

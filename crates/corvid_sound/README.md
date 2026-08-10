@@ -76,7 +76,7 @@ assert_eq!(frame.cues.len(), 1);
 
 | Quantity | Type | Why |
 |---|---|---|
-| Listener pose | [`GlobalFineTransform`] | world-scale position and a packed rotation, 32 bytes |
+| Listener pose | [`FineTransform`] | a position and a packed rotation, in the eye's own space |
 | Source and cue positions | [`FinePoint`] | ±32.7 km at 15.26 µm, as an offset from the listener |
 | Gains and occlusion | [`Factor16`] | `0.0 ..= 1.0`, with `65535` denoting exactly `1.0` |
 | Pitch | [`I8F8`] | ±128 playback rates at `1/256`, with [`I8F8::ONE`] the recorded rate |
@@ -266,7 +266,7 @@ every `rust` block above is compiled and run by `cargo test`, and a claim that
 stops being true stops the build.
 
 [`FinePoint`]: corvid_vector::FinePoint
-[`GlobalFineTransform`]: corvid_transform::GlobalFineTransform
+[`FineTransform`]: corvid_transform::FineTransform
 [`Factor16`]: corvid_fixed::Factor16
 [`Factor16::from_f64`]: corvid_fixed::Factor16::from_f64
 [`I8F8`]: corvid_fixed::I8F8

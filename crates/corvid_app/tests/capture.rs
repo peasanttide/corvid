@@ -14,8 +14,9 @@
 
 mod common;
 
-use corvid_behavior::{Extract, Extracting, Time};
+use corvid_behavior::{Extract, Extracting};
 use corvid_sound::Auralizer;
+use corvid_time::Time;
 use std::{fs, num::NonZeroU32};
 
 use common::{Action, Counting, Ears, Rules, Scratchpad, Tally, opening, schema};
@@ -216,11 +217,13 @@ fn a_captured_audio_frame_is_the_one_the_extractor_produced_at_that_tick() {
             state: &previous,
             level: &session.opening.content,
             time: Time::default(),
+            player: Some(SEAT),
         });
         ears.extract(Extracting {
             state: &current,
             level: &session.opening.content,
             time: Time::default(),
+            player: Some(SEAT),
         });
         ears.hear(Hearing {
             out: &mut frame,

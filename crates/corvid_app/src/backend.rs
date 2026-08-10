@@ -35,10 +35,10 @@ use corvid_input::Viewport;
 use corvid_sound::AudioFrame;
 use corvid_time::Tick;
 
-use corvid_behavior::{Loading, Time};
+use corvid_behavior::Loading;
 use corvid_camera::Camera;
 use corvid_fixed::Factor16;
-use corvid_replay::LevelRef;
+use corvid_time::Time;
 
 use crate::{Error, capture::Capture, game::Game};
 
@@ -66,7 +66,7 @@ pub(crate) struct Frame<'a, G: Game> {
     /// listener.
     pub(crate) camera: &'a Camera,
     /// A level being loaded, for whatever draws a progress bar.
-    pub(crate) loading: Option<Loading<'a, LevelRef<G::State>>>,
+    pub(crate) loading: Option<Loading<'a>>,
     /// Where the session is.
     pub(crate) time: Time,
     /// Where the display sits between the last tick and the next.

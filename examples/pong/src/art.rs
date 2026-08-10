@@ -243,7 +243,7 @@ impl Render<Table> for Graphics {
 
     fn configure(&mut self, (): ()) {}
 
-    fn draw(&mut self, drawing: Drawing<'_, Table>) {
+    fn draw(&mut self, drawing: Drawing<'_>) {
         let target = drawing.target;
         let alpha = drawing.alpha;
         let graphics = self;

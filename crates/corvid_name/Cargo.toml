@@ -1,0 +1,49 @@
+[package]
+name = "corvid_name"
+description = "Bounded names stored inline: a fixed-capacity string with a fixed encoding, for values that cross a wire."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["string", "inline", "no-std", "deterministic", "gamedev"]
+categories = ["game-development", "data-structures", "no-std::no-alloc"]
+
+# One optional dependency, and no allocator. A name is an array and a length
+# read from it, so nothing here needs `alloc` -- which is what lets a name sit
+# in a `no_std` crate that has no allocator at all.
+[dependencies]
+# The encoding, which is a string rather than the array behind it. Optional
+# because a name is a useful type without one and this workspace's rule is that
+# only the facade has default features.
+serde = { workspace = true, default-features = false, optional = true }
+
+[dev-dependencies]
+# A self-describing format, because the claim worth pinning is that a name
+# encodes as its text and not as its padding, and that is a claim about what a
+# reader sees.
+serde_json = "1"
+# The digest half of the same claim: two names holding the same text under
+# different capacities are different values, which is a statement about what a
+# peer compares rather than about what a reader sees.
+corvid_hash = { workspace = true }
+# `derive`, which the tests need and the library does not: `Name` writes its own
+# `Serialize` and the macro's newtype is `transparent` over it.
+serde = { workspace = true, features = ["derive"] }
+
+[features]
+default = []
+# The encoding. Off by default; a name compares, displays and digests without
+# it.
+serde = ["dep:serde"]
+# Nothing here needs an allocator, so this forwards and adds no API. It exists
+# so a downstream can turn `std` on uniformly across the workspace without
+# special-casing this crate.
+std = ["serde?/std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

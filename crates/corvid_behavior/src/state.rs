@@ -4,9 +4,7 @@
 use core::fmt::Debug;
 use core::hash::Hash;
 
-use serde::{Serialize, de::DeserializeOwned};
-
-use crate::{Command, Level, Player};
+use crate::{Command, Level, PlayerState};
 
 /// What a value has to be to cross a wire, a disk or a digest.
 ///
@@ -16,23 +14,74 @@ use crate::{Command, Level, Player};
 ///
 /// **A round trip has to be faithful.** A `Serialize` that skips a field its
 /// `Deserialize` expects, a `#[serde(skip)]` on something the state needs, a
-/// `#[serde(into = "…")]` whose conversion loses precision — these are the same
+/// `#[serde(into = "...")]` whose conversion loses precision -- these are the same
 /// bug in different clothes. The tick that produced the state is deterministic
 /// in every case, and the game still comes apart, because the state that
 /// arrives is not the state that left.
-/// [`round_trip_is_faithful`](crate::round_trip_is_faithful) is the mechanical
+/// [`round_trip_is_faithful`](../corvid_wire/fn.round_trip_is_faithful.html) is the mechanical
 /// form of it, at one value: point it at the states a session actually reaches
 /// and not at `State::default()`, which is the value a lost field decays to and
 /// so the value most likely to survive anything.
 ///
 /// **A clone has to be a copy.** `Clone` must give back a value that is `Eq` to
 /// its source and digests the same. The derive does this; a hand-written
-/// `Clone` that reseeds a field, resets a counter or drops a cache does not —
+/// `Clone` that reseeds a field, resets a counter or drops a cache does not --
 /// and a snapshot taken by cloning a state is only a snapshot if the clone is
 /// one.
-pub trait Data: Serialize + DeserializeOwned + Hash + Eq + Clone + Debug {}
+///
+/// **No pointer-sized integer in hashed state.** A count that a peer compares
+/// is a `u32` or a `u64`, never a `usize` or an `isize`. `corvid_hash`
+/// overrides `write_usize` so a container's *length* prefix is eight bytes
+/// everywhere, but `Hash::hash_slice` has a specialisation for integer slices
+/// that hands over raw bytes and reaches past the override -- so a
+/// `Vec<usize>` inside a state digests four bytes an element in a browser and
+/// eight on a native server, and two peers that agree about everything else
+/// disagree about the digest.
+///
+/// This bound cannot state that. Excluding a type from a blanket
+/// implementation over `Hash` is not something a `where` clause can do, and
+/// the alternative -- a `Digestible` trait of this workspace's own, deliberately
+/// not implemented for `usize` -- costs every game a hand-written impl per type
+/// to rule out a mistake a fixed-width annotation already rules out. So it is
+/// an obligation rather than a bound, and it is written here because this is
+/// where an implementor is reading.
+///
+/// # The encoding is the `serde` feature's
+///
+/// `Serialize + DeserializeOwned` are part of this bound when the feature is
+/// on and absent when it is off. A game that never leaves one machine -- a
+/// single-seat build with no saves, a test harness, a crate being compiled for
+/// a target with no room for the format -- implements the trait without
+/// writing an encoding, and the compiler stops asking for one it has no use
+/// for.
+///
+/// What that costs is that the obligation above is not enforceable in such a
+/// build, because there is nothing to round-trip. It is also not *reachable*
+/// there: a state that is never written down cannot come back wrong. The
+/// moment a build turns the feature on -- which every networked, saving or
+/// replaying one does -- the bound is back and
+/// [`round_trip_is_faithful`](../corvid_wire/fn.round_trip_is_faithful.html) is what
+/// checks it.
+#[cfg(feature = "serde")]
+pub trait Data: serde::Serialize + serde::de::DeserializeOwned + Hash + Eq + Clone + Debug {}
 
-impl<T> Data for T where T: Serialize + DeserializeOwned + Hash + Eq + Clone + Debug {}
+#[cfg(feature = "serde")]
+impl<T> Data for T where
+    T: serde::Serialize + serde::de::DeserializeOwned + Hash + Eq + Clone + Debug
+{
+}
+
+/// What a value has to be to cross a digest, with no encoding asked for.
+///
+/// The `serde` feature is off, so this is the same bundle as the documented
+/// one minus `Serialize` and `DeserializeOwned`. See the other definition for
+/// what an implementor owes; everything there still applies except the round
+/// trip, which a build with no encoding cannot make.
+#[cfg(not(feature = "serde"))]
+pub trait Data: Hash + Eq + Clone + Debug {}
+
+#[cfg(not(feature = "serde"))]
+impl<T> Data for T where T: Hash + Eq + Clone + Debug {}
 
 /// The deterministic half of a game.
 ///
@@ -68,8 +117,8 @@ impl<T> Data for T where T: Serialize + DeserializeOwned + Hash + Eq + Clone + D
 ///
 /// # What became of `Scratch`
 ///
-/// It is gone. It was a memo channel into the tick, carrying an obligation — "a
-/// memo, never an accumulator" — that no type could state and that a rollback
+/// It is gone. It was a memo channel into the tick, carrying an obligation -- "a
+/// memo, never an accumulator" -- that no type could state and that a rollback
 /// could silently violate: a scratch's value at tick N was a function of every
 /// tick before it, and the runtime does not preserve that chain across a seek,
 /// a rollback or a snapshot ring sized by one machine's spare memory.
@@ -90,7 +139,7 @@ pub trait State: Default + Data {
     /// Deterministic tuning. Every peer must agree; feeds the hash.
     ///
     /// This is the half of a game's settings that changes what the simulation
-    /// computes. The other half — resolution, volume, key bindings — is the
+    /// computes. The other half -- resolution, volume, key bindings -- is the
     /// player's own machine, and it is a
     /// [`Controller::Config`](../corvid_control/trait.Controller.html#associatedtype.Config)
     /// rather than anything here.
@@ -109,7 +158,7 @@ pub trait State: Default + Data {
     ///
     /// Runs on **every peer at the same tick**, because the
     /// [`load`](Command::load) that asked for it came out of a tick every peer
-    /// ran — so this is part of the simulation, is hashed like any other part
+    /// ran -- so this is part of the simulation, is hashed like any other part
     /// of it, and owes everything [`tick`](Self::tick) owes.
     ///
     /// `old` is [`None`] for the first level a session opens on.
@@ -132,7 +181,7 @@ pub trait State: Default + Data {
     /// "Read only your arguments" is the rule a reader infers from the
     /// signature, and it is too weak. `Arc::strong_count(level)` reads nothing
     /// but an argument and is still peer-local: a peer whose runtime holds a
-    /// second handle — a deeper snapshot ring, a spectator feed, a recording —
+    /// second handle -- a deeper snapshot ring, a spectator feed, a recording --
     /// counts one more from the same level *value*. `Arc::as_ptr`,
     /// `players.as_ptr()`, and any ordering derived from an address are the
     /// same hole.
@@ -144,8 +193,8 @@ pub trait State: Default + Data {
     ///
     /// `command` is where a tick reaches outside itself, and it reaches by
     /// describing rather than by doing. It is a `&mut impl` rather than a
-    /// returned `Vec` for two reasons: a tick that asks for nothing — which is
-    /// almost all of them — allocates nothing, and a test can pass a recorder
+    /// returned `Vec` for two reasons: a tick that asks for nothing -- which is
+    /// almost all of them -- allocates nothing, and a test can pass a recorder
     /// and assert on what it was told.
     ///
     /// It also means this trait is not object-safe. Nothing uses it that way.
@@ -153,9 +202,9 @@ pub trait State: Default + Data {
     fn tick(
         self,
         _level: &Self::Level,
-        _players: &[Player<'_, Self::Action>],
+        _players: &[PlayerState<Self::Action>],
         _rules: &Self::Rules,
-        _command: &mut impl Command<Reference = <Self::Level as Level>::Reference>,
+        _command: &mut impl Command,
     ) -> Self {
         self
     }
