@@ -5,7 +5,7 @@ use core::num::NonZeroU32;
 
 use crate::id::{AnalogId, DigitalId};
 use crate::sets::SetDescriptor;
-use crate::source::{Axis, Button, Key};
+use crate::source::{Axis, Button, Key, PadButton};
 
 /// Which of a snapshot's two analog accessors a binding answers on.
 ///
@@ -140,25 +140,35 @@ pub struct Bindings {
     pairs: Vec<PairBinding>,
 }
 
-/// The keys [`Bindings::placeholder`] hands out, in order.
+/// The controls [`Bindings::placeholder`] hands out, in order.
 ///
-/// Chosen so that the first few land under the left hand on a board the player
-/// is already resting on, and so that no two are the same key with a modifier.
-const PLACEHOLDER_KEYS: &[Key] = &[
-    Key::Space,
-    Key::E,
-    Key::Q,
-    Key::R,
-    Key::F,
-    Key::C,
-    Key::V,
-    Key::Enter,
-    Key::Escape,
-    Key::Tab,
-    Key::ArrowUp,
-    Key::ArrowDown,
-    Key::ArrowLeft,
-    Key::ArrowRight,
+/// A key *and* the pad button a player would expect to do the same job, so the
+/// table is worth something to somebody holding a controller rather than only
+/// to somebody at a board. Both are bound to the one action, which is the same
+/// union that makes "either shift" one action.
+///
+/// The keys are chosen so that the first few land under the left hand on a
+/// board the player is already resting on, and so that no two are the same key
+/// with a modifier. The pad side leads with the face buttons in the order a
+/// player reaches for them and then the shoulders.
+///
+/// Two families are deliberately absent. The arrows and the d-pad are how a
+/// player expects to *move*, and handing them out as the eleventh and
+/// twelfth action of whatever order a declaration happens to be written in is
+/// how a placeholder table turns into a game that walks when you shoot; a game
+/// that wants them says so with [`Bindings::pair`]. [`PadButton::Guide`] is the
+/// system button, which belongs to the platform rather than to any game.
+const PLACEHOLDER_BUTTONS: &[(Key, PadButton)] = &[
+    (Key::Space, PadButton::South),
+    (Key::E, PadButton::West),
+    (Key::Q, PadButton::North),
+    (Key::R, PadButton::East),
+    (Key::F, PadButton::RightBumper),
+    (Key::C, PadButton::LeftBumper),
+    (Key::V, PadButton::RightTrigger),
+    (Key::Enter, PadButton::Start),
+    (Key::Escape, PadButton::Select),
+    (Key::Tab, PadButton::LeftTrigger),
 ];
 
 /// Turns a literal into a span without a panic in sight.
@@ -187,6 +197,15 @@ const PLACEHOLDER_MOTION_SPAN: NonZeroU32 = span(320);
 
 /// How many wheel detents [`Bindings::placeholder`] treats as a full sweep.
 const PLACEHOLDER_SCROLL_SPAN: NonZeroU32 = span(8);
+
+/// What [`Bindings::placeholder`] treats as a full stick deflection.
+///
+/// A pad reports a stick as a level already at the end of its own range, so
+/// this is the span that leaves it alone: one whole unit in, one whole sweep
+/// out. It is a span rather than nothing because [`axis`](Bindings::axis) takes
+/// one, and a placeholder that halved a player's stick would look like a broken
+/// pad rather than a table nobody wrote.
+const PLACEHOLDER_STICK_SPAN: NonZeroU32 = span(1);
 
 impl Bindings {
     /// A table that binds nothing.
@@ -295,9 +314,10 @@ impl Bindings {
     ///
     /// **This is a placeholder and is documented as one everywhere it is
     /// named.** It binds by *number*: the digital actions of the declaration
-    /// take a fixed list of keys in order, the first analog action
-    /// takes mouse motion and the second takes the wheel, and everything past
-    /// that is unbound. It therefore has no idea what any of those actions
+    /// take a fixed list of keys -- and the matching pad buttons -- in order,
+    /// the first analog action takes mouse motion and the right stick, the
+    /// second takes the wheel and the left stick, and everything past that is
+    /// unbound. It therefore has no idea what any of those actions
     /// mean, and the key a player ends up pressing is an accident of where the
     /// action was declared.
     ///
@@ -326,29 +346,49 @@ impl Bindings {
         }
 
         let mut table = Self::new();
-        for (id, key) in (0..digital).zip(PLACEHOLDER_KEYS.iter().copied()) {
+        for (id, (key, pad)) in (0..digital).zip(PLACEHOLDER_BUTTONS.iter().copied()) {
             let Ok(id) = u16::try_from(id) else { break };
-            table = table.button(Button::key(key), DigitalId(id));
+            table = table
+                .button(Button::key(key), DigitalId(id))
+                .button(Button::pad(pad), DigitalId(id));
         }
-        // Both of these report motion that already happened, so both answer on
-        // `Input::delta` and both leave `Input::analog` at zero. There is no
-        // deflection in this table because no device this module reads reports
-        // one.
+        // The mouse and the wheel report motion that already happened, so they
+        // answer on `Input::delta`; a stick is a level and answers on
+        // `Input::analog`. An action bound to both therefore answers on both,
+        // by whichever device the player is actually touching -- so a game
+        // reading this table on either kind of hardware reads *both* accessors
+        // and adds them. That is the cost of a table that does not know what
+        // the player is holding, and it is the reason a real game writes its
+        // own rather than shipping this one.
         if analog > 0 {
-            table = table.axis(
-                Axis::MouseMotion,
-                AnalogId(0),
-                PLACEHOLDER_MOTION_SPAN,
-                Reading::Displacement,
-            );
+            table = table
+                .axis(
+                    Axis::MouseMotion,
+                    AnalogId(0),
+                    PLACEHOLDER_MOTION_SPAN,
+                    Reading::Displacement,
+                )
+                .axis(
+                    Axis::RightStick,
+                    AnalogId(0),
+                    PLACEHOLDER_STICK_SPAN,
+                    Reading::Deflection,
+                );
         }
         if analog > 1 {
-            table = table.axis(
-                Axis::Scroll,
-                AnalogId(1),
-                PLACEHOLDER_SCROLL_SPAN,
-                Reading::Displacement,
-            );
+            table = table
+                .axis(
+                    Axis::Scroll,
+                    AnalogId(1),
+                    PLACEHOLDER_SCROLL_SPAN,
+                    Reading::Displacement,
+                )
+                .axis(
+                    Axis::LeftStick,
+                    AnalogId(1),
+                    PLACEHOLDER_STICK_SPAN,
+                    Reading::Deflection,
+                );
         }
         table
     }

@@ -13,8 +13,19 @@
 
 use core::num::NonZeroU32;
 
+use corvid_fixed::Signed16;
 use corvid_input::Input;
 use corvid_input::platform::{Axis, Bindings, Button, Key, MouseButton, Reading};
+
+/// Half a span, as the axis a half-span reading lands on.
+///
+/// An axis is `bits / 32767` and 32767 is odd, so half of one is an exact tie
+/// between two neighbouring axes -- the only tie the scaling can actually be
+/// handed -- and `Signed16::saturating_from_ratio` rounds it away from zero.
+/// Named rather than spelled out at six call sites, because `16_384` at a
+/// glance looks like a wrong `16_383` and the tie is the whole reason it is
+/// not.
+pub const HALF_SPAN: Signed16 = Signed16::from_bits(16_384);
 
 /// Two sets, so that the "an inactive set answers with nothing" property has
 /// somewhere to be tested.

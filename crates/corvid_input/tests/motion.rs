@@ -16,7 +16,7 @@
 
 mod common;
 
-use common::{action, snapshot, span, table};
+use common::{HALF_SPAN, action, snapshot, span, table};
 
 use core::num::NonZeroU32;
 
@@ -63,10 +63,10 @@ fn a_deflection_survives_a_snapshot_and_focus_centres_it() {
 
     devices.deflected(Axis::MouseMotion, 50, 0);
     devices.snapshot(&stick, &mut input);
-    assert_eq!(input.analog(action::LOOK).x, Signed16::from_bits(16_383));
+    assert_eq!(input.analog(action::LOOK).x, HALF_SPAN);
 
     devices.snapshot(&stick, &mut input);
-    assert_eq!(input.analog(action::LOOK).x, Signed16::from_bits(16_383));
+    assert_eq!(input.analog(action::LOOK).x, HALF_SPAN);
 
     devices.released_all();
     devices.snapshot(&stick, &mut input);
@@ -232,7 +232,7 @@ fn motion_is_scaled_by_the_span_and_clamped_at_it() {
 
     devices.moved(Axis::MouseMotion, 50, 0);
     devices.snapshot(&table, &mut input);
-    assert_eq!(input.delta(action::LOOK).x, Signed16::from_bits(16_383));
+    assert_eq!(input.delta(action::LOOK).x, HALF_SPAN);
 
     devices.moved(Axis::MouseMotion, -100_000, 0);
     devices.snapshot(&table, &mut input);

@@ -241,7 +241,6 @@ version = "0.1.0"
 name = "corvid_input"
 version = "0.1.0"
 dependencies = [
- "corvid_bits",
  "corvid_fixed",
  "corvid_hash",
  "corvid_transform",

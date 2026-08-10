@@ -13,7 +13,6 @@ categories = ["game-development", "no-std"]
 [dependencies]
 corvid_fixed = { workspace = true }
 corvid_vector = { workspace = true }
-corvid_bits = { workspace = true }
 # For `FineTransform`, which a tracked pose is, and for `Signed16`, which both
 # axes of an analog action are. Nothing else here needs the maths stack.
 corvid_transform = { workspace = true }

@@ -308,11 +308,26 @@ there was a pad to read.
 Nothing here reads a device. `corvid_window`'s `gamepad` feature is the adapter,
 and it is the only file in the workspace that names a pad backend.
 
-`Bindings::placeholder` binds the mouse and the wheel as `Reading::Displacement`,
-because that is what a desktop reports. Nothing here reads a device that produces
-a deflection, so `Devices::deflected` exists and is called by nothing in this
-workspace but the tests, which is the honest state of it rather than a claim
-that sticks are supported.
+`Bindings::placeholder` binds a key **and** the pad button standing in for it to
+every digital action it reaches, and binds the mouse and the right stick to the
+first analog one -- the mouse as a `Reading::Displacement` because a desktop
+reports motion that already happened, the stick as a `Reading::Deflection`
+because a pad reports a level. An action bound to both answers on *both*
+accessors, so a game reading the placeholder table on either kind of hardware
+reads `delta` and `analog` and adds them; that is the cost of a table that does
+not know what the player is holding, and one more reason a real game writes its
+own.
+
+Neither the arrows nor the d-pad are handed out. Both are how a player expects to
+*move*, and a placeholder that gave them to whichever action happened to be
+declared eleventh is a game that walks when you shoot; `Bindings::pair` is how a
+game that wants them says so. `PadButton::Guide` is the system button and belongs
+to the platform.
+
+`Devices::deflected` -- the platform-side setter a pad backend would call -- is
+still called by nothing in this workspace but the tests, because nothing here
+reads a device. The binding table has somewhere to put a stick; nothing yet
+turns one.
 
 ## No floating point
 
@@ -337,9 +352,15 @@ An axis and a position are both integers and they are not the same kind of
 integer. An axis is `SNORM` -- `bits / 32767`, so the ends are exactly +/-1 -- and
 everything a simulation measures in is scaled by a power of two, `I16F16` at
 1/65536 and `I24F8` at 1/256. Crossing between them is a multiply and a divide
-by an odd number, which is why it is here rather than at every call site: the
-alternative was a shift that every game would write the same way and that would
-never quite reach the top of its range.
+by an odd number, which is why it has a name rather than being written out at
+every call site: the alternative was a shift that every game would write the
+same way and that would never quite reach the top of its range.
+
+The arithmetic itself is `I16F16::saturating_mul_signed16` and its coarse twin,
+in `corvid_fixed`, which is where a crossing between two fixed-point scales
+belongs -- `scale` and `scale_coarse` here are that operation under the names
+this domain uses. Turning a device's own units into an axis in the first place
+is `Signed16::saturating_from_ratio`, from the same crate.
 
 ```rust
 use corvid_fixed::{I16F16, Signed16};
@@ -364,7 +385,8 @@ assert_eq!(
 
 The ends are exact and the middle is rounded to nearest, symmetrically about
 zero: `scale(-axis, full)` is `-scale(axis, full)` for every axis and every
-scale. `tests/scale.rs` is where that is measured rather than asserted -- it
+scale. `tests/scale.rs` is where that is measured for this crate's naming of it
+rather than asserted -- it
 walks the whole range against an independent computation in `i128`, and it is
 fitted against the three cheaper crossings, each of which it catches: a `>> 15`,
 which is off at both ends and everywhere else; a truncating divide, which is

@@ -14,7 +14,7 @@
 //! square root in the common case and no floating point in any case.
 
 use super::{I16F16, I24F8, I48F16};
-use crate::Signed32;
+use crate::{Signed16, Signed32};
 
 impl I24F8 {
     /// The same value at sixteen fractional bits, saturating.
@@ -46,6 +46,53 @@ impl I24F8 {
         // saturating narrow is `I16F16`'s own, so the clamp is the one every
         // other operation on that type uses.
         I16F16::saturate((self.to_bits() as i64) << 8)
+    }
+
+    /// `self` scaled by `factor`, which runs `-1.0 ..= 1.0`.
+    ///
+    /// The operation an axis is one of: a control reports how far along its
+    /// range it is, and a game says what a full deflection is worth. The two
+    /// scales do not line up -- a [`Signed16`] is `bits / 32767` and this type
+    /// is a power of two -- so crossing between them is a multiply and a
+    /// rounded divide rather than a shift.
+    ///
+    /// Exact at the ends and at rest: [`Signed16::MAX`] gives `self`,
+    /// [`Signed16::MIN`] gives `-self` and [`Signed16::ZERO`] gives zero.
+    /// Everything between is the product rounded once, and the rounding is
+    /// symmetric, so a push one way is the same size as the same push back --
+    /// which matters because what a game builds out of an axis is hashed by
+    /// every peer.
+    ///
+    /// Saturating in the one case a two's-complement range cannot answer: the
+    /// negation of [`MIN`](Self::MIN) is not a value, so `MIN` scaled by
+    /// [`Signed16::MIN`] gives [`MAX`](Self::MAX) rather than wrapping.
+    ///
+    /// ```
+    /// use corvid_fixed::{I24F8, Signed16};
+    ///
+    /// let full = I24F8::from_f64(100.0);
+    /// assert_eq!(full.saturating_mul_signed16(Signed16::MAX), full);
+    /// assert_eq!(full.saturating_mul_signed16(Signed16::MIN), -full);
+    /// assert_eq!(full.saturating_mul_signed16(Signed16::ZERO), I24F8::ZERO);
+    ///
+    /// // Whatever it rounds to, it rounds there in both directions.
+    /// let half = Signed16::from_bits(16_384);
+    /// assert_eq!(
+    ///     full.saturating_mul_signed16(-half),
+    ///     -full.saturating_mul_signed16(half),
+    /// );
+    ///
+    /// // The one asymmetry is the range's own.
+    /// assert_eq!(I24F8::MIN.saturating_mul_signed16(Signed16::MIN), I24F8::MAX);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn saturating_mul_signed16(self, factor: Signed16) -> Self {
+        // `canonicalize` first, so the `SNORM` denormal -- the second bit
+        // pattern for `-1.0` -- cannot push the product one step outside the
+        // range before the rounding sees it.
+        let numerator = (self.to_bits() as i64) * (factor.canonicalize().to_bits() as i64);
+        Self::saturate(divide(numerator, Signed16::MAX.to_bits() as i64))
     }
 
     /// The square, at the doubled scale. **Exact**, always.
@@ -120,6 +167,55 @@ impl I24F8 {
             None if self.is_positive() => Self::MAX,
             None => Self::ZERO,
         }
+    }
+}
+
+impl I16F16 {
+    /// `self` scaled by `factor`, which runs `-1.0 ..= 1.0`.
+    ///
+    /// The operation an axis is one of: a control reports how far along its
+    /// range it is, and a game says what a full deflection is worth. The two
+    /// scales do not line up -- a [`Signed16`] is `bits / 32767` and this type
+    /// is a power of two -- so crossing between them is a multiply and a
+    /// rounded divide rather than a shift.
+    ///
+    /// Exact at the ends and at rest: [`Signed16::MAX`] gives `self`,
+    /// [`Signed16::MIN`] gives `-self` and [`Signed16::ZERO`] gives zero.
+    /// Everything between is the product rounded once, and the rounding is
+    /// symmetric, so a push one way is the same size as the same push back --
+    /// which matters because what a game builds out of an axis is hashed by
+    /// every peer.
+    ///
+    /// Saturating in the one case a two's-complement range cannot answer: the
+    /// negation of [`MIN`](Self::MIN) is not a value, so `MIN` scaled by
+    /// [`Signed16::MIN`] gives [`MAX`](Self::MAX) rather than wrapping.
+    ///
+    /// ```
+    /// use corvid_fixed::{I16F16, Signed16};
+    ///
+    /// let full = I16F16::from_f64(2.5);
+    /// assert_eq!(full.saturating_mul_signed16(Signed16::MAX), full);
+    /// assert_eq!(full.saturating_mul_signed16(Signed16::MIN), -full);
+    /// assert_eq!(full.saturating_mul_signed16(Signed16::ZERO), I16F16::ZERO);
+    ///
+    /// // Whatever it rounds to, it rounds there in both directions.
+    /// let half = Signed16::from_bits(16_384);
+    /// assert_eq!(
+    ///     full.saturating_mul_signed16(-half),
+    ///     -full.saturating_mul_signed16(half),
+    /// );
+    ///
+    /// // The one asymmetry is the range's own.
+    /// assert_eq!(I16F16::MIN.saturating_mul_signed16(Signed16::MIN), I16F16::MAX);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn saturating_mul_signed16(self, factor: Signed16) -> Self {
+        // `canonicalize` first, so the `SNORM` denormal -- the second bit
+        // pattern for `-1.0` -- cannot push the product one step outside the
+        // range before the rounding sees it.
+        let numerator = (self.to_bits() as i64) * (factor.canonicalize().to_bits() as i64);
+        Self::saturate(divide(numerator, Signed16::MAX.to_bits() as i64))
     }
 }
 

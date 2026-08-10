@@ -7,6 +7,7 @@
 
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
+use core::cmp::Ordering;
 
 use crate::id::{AnalogId, DigitalId};
 use crate::platform::bind::{Bindings, Component, Reading};
@@ -14,14 +15,6 @@ use crate::snapshot::Input;
 use crate::source::{Axis, Button};
 use crate::value::{Analog, Digital};
 use corvid_fixed::Signed16;
-
-/// One full deflection, as a [`Signed16`] bit pattern.
-///
-/// [`Signed16::MAX`] is exactly `1.0`, and this is its bit pattern widened for
-/// the arithmetic below -- taken from the type rather than written out, so the
-/// two cannot drift. `tests/motion.rs` asserts that a full span of motion
-/// produces [`Signed16::MAX`] rather than something one short of it.
-const FULL: i64 = Signed16::MAX.to_bits() as i64;
 
 /// What the devices are doing, and what they did since the last snapshot.
 ///
@@ -54,9 +47,9 @@ pub struct Devices {
     /// Which came up since the last snapshot.
     released: BTreeSet<Button>,
     /// How far each relative axis has moved since the last snapshot.
-    motion: BTreeMap<Axis, [i64; 2]>,
+    motion: BTreeMap<Axis, [i32; 2]>,
     /// How far each absolute axis is pushed now.
-    deflection: BTreeMap<Axis, [i64; 2]>,
+    deflection: BTreeMap<Axis, [i32; 2]>,
     /// Where the pointer is, if the platform says.
     pointer: Option<Analog>,
     /// What has been typed since the last snapshot, in order.
@@ -139,8 +132,8 @@ impl Devices {
     /// absurd delta pins the axis instead of wrapping it.
     pub fn moved(&mut self, axis: Axis, dx: i32, dy: i32) {
         let total = self.motion.entry(axis).or_insert([0, 0]);
-        total[0] = total[0].saturating_add(i64::from(dx));
-        total[1] = total[1].saturating_add(i64::from(dy));
+        total[0] = total[0].saturating_add(dx);
+        total[1] = total[1].saturating_add(dy);
     }
 
     /// Records that `axis` is now pushed to `x`, `y` in the device's own units.
@@ -158,7 +151,7 @@ impl Devices {
     /// take its value from would be a half of the split that could not be
     /// tested.
     pub fn deflected(&mut self, axis: Axis, x: i32, y: i32) {
-        self.deflection.insert(axis, [i64::from(x), i64::from(y)]);
+        self.deflection.insert(axis, [x, y]);
     }
 
     /// Records that the window gained or lost the player's attention.
@@ -268,12 +261,13 @@ impl Devices {
         let mut deltas: BTreeMap<AnalogId, Analog> = BTreeMap::new();
         for binding in bindings.axes() {
             let span = i64::from(binding.span.get());
+            let fraction = |units: i32| Signed16::saturating_from_ratio(i64::from(units), span);
             let (raw, union) = match binding.reading {
                 Reading::Deflection => (self.deflection.get(&binding.axis), &mut levels),
                 Reading::Displacement => (self.motion.get(&binding.axis), &mut deltas),
             };
             let value = raw.copied().unwrap_or([0, 0]);
-            let read = Analog::new(fraction(value[0], span), fraction(value[1], span));
+            let read = Analog::new(fraction(value[0]), fraction(value[1]));
             let slot = union.entry(binding.action).or_insert(Analog::ZERO);
             *slot = Analog::new(further(slot.x, read.x), further(slot.y, read.y));
         }
@@ -337,45 +331,17 @@ impl Devices {
 /// Magnitude rather than signed maximum, because an axis runs both ways and a
 /// stick pushed fully left has to beat a mouse that did not move.
 ///
-/// A tie in magnitude is broken towards the greater signed value rather than
-/// towards whichever reading arrived first, which is what makes this
-/// commutative and so makes the fold over the table independent of the order
-/// the table lists its bindings in. Two controls on one axis pushed equally far
-/// in opposite directions is a reachable tie rather than a contrived one --
-/// [`fraction`] clamps both ends at [`Signed16::MAX`] -- and answering it by
-/// position would mean the same two controls read one way or the other
+/// A tie in magnitude is broken towards the greater value rather than towards
+/// whichever reading arrived first, which is what makes this commutative and so
+/// makes the fold over the table independent of the order the table lists its
+/// bindings in. Two controls on one axis pushed equally far in opposite
+/// directions is a reachable tie rather than a contrived one, and answering it
+/// by position would mean the same two controls read one way or the other
 /// depending on which line of a binding file was written first.
-const fn further(one: Signed16, two: Signed16) -> Signed16 {
-    // Canonicalized before the bits are read, which is the workspace's rule for
-    // `SNORM`: the denormal encoding of `-1.0` has a magnitude one greater than
-    // any canonical value, so a comparison against the raw pattern would let it
-    // beat a genuine `+1.0`. Neither of this function's callers can produce
-    // one, and reaching for the bits without folding first is how that stops
-    // being true.
-    let (one, two) = (one.canonicalize(), two.canonicalize());
-    let (near, far) = (one.to_bits().unsigned_abs(), two.to_bits().unsigned_abs());
-    if far > near || (far == near && two.to_bits() > one.to_bits()) {
-        two
-    } else {
-        one
+fn further(one: Signed16, two: Signed16) -> Signed16 {
+    match two.abs().cmp(&one.abs()) {
+        Ordering::Greater => two,
+        Ordering::Equal if two > one => two,
+        _ => one,
     }
-}
-
-/// How far along its range an axis is, given a reading in the device's own
-/// units and how many of those make a full sweep.
-///
-/// Integer throughout and clamped at both ends: a reading of a whole span is
-/// exactly [`Signed16::MAX`], and one past it stays there rather than wrapping
-/// into a value the other way.
-fn fraction(moved: i64, span: i64) -> Signed16 {
-    let clamped = moved
-        .saturating_mul(FULL)
-        .saturating_div(span)
-        .clamp(-FULL, FULL);
-    // The clamp puts this inside an `i16`, so the conversion cannot fail. It is
-    // written as a `try_from` rather than an `as` because the workspace's lints
-    // would otherwise have to be told to allow a truncating cast, and an
-    // allowed truncation reads the same whether or not the clamp above is still
-    // there.
-    Signed16::from_bits(i16::try_from(clamped).unwrap_or(0))
 }

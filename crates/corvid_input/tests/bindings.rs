@@ -16,7 +16,7 @@
 
 mod common;
 
-use common::{action, many, snapshot, span, table};
+use common::{HALF_SPAN, action, many, snapshot, span, table};
 
 use corvid_fixed::Signed16;
 use corvid_input::platform::{
@@ -70,7 +70,7 @@ fn several_axes_on_one_action_are_the_union_too() {
     devices.snapshot(&both, &mut input);
     assert_eq!(
         input.delta(action::LOOK).x,
-        Signed16::from_bits(16_383),
+        HALF_SPAN,
         "the quiet scroll binding zeroed what the mouse reported",
     );
 
@@ -80,7 +80,7 @@ fn several_axes_on_one_action_are_the_union_too() {
     devices.snapshot(&both, &mut input);
     assert_eq!(
         input.delta(action::LOOK).x,
-        Signed16::from_bits(16_383),
+        HALF_SPAN,
         "the quiet mouse binding zeroed what the scroll reported",
     );
 
@@ -106,7 +106,7 @@ fn a_displacement_binding_answers_on_delta_and_a_deflection_binding_on_analog() 
     // would have something to find rather than reading zero either way.
     devices.deflected(Axis::MouseMotion, 100, 0);
     devices.snapshot(&mouse, &mut input);
-    assert_eq!(input.delta(action::LOOK).x, Signed16::from_bits(16_383));
+    assert_eq!(input.delta(action::LOOK).x, HALF_SPAN);
     assert_eq!(
         input.analog(action::LOOK),
         Analog::ZERO,
@@ -169,37 +169,85 @@ fn an_action_of_an_inactive_set_reads_released_while_its_key_is_down() {
 #[test]
 fn the_placeholder_binds_by_number_and_runs_out_rather_than_wrapping() {
     // The placeholder's whole contract is that it is arbitrary but total: every
-    // digital action it reaches is bound to a different key, it binds them in
-    // identifier order, and it stops when it runs out. A key bound to two
-    // actions is the failure that would not show up as a missing binding.
+    // digital action it reaches is bound to a key *and* to the pad button
+    // standing in for it, it binds them in identifier order, and it stops when
+    // it runs out. A control bound to two actions is the failure that would not
+    // show up as a missing binding.
     let table = Bindings::placeholder(action::SETS);
 
     let bound: Vec<DigitalId> = table.buttons().iter().map(|&(_, action)| action).collect();
     assert_eq!(
         bound,
-        vec![DigitalId(0), DigitalId(1), DigitalId(2)],
-        "three digital actions are declared, so three are bound, in order",
+        vec![
+            DigitalId(0),
+            DigitalId(0),
+            DigitalId(1),
+            DigitalId(1),
+            DigitalId(2),
+            DigitalId(2),
+        ],
+        "three digital actions are declared, so three are bound, each on both kinds of hardware",
     );
 
-    let mut keys: Vec<Button> = table.buttons().iter().map(|&(button, _)| button).collect();
-    keys.sort_unstable();
-    keys.dedup();
-    assert_eq!(keys.len(), 3, "two actions share a control");
+    // Each action reaches a board and a pad, which is the property that makes
+    // the table worth something to a player holding either.
+    for action in [DigitalId(0), DigitalId(1), DigitalId(2)] {
+        let mut kinds: Vec<&str> = table
+            .buttons()
+            .iter()
+            .filter(|&&(_, bound)| bound == action)
+            .map(|&(button, _)| match button {
+                Button::Key(_) => "key",
+                Button::Pad(_) => "pad",
+                _ => "some other kind of control",
+            })
+            .collect();
+        kinds.sort_unstable();
+        assert_eq!(kinds, vec!["key", "pad"], "{action:?} is not on both");
+    }
 
-    assert_eq!(
-        table.axes().len(),
-        1,
-        "one analog action is declared, so the wheel is left unbound",
-    );
-    assert_eq!(table.axes()[0].action, AnalogId(0));
+    let mut controls: Vec<Button> = table.buttons().iter().map(|&(button, _)| button).collect();
+    controls.sort_unstable();
+    controls.dedup();
+    assert_eq!(controls.len(), 6, "two actions share a control");
+
+    // Neither the arrows nor the d-pad are handed out, because both are how a
+    // player expects to move rather than to act.
+    for button in table.buttons() {
+        assert!(
+            !matches!(
+                button.0,
+                Button::Key(Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight)
+                    | Button::Pad(
+                        PadButton::PadUp
+                            | PadButton::PadDown
+                            | PadButton::PadLeft
+                            | PadButton::PadRight
+                    )
+            ),
+            "{:?} is a direction and should not be a placeholder",
+            button.0,
+        );
+        assert_ne!(
+            button.0,
+            Button::pad(PadButton::Guide),
+            "the system button belongs to the platform",
+        );
+    }
+
+    // One analog action is declared, so it takes the mouse and the stick and
+    // the wheel is left unbound.
+    let axes: Vec<Axis> = table.axes().iter().map(|binding| binding.axis).collect();
+    assert_eq!(axes, vec![Axis::MouseMotion, Axis::RightStick]);
+    assert!(table.axes().iter().all(|b| b.action == AnalogId(0)));
 
     // And that it stops. A declaration with more digital actions than there are
-    // placeholder keys binds the keys it has and no more, rather than starting
-    // over and giving one key two meanings.
+    // placeholder controls binds the ones it has and no more, rather than
+    // starting over and giving one control two meanings.
     let crowded = Bindings::placeholder(many::SETS);
     let mut controls: Vec<Button> = crowded.buttons().iter().map(|&(b, _)| b).collect();
     let total = controls.len();
-    assert!(total < 20, "twenty actions were all bound somehow");
+    assert!(total < 40, "twenty actions were all bound somehow");
     controls.sort_unstable();
     controls.dedup();
     assert_eq!(controls.len(), total, "a control was handed out twice");
