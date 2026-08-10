@@ -42,7 +42,13 @@ impl Triangle {
     /// case [`cast`](Cast::cast) reports as a miss.
     #[must_use]
     pub fn normal(&self) -> Option<Direction> {
-        (self.b - self.a).cross(self.c - self.a).normalize()
+        // Wide from the corners, not from their narrowed difference. Both
+        // edges and the cross product itself leave a component's range for a
+        // triangle spanning much of the world, and narrowing any of them first
+        // does not lose precision so much as answer a different direction.
+        let first = offset_bits(self.b, self.a);
+        let second = offset_bits(self.c, self.a);
+        Direction::from_ratio(cross_wide(first, second))
     }
 
     /// The smallest axis-aligned box holding all three corners.

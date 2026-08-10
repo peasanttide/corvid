@@ -168,6 +168,45 @@ impl Direction {
 
     /// Up.
     pub const Z: Self = Self([Signed32::ZERO, Signed32::ZERO, Signed32::MAX]);
+
+    /// The unit direction three wide components point in, or [`None`] if they
+    /// are all zero.
+    ///
+    /// The scale cancels, so what these mean is a *ratio*: `[2, 0, 0]` and
+    /// `[2_000_000, 0, 0]` are the same direction, and neither number has to
+    /// fit a component. That is the whole point of taking `i128`.
+    ///
+    /// This exists for the caller whose vector is a cross product, a
+    /// difference of far-apart points, or anything else that has already left
+    /// a component's range. Normalizing such a vector by first narrowing it to
+    /// a [`GlobalPoint`] and calling
+    /// [`normalize`](GlobalPoint::normalize) saturates each component on the
+    /// way, which does not merely lose precision -- it changes the direction,
+    /// and the answer can point somewhere the input did not.
+    ///
+    /// ```
+    /// use corvid_vector::Direction;
+    ///
+    /// // A ratio, at any scale.
+    /// assert_eq!(Direction::from_ratio([0, 5, 0]), Some(Direction::Y));
+    /// assert_eq!(Direction::from_ratio([0, 5_000_000_000_000, 0]), Some(Direction::Y));
+    ///
+    /// // No direction to answer.
+    /// assert_eq!(Direction::from_ratio([0, 0, 0]), None);
+    /// ```
+    ///
+    /// The scale cancels but does not always cancel *exactly*. The reduction
+    /// inside shifts by a whole number of bits to bring the largest component
+    /// just under `2^30`, so a scale that is a power of two changes the shift
+    /// and nothing else and the answer is bit-identical, while any other scale
+    /// lands the mantissa differently and the last places can differ. Two
+    /// peers comparing directions have to reach them by the same arithmetic,
+    /// which is the rule everywhere else here too.
+    #[must_use]
+    #[inline]
+    pub const fn from_ratio(components: [i128; 3]) -> Option<Self> {
+        normalize_bits(components, false)
+    }
 }
 
 /// Normalizes three raw bit patterns into a unit [`Direction`].

@@ -286,3 +286,63 @@ fn the_signed32_denormal_computes_as_the_value_it_denotes() {
         );
     }
 }
+
+/// A ratio names a direction at any scale, and zero names none.
+///
+/// The scale cancels, which is the property that makes this worth having: a
+/// caller whose vector is a cross product of far-apart points has a number
+/// that fits no component, and narrowing it to fit would answer a different
+/// direction rather than a rounder one.
+#[test]
+fn a_wide_ratio_normalizes_at_any_scale() {
+    assert_eq!(Direction::from_ratio([0, 1, 0]), Some(Direction::Y));
+    assert_eq!(Direction::from_ratio([0, 5, 0]), Some(Direction::Y));
+    assert_eq!(Direction::from_ratio([-1, 0, 0]), Some(-Direction::X));
+
+    // Far past what a component holds, and past an `i64` as well.
+    let huge = i128::from(i64::MAX) * 4;
+    assert_eq!(Direction::from_ratio([0, 0, huge]), Some(Direction::Z));
+
+    assert_eq!(Direction::from_ratio([0, 0, 0]), None);
+}
+
+/// Doubling a ratio does not move the direction at all.
+///
+/// The reduction inside shifts by a power of two to bring the largest
+/// component just under `2^30`, so a scale that is itself a power of two
+/// changes the shift and nothing else, and the answer is bit-identical. That
+/// is the invariance worth pinning: two peers that scaled their arithmetic by
+/// different powers of two agree exactly.
+#[test]
+fn scaling_a_ratio_by_a_power_of_two_does_not_move_the_direction() {
+    for shift in 0..40 {
+        let scale = 1_i128 << shift;
+        assert_eq!(
+            Direction::from_ratio([3 * scale, -4 * scale, 12 * scale]),
+            Direction::from_ratio([3, -4, 12]),
+            "a ratio scaled by 2^{shift} named a different direction",
+        );
+    }
+}
+
+/// Any other scale agrees to within a last bit or so, and not exactly.
+///
+/// Worth stating as a test rather than left as a surprise: the shift above is
+/// by a whole number of bits, so a scale of seven lands the mantissa
+/// differently and the last places diverge. A caller comparing two directions
+/// that reached the same ratio by different arithmetic has to expect that.
+#[test]
+fn any_other_scale_agrees_to_within_a_last_bit() {
+    let unscaled = Direction::from_ratio([3, -4, 12]).expect("non-zero");
+    for scale in [7_i128, 1_000, 1_000_000_007] {
+        let scaled = Direction::from_ratio([3 * scale, -4 * scale, 12 * scale]).expect("non-zero");
+        for axis in 0..3 {
+            let apart =
+                (scaled.to_array()[axis].to_f64() - unscaled.to_array()[axis].to_f64()).abs();
+            assert!(
+                apart < 1e-8,
+                "a ratio scaled by {scale} moved axis {axis} by {apart}",
+            );
+        }
+    }
+}
