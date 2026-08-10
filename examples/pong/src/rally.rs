@@ -40,10 +40,27 @@ pub fn seats() -> u16 {
     u16::try_from(SEATS).unwrap_or(u16::MAX)
 }
 
-/// One seat's number, as the type a peer and a player are both counted in.
+/// One seat's number, as a [`PlayerId`] counts them: from nought.
 #[must_use]
 pub fn index(seat: usize) -> u16 {
     u16::try_from(seat).unwrap_or(u16::MAX)
+}
+
+/// The same seat, as a [`PeerId`] counts them: **from one**.
+///
+/// The two numberings are not the same and the difference is not cosmetic.
+/// `PeerId(0)` is [`PeerId::NONE`], the reserved "nobody" -- so a harness that
+/// handed a seat number straight to `PeerId` gave seat nought an address that
+/// routes nowhere, every send to it failed, and no datagram ever arrived.
+///
+/// That is worth a named function rather than a `+ 1` at each call site,
+/// because the failure it prevents is silent: `send_datagram` answers an error
+/// a harness is right to ignore (an unreachable peer is what a cut link *is*),
+/// so the peers simply never hear each other and every convergence test passes
+/// by agreeing about nothing.
+#[must_use]
+pub fn address(seat: usize) -> PeerId {
+    PeerId(index(seat).saturating_add(1))
 }
 
 /// What a seat's player does, tick by tick.
@@ -301,7 +318,7 @@ impl Match {
         // a peer.
         peer.submit(action)?;
 
-        let endpoint = self.net.endpoint(PeerId(index(seat)));
+        let endpoint = self.net.endpoint(address(seat));
         let mut arrived: Vec<Vec<u8>> = Vec::new();
         endpoint.poll(&mut |_from, delivery| {
             if let Delivery::Datagram(bytes) = delivery {
@@ -345,7 +362,7 @@ impl Match {
                     // A send that fails is a peer that is not reachable, which
                     // is what a cut link is and is not an error: the other end
                     // predicts through it.
-                    let _unreachable = endpoint.send_datagram(PeerId(index(other)), &bytes);
+                    let _unreachable = endpoint.send_datagram(address(other), &bytes);
                 }
             }
         }
@@ -519,7 +536,7 @@ fn opponent_loop(
                 if other != usize::from(seat.0) {
                     // As above: a peer that cannot be reached is predicted
                     // through rather than reported.
-                    let _unreachable = endpoint.send_datagram(PeerId(index(other)), &bytes);
+                    let _unreachable = endpoint.send_datagram(address(other), &bytes);
                 }
             }
         }

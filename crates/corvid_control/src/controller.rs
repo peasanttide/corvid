@@ -7,8 +7,6 @@ use corvid_camera::Camera;
 use corvid_input::{Cursor, Input, SetDescriptor, platform::Bindings};
 use corvid_time::Time;
 
-/// How a state's level names itself, spelled once.
-
 /// What a controller is handed when it is asked for an action.
 ///
 /// One struct rather than four arguments, so that a new thing to hand over is a

@@ -321,7 +321,7 @@ pub(crate) fn forward(session: &Session<Counter>) -> (Vec<State>, HashTrace) {
                 Some(PlayerState {
                     id,
                     presence: profile.presence_at(at)?,
-                    action: session.log.get(at, id).unwrap_or(&idle).clone(),
+                    action: *session.log.get(at, id).unwrap_or(&idle),
                 })
             })
             .collect();

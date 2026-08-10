@@ -47,7 +47,6 @@ use std::sync::{
 };
 
 use corvid_behavior::{Command, Level, PlayerState, ProfileId, StatId, State};
-use corvid_files::{Malformed, Source};
 use corvid_hash::Digest;
 use corvid_input::Input;
 use corvid_replay::{Opening, Opens, Profile, Schema, Seed};

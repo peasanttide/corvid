@@ -187,24 +187,6 @@ fn play(seat: u16, transport: Box<dyn Transport>) -> Result<Outcome<Linked>, cor
 /// because two peers on their own clocks stop at slightly different places —
 /// which is the honest shape of two machines and is exactly what the comparison
 /// has to tolerate without tolerating a divergence.
-/// # Ignored: this hangs, and the harness is why
-///
-/// The link's clock moves only when a peer polls, and a peer polls only when it
-/// ticks -- so a peer that stalls waiting for the other seat's inputs stops
-/// turning the clock that would deliver them. One peer stalled is survivable,
-/// because the other still advances the link. Both stalled is not: the
-/// datagrams that would clear the stall stay in flight and neither peer runs
-/// again. Two threads, no lock, and no progress.
-///
-/// It is the harness rather than the netcode. `corvid_lockstep`'s
-/// `tests/desync.rs` and `tests/rollback.rs` drive two `Peer`s directly and
-/// pass, and so does `a_run_with_no_transport_is_unchanged` below.
-///
-/// The fix is to advance `MockNet` from something other than a poll -- a thread
-/// of this harness's own, on a real interval, which is what a socket gives for
-/// free and is why `tests/socket.rs` needs none of this. Ignored rather than
-/// deleted, because the property it states is one worth having.
-#[ignore = "hangs: the harness advances the link only on a poll, and a stalled peer does not poll"]
 #[test]
 fn two_runtimes_over_one_link_agree() -> Fallible {
     let net = MockNet::new(2, 0x51_a7_e5);
@@ -218,7 +200,7 @@ fn two_runtimes_over_one_link_agree() -> Fallible {
     let handles: Vec<_> = (0..2_u16)
         .map(|seat| {
             let transport = Ticking {
-                endpoint: net.endpoint(PeerId(seat)),
+                endpoint: net.endpoint(PeerId(seat + 1)),
                 net: net.clone(),
                 period,
             };
@@ -340,24 +322,6 @@ fn a_run_with_no_transport_is_unchanged() -> Fallible {
 /// columns produces. It is checked here by replaying the networked session's
 /// own log through `Session::seek`, which is the runtime's replay path and
 /// knows nothing about peers.
-/// # Ignored: this hangs, and the harness is why
-///
-/// The link's clock moves only when a peer polls, and a peer polls only when it
-/// ticks -- so a peer that stalls waiting for the other seat's inputs stops
-/// turning the clock that would deliver them. One peer stalled is survivable,
-/// because the other still advances the link. Both stalled is not: the
-/// datagrams that would clear the stall stay in flight and neither peer runs
-/// again. Two threads, no lock, and no progress.
-///
-/// It is the harness rather than the netcode. `corvid_lockstep`'s
-/// `tests/desync.rs` and `tests/rollback.rs` drive two `Peer`s directly and
-/// pass, and so does `a_run_with_no_transport_is_unchanged` below.
-///
-/// The fix is to advance `MockNet` from something other than a poll -- a thread
-/// of this harness's own, on a real interval, which is what a socket gives for
-/// free and is why `tests/socket.rs` needs none of this. Ignored rather than
-/// deleted, because the property it states is one worth having.
-#[ignore = "hangs: the harness advances the link only on a poll, and a stalled peer does not poll"]
 #[test]
 fn a_networked_session_replays_to_the_same_state() -> Fallible {
     let net = MockNet::new(2, 0x9e_ed_1e);
@@ -371,7 +335,7 @@ fn a_networked_session_replays_to_the_same_state() -> Fallible {
     let handles: Vec<_> = (0..2_u16)
         .map(|seat| {
             let transport = Ticking {
-                endpoint: net.endpoint(PeerId(seat)),
+                endpoint: net.endpoint(PeerId(seat + 1)),
                 net: net.clone(),
                 period,
             };
