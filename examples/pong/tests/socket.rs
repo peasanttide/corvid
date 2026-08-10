@@ -45,10 +45,12 @@ const TICKS: u64 = 300;
 
 /// Two sockets on loopback that have found each other.
 fn met() -> Result<(UdpNet, UdpNet), Box<dyn std::error::Error>> {
-    let here = UdpNet::bind(("127.0.0.1", 0), PeerId(0))?;
-    let there = UdpNet::bind(("127.0.0.1", 0), PeerId(1))?;
-    here.connect(PeerId(1), there.local()?)?;
-    there.connect(PeerId(0), here.local()?)?;
+    // Numbered from one, because `PeerId(0)` is `PeerId::NONE` and a
+    // socket refuses to announce itself as nobody. Seat nought is peer one.
+    let here = UdpNet::bind(("127.0.0.1", 0), PeerId(1))?;
+    let there = UdpNet::bind(("127.0.0.1", 0), PeerId(2))?;
+    here.connect(PeerId(2), there.local()?)?;
+    there.connect(PeerId(1), here.local()?)?;
 
     let deadline = Instant::now() + PATIENCE;
     while Instant::now() < deadline {
@@ -118,8 +120,8 @@ fn two_peers_play_over_loopback() -> Fallible {
     let mut there = Peer::<Table>::new(Session::new(opening())?, PlayerId(1), Budget::DEFAULT);
 
     for _ in 0..TICKS {
-        step(&mut here, &here_socket, PeerId(1))?;
-        step(&mut there, &there_socket, PeerId(0))?;
+        step(&mut here, &here_socket, PeerId(2))?;
+        step(&mut there, &there_socket, PeerId(1))?;
         // Loopback is fast but not instant, and a peer that polled a
         // microsecond after the other sent would find nothing and predict. The
         // pause is what keeps this test about the wire rather than about how
@@ -175,12 +177,12 @@ fn two_peers_play_over_loopback() -> Fallible {
 /// made against a real socket: there is no opponent at that address at all.
 #[test]
 fn a_socket_with_nobody_on_it_stalls_rather_than_failing() -> Fallible {
-    let socket = UdpNet::bind(("127.0.0.1", 0), PeerId(0))?;
-    socket.connect(PeerId(1), "127.0.0.1:9")?;
+    let socket = UdpNet::bind(("127.0.0.1", 0), PeerId(1))?;
+    socket.connect(PeerId(2), "127.0.0.1:9")?;
 
     let mut alone = Peer::<Table>::new(Session::new(opening())?, PlayerId(0), Budget::DEFAULT);
     for _ in 0..100 {
-        step(&mut alone, &socket, PeerId(1))?;
+        step(&mut alone, &socket, PeerId(2))?;
     }
 
     // It simulated as far as its budget allows past the tick every seat has

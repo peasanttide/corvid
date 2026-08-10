@@ -444,7 +444,10 @@ pub fn together(
     net.all(Schedule::DOMESTIC);
 
     let other = PlayerId(u16::from(seat.0 == 0));
-    let opponent = net.endpoint(PeerId(other.0));
+    // `address`, not the seat number: the endpoint a peer binds is its `PeerId`
+    // and those are counted from one, so binding `other.0` would give seat
+    // nought `PeerId::NONE` and a link that routes nowhere.
+    let opponent = net.endpoint(address(usize::from(other.0)));
     let session = Session::new(opening()).map_err(Error::Shape)?;
     let clock = net.clone();
     let period = Rallying::PERIOD.period();
@@ -458,7 +461,7 @@ pub fn together(
     let app = App::<Rallying>::new()
         .opening(opening())
         .seat(seat)
-        .transport(Box::new(net.endpoint(PeerId(seat.0))))
+        .transport(Box::new(net.endpoint(address(usize::from(seat.0)))))
         .input(Input::new(crate::action::SETS))
         .bindings(crate::action::bindings());
     // A window is the point of this mode and not a requirement of it: without

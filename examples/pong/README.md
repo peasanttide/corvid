@@ -134,15 +134,15 @@ it from two ball positions would have to guess.
 
 ```rust
 use pong::{Move, court, opening, origin, rules};
-use corvid::{Discard, State, behavior::{Player, Presence, PlayerId}};
+use corvid::{Discard, State, behavior::{PlayerState, Presence, PlayerId}};
 
 // One tick, called directly: the paddles move and the ball waits to be served.
 // The sink is a `Discard`, because this game's ticks ask for nothing.
 let next = origin().tick(
     &court(),
     &[
-        Player { id: PlayerId(0), presence: Presence::Active, action: &Move::Up },
-        Player { id: PlayerId(1), presence: Presence::Active, action: &Move::Still },
+        PlayerState { id: PlayerId(0), presence: Presence::Active, action: Move::Up },
+        PlayerState { id: PlayerId(1), presence: Presence::Active, action: Move::Still },
     ],
     &rules(),
     &mut Discard::new(),

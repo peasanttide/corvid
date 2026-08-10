@@ -25,7 +25,7 @@ use corvid_net::{Lost, PeerId};
 use corvid_net_mock::Schedule;
 use pong::{
     Move,
-    rally::{Match, Policy, Trace, agreed},
+    rally::{Match, Policy, Trace, address, agreed},
 };
 
 /// How long a session in this file plays. Nine hundred ticks is thirty seconds
@@ -222,7 +222,11 @@ fn a_total_outage_is_not_a_desync() -> Fallible {
 fn a_cut_link_stalls_rather_than_halting() -> Fallible {
     let mut playing = Match::new(Schedule::PERFECT, SEED, [Policy::Chase, Policy::Idle])?;
     playing.play(90)?;
-    playing.net().cut(PeerId(0), PeerId(1), Lost::TimedOut);
+    // The seats as a `PeerId` counts them, which is from one -- `address`, not
+    // the seat number. Cutting `PeerId(0)` would name a link that does not
+    // exist and leave the two peers happily talking, which is the shape this
+    // test exists to rule out.
+    playing.net().cut(address(0), address(1), Lost::TimedOut);
     // No error, which is the assertion: a peer with nobody to talk to is a peer
     // that predicts and waits.
     playing.play(90)?;
