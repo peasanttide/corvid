@@ -6,10 +6,6 @@
     reason = "each test binary includes this module and uses a different subset of it"
 )]
 #![allow(
-    clippy::missing_const_for_fn,
-    reason = "test helpers are only ever called at run time, and their arithmetic is written plainly so it stays readable as a reference"
-)]
-#![allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::cast_precision_loss,

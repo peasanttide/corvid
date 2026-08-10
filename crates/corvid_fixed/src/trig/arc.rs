@@ -1,10 +1,5 @@
 //! The arc functions: CORDIC for the arctangent, and the arcsine built on it.
 
-#![allow(
-    clippy::redundant_pub_crate,
-    reason = "the workspace enables unreachable_pub, which wants the opposite of what this nursery lint suggests for a private module's items"
-)]
-
 use super::{ONE, PI, Q, TWO_PI, atan_series, mulq, rad_to_bits};
 
 /// Number of CORDIC rotations performed by [`atan2_bits`].

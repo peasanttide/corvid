@@ -52,10 +52,13 @@ const fn signed32_bits(value: Signed32) -> i32 {
 }
 mod base;
 mod geometry;
+mod measure;
+mod project;
 mod traits;
 
 use base::define_point;
 use geometry::define_point_geometry;
+pub use measure::Volume;
 use traits::define_point_traits;
 
 define_point! {
@@ -75,6 +78,7 @@ define_point! {
         one: 65_536,
         neg: saturating_neg,
         bits: i48f16_bits,
+        build: globalfinepoint,
     }
 }
 
@@ -95,6 +99,7 @@ define_point! {
         one: 256,
         neg: saturating_neg,
         bits: i24f8_bits,
+        build: globalpoint,
     }
 }
 
@@ -118,6 +123,7 @@ define_point! {
         one: 65_536,
         neg: saturating_neg,
         bits: i16f16_bits,
+        build: finepoint,
     }
 }
 
@@ -143,11 +149,78 @@ define_point! {
         one: 2_147_483_647,
         neg: neg,
         bits: signed32_bits,
+        build: direction,
     }
 }
 
 define_point_geometry!(Direction, Signed32, i64, u64, signed32_bits);
 define_point_traits!(Direction, Signed32);
+
+impl Direction {
+    /// Right, in the workspace's right-handed +X right, +Y forward, +Z up
+    /// convention.
+    ///
+    /// Written as a constant rather than reached through
+    /// [`normalize`](Direction::normalize), which answers an [`Option`]
+    /// because it has to: an axis is known to be a unit vector, and a caller
+    /// naming one should not be handed a `None` arm it can never take.
+    pub const X: Self = Self([Signed32::MAX, Signed32::ZERO, Signed32::ZERO]);
+
+    /// Forward.
+    pub const Y: Self = Self([Signed32::ZERO, Signed32::MAX, Signed32::ZERO]);
+
+    /// Up.
+    pub const Z: Self = Self([Signed32::ZERO, Signed32::ZERO, Signed32::MAX]);
+
+    /// The unit direction three wide components point in, or [`None`] if they
+    /// are all zero.
+    ///
+    /// The scale cancels, so what these mean is a *ratio*: `[2, 0, 0]` and
+    /// `[2_000_000, 0, 0]` are the same direction, and neither number has to
+    /// fit a component.
+    ///
+    /// **A cross product is what needs the extra width, and it is the only
+    /// thing that does.** Two [`GlobalPoint`]s crossed is a product of two Q8
+    /// bit patterns, which reaches `2^62` -- a word, and nothing narrower.
+    /// [`cross_direction`](GlobalPoint::cross_direction) is that caller, and
+    /// anything else with a ratio already in range can hand it over as it is.
+    /// What a caller must *not* do is narrow such a vector to a
+    /// [`GlobalPoint`] and call [`normalize`](GlobalPoint::normalize) on it:
+    /// that saturates each component independently, which does not merely lose
+    /// precision -- it changes the direction, and the answer can point
+    /// somewhere the input did not.
+    ///
+    /// ```
+    /// use corvid_vector::Direction;
+    ///
+    /// // A ratio, at any scale.
+    /// assert_eq!(Direction::from_ratio([0, 5, 0]), Some(Direction::Y));
+    /// assert_eq!(Direction::from_ratio([0, 5_000_000_000_000, 0]), Some(Direction::Y));
+    ///
+    /// // No direction to answer.
+    /// assert_eq!(Direction::from_ratio([0, 0, 0]), None);
+    /// ```
+    ///
+    /// The scale cancels but does not always cancel *exactly*. The reduction
+    /// inside shifts by a whole number of bits to bring the largest component
+    /// just under `2^30`, so a scale that is a power of two changes the shift
+    /// and nothing else and the answer is bit-identical, while any other scale
+    /// lands the mantissa differently and the last places can differ. Two
+    /// peers comparing directions have to reach them by the same arithmetic,
+    /// which is the rule everywhere else here too.
+    #[must_use]
+    #[inline]
+    pub const fn from_ratio(components: [i64; 3]) -> Option<Self> {
+        normalize_bits(
+            [
+                components[0] as i128,
+                components[1] as i128,
+                components[2] as i128,
+            ],
+            false,
+        )
+    }
+}
 
 /// Normalizes three raw bit patterns into a unit [`Direction`].
 ///

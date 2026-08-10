@@ -63,10 +63,6 @@
 //! at the bottom of this file check every derived value against `f64` and against
 //! Euler's independent identity for pi.
 
-#![allow(
-    clippy::redundant_pub_crate,
-    reason = "the workspace enables unreachable_pub, which wants the opposite of what this nursery lint suggests for a private module's items"
-)]
 mod arc;
 mod sine;
 #[cfg(test)]

@@ -55,6 +55,30 @@ magnitude quietly discarded. [`GlobalFinePoint::to_fine`] is the one a renderer
 runs thousands of times a frame, and because both types carry sixteen fractional
 bits it is a pure range check with no rounding at all.
 
+[`project`](GlobalPoint::project), [`align`](Direction::align) and
+[`along`](Direction::along) are the mixed-scale products a raycast is built
+from: how far along a direction an offset reaches, how much two directions
+agree, and a direction walked a distance.
+[`distance_squared`](GlobalPoint::distance_squared),
+[`rejection_squared`](GlobalPoint::rejection_squared),
+[`cross_direction`](GlobalPoint::cross_direction) and
+[`volume`](GlobalPoint::volume) are the rest of what a cast needs -- a squared
+distance, a squared closest approach, a face normal, and the signed volume a
+barycentric coordinate is a ratio of.
+
+**None of them is wider than a word**, and that takes an argument rather than a
+bound. A `Direction` is a *unit* vector, so Cauchy-Schwarz holds the sum of
+three Q39 products to `sqrt(3) * 2^62` and not to `3 * 2^62`, and the difference
+between those two numbers is the difference between fitting an `i64` and not.
+The same argument on a two-by-two minor is what bounds a cross product, and the
+two sums of squares go unsigned, where `3 * 2^62` fits with room. `tests/` goes
+looking for the corner of the range that reaches each bound rather than taking
+the algebra's word for it -- the projection's is *tight*, reached exactly.
+
+[`Volume`] is the one quantity here with no fixed-point type to be: a signed
+area at a scale chosen to keep it inside a word, opaque because every question
+a barycentric test asks of it -- a sign, a comparison, a ratio -- is scale-free.
+
 [`normalize`](GlobalPoint::normalize) returns `Option<Direction>`, `None` only
 for the zero vector. Only the ratios of the components matter, so one
 implementation serves all four widths without touching the component scale: one

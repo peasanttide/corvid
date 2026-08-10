@@ -143,6 +143,34 @@ macro_rules! define_angle {
                 self.to_turns()
             }
 
+            /// Half the angle, as a signed offset from zero, or [`None`]
+            /// past a half turn.
+            ///
+            /// The answer is a [`Pitch32`](crate::Pitch32) rather than another
+            /// angle because halving is the one operation whose result is not
+            /// a phase: a full turn halves to half a turn, and on a wrapping
+            /// type that is indistinguishable from halving zero. A pitch
+            /// covers half a turn either way and cannot wrap, so the two cases
+            /// stay apart -- which is what a field of view or a cone half
+            /// angle needs.
+            ///
+            /// That range is also why this is fallible. A pitch stops at a
+            /// quarter turn either way, so an angle past a half turn has no
+            /// half it can hold, and answering the clamped value would report
+            /// a right angle for three quarters of a turn. There is no field
+            /// of view or cone that wide, so the [`None`] arm is a caller
+            /// having asked the wrong question rather than a case to handle.
+            #[must_use]
+            #[inline]
+            pub const fn half(self) -> Option<$crate::Pitch32> {
+                let turns = self.to_turns();
+                if turns <= 0.5 {
+                    Some($crate::Pitch32::from_f64(turns / 2.0))
+                } else {
+                    None
+                }
+            }
+
             /// Converts from turns, wrapping into range.
             ///
             /// Named for consistency with the other families, where the natural

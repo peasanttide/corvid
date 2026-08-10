@@ -1,11 +1,6 @@
 //! The sine and its neighbours: the Taylor polynomial, the octant fold, and
 //! the fast parabola.
 
-#![allow(
-    clippy::redundant_pub_crate,
-    reason = "the workspace enables unreachable_pub, which wants the opposite of what this nursery lint suggests for a private module's items"
-)]
-
 use super::wide::{SIN_Q_ERROR, q_to_snorm_wide, sin_q_wide};
 use super::{OCTANT, OCTANT_BITS, ONE, Q, TWO_PI, div_round, mulq, q_to_snorm};
 

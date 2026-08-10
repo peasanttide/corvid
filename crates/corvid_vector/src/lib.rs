@@ -20,4 +20,7 @@ mod interop;
 mod point;
 
 pub use convert::OutOfRange;
-pub use point::{Direction, FinePoint, GlobalFinePoint, GlobalPoint};
+pub use point::{
+    Direction, FinePoint, GlobalFinePoint, GlobalPoint, Volume, direction, finepoint,
+    globalfinepoint, globalpoint,
+};

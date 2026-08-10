@@ -100,6 +100,18 @@ macro_rules! define_signed {
                 self.0 < -<$repr>::MAX
             }
 
+            #[doc = concat!("A wide bit pattern as a [`", stringify!($name), "`], clamping to `-1.0 ..= 1.0`.")]
+            ///
+            /// The narrowing an accumulator ends with, for the same reason the
+            /// fixed-point family has one: a dot product of two unit vectors
+            /// is mathematically inside the range and its rounding need not
+            /// be, so the last step clamps rather than wrapping.
+            #[must_use]
+            #[inline]
+            pub const fn saturating_from_bits(wide: $wide) -> Self {
+                Self::saturate(wide)
+            }
+
             /// Clamps a wide bit pattern into `MIN ..= MAX`.
             #[inline]
             const fn saturate(wide: $wide) -> Self {
@@ -318,6 +330,38 @@ macro_rules! define_signed {
                     -((-2 * numerator + denominator) / (2 * denominator))
                 };
                 Self((from + scaled) as $repr)
+            }
+        }
+
+        /// Converts a whole number of units, saturating. `1` is `1.0`, `-1`
+        /// is `-1.0`, and anything further out is the nearer end.
+        ///
+        /// **This conversion is lossy, unlike most `From`.** The type covers
+        /// `-1.0 ..= 1.0`, so the only integers it holds exactly are `-1`, `0`
+        /// and `1`; every other one saturates. That is deliberate rather than
+        /// an oversight, and it is the same clamping the type does everywhere
+        /// else -- `SNORM` is a clamped range, not a wrapping one, and the
+        /// arithmetic above already saturates rather than wraps.
+        ///
+        /// What it buys is the bare-number spelling at a call site, so
+        /// `direction(0, 1, 0)` reads as the axis it is.
+        ///
+        /// `i8` and no other width. It is the narrowest integer that spells
+        /// the three values this type actually holds, which is the honest
+        /// width for a conversion whose whole range is `-1 ..= 1` -- and one
+        /// impl rather than several is what lets an unsuffixed literal reach
+        /// an `impl Into<Self>` parameter at all, since rustc commits an
+        /// inference variable only when exactly one candidate applies.
+        impl From<i8> for $name {
+            #[inline]
+            fn from(value: i8) -> Self {
+                if value >= 1 {
+                    Self::MAX
+                } else if value <= -1 {
+                    Self::MIN
+                } else {
+                    Self::ZERO
+                }
             }
         }
 

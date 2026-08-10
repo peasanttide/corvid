@@ -25,7 +25,6 @@
     clippy::many_single_char_names,
     clippy::suboptimal_flops,
     clippy::items_after_statements,
-    clippy::missing_const_for_fn,
     clippy::needless_range_loop,
     reason = "x, y, z and w are the names this subject matter uses, and the f64 references are written as plain arithmetic so they stay independent of the implementation"
 )]

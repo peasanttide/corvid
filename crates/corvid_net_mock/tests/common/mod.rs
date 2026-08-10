@@ -11,10 +11,6 @@
     clippy::unwrap_used,
     reason = "a failed unwrap in a test is a failed test, which is what a test is for"
 )]
-#![allow(
-    clippy::redundant_pub_crate,
-    reason = "this module is private, so pub(crate) and pub are equivalent -- pub(crate) is the one unreachable_pub asks for, and the lib allows it for the same reason"
-)]
 
 use core::time::Duration;
 

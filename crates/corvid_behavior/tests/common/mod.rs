@@ -24,10 +24,6 @@
     dead_code,
     reason = "each integration test binary compiles this module separately, so anything only one of them uses is dead in the others"
 )]
-#![allow(
-    clippy::redundant_pub_crate,
-    reason = "this module is private to each test binary, so pub(crate) and pub are equivalent -- pub(crate) is the one rustc's unreachable_pub asks for, and the two lints cannot both be satisfied"
-)]
 
 /// The vocabulary fixtures, which the two frozen tables share and the counter
 /// game has nothing to do with.

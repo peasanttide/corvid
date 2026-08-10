@@ -1,10 +1,6 @@
 //! Helpers shared by the test binaries.
 
 #![allow(
-    clippy::missing_const_for_fn,
-    reason = "the helpers are only ever called at run time"
-)]
-#![allow(
     unreachable_pub,
     dead_code,
     reason = "each test binary includes this module and uses a different subset of it"

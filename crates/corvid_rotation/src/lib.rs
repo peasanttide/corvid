@@ -1,10 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![no_std]
 #![allow(
-    clippy::redundant_pub_crate,
-    reason = "these modules are private, so pub(crate) and pub are equivalent -- pub(crate) is the one that says what is meant, and keeps the helpers from looking like API if a module is ever made public"
-)]
-#![allow(
     clippy::many_single_char_names,
     reason = "x, y, z, w, m and v are the names this subject matter uses; spelling them out would obscure the formulae rather than clarify them"
 )]
