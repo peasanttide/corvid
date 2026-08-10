@@ -18,11 +18,23 @@
 //!
 //! This is one of the crate's two frozen tables. `tests/wire.rs` is the other,
 //! and it freezes the *serialized bytes*, which are a different encoding over
-//! the same fixtures: widening an integer moves every byte row there and every
-//! digest row here, while renaming a field moves the JSON half of that table and
-//! no digest whatsoever. Neither table substitutes for the other, and the
-//! fixtures live in `tests/common/vocabulary.rs` so that both are talking about
-//! the same values.
+//! the same fixtures.
+//!
+//! Which table moves is worth getting right, because a maintainer reading a red
+//! one is about to decide what changed:
+//!
+//! - **Widening an integer** moves a digest row here and **no byte row there**.
+//!   A hasher absorbs the declared width, so `u16` becoming `u32` moves the
+//!   digest even when every recorded value stays in range -- while a varint is
+//!   written from the value, so the bytes are identical. This table is the only
+//!   one that catches it.
+//! - **Renaming a field** moves the self-describing half of that file and
+//!   nothing here, because a hasher absorbs values and never names.
+//! - **Reordering fields** moves everything.
+//!
+//! Neither table substitutes for the other, and the fixtures live in
+//! `tests/common/vocabulary.rs` so that both are talking about the same
+//! values.
 //!
 //! If a change here is genuinely wanted, it is a new version of the format:
 //! bump the crate's major version, reissue every trace recorded under the old

@@ -13,12 +13,20 @@
 //! name and no width; and `tests/golden.rs` freezes what the derived [`Hash`]
 //! implementations produce under `corvid_hash`'s hasher.
 //!
-//! So: a field *renamed* moves the text table and neither of the other two,
-//! because a hasher absorbs values and never names and this crate's encoding
-//! writes none. A field reordered and a variant moved move all three. An
-//! identifier *widened* moves only the digest -- a varint carries a small number
-//! the same at every width, and a self-describing format writes the same number
-//! too. None of the four is a compile error.
+//! So, taking the four changes one at a time:
+//!
+//! - A field or variant **renamed** moves the text table and neither of the
+//!   other two, because a hasher absorbs values and never names and this
+//!   crate's encoding writes none.
+//! - **Fields reordered** moves all three.
+//! - **Variants reordered** moves the byte table and the digest, and **not the
+//!   text table**: a self-describing format writes the variant's name, so
+//!   moving it from third place to first leaves the JSON identical.
+//! - An identifier **widened** moves only the digest -- a varint carries a small
+//!   number the same at every width, and a self-describing format writes the
+//!   same number too.
+//!
+//! None of the four is a compile error.
 //!
 //! Nor can a round trip see any of them. `round_trip_is_faithful` and the tests
 //! in `tests/contract.rs` write a value out and read it back with one build, so
