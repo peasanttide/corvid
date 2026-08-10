@@ -19,8 +19,7 @@ use corvid_control::Controller;
 use corvid_behavior::{ProfileId, State};
 use corvid_replay::{Opening, Opens, Profile, Schema, Seed, Snapshots};
 use corvid_time::{Tick, TickSpan, Ticks};
-# use corvid_behavior::{Command, Level, Player};
-# use corvid_files::{};
+# use corvid_behavior::{Command, Level, PlayerState};
 # use serde::{Deserialize, Serialize};
 #
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -45,9 +44,9 @@ use corvid_time::{Tick, TickSpan, Ticks};
 #     fn tick(
 #         self,
 #         _level: &Nowhere,
-#         players: &[Player<'_, Effort>],
+#         players: &[PlayerState<Effort>],
 #         _rules: &(),
-#         _command: &mut impl Command<Reference = String>,
+#         _command: &mut impl Command,
 #     ) -> Self {
 #         let climbed = players
 #             .iter()

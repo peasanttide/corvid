@@ -22,13 +22,13 @@ use corvid_behavior::PlayerId;
 use corvid_hash::digest;
 use corvid_replay::{ActionLog, HashTrace, Opening, Profile, Schema, Seed, Session, Snapshots};
 use corvid_time::Tick;
-# use corvid_behavior::{Command, Level as LevelContract, Player, State};
-# use corvid_files::{};
+# use corvid_behavior::{Command, Level as LevelContract, PlayerState, State};
 # use serde::{Deserialize, Serialize};
 #
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 # struct Level { ceiling: i64 }
 # impl LevelContract for Level {
+#     type Error = core::convert::Infallible;
 #     fn load(_: &str) -> Result<Self, core::convert::Infallible> { Ok(Self { ceiling: 100 }) }
 # }
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -45,9 +45,9 @@ use corvid_time::Tick;
 #     fn tick(
 #         self,
 #         level: &Level,
-#         players: &[Player<'_, Action>],
+#         players: &[PlayerState<Action>],
 #         rules: &Rules,
-#         _command: &mut impl Command<Reference = String>,
+#         _command: &mut impl Command,
 #     ) -> Self {
 #         let bumps = players.iter().filter(|p| matches!(p.action, Action::Bump)).count() as i64;
 #         Self { count: (self.count + bumps * rules.step).min(level.ceiling) }

@@ -52,7 +52,7 @@ impl Scale {
 ///
 /// ```
 /// use corvid_xr::{Anchor, Pose};
-/// use corvid_fixed::I16F16;
+/// use corvid_fixed::{I16F16, I48F16};
 /// use corvid_rotation::FineRotation;
 /// use corvid_vector::{GlobalFinePoint, globalfinepoint};
 ///
@@ -113,13 +113,17 @@ impl Anchor {
     ///
     /// ```
     /// use corvid_xr::{Anchor, Pose};
-    /// use corvid_fixed::I16F16;
+    /// use corvid_fixed::{I16F16, I48F16};
     /// use corvid_rotation::FineRotation;
-    /// use corvid_transform::globalfinetransform;
-    /// use corvid_vector::{FinePoint, GlobalFinePoint};
+    /// use corvid_transform::FineTransform;
+    /// use corvid_vector::GlobalFinePoint;
     ///
-    /// let reach = FinePoint::new(I16F16::ZERO, I16F16::from_f64(0.6), I16F16::from_f64(1.4));
-    /// let ahead = globalfinetransform(reach, FineRotation::IDENTITY);
+    /// let reach = GlobalFinePoint::new(
+    ///     I48F16::ZERO,
+    ///     I48F16::from_f64(0.6),
+    ///     I48F16::from_f64(1.4),
+    /// );
+    /// let ahead = FineTransform::new(reach, FineRotation::IDENTITY);
     /// let held = Anchor::holding(
     ///     GlobalFinePoint::ZERO,
     ///     I16F16::from_f64(5_712.0),

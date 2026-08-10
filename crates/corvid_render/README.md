@@ -9,7 +9,6 @@ is a bet about which games exist, and this one is not in that business.
 
 ```rust
 use corvid_behavior::{Extract, Extracting, Level, State};
-use corvid_files::{};
 use corvid_render::{Drawing, Opened, Render};
 # use serde::{Deserialize, Serialize};
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -44,7 +43,7 @@ impl Render<Game> for Clear {
 
     fn configure(&mut self, (): ()) {}
 
-    fn draw(&mut self, drawing: Drawing<'_, Game>) {
+    fn draw(&mut self, drawing: Drawing<'_>) {
         // A real encoder, a real texture view, a real device and queue. Begin
         // as many passes as the frame wants; nothing here is a wrapper.
         let target = drawing.target;

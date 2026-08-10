@@ -18,7 +18,6 @@ use crate::{FieldReport, Where};
 /// ```
 /// # use corvid_lockstep::{Bisect, Probes};
 /// # use corvid_behavior::{Level, State};
-/// # use corvid_files::{};
 /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 /// # struct Ground;
 /// # impl Level for Ground {

@@ -23,13 +23,13 @@ use corvid_replay::Session;
 use corvid_time::Tick;
 use corvid_behavior::ProfileId;
 use corvid_replay::{Opening, Profile, Schema, Seed};
-# use corvid_behavior::{Command, Level as LevelContract, Player, State};
-# use corvid_files::{};
+# use corvid_behavior::{Command, Level as LevelContract, PlayerState, State};
 # use serde::{Deserialize, Serialize};
 #
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 # struct Level { ceiling: i64 }
 # impl LevelContract for Level {
+#     type Error = core::convert::Infallible;
 #     fn load(_: &str) -> Result<Self, core::convert::Infallible> {
 #         Ok(Self { ceiling: 1_000 })
 #     }
@@ -48,9 +48,9 @@ use corvid_replay::{Opening, Profile, Schema, Seed};
 #     fn tick(
 #         self,
 #         level: &Level,
-#         players: &[Player<'_, Action>],
+#         players: &[PlayerState<Action>],
 #         rules: &Rules,
-#         _command: &mut impl Command<Reference = String>,
+#         _command: &mut impl Command,
 #     ) -> Self {
 #         let mut next = self;
 #         for player in players {

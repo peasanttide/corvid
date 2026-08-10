@@ -25,7 +25,6 @@ struct Field {
 struct NoField(String);
 
 impl Level for Field {
-        type Error = core::convert::Infallible;
     type Error = NoField;
 
     /// Where the bytes come from is the game's business. This one has its

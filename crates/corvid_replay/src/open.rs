@@ -27,7 +27,6 @@ use crate::Opening;
 /// use corvid_replay::{Opening, Opens, Profile, Schema, Seed, Session};
 /// use corvid_time::Tick;
 /// # use corvid_behavior::{Level, ProfileId, State};
-/// # use corvid_files::{};
 /// # use serde::{Deserialize, Serialize};
 ///
 /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
