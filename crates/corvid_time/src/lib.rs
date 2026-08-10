@@ -13,12 +13,14 @@ mod span;
 mod step;
 mod tick;
 mod ticks;
+mod time;
 
 pub use clock::{Clock, Elapsed};
 pub use span::TickSpan;
 pub use step::Step;
 pub use tick::Tick;
 pub use ticks::Ticks;
+pub use time::Time;
 
 /// Re-exported so a period, a frame time and a clock reading are all the same
 /// type from the same place. It lives in `core::time` rather than `std::time`,

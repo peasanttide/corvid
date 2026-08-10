@@ -290,13 +290,14 @@ fn no_floating_point_anywhere_in_the_crate() {
     // has by construction -- it is the one test whose job is to be exhaustive,
     // and a module nobody added to the list is a module it silently skips --
     // so the count is asserted against the directory rather than trusted.
-    const SOURCES: [(&str, &str); 6] = [
+    const SOURCES: [(&str, &str); 7] = [
         ("src/lib.rs", include_str!("../src/lib.rs")),
         ("src/tick.rs", include_str!("../src/tick.rs")),
         ("src/ticks.rs", include_str!("../src/ticks.rs")),
         ("src/span.rs", include_str!("../src/span.rs")),
         ("src/step.rs", include_str!("../src/step.rs")),
         ("src/clock.rs", include_str!("../src/clock.rs")),
+        ("src/time.rs", include_str!("../src/time.rs")),
     ];
 
     // `into_iter().flatten()` rather than an `unwrap`, which this file spells
