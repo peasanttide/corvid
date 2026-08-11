@@ -319,6 +319,7 @@ dependencies = [
  "corvid_wire",
  "serde",
  "serde_json",
+ "thiserror",
 ]
 
 [[package]]

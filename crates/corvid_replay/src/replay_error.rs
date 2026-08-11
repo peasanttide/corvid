@@ -6,16 +6,17 @@
 //! is prose about failure, and interleaving the two makes both harder to
 //! follow.
 
-use core::{fmt, hash::Hash};
+use core::hash::Hash;
 
 use corvid_hash::Digest;
 use corvid_time::Tick;
 
 /// A capture could not be turned into a session this build can replay.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, thiserror::Error)]
 #[non_exhaustive]
 pub enum Load {
     /// The bytes are not a session, with the encoder's reason.
+    #[error("the bytes are not a session: {0}")]
     Bytes(corvid_wire::Error),
     /// The capture was recorded by a build that describes its types
     /// differently.
@@ -24,6 +25,11 @@ pub enum Load {
     /// build whose `State` means something else produces a state that is wrong
     /// without being detectably wrong, and the first thing that notices is a
     /// peer, later, disagreeing about a digest.
+    #[error(
+        "this capture was recorded by a build describing itself as {recorded} and \
+         this build describes itself as {running}: replaying it would not \
+         reproduce the session it recorded"
+    )]
     Schema {
         /// What the capture says the build that wrote it was.
         recorded: Digest,
@@ -31,25 +37,9 @@ pub enum Load {
         running: Digest,
     },
     /// The capture's own parts disagree about the session they describe.
+    #[error("the capture's parts disagree: {0}")]
     Shape(Shape),
 }
-
-impl fmt::Display for Load {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bytes(why) => write!(f, "the bytes are not a session: {why}"),
-            Self::Schema { recorded, running } => write!(
-                f,
-                "this capture was recorded by a build describing itself as \
-                 {recorded} and this build describes itself as {running}: \
-                 replaying it would not reproduce the session it recorded"
-            ),
-            Self::Shape(shape) => write!(f, "the capture's parts disagree: {shape}"),
-        }
-    }
-}
-
-impl core::error::Error for Load {}
 
 /// A session would not forget to a tick.
 ///
@@ -57,10 +47,14 @@ impl core::error::Error for Load {}
 /// about how much of it is worth keeping: forgetting to a tick a session already
 /// opens at is legal and does nothing, which is what lets a runtime call it on a
 /// schedule without first asking where it is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, thiserror::Error)]
 #[non_exhaustive]
 pub enum Forget {
     /// Before the opening. There is nothing there to forget.
+    #[error(
+        "tick {tick} is before the session's opening tick {first}, so there is \
+         nothing before it to forget"
+    )]
     Early {
         /// The tick that was asked for.
         tick: Tick,
@@ -70,6 +64,11 @@ pub enum Forget {
     /// Past the last tick the log reaches, so the session has no state there to
     /// be told about -- and forgetting to it would drop rows whose states nobody
     /// has computed yet.
+    #[error(
+        "tick {tick} is past tick {last}, which is as far as this session's log \
+         reaches: forgetting to it would drop rows whose states nothing has \
+         computed"
+    )]
     Beyond {
         /// The tick that was asked for.
         tick: Tick,
@@ -78,31 +77,15 @@ pub enum Forget {
     },
 }
 
-impl fmt::Display for Forget {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Early { tick, first } => write!(
-                f,
-                "tick {tick} is before the session's opening tick {first}, so \
-                 there is nothing before it to forget"
-            ),
-            Self::Beyond { tick, last } => write!(
-                f,
-                "tick {tick} is past tick {last}, which is as far as this \
-                 session's log reaches: forgetting to it would drop rows whose \
-                 states nothing has computed"
-            ),
-        }
-    }
-}
-
-impl core::error::Error for Forget {}
-
 /// Which of a capture's parts disagreed with which.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, thiserror::Error)]
 #[non_exhaustive]
 pub enum Shape {
     /// The log starts at a different tick than the opening.
+    #[error(
+        "the log's first row is tick {log} and the session opens at {opening}, so \
+         every row would be read against the wrong tick"
+    )]
     LogStart {
         /// The log's first tick.
         log: Tick,
@@ -110,6 +93,10 @@ pub enum Shape {
         opening: Tick,
     },
     /// The trace starts at a different tick than the opening.
+    #[error(
+        "the trace's first mark is tick {trace} and the session opens at \
+         {opening}, so every mark would be compared against the wrong tick"
+    )]
     TraceStart {
         /// The trace's first tick.
         trace: Tick,
@@ -121,11 +108,20 @@ pub enum Shape {
     /// A seat number is a `u16`, so a roster of more than sixty-five thousand
     /// has seats no action can be attributed to. It is the one shape check that
     /// is about a type's range rather than about two parts disagreeing.
+    #[error(
+        "the roster names {seats} seats and a seat number is a u16, so everything \
+         past {} has no action that could be attributed to it",
+        u16::MAX
+    )]
     Roster {
         /// How many seats the roster names.
         seats: usize,
     },
     /// The log's rows are not as wide as the roster.
+    #[error(
+        "a row of the log holds {log} seats and the roster names {roster}, so \
+         every row after the first would be read against the wrong seats"
+    )]
     Width {
         /// How many seats a row of the log holds.
         log: u16,
@@ -145,6 +141,12 @@ pub enum Shape {
     /// actions nobody recorded for seats nobody played, and the peers sending
     /// the real ones are turned away with
     /// [`Refused::Confirmed`](crate::Refused::Confirmed).
+    #[error(
+        "the log holds {entries} entries in rows of {players}, which is not a \
+         whole number of rows: the entries past the last whole row are the \
+         front of the next one the log grows, where they would be read as \
+         actions this capture never recorded"
+    )]
     Ragged {
         /// How many entries the log holds.
         entries: usize,
@@ -159,6 +161,12 @@ pub enum Shape {
     /// written to. A capture that arrived a byte short would let a peer rewrite
     /// actions the session has already agreed on and simulated, one at a time,
     /// with no refusal anywhere.
+    #[error(
+        "the log's confirmation bitmap holds {bytes} bytes and its {entries} \
+         entries need {needed}, so the entries it does not cover read as \
+         unconfirmed and anything could be written over what the session \
+         already agreed on"
+    )]
     Confirmations {
         /// How many bytes the bitmap holds.
         bytes: usize,
@@ -168,52 +176,3 @@ pub enum Shape {
         entries: usize,
     },
 }
-
-impl fmt::Display for Shape {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::LogStart { log, opening } => write!(
-                f,
-                "the log's first row is tick {log} and the session opens at \
-                 {opening}, so every row would be read against the wrong tick"
-            ),
-            Self::TraceStart { trace, opening } => write!(
-                f,
-                "the trace's first mark is tick {trace} and the session opens at \
-                 {opening}, so every mark would be compared against the wrong tick"
-            ),
-            Self::Roster { seats } => write!(
-                f,
-                "the roster names {seats} seats and a seat number is a u16, so \
-                 everything past {} has no action that could be attributed to it",
-                u16::MAX,
-            ),
-            Self::Width { log, roster } => write!(
-                f,
-                "a row of the log holds {log} seats and the roster names \
-                 {roster}, so every row after the first would be read against \
-                 the wrong seats"
-            ),
-            Self::Ragged { entries, players } => write!(
-                f,
-                "the log holds {entries} entries in rows of {players}, which is \
-                 not a whole number of rows: the entries past the last whole \
-                 row are the front of the next one the log grows, where they \
-                 would be read as actions this capture never recorded"
-            ),
-            Self::Confirmations {
-                bytes,
-                needed,
-                entries,
-            } => write!(
-                f,
-                "the log's confirmation bitmap holds {bytes} bytes and its \
-                 {entries} entries need {needed}, so the entries it does not \
-                 cover read as unconfirmed and anything could be written over \
-                 what the session already agreed on"
-            ),
-        }
-    }
-}
-
-impl core::error::Error for Shape {}

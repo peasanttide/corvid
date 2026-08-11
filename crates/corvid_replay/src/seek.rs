@@ -1,7 +1,6 @@
 //! The one function save, load, replay, rollback and time-walk are all made of.
 
 use alloc::{sync::Arc, vec::Vec};
-use core::fmt;
 
 use corvid_behavior::{Discard, PlayerId, PlayerState, State};
 use corvid_time::Tick;
@@ -217,10 +216,14 @@ impl<S: State> Session<S> {
 /// ring, which is the distinction worth keeping: an empty ring makes a seek
 /// slow and a log that stops at tick 400 makes tick 401 a tick that has not
 /// been played yet.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, thiserror::Error)]
 #[non_exhaustive]
 pub enum Unreachable {
     /// Before the session opened. Nothing precedes the opening state.
+    #[error(
+        "tick {to} is before the session's opening tick {first}, and nothing \
+         precedes the opening state"
+    )]
     Before {
         /// The tick that was asked for.
         to: Tick,
@@ -228,6 +231,10 @@ pub enum Unreachable {
         first: Tick,
     },
     /// After the last tick the log has rows to reach.
+    #[error(
+        "tick {to} is past tick {last}, which is as far as this session's log \
+         reaches"
+    )]
     After {
         /// The tick that was asked for.
         to: Tick,
@@ -235,22 +242,3 @@ pub enum Unreachable {
         last: Tick,
     },
 }
-
-impl fmt::Display for Unreachable {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Before { to, first } => write!(
-                f,
-                "tick {to} is before the session's opening tick {first}, and \
-                 nothing precedes the opening state"
-            ),
-            Self::After { to, last } => write!(
-                f,
-                "tick {to} is past tick {last}, which is as far as this \
-                 session's log reaches"
-            ),
-        }
-    }
-}
-
-impl core::error::Error for Unreachable {}

@@ -17,6 +17,7 @@ categories = ["game-development", "no-std"]
 # is the whole of what it does.
 corvid_behavior = { workspace = true, features = ["serde"] }
 corvid_hash = { workspace = true }
+thiserror = { workspace = true }
 # `serde` for the same reason `corvid_behavior` turns it on rather than
 # forwarding it: a `Tick` that could not be written down is a `Tick` an action
 # log could not record against.
