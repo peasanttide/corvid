@@ -1,0 +1,54 @@
+[package]
+name = "corvid_camera"
+description = "Ready-made cameras to compose into a view: an orbit, a walker, and the ray a screen position denotes."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["camera", "raycast", "fixed-point", "no-std", "gamedev"]
+categories = ["game-development", "no-std"]
+
+[dependencies]
+corvid_fixed = { workspace = true }
+corvid_rotation = { workspace = true }
+corvid_vector = { workspace = true }
+# The ray a projection answers with, and the primitives a cursor is resolved
+# against. This crate is the reason that one is a separate crate rather than a
+# module here: a game can cast at its own geometry without owning a camera.
+corvid_shape = { workspace = true }
+corvid_transform = { workspace = true }
+# The `f32` matrices a device binds. This crate is where the workspace's
+# fixed-point poses cross into them, so it is where the two are named together --
+# and `bytemuck` on it is what makes `Eye` the bytes of a uniform block rather
+# than something a game has to lay out itself.
+corvid_glm = { workspace = true, features = ["bytemuck"] }
+# The one narrowing the matrices need, and the `abs` behind the degenerate
+# frustum guard. Const, so a projection can be one.
+corvid_float = { workspace = true }
+# `Eye` is `Pod` unconditionally, because a uniform block is what it is for.
+bytemuck = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[features]
+default = []
+# Forwarded, so a downstream that turns it on here gets it on the poses and the
+# rays too rather than discovering halfway through a capture that the one thing
+# it cannot serialize is a `FineRotation`.
+serde = ["dep:serde", "corvid_shape/serde", "corvid_transform/serde"]
+# `Pod` and `Zeroable` on the cameras and the frustum they hold, so a game can
+# push a whole camera at a storage buffer without `unsafe` -- which the
+# workspace forbids. `Eye` does not need it and does not have it: that one is
+# `Pod` whatever the features say, because writing it into a uniform block is
+# the only thing it is for.
+bytemuck = ["corvid_shape/bytemuck", "corvid_transform/bytemuck"]
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+std = ["corvid_shape/std", "corvid_transform/std", "corvid_glm/std", "serde?/std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
