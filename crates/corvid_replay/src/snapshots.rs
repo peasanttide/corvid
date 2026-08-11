@@ -300,7 +300,7 @@ impl<S: State> Snapshots<S> {
     /// removing a snapshot is how far a seek would then have to replay across
     /// the gap it leaves, discounted by how old it is. Removing the entry at
     /// index `i` merges the interval that ends at it into the one after, so the
-    /// gap becomes `tick[i + 1] - tick[i - 1]`; dividing by the entry's age
+    /// gap becomes `tick[i + 1] - tick[i - 1]`; weighing that against the age
     /// makes a small gap near the present expensive to lose and a small gap far
     /// in the past cheap, which is what turns an even spread into one that
     /// thickens towards the tick the session is actually on.
@@ -312,7 +312,7 @@ impl<S: State> Snapshots<S> {
     /// the session replays from the opening every time.
     fn evict(&mut self) -> Option<Tick> {
         let newest = self.kept.last()?.tick;
-        let mut choice = None;
+        let mut choice: Option<(usize, u128, u128)> = None;
         for index in 1..self.kept.len().saturating_sub(1) {
             let (Some(before), Some(entry), Some(after)) = (
                 self.kept.get(index - 1),
@@ -323,9 +323,16 @@ impl<S: State> Snapshots<S> {
             };
             let gap = u128::from(after.tick.since(before.tick));
             let age = u128::from(newest.since(entry.tick)).saturating_add(1);
-            let score = (gap << 32) / age;
-            if choice.is_none_or(|(_, best)| score < best) {
-                choice = Some((index, score));
+
+            // `gap / age` is the score, and it is only ever compared against
+            // another one -- so it is compared by cross-multiplying rather than
+            // by dividing. Both ages are at least one, so the order is the same
+            // one the quotients would give, and it is exact: there is no scale
+            // to choose and nothing to round, where a fixed-point quotient
+            // would have to pick a fraction width and could tie two snapshots
+            // that are not equal.
+            if choice.is_none_or(|(_, best_gap, best_age)| gap * best_age < best_gap * age) {
+                choice = Some((index, gap, age));
             }
         }
 
@@ -334,7 +341,7 @@ impl<S: State> Snapshots<S> {
         // The oldest is the one to lose: the opening is always available to
         // replay from and the newest is what the forward path is about to ask
         // for.
-        let index = choice.map_or(0, |(index, _)| index);
+        let index = choice.map_or(0, |(index, _, _)| index);
         if index >= self.kept.len() {
             return None;
         }
