@@ -216,6 +216,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_color"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "corvid_fixed",
+ "corvid_hash",
+ "corvid_wire",
+ "serde",
+]
+
+[[package]]
 name = "corvid_files"
 version = "0.1.0"
 

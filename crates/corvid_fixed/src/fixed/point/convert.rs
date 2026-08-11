@@ -13,7 +13,7 @@
 //! That is what lets a shape crate compare and intersect distances with no
 //! square root in the common case and no floating point in any case.
 
-use super::{I16F16, I24F8, I48F16};
+use super::{I2F30, I16F16, I24F8, I48F16};
 use crate::{Signed16, Signed32};
 
 impl I24F8 {
@@ -270,4 +270,67 @@ const fn divide(numerator: i64, denominator: i64) -> i64 {
     let half = (denominator.unsigned_abs() / 2) as i64;
     let bump = if numerator < 0 { -half } else { half };
     (numerator + bump) / denominator
+}
+
+impl I16F16 {
+    /// The same value at thirty fractional bits, saturating.
+    ///
+    /// Fourteen more fractional bits, and fourteen fewer of range: [`I16F16`]
+    /// reaches +/-32.7 km at 15 microns and [`I2F30`] reaches +/-2 at
+    /// 9.3e-10. Almost every [`I16F16`] therefore has no [`I2F30`] to become,
+    /// and clamping is the answer for the reason the rest of this module gives.
+    ///
+    /// The conversion a colour channel makes. A linear channel is nominally in
+    /// `[0, 1]` and held in a type with room for 32 768 of them; the moment it
+    /// is about to go through an operation that needs resolution rather than
+    /// range -- a cube root, for Oklab -- it wants the narrow, fine type
+    /// instead, and a channel past 2 was already outside any gamut.
+    ///
+    /// ```
+    /// use corvid_fixed::{I2F30, I16F16};
+    ///
+    /// assert_eq!(I16F16::from_f64(0.5).to_i2f30(), I2F30::from_f64(0.5));
+    ///
+    /// // Past what an `I2F30` holds, it clamps.
+    /// assert_eq!(I16F16::MAX.to_i2f30(), I2F30::MAX);
+    /// assert_eq!(I16F16::MIN.to_i2f30(), I2F30::MIN);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_i2f30(self) -> I2F30 {
+        I2F30::saturate((self.to_bits() as i64) << 14)
+    }
+}
+
+impl I2F30 {
+    /// The same value at sixteen fractional bits, rounded to nearest.
+    ///
+    /// The way back from [`I16F16::to_i2f30`], and the one direction of the
+    /// pair that cannot clamp: every [`I2F30`] is inside `+/-2` and so inside
+    /// [`I16F16`]'s range. Fourteen fractional bits go, which is a rounding
+    /// rather than a truncation -- halves away from zero, as everywhere else
+    /// in this crate -- so a round trip through the two is off by at most the
+    /// destination's own last bit rather than always downward.
+    ///
+    /// ```
+    /// use corvid_fixed::{I2F30, I16F16};
+    ///
+    /// assert_eq!(I2F30::from_f64(0.5).to_i16f16(), I16F16::from_f64(0.5));
+    ///
+    /// // Rounded, not truncated: half a step of the destination goes up.
+    /// let half_step = I2F30::from_bits(1 << 13);
+    /// assert_eq!(half_step.to_i16f16(), I16F16::from_bits(1));
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_i16f16(self) -> I16F16 {
+        let bits = self.to_bits() as i64;
+        let half = 1 << 13;
+        let rounded = if bits >= 0 {
+            (bits + half) >> 14
+        } else {
+            -((-bits + half) >> 14)
+        };
+        I16F16::saturate(rounded)
+    }
 }

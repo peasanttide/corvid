@@ -10,6 +10,7 @@ use super::macros::{
     define_newtype, impl_binop, impl_neg, impl_num_traits_arith, impl_num_traits_shared,
     impl_num_traits_wrapping, impl_one, impl_shared,
 };
+mod cbrt;
 mod convert;
 mod macros;
 mod math;

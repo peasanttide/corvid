@@ -216,3 +216,105 @@ fn rsqrt_is_available_in_const_context() {
     assert_eq!(ONE, black_box(I2F30::ONE).rsqrt());
     assert_eq!(FOUR, black_box(I16F16::from_bits(4 << 16)).rsqrt());
 }
+
+/// The cube root inverts the cube across the whole range, to within a bit.
+///
+/// Checked against an `f64` reference rather than against itself, and swept
+/// across the exponent range rather than at a handful of round numbers: the
+/// seven Newton passes are claimed to reach the last bit, and a test that only
+/// tried exact cubes would not notice if they did not.
+#[test]
+fn the_cube_root_matches_a_float_reference() {
+    let mut worst = 0i64;
+    let mut bits = 1i32;
+    while bits < i32::MAX / 2 {
+        for signed in [bits, -bits] {
+            let value = I2F30::from_bits(signed);
+            let reference = value.to_f64().cbrt();
+            let got = value.cbrt().to_f64();
+            let delta = ((got - reference) * f64::from(1u32 << 30)).abs() as i64;
+            worst = worst.max(delta);
+            assert!(
+                delta <= 1,
+                "cbrt({}) = {got}, reference {reference}, {delta} bits out",
+                value.to_f64()
+            );
+        }
+        bits = bits.saturating_add(bits / 3 + 1);
+    }
+    assert!(worst <= 1, "worst case was {worst} bits");
+}
+
+/// It is odd, where the square root is clamped at zero.
+#[test]
+fn the_cube_root_is_odd_and_the_square_root_is_not() {
+    let eighth = I2F30::from_f64(0.125);
+
+    assert_eq!(eighth.cbrt().to_f64(), 0.5);
+    assert_eq!((-eighth).cbrt().to_f64(), -0.5);
+    assert_eq!((-eighth).cbrt(), -eighth.cbrt());
+
+    // The square root has no answer below zero and says so by clamping.
+    assert_eq!((-eighth).sqrt(), I2F30::ZERO);
+    assert_eq!(I2F30::ZERO.cbrt(), I2F30::ZERO);
+}
+
+/// Cubing and rooting round-trip to the last bit for values near one.
+///
+/// "Near one" is the honest bound and it is the cube's, not the root's. Cubing
+/// `v` lands on `v^3 * 2^30` bits, so a small `v` keeps very few of them: at
+/// `v = 0.001` the cube is a single bit and no root can recover more than that
+/// single bit's worth. Working the algebra through, the round trip comes back
+/// within one bit only for `v` above about 0.41 -- so that is what is asserted
+/// here, and the coarse end of the range is characterised in the test below
+/// rather than left looking like an error in the iteration.
+#[test]
+fn the_cube_and_its_root_round_trip_near_one() {
+    let mut bits = I2F30::from_f64(0.5).to_bits();
+    while bits < i32::MAX / 2 {
+        for signed in [bits, -bits] {
+            let value = I2F30::from_bits(signed);
+            let back = value.cube().cbrt();
+            let delta = (i64::from(back.to_bits()) - i64::from(value.to_bits())).abs();
+            assert!(
+                delta <= 1,
+                "{} cubed and rooted came back {} ({delta} bits out)",
+                value.to_f64(),
+                back.to_f64()
+            );
+        }
+        bits = bits.saturating_add(bits / 64 + 1);
+    }
+}
+
+/// Away from one it is the cube that loses the value, and far enough down the
+/// cube is zero.
+///
+/// Worth pinning because it is the one input class where the pair does not
+/// round-trip, and a reader who met it by accident would reasonably suspect the
+/// Newton iteration before suspecting the type. The floor is where `v^3` falls
+/// under half of [`I2F30`]'s 9.3e-10 step, which is `v` of about 7.8e-4.
+#[test]
+fn a_small_cube_loses_the_value_and_a_smaller_one_underflows() {
+    // Above the floor but only just: the cube is a single bit, so the root
+    // comes back to that bit's cube root rather than to the input.
+    let small = I2F30::from_f64(0.001);
+    assert_eq!(small.cube().to_bits(), 1);
+    assert_ne!(small.cube().cbrt(), small);
+
+    // Under the floor the cube is zero, and the root of zero is zero rather
+    // than a wrong answer.
+    let under = I2F30::from_f64(0.0007);
+    assert_eq!(under.cube(), I2F30::ZERO);
+    assert_eq!(under.cube().cbrt(), I2F30::ZERO);
+}
+
+/// Both are `const`.
+#[test]
+fn the_cube_and_its_root_are_const() {
+    const CUBED: I2F30 = I2F30::from_f64(0.5).cube();
+    const ROOTED: I2F30 = I2F30::from_f64(0.125).cbrt();
+
+    assert_eq!(CUBED.to_f64(), 0.125);
+    assert_eq!(ROOTED.to_f64(), 0.5);
+}
