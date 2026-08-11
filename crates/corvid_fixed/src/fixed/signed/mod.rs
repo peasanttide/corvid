@@ -32,8 +32,10 @@ use super::macros::{
 };
 
 mod macros;
+mod ratio;
 
 use macros::define_signed;
+use ratio::define_signed_ratio;
 
 define_signed! {
     /// An 8-bit signed normalized value covering `-1.0 ..= 1.0`.
@@ -139,3 +141,9 @@ define_signed! {
         factor: Factor32,
     }
 }
+
+// Beside the three declarations above rather than inside them: the constructor
+// is a seam of its own, and `macros.rs` is at the size limit.
+define_signed_ratio!(Signed8, i32, u32);
+define_signed_ratio!(Signed16, i64, u64);
+define_signed_ratio!(Signed32, i128, u128);

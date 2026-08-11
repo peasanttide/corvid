@@ -48,6 +48,7 @@ corvid_fixed = { version = "0.1.0", path = "crates/corvid_fixed" }
 corvid_float = { version = "0.1.0", path = "crates/corvid_float" }
 corvid_glm = { version = "0.1.0", path = "crates/corvid_glm" }
 corvid_hash = { version = "0.1.0", path = "crates/corvid_hash" }
+corvid_input = { version = "0.1.0", path = "crates/corvid_input" }
 corvid_macros = { version = "0.1.0", path = "crates/corvid_macros" }
 corvid_name = { version = "0.1.0", path = "crates/corvid_name" }
 corvid_net = { version = "0.1.0", path = "crates/corvid_net" }
