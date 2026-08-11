@@ -1,0 +1,69 @@
+[package]
+name = "corvid_replay"
+description = "Save, load, replay, rollback and time-walk as one function: a Corvid session, its snapshots, and seek."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["replay", "rollback", "deterministic", "no-std", "gamedev"]
+categories = ["game-development", "no-std"]
+
+[dependencies]
+# `serde` on, because this crate writes a game's own `State`, `Level`, `Rules`
+# and `Action` into a capture. Since #27 that feature is what puts the encoding
+# bounds on `Data`; without it there is a `Data` this crate cannot record, which
+# is the whole of what it does.
+corvid_behavior = { workspace = true, features = ["serde"] }
+corvid_hash = { workspace = true }
+# `serde` for the same reason `corvid_behavior` turns it on rather than
+# forwarding it: a `Tick` that could not be written down is a `Tick` an action
+# log could not record against.
+corvid_time = { workspace = true, features = ["serde"] }
+# `rc` is named here rather than left to the workspace so that a standalone
+# `-p corvid_replay` build has it. This crate's own `Opening` is written down
+# through a by-value shim that never asks `Arc` to serialize itself -- see
+# `session.rs`, which is exact about why that shim has to stay -- but `seek`
+# hands back an `Arc<G::State>`, and anything that encodes one of those, this
+# crate's round-trip tests included, needs the impl to exist.
+serde = { workspace = true, features = ["alloc", "derive", "rc"] }
+# The workspace's one encoding. A session is written down through it, and a
+# snapshot is measured against the budget by asking it how long the state is --
+# which is the only length in this crate that is a byte count rather than a
+# guess at one.
+corvid_wire = { workspace = true }
+
+[dev-dependencies]
+# `Source` and `Malformed`, which `Level::load` names. `corvid_behavior` used
+# to forward them and no longer does -- a re-export of another `corvid_` crate's
+# types belongs in the facade and nowhere else.
+corvid_files = { workspace = true }
+# The other half of the golden pair. A byte table cannot see a field renamed or
+# two same-typed fields exchanged, and this is what writes the names down.
+# Nothing in this crate encodes anything as JSON.
+serde_json = "1"
+# `corvid_wire` is not repeated here. `tests/forget.rs` writes a capture down
+# *by hand*, in the shape an `ActionLog` decodes from, and hands the crate one
+# that no code here would ever produce -- but it does that with `encode` and
+# `decode`, which the dependency above already gives it. That crate's `std`
+# feature adds no API, so asking for it from a test would only pull it into a
+# `-p corvid_replay` build that the crate's own `std` feature is what turns on.
+
+[features]
+default = []
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+#
+# `corvid_time/std` is deliberately absent, exactly as it is from
+# `corvid_behavior`: the API that feature adds is `Wall`, a clock backed by
+# `std::time::Instant`, and Cargo unifies features across a build. A replay is
+# the part of the stack that must not be able to ask what time it is, so the
+# crate that drives a loop names `corvid_time` itself.
+std = ["corvid_behavior/std", "corvid_hash/std", "corvid_wire/std", "serde/std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
