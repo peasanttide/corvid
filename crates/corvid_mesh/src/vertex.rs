@@ -47,8 +47,7 @@ use corvid_vector::OctDirection;
 /// assert_eq!(corner.normal(), OctDirection::UP);
 /// ```
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "bytemuck", derive(::bytemuck::Pod, ::bytemuck::Zeroable))]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
     /// Where it is, in the mesh's own space, as a signed fraction of
     /// [`FULL`](Self::FULL). The fourth component is padding, for the reason

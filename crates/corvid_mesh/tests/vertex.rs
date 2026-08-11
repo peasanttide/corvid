@@ -40,7 +40,6 @@ const fn frozen() -> [Vertex; 2] {
 }
 
 #[test]
-#[cfg(feature = "bytemuck")]
 fn a_vertex_is_twelve_bytes_and_these_are_the_bytes() {
     // Little-endian on every target, which is what the whole workspace's
     // encoding is and what a `Snorm16` attribute is read as.
