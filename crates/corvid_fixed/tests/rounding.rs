@@ -22,7 +22,9 @@ mod common;
 use std::hint::black_box;
 
 use common::{Rng, round_half_away};
-use corvid_fixed::{Angle16, Factor16, Factor32, I0F8, I8F8, I24F8, Pitch16, Signed8, Signed16};
+use corvid_fixed::{
+    Angle16, Factor16, Factor32, I0F8, I8F8, I24F8, I48F16, Pitch16, Signed8, Signed16,
+};
 
 #[test]
 fn rounding_matches_the_float_reference_exhaustively() {
@@ -290,4 +292,81 @@ fn comparison_is_available_in_const_context() {
         denormal.clamp(Signed8::MIN, Signed8::MAX).to_bits()
     );
     assert_eq!(NARROWED.to_bits(), out_of_range.min(Pitch16::MAX).to_bits());
+}
+
+/// `split_floor` reconstructs its input and keeps the remainder under one, for
+/// every bit pattern of a whole type.
+///
+/// The reconstruction is the property the operation exists for -- a caller
+/// subtracts the whole part in integers and converts only the remainder, so a
+/// pair that does not add up is a position quietly moved.
+#[test]
+fn splitting_at_the_floor_reconstructs_exhaustively() {
+    for bits in i16::MIN..=i16::MAX {
+        let value = I8F8::from_bits(bits);
+        let (whole, remainder) = value.split_floor();
+
+        assert_eq!(
+            f64::from(whole) + remainder.to_f64(),
+            value.to_f64(),
+            "{value:?} split as ({whole}, {remainder:?})"
+        );
+        assert!(
+            remainder >= I8F8::ZERO && remainder < I8F8::ONE,
+            "remainder {remainder:?} of {value:?} is not in [0, 1)"
+        );
+        assert_eq!(
+            f64::from(whole),
+            value.floor().to_f64(),
+            "the whole part is not the floor of {value:?}"
+        );
+    }
+}
+
+/// Below zero it floors where `trunc`/`fract` truncate, which is the whole
+/// reason it is a separate operation.
+#[test]
+fn splitting_at_the_floor_differs_from_truncation_below_zero() {
+    let quarter_below = I8F8::from_f64(-0.25);
+
+    assert_eq!(quarter_below.trunc().to_f64(), 0.0);
+    assert_eq!(quarter_below.fract().to_f64(), -0.25);
+
+    let (whole, remainder) = quarter_below.split_floor();
+    assert_eq!(whole, -1);
+    assert_eq!(remainder.to_f64(), 0.75);
+
+    // Above zero the two agree, so nothing is gained by using both.
+    let quarter_above = I8F8::from_f64(0.25);
+    assert_eq!(quarter_above.split_floor(), (0, quarter_above.fract()));
+}
+
+/// A whole part past an `i32` saturates and the remainder absorbs the rest, so
+/// the pair still sums to the input rather than losing the overflow.
+#[test]
+fn splitting_saturates_the_whole_part_without_losing_it() {
+    // Ten million kilometres: past an i32 of metres, well inside an I48F16.
+    let far = I48F16::from_f64(1e10);
+    let (whole, remainder) = far.split_floor();
+
+    assert_eq!(whole, i32::MAX);
+    assert_eq!(
+        f64::from(whole) + remainder.to_f64(),
+        far.to_f64(),
+        "the saturated whole part and its remainder no longer sum to the input"
+    );
+
+    let below = I48F16::from_f64(-1e10);
+    let (whole, remainder) = below.split_floor();
+    assert_eq!(whole, i32::MIN);
+    assert_eq!(f64::from(whole) + remainder.to_f64(), below.to_f64());
+}
+
+/// It is `const`, which is what lets a projection be one.
+#[test]
+fn splitting_at_the_floor_is_const() {
+    const SPLIT: (i32, I24F8) = I24F8::from_f64(-2.5).split_floor();
+
+    assert_eq!(SPLIT.0, -3);
+    assert_eq!(SPLIT.1.to_f64(), 0.5);
 }

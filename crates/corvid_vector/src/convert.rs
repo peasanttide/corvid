@@ -47,6 +47,18 @@ const fn narrow(bits: i64) -> Option<i32> {
     }
 }
 
+/// Narrows an `i64` to an `i32`, clamping rather than refusing.
+#[inline]
+const fn narrow_saturating(bits: i64) -> i32 {
+    if bits > i32::MAX as i64 {
+        i32::MAX
+    } else if bits < i32::MIN as i64 {
+        i32::MIN
+    } else {
+        bits as i32
+    }
+}
+
 impl GlobalPoint {
     /// Widens to the full-range, full-resolution type. Exact.
     ///
@@ -173,6 +185,31 @@ impl GlobalFinePoint {
             )),
             _ => None,
         }
+    }
+
+    /// The same narrowing, clamping each axis rather than refusing.
+    ///
+    /// [`to_global`](Self::to_global) is the one to reach for when a position
+    /// outside [`GlobalPoint`]'s 8388 km is a case the caller can report. This
+    /// one is for the callers that have to answer with *something* -- and for
+    /// those, a point clamped to the edge of the representable world is the
+    /// least wrong answer available: it keeps the sign of every axis and stays
+    /// monotonic in the input, where the obvious alternative of substituting
+    /// [`GlobalPoint::ZERO`] puts the result at the centre of the world, which
+    /// is a plausible-looking position nothing can distinguish from a real one.
+    ///
+    /// Clamping is per axis, so a position outside the range on one axis keeps
+    /// the other two exactly. That does not preserve a bearing from the origin,
+    /// which is why this is not the default.
+    #[must_use]
+    #[inline]
+    pub const fn to_global_saturating(self) -> GlobalPoint {
+        let [x, y, z] = self.to_array();
+        GlobalPoint::new(
+            I24F8::from_bits(narrow_saturating(shift_round(x.to_bits(), 8))),
+            I24F8::from_bits(narrow_saturating(shift_round(y.to_bits(), 8))),
+            I24F8::from_bits(narrow_saturating(shift_round(z.to_bits(), 8))),
+        )
     }
 }
 

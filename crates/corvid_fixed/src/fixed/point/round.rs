@@ -60,6 +60,49 @@ macro_rules! define_fixed_point_round {
                 Self((self.0 as $wide % (Self::FRAC_MASK + 1)) as $repr)
             }
 
+            /// The whole part as an `i32`, and the **non-negative** remainder
+            /// left above it.
+            ///
+            /// The two reconstruct the value -- `whole + remainder == self` --
+            /// which is the property that makes this worth having as one
+            /// operation rather than two: a caller splitting a large coordinate
+            /// into an exact integer it can subtract and a small remainder it
+            /// can afford to convert needs the pair to still add up.
+            ///
+            /// # Not [`trunc`](Self::trunc) and [`fract`](Self::fract)
+            ///
+            /// Those two round toward zero and give the remainder the sign of
+            /// the input, so a value of `-0.25` splits as `(0, -0.25)`. This
+            /// one floors, so the same value splits as `(-1, 0.75)` and the
+            /// remainder is in `[0, 1)` on both sides of zero. A caller that
+            /// hands the remainder to something unsigned -- or that just wants
+            /// one case instead of two -- wants this one.
+            ///
+            /// # When the whole part does not fit
+            ///
+            #[doc = concat!("An [`", stringify!($name), "`] whose integer part is outside an `i32`")]
+            /// saturates it, and the remainder absorbs the difference rather
+            /// than being discarded: the sum is still the original value, so
+            /// nothing is silently lost, but the remainder is no longer under
+            /// one. Only [`I48F16`] can reach that at all; every other type
+            /// here has an integer part an `i32` holds exactly.
+            #[must_use]
+            #[inline]
+            pub const fn split_floor(self) -> (i32, Self) {
+                let bits = self.0 as $wide;
+                // An arithmetic shift rounds toward negative infinity, which is
+                // what floor is.
+                let whole = bits >> $frac;
+                let whole = if whole > i32::MAX as $wide {
+                    i32::MAX
+                } else if whole < i32::MIN as $wide {
+                    i32::MIN
+                } else {
+                    whole as i32
+                };
+                (whole, Self::saturate(bits - ((whole as $wide) << $frac)))
+            }
+
             /// The reciprocal, clamping to [`MIN`](Self::MIN) or
             /// [`MAX`](Self::MAX).
             ///

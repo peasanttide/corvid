@@ -192,3 +192,37 @@ fn conversions_are_available_in_const_context() {
     assert_eq!(NEAR, Some(FinePoint::splat(I16F16::ONE)));
     assert_eq!(WIDE, GlobalFinePoint::splat(I48F16::ONE));
 }
+
+/// The saturating narrowing clamps per axis, agrees with the fallible one
+/// wherever that answers, and never lands on the origin by accident.
+///
+/// The last is the reason it exists: a caller that has to answer with a
+/// [`GlobalPoint`] and substitutes [`GlobalPoint::ZERO`] produces a position
+/// nothing downstream can tell from a real one, in the middle of the world.
+#[test]
+fn saturating_narrowing_clamps_rather_than_refusing() {
+    // Inside the range the two agree exactly.
+    let inside = GlobalFinePoint::new(
+        I48F16::from_f64(1234.0),
+        I48F16::from_f64(-5678.0),
+        I48F16::from_f64(9012.0),
+    );
+    assert_eq!(
+        inside.to_global_saturating(),
+        inside.to_global().expect("1234 m is representable")
+    );
+
+    // Outside it, the fallible one refuses and this one clamps.
+    let outside = GlobalFinePoint::new(I48F16::from_f64(9e6), I48F16::from_f64(-9e6), I48F16::ZERO);
+    assert!(outside.to_global().is_none());
+
+    let clamped = outside.to_global_saturating();
+    assert_eq!(clamped.x(), I24F8::MAX);
+    assert_eq!(clamped.y(), I24F8::MIN);
+    assert_eq!(clamped.z(), I24F8::ZERO, "an in-range axis was disturbed");
+    assert_ne!(clamped, GlobalPoint::ZERO);
+
+    // Monotonic: further out does not come back nearer.
+    let further = GlobalFinePoint::new(I48F16::from_f64(2e7), I48F16::ZERO, I48F16::ZERO);
+    assert_eq!(further.to_global_saturating().x(), I24F8::MAX);
+}
