@@ -17,9 +17,11 @@ extern crate std;
 mod convert;
 #[cfg(any(feature = "mint", feature = "nalgebra"))]
 mod interop;
+mod oct;
 mod point;
 
 pub use convert::OutOfRange;
+pub use oct::OctDirection;
 pub use point::{
     Direction, FinePoint, GlobalFinePoint, GlobalPoint, Volume, direction, finepoint,
     globalfinepoint, globalpoint,
