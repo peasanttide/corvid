@@ -26,6 +26,34 @@ pub type Vec3 = nalgebra::Vector3<f32>;
 /// A four-component vector: a homogeneous position, or a colour.
 pub type Vec4 = nalgebra::Vector4<f32>;
 
+/// A three-component vector of whole numbers: the integer half of a split
+/// position, a texel coordinate, a cell in a grid.
+///
+/// The companion to [`Vec3`] rather than an alternative to it. A world position
+/// too large for an `f32`'s mantissa is carried as a whole-unit part and a
+/// remainder -- `corvid_camera`'s `Eye` is the worked example, where this is the
+/// eye in whole metres and a game subtracts it from a world position in
+/// integers before the difference is allowed to become a [`Vec3`]. Exact, so
+/// the subtraction costs nothing and the mantissa is spent on what is near the
+/// camera.
+///
+/// **A WGSL `vec3<i32>` occupies sixteen bytes and this occupies twelve.** The
+/// gap is the one [`Mat4`] documents: WGSL aligns a three-component vector to
+/// sixteen and Rust aligns this to four. A struct crossing to a shader owes the
+/// fourth word itself, and naming that padding is better than letting
+/// `#[repr(C)]` insert it where a reader cannot see it.
+///
+/// ```
+/// use corvid_glm::Vec3i;
+///
+/// // Twelve bytes in `x, y, z` order -- the same three words an `[i32; 3]` is,
+/// // which is what makes swapping one for the other a rename rather than a
+/// // change of layout.
+/// assert_eq!(size_of::<Vec3i>(), 12);
+/// assert_eq!(Vec3i::new(1, 2, 3).as_slice(), [1, 2, 3]);
+/// ```
+pub type Vec3i = nalgebra::Vector3<i32>;
+
 /// A 3x3 matrix: a rotation or a normal transform, without the translation.
 ///
 /// Column-major like [`Mat4`], and further from what a shader reads than

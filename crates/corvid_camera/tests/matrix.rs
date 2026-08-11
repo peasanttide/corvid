@@ -23,7 +23,7 @@
 
 use corvid_camera::{Eye, matrix::model, matrix::projection, matrix::view};
 use corvid_fixed::{Angle16, I16F16, I48F16};
-use corvid_glm::{Mat4, nalgebra::Vector4};
+use corvid_glm::{Mat4, Vec3i, nalgebra::Vector4};
 use corvid_rotation::{FineRotation, Rotation};
 use corvid_shape::Frustum;
 use corvid_transform::{FineTransform, Transform};
@@ -255,7 +255,7 @@ fn a_millimetre_survives_ten_thousand_kilometres_from_the_origin() {
     const OUT: i32 = 10_000_000;
     let camera = FineTransform::new(globalfinepoint(OUT, 0, 0), FineRotation::IDENTITY);
     let seen = Eye::new(camera, Frustum::default(), 1.0);
-    assert_eq!(seen.coarse, [OUT, 0, 0]);
+    assert_eq!(seen.coarse, Vec3i::new(OUT, 0, 0));
 
     // Ten metres in front of it, and a millimetre further.
     let ten = at(OUT, 10.0);
@@ -303,7 +303,7 @@ fn at(out: i32, offset: f64) -> GlobalFinePoint {
     clippy::cast_precision_loss,
     reason = "the sub-metre remainder is sixteen bits against an f32 mantissa's twenty-four, which is the precision this test exists to demonstrate is kept"
 )]
-fn relative(point: GlobalFinePoint, coarse: [i32; 3]) -> [f32; 3] {
+fn relative(point: GlobalFinePoint, coarse: Vec3i) -> [f32; 3] {
     let components = point.to_array();
     let mut out = [0.0f32; 3];
     for (axis, component) in out.iter_mut().enumerate() {

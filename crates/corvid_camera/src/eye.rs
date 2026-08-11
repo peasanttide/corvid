@@ -1,7 +1,7 @@
 //! The whole camera, as the bytes a uniform buffer takes.
 
 use crate::matrix;
-use corvid_glm::{IDENTITY, Mat4};
+use corvid_glm::{IDENTITY, Mat4, Vec3i};
 use corvid_shape::Frustum;
 use corvid_transform::FineTransform;
 
@@ -19,13 +19,14 @@ use corvid_transform::FineTransform;
 ///
 /// ```
 /// use corvid_camera::Eye;
+/// use corvid_glm::Vec3i;
 /// use corvid_shape::Frustum;
 /// use corvid_transform::FineTransform;
 /// use corvid_vector::globalfinepoint;
 ///
 /// let far_away = FineTransform::new(globalfinepoint(10_000_000, 0, 0), Default::default());
 /// let eye = Eye::new(far_away, Frustum::default(), 16.0 / 9.0);
-/// assert_eq!(eye.coarse, [10_000_000, 0, 0]);
+/// assert_eq!(eye.coarse, Vec3i::new(10_000_000, 0, 0));
 /// ```
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -34,7 +35,7 @@ pub struct Eye {
     ///
     /// Integer and exact, and it is what a game subtracts from a world position
     /// before that position is allowed to become an `f32`.
-    pub coarse: [i32; 3],
+    pub coarse: Vec3i,
     /// The fourth component a `vec3<i32>` has in a uniform block anyway.
     ///
     /// Always zero. It is here rather than implied because `#[repr(C)]` is what
@@ -76,7 +77,7 @@ impl Eye {
     #[must_use]
     pub fn new(pose: FineTransform, frustum: Frustum, aspect: f32) -> Self {
         let position = pose.position().to_array();
-        let mut coarse = [0i32; 3];
+        let mut coarse = Vec3i::zeros();
         let mut remainder = IDENTITY;
         for (axis, component) in position.iter().enumerate() {
             // Floor rather than truncation, so the remainder is in `[0, 1)` for
