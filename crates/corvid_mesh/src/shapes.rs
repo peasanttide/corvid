@@ -12,11 +12,11 @@
 
 use alloc::vec::Vec;
 
-use corvid_fixed::{I16F16, Signed32};
-use corvid_vector::{Direction, OctDirection};
+use corvid_fixed::I16F16;
+use corvid_vector::OctDirection;
 
 use crate::geometry::{
-    circle, division, face_normal, fraction, halfway, icosahedron, larger, on_sphere,
+    circle, division, face_normal, fraction, halfway, icosahedron, larger, on_sphere, unit,
 };
 use crate::{Mesh, Vertex};
 
@@ -76,22 +76,24 @@ pub fn cube(half: I16F16) -> Mesh {
 
     let mut faces = Faces::with_capacity(24, 36);
     for (normal, tangent, bitangent) in FACES {
-        let facing = OctDirection::encode(Direction::new(
-            Signed32::from_f64(f64::from(normal[0])),
-            Signed32::from_f64(f64::from(normal[1])),
-            Signed32::from_f64(f64::from(normal[2])),
-        ));
+        // A face normal is an axis, so its components are already the ratio
+        // `from_ratio` wants -- no float, and no `Signed32` spelled out.
+        let facing = OctDirection::encode(unit([
+            i64::from(normal[0]),
+            i64::from(normal[1]),
+            i64::from(normal[2]),
+        ]));
         let corner = |along: i32, across: i32| {
             let mut position = [0i16; 3];
             for (axis, component) in position.iter_mut().enumerate() {
-                // Every corner of a cube is at full deflection on all three
-                // axes, so the sum below is always +/-1 and the conversion never
-                // saturates.
-                *component = i16::try_from(
-                    (normal[axis] + along * tangent[axis] + across * bitangent[axis])
-                        * i32::from(Vertex::FULL),
-                )
-                .unwrap_or(Vertex::FULL);
+                // A cube's corner is at full deflection on every axis, so each
+                // sum is +/-1 and there is no scaling to do -- only the choice
+                // of which end of the range it names.
+                *component = match normal[axis] + along * tangent[axis] + across * bitangent[axis] {
+                    1 => Vertex::FULL,
+                    -1 => -Vertex::FULL,
+                    _ => 0,
+                };
             }
             position
         };

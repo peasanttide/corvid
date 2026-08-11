@@ -31,6 +31,7 @@ use super::macros::{
     impl_shared,
 };
 
+mod convert;
 mod macros;
 mod ratio;
 

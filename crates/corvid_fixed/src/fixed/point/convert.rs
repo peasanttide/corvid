@@ -171,6 +171,41 @@ impl I24F8 {
 }
 
 impl I16F16 {
+    /// The same value at eight fractional bits, rounded to nearest.
+    ///
+    /// The way back from [`I24F8::to_i16f16`], and the direction that cannot
+    /// fail: [`I16F16`] reaches +/-32.7 km and [`I24F8`] reaches +/-8388 km, so
+    /// widening the range while narrowing the fraction always fits. Eight
+    /// fractional bits go, rounded rather than truncated.
+    ///
+    /// The conversion a mesh makes. A vertex holds a share of a scale, the
+    /// scale is in [`I16F16`] metres because that is the resolution a size is
+    /// written at, and what comes out is a position in the world's own
+    /// [`I24F8`].
+    ///
+    /// ```
+    /// use corvid_fixed::{I16F16, I24F8};
+    ///
+    /// assert_eq!(I16F16::from_f64(1.5).to_i24f8(), I24F8::from_f64(1.5));
+    ///
+    /// // Rounded: half a step of the destination goes away from zero.
+    /// let half_step = I16F16::from_bits(1 << 7);
+    /// assert_eq!(half_step.to_i24f8(), I24F8::from_bits(1));
+    /// assert_eq!((-half_step).to_i24f8(), I24F8::from_bits(-1));
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_i24f8(self) -> I24F8 {
+        let bits = self.to_bits() as i64;
+        let half = 1 << 7;
+        let rounded = if bits >= 0 {
+            (bits + half) >> 8
+        } else {
+            -((-bits + half) >> 8)
+        };
+        I24F8::saturate(rounded)
+    }
+
     /// `self` scaled by `factor`, which runs `-1.0 ..= 1.0`.
     ///
     /// The operation an axis is one of: a control reports how far along its

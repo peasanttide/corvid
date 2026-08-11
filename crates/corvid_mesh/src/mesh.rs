@@ -7,15 +7,6 @@ use corvid_fixed::{I16F16, I24F8, Signed16};
 use corvid_shape::Aabb;
 use corvid_vector::globalpoint;
 
-/// What a position component of [`Vertex::FULL`] is divided by on the way to
-/// [`I24F8`] metres: the full deflection, times that type's own 256 steps to
-/// the metre.
-///
-/// Both halves come from the types rather than from a literal -- `Signed16::MAX`
-/// is what a full deflection is and 256 is `I24F8`'s own step count -- so a
-/// change to either is a compile-time change here rather than a silent one.
-const PER_METRE: i64 = Signed16::MAX.to_bits() as i64 * 256;
-
 /// Indexed triangles, in the mesh's own space, with one scale for the lot.
 ///
 /// The winding is counter-clockwise seen from outside, matching the
@@ -106,27 +97,10 @@ impl Mesh {
 
 /// One position component, in metres.
 ///
-/// The component is a [`Signed16`] -- a share of one -- and the scale is metres
-/// per full deflection, so this is the share taken of the scale. It widens to
-/// `i64` because neither type's own multiplication is the one wanted here:
-/// `Signed16 * Signed16` is closed over `[-1, 1]` and would clamp the answer to
-/// a metre.
-///
-/// Rounded half away from zero, in `i64`, so the answer is the nearest
-/// representable [`I24F8`] rather than whatever a truncation left. The widest
-/// product is a full deflection against a full scale, which is 7.2e13 and fits
-/// with fourteen bits to spare.
+/// The component is a share of one and the scale is metres per full
+/// deflection, so this is that share taken of that scale -- one
+/// [`I16F16::saturating_mul_signed16`], which is the operation an analog axis
+/// is scaled by too -- and then the narrowing onto the world's own type.
 fn metres(component: Signed16, scale: I16F16) -> I24F8 {
-    let numerator = i64::from(component.to_bits()) * i64::from(scale.to_bits());
-    let half = PER_METRE / 2;
-    let rounded = if numerator < 0 {
-        (numerator - half) / PER_METRE
-    } else {
-        (numerator + half) / PER_METRE
-    };
-    I24F8::from_bits(i32::try_from(rounded).unwrap_or(if rounded < 0 {
-        i32::MIN
-    } else {
-        i32::MAX
-    }))
+    scale.saturating_mul_signed16(component).to_i24f8()
 }

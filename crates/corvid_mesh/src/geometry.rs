@@ -12,14 +12,25 @@
 
 use alloc::vec::Vec;
 
-use corvid_fixed::{Angle32, I16F16, Signed32};
+use corvid_fixed::{Angle32, I16F16, Signed16, Signed32};
 use corvid_vector::{Direction, OctDirection};
 
-use crate::Vertex;
+/// The pole component of an icosahedron ring vertex, against a radius of two.
+///
+/// A ratio rather than a value: `from_ratio` cares only about the proportions,
+/// so this is the `1` of `(2 cos, 2 sin, +/-1)` at the same scale the sine and
+/// the cosine come back at.
+const POLE: i64 = i32::MAX as i64;
 
-/// The bit pattern of one in a [`Signed32`], which is what a sine or a cosine
-/// comes back at.
-const UNIT: i64 = i32::MAX as i64;
+/// A position component is a [`Signed16`] bit pattern.
+///
+/// [`Vertex::FULL`](crate::Vertex::FULL) is `i16::MAX`, so a component at full scale and a
+/// [`Signed16`] at `1.0` are the same number. That is what lets every scaling
+/// below be `corvid_fixed`'s arithmetic on a normalized value rather than this
+/// crate's own on a raw integer.
+const fn component(value: Signed16) -> i16 {
+    value.to_bits()
+}
 
 /// The outward normal of a triangle wound counter-clockwise as seen from
 /// outside: the cross product of its two edges out of the first corner,
@@ -57,9 +68,13 @@ pub(crate) fn face_normal(first: [i16; 3], second: [i16; 3], third: [i16; 3]) ->
 /// Exact at both ends, which is what puts a grid's outer edge on the box its
 /// scale claims rather than a division's worth inside it.
 pub(crate) fn division(step: u32, cells: u32) -> i16 {
-    let reach = i64::from(Vertex::FULL);
-    let value = 2 * reach * i64::from(step) / i64::from(cells) - reach;
-    i16::try_from(value).unwrap_or(Vertex::FULL)
+    // `2 * step - cells` over `cells` runs `-1 ..= 1` as `step` runs `0 ..=
+    // cells`, and the ends are exact because a whole span saturates rather than
+    // rounding.
+    component(Signed16::saturating_from_ratio(
+        2 * i64::from(step) - i64::from(cells),
+        i64::from(cells),
+    ))
 }
 
 /// The larger of two measurements, which is a mesh's scale when it has two.
@@ -75,16 +90,17 @@ pub(crate) fn fraction(part: I16F16, whole: I16F16) -> i16 {
     if whole <= I16F16::ZERO {
         return 0;
     }
-    let numerator = i64::from(part.to_bits()) * i64::from(Vertex::FULL);
-    let denominator = i64::from(whole.to_bits());
-    i16::try_from(numerator / denominator).unwrap_or(Vertex::FULL)
+    component(Signed16::saturating_from_ratio(
+        i64::from(part.to_bits()),
+        i64::from(whole.to_bits()),
+    ))
 }
 
 /// `sides` points evenly around a circle of radius `across`, starting at `+X`.
 pub(crate) fn circle(sides: u32, across: i16) -> Vec<[i16; 2]> {
     (0..sides)
         .map(|step| {
-            let turn = Angle32::from_bits(wrapped((u64::from(step) << 32) / u64::from(sides)));
+            let turn = Angle32::from_steps(step, sides);
             let (sine, cosine) = turn.sin_cos();
             [reach(cosine, across), reach(sine, across)]
         })
@@ -92,20 +108,16 @@ pub(crate) fn circle(sides: u32, across: i16) -> Vec<[i16; 2]> {
 }
 
 /// A sine or a cosine, as a position component `across` from the axis.
-pub(crate) fn reach(component: Signed32, across: i16) -> i16 {
-    let numerator = i64::from(component.to_bits()) * i64::from(across);
-    let rounded = round(numerator, UNIT);
-    i16::try_from(rounded).unwrap_or(across)
+///
+/// Both operands denote a fraction of full scale, so this is one multiply of
+/// two normalized values rather than a scaling this crate works out for itself.
+pub(crate) fn reach(factor: Signed32, across: i16) -> i16 {
+    component(Signed16::from_bits(across).saturating_mul(factor.to_signed16()))
 }
 
 /// A unit direction, as a position component `radius` from the origin.
 pub(crate) fn on_sphere(direction: Direction, radius: i16) -> [i16; 3] {
-    let components = direction.to_array();
-    [
-        reach(components[0], radius),
-        reach(components[1], radius),
-        reach(components[2], radius),
-    ]
+    direction.to_array().map(|axis| reach(axis, radius))
 }
 
 /// The unit direction halfway between two, which is what subdividing an edge
@@ -118,13 +130,11 @@ pub(crate) fn on_sphere(direction: Direction, radius: i16) -> [i16; 3] {
 /// of an icosahedron is.
 pub(crate) fn halfway(one: Direction, other: Direction) -> Direction {
     let (a, b) = (one.to_array(), other.to_array());
-    let middle = |index: usize| {
-        let sum = i64::from(a[index].to_bits()) + i64::from(b[index].to_bits());
-        Signed32::from_bits(i32::try_from(sum / 2).unwrap_or(i32::MAX))
-    };
-    Direction::new(middle(0), middle(1), middle(2))
-        .normalize()
-        .unwrap_or(one)
+    let sum = |index: usize| i64::from(a[index].to_bits()) + i64::from(b[index].to_bits());
+
+    // The sum rather than the average, because only the ratios reach
+    // [`Direction::from_ratio`] and halving them would cost a bit for nothing.
+    unit([sum(0), sum(1), sum(2)])
 }
 
 /// The twenty faces of an icosahedron with its poles on `+/-Z`, each wound
@@ -136,14 +146,12 @@ pub(crate) fn icosahedron() -> Vec<[Direction; 3]> {
     // The two rings sit at `z = +/-1/sqrt5` with radius `2/sqrt5`, so a vertex is
     // `(2costheta, 2sintheta, +/-1)` normalized -- which is why the ratio is written out
     // rather than the two irrational components.
-    let ring = |offset: u64, up: bool| -> Vec<Direction> {
+    let ring = |offset: u32, up: bool| -> Vec<Direction> {
         (0..RING)
             .map(|step| {
-                let turn = Angle32::from_bits(wrapped(
-                    ((u64::from(step) * 2 + offset) << 32) / (u64::from(RING) * 2),
-                ));
+                let turn = Angle32::from_steps(step * 2 + offset, RING * 2);
                 let (sine, cosine) = turn.sin_cos();
-                let pole = if up { UNIT } else { -UNIT };
+                let pole = if up { POLE } else { -POLE };
                 unit([
                     2 * i64::from(cosine.to_bits()),
                     2 * i64::from(sine.to_bits()),
@@ -176,23 +184,4 @@ pub(crate) fn icosahedron() -> Vec<[Direction; 3]> {
 /// that, and `Z` is a better answer to an impossible input than a panic.
 pub(crate) fn unit(components: [i64; 3]) -> Direction {
     Direction::from_ratio(components).unwrap_or(Direction::Z)
-}
-
-/// A fraction of a turn as the bit pattern an [`Angle32`] wraps at.
-///
-/// The quotients above are all strictly inside one turn, so the fallback is a
-/// spelling of "unreachable" that costs nothing rather than a branch anything
-/// takes.
-pub(crate) fn wrapped(turns: u64) -> u32 {
-    u32::try_from(turns).unwrap_or(0)
-}
-
-/// `numerator / denominator`, rounded half away from zero.
-pub(crate) const fn round(numerator: i64, denominator: i64) -> i64 {
-    let half = denominator / 2;
-    if numerator < 0 {
-        (numerator - half) / denominator
-    } else {
-        (numerator + half) / denominator
-    }
 }
