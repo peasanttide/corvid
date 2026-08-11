@@ -66,13 +66,6 @@ const FROM_LMS: [[i64; 3]; 3] = [
     [-4_505_513, -755_289_986, 1_833_537_324],
 ];
 
-/// One, at the scale the cone responses and the axes are held in.
-const ONE_Q30: i128 = 1 << 30;
-
-/// One, at the scale a [`Signed32`] holds. Not a power of two, which is why
-/// every crossing divides by it rather than shifting.
-const UNIT: i128 = i32::MAX as i128;
-
 /// A colour in Oklab: one lightness and two opponent axes.
 ///
 /// `l` runs 0 to 1 for black to white. `a` is green-to-red and `b` is
@@ -241,13 +234,7 @@ impl Oklch {
     #[must_use]
     pub fn to_oklab(self) -> Oklab {
         let (sine, cosine) = self.h.sin_cos();
-        let chroma = i128::from(self.c.to_bits());
-        let component = |unit: Signed32| {
-            I2F30::from_bits(narrow_q30(divide(
-                chroma * i128::from(unit.to_bits()),
-                UNIT,
-            )))
-        };
+        let component = |unit: Signed32| self.c.saturating_mul_signed32(unit);
         Oklab::new(self.l, component(cosine), component(sine), self.alpha)
     }
 
@@ -278,60 +265,12 @@ impl From<Oklch> for Oklab {
     }
 }
 
-/// A Q30 3x3 matrix applied to a Q30 triple, accumulated wide.
+/// A Q30 3x3 matrix applied to a Q30 triple.
 ///
-/// The coefficients reach 4.08, so a Q30 coefficient times a Q30 value is a Q60
-/// product near 2^6^2 and three of them summed do not fit an `i64`. This is the
-/// one place in the crate that still accumulates wider than the workspace
-/// prefers, and it is because the coefficients are outside every fixed type
-/// here: 4.077 and -3.308 do not fit `I2F30`'s +/-2, so there is no scalar type
-/// to express them in and no operation on one to borrow.
+/// One [`I2F30::dot_q30`] per row. The coefficients stay raw `i64` at Q30
+/// because two of them -- 4.077 and -3.308 -- are outside `I2F30`'s `+/-2`, and
+/// that operation takes them at that scale for exactly this reason.
 #[must_use]
 fn apply(matrix: [[i64; 3]; 3], vector: [I2F30; 3]) -> [I2F30; 3] {
-    let [x, y, z] = vector.map(|value| i128::from(value.to_bits()));
-    matrix.map(|row| {
-        let sum = i128::from(row[0]) * x + i128::from(row[1]) * y + i128::from(row[2]) * z;
-        I2F30::from_bits(narrow_q30(divide(sum, ONE_Q30)))
-    })
-}
-
-/// A quotient, rounded to nearest with halves away from zero.
-///
-/// Rust's integer division truncates towards zero, which turns every sub-unit
-/// shortfall into a whole step in the last place, in the same direction every
-/// time. Every scaling here goes through this instead.
-#[must_use]
-#[inline]
-const fn divide(numerator: i128, denominator: i128) -> i128 {
-    // `unsigned_abs` rather than `abs`, which overflows on `i128::MIN` -- a
-    // value no call site here can reach, and a panic the workspace forbids
-    // being one branch away from is not worth the shorter spelling.
-    let half = (denominator.unsigned_abs() / 2).cast_signed();
-    let bump = if numerator < 0 { -half } else { half };
-    (numerator + bump) / denominator
-}
-
-/// A wide value brought back to an `I2F30` pattern, clamping rather than
-/// wrapping.
-#[must_use]
-#[inline]
-const fn narrow_q30(value: i128) -> i32 {
-    narrow_i32(value)
-}
-
-/// A wide value brought back to an `i32`, clamping rather than wrapping.
-#[must_use]
-#[inline]
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "the value is clamped to i32's range on the two lines above the cast, which is what makes the narrowing exact"
-)]
-const fn narrow_i32(value: i128) -> i32 {
-    if value > i32::MAX as i128 {
-        i32::MAX
-    } else if value < i32::MIN as i128 {
-        i32::MIN
-    } else {
-        value as i32
-    }
+    matrix.map(|row| I2F30::dot_q30(row, vector))
 }

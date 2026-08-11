@@ -15,6 +15,7 @@ mod convert;
 mod macros;
 mod math;
 mod round;
+mod scale;
 
 use macros::define_fixed_point;
 use math::define_fixed_point_math;

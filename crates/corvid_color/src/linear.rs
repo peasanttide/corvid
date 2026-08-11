@@ -142,7 +142,7 @@ impl LinearRgba {
             transfer::encode(self.b),
             // Not transferred, for the reason `Rgba8`'s alpha is not: coverage
             // is not a light level.
-            encode_coverage(self.a),
+            self.a.to_unorm8(),
         )
     }
 
@@ -182,30 +182,6 @@ impl LinearRgba {
             self.b.saturating_mul(self.a),
             self.a,
         )
-    }
-}
-
-/// Coverage, rounded to a byte, without the transfer function.
-///
-/// `bits x 255 / 65 536`, rounded to nearest and clamped -- which is the exact
-/// inverse of the `code / 255` that [`Rgba8::to_linear`] does, for all 256
-/// codes. `tests/round_trip.rs` says so rather than assuming it.
-#[must_use]
-#[inline]
-#[expect(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "the value is clamped to 0..=255 on the two lines above the cast, which is what makes the narrowing exact"
-)]
-const fn encode_coverage(alpha: I16F16) -> u8 {
-    let bits = alpha.to_bits() as i64;
-    let scaled = (bits * 255 + (1 << 15)) >> 16;
-    if scaled <= 0 {
-        0
-    } else if scaled >= 255 {
-        255
-    } else {
-        scaled as u8
     }
 }
 

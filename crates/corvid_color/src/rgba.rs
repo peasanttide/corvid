@@ -126,10 +126,9 @@ impl Rgba8 {
             transfer::decode(self.r),
             transfer::decode(self.g),
             transfer::decode(self.b),
-            // Not transferred: coverage is not a light level. `code x 65 536 /
-            // 255`, rounded to nearest, which `LinearRgba::to_srgb8` inverts
-            // exactly for all 256 codes.
-            I16F16::from_bits(((self.a as i32 * 65_536) + 127) / 255),
+            // Not transferred: coverage is not a light level, so it takes the
+            // plain `UNORM` conversion rather than the sRGB curve.
+            I16F16::from_unorm8(self.a),
         )
     }
 }
