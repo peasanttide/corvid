@@ -77,11 +77,6 @@ pub(crate) fn division(step: u32, cells: u32) -> i16 {
     ))
 }
 
-/// The larger of two measurements, which is a mesh's scale when it has two.
-pub(crate) fn larger(one: I16F16, other: I16F16) -> I16F16 {
-    if other > one { other } else { one }
-}
-
 /// `part` as a position component, given that `whole` is what a full one means.
 ///
 /// Zero for a whole that is not positive, which is the degenerate mesh a

@@ -16,7 +16,7 @@ use corvid_fixed::I16F16;
 use corvid_vector::OctDirection;
 
 use crate::geometry::{
-    circle, division, face_normal, fraction, halfway, icosahedron, larger, on_sphere, unit,
+    circle, division, face_normal, fraction, halfway, icosahedron, on_sphere, unit,
 };
 use crate::{Mesh, Vertex};
 
@@ -201,7 +201,7 @@ pub fn icosphere(radius: I16F16, subdivisions: u8) -> Mesh {
 #[must_use]
 pub fn cylinder(radius: I16F16, half_height: I16F16, sides: u16) -> Mesh {
     let sides = u32::from(sides.clamp(FEWEST, MOST));
-    let scale = larger(radius, half_height);
+    let scale = radius.max(half_height);
     let (across, up) = (fraction(radius, scale), fraction(half_height, scale));
     let ring = circle(sides, across);
 
@@ -240,7 +240,7 @@ pub fn cylinder(radius: I16F16, half_height: I16F16, sides: u16) -> Mesh {
 #[must_use]
 pub fn cone(radius: I16F16, half_height: I16F16, sides: u16) -> Mesh {
     let sides = u32::from(sides.clamp(FEWEST, MOST));
-    let scale = larger(radius, half_height);
+    let scale = radius.max(half_height);
     let (across, up) = (fraction(radius, scale), fraction(half_height, scale));
     let ring = circle(sides, across);
 

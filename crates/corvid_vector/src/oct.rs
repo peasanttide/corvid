@@ -30,7 +30,12 @@ use crate::Direction;
 
 /// The bit pattern of `1.0` in a [`Signed8`] component, which is the scale both
 /// halves of the codec work on.
-const UNIT: i64 = 127;
+///
+/// Taken from the type rather than written as 127, because it is that type's
+/// one and not a number this module chose: the grid the square is quantized
+/// onto is however many steps a [`Signed8`] has, and the two would have to move
+/// together.
+const UNIT: i64 = Signed8::MAX.to_bits() as i64;
 
 /// A unit direction packed into **two bytes**, octahedrally encoded.
 ///
@@ -279,6 +284,14 @@ impl From<[Signed8; 2]> for OctDirection {
     }
 }
 
+/// The two components **and the direction they name**.
+///
+/// Not derived, because the derived one prints the pair of [`Signed8`]s and a
+/// pair of octahedral components is not a thing anybody can read: `u` and `v`
+/// are a point on a folded square, so knowing they are `(0.31, -0.75)` says
+/// nothing about which way the surface faces. Decoding into the output is what
+/// makes a failing assertion in a mesh test legible, and it costs a
+/// [`decode`](OctDirection::decode) on a path that is already formatting.
 impl core::fmt::Debug for OctDirection {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
