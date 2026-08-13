@@ -47,11 +47,23 @@ serde_json = "1"
 
 [features]
 default = []
-# Forwarded to the crates the frame is built out of, so a downstream that turns
+# Forwarded to every crate the frame is built out of, so a downstream that turns
 # it on here gets it on the positions and the gains too rather than discovering
 # halfway through a capture that the one thing it cannot serialize is a
 # `FinePoint`.
-serde = ["dep:serde", "corvid_time/serde", "corvid_transform/serde"]
+#
+# Named one by one rather than left to `corvid_transform` to pass along, even
+# though it does today: a crate forwards for the types *it* holds, and this one
+# holds a `FinePoint` and a `Factor16` of its own. Leaning on somebody else's
+# forwarding makes this crate's serde support a consequence of a dependency's
+# internals, which is a thing that can change without touching this file.
+serde = [
+    "dep:serde",
+    "corvid_fixed/serde",
+    "corvid_time/serde",
+    "corvid_transform/serde",
+    "corvid_vector/serde",
+]
 # Adds no API. It exists so a downstream can forward `std` uniformly across the
 # workspace without special-casing this crate.
 #
@@ -61,7 +73,12 @@ serde = ["dep:serde", "corvid_time/serde", "corvid_transform/serde"]
 # so forwarding it here would hand a wall clock to everything that draws an
 # audio frame as a side effect of something else turning `std` on. Nothing in
 # this crate asks what time it is; it is told which `Tick` a cue fired on.
-std = ["corvid_transform/std", "serde?/std"]
+std = [
+    "corvid_fixed/std",
+    "corvid_transform/std",
+    "corvid_vector/std",
+    "serde?/std",
+]
 
 [lints]
 workspace = true
