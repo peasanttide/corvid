@@ -1,9 +1,5 @@
 #![doc = include_str!("../README.md")]
 #![no_std]
-#![allow(
-    clippy::redundant_pub_crate,
-    reason = "the modules here are private, so pub(crate) and pub are equivalent -- pub(crate) is the one that says what is meant, and it is what rustc's unreachable_pub asks for"
-)]
 
 // A log is a `Vec`, a snapshot ring is a `Vec` of states, and a level arrives
 // behind an `Arc`. This crate needs an allocator and nothing else: there is no
