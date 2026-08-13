@@ -14,7 +14,7 @@
 //! colour crate reimplementing Newton's method is a second answer to a question
 //! this crate already exists to answer.
 
-use super::I2F30;
+use super::{I2F30, divide_wide, narrow_i64};
 
 /// One, as a Q30 bit pattern.
 const ONE_Q30: i128 = 1 << 30;
@@ -73,8 +73,8 @@ impl I2F30 {
             pass += 1;
         }
 
-        let root = narrow(guess);
-        Self::from_bits(if negative { -root } else { root })
+        let root = narrow_i64(guess);
+        Self::saturate(if negative { -root } else { root })
     }
 
     /// The cube.
@@ -95,36 +95,9 @@ impl I2F30 {
     #[inline]
     pub const fn cube(self) -> Self {
         let bits = self.to_bits() as i128;
-        Self::from_bits(narrow(divide(bits * bits * bits, ONE_Q30 * ONE_Q30)))
-    }
-}
-
-/// Divides, rounding half away from zero.
-#[must_use]
-#[inline]
-const fn divide(numerator: i128, denominator: i128) -> i128 {
-    // `unsigned_abs` rather than `abs`, which overflows on `i128::MIN` -- a
-    // value no call site here can reach, and a panic the workspace forbids
-    // being one branch away from is not worth the shorter spelling.
-    let half = (denominator.unsigned_abs() / 2).cast_signed();
-    let bump = if numerator < 0 { -half } else { half };
-    (numerator + bump) / denominator
-}
-
-/// A wide value brought back to an `i32` pattern, clamping rather than
-/// wrapping.
-#[must_use]
-#[inline]
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "the value is clamped to i32's range on the two branches above the cast, which is what makes the narrowing exact"
-)]
-const fn narrow(value: i128) -> i32 {
-    if value > i32::MAX as i128 {
-        i32::MAX
-    } else if value < i32::MIN as i128 {
-        i32::MIN
-    } else {
-        value as i32
+        Self::saturate(narrow_i64(divide_wide(
+            bits * bits * bits,
+            ONE_Q30 * ONE_Q30,
+        )))
     }
 }

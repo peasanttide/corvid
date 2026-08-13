@@ -1,10 +1,5 @@
 //! The storage form: four bytes, sRGB-encoded, straight alpha.
 
-#![allow(
-    clippy::cast_possible_truncation,
-    reason = "the hex constructors take a colour apart a byte at a time, and the truncation is what taking it apart means"
-)]
-
 use corvid_fixed::I16F16;
 
 use crate::{LinearRgba, transfer};
@@ -80,6 +75,10 @@ impl Rgba8 {
     /// A colour written the way a stylesheet writes one: `0xRRGGBBAA`.
     #[must_use]
     #[inline]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a hex code is taken apart a byte at a time, and the truncation is what taking it apart means"
+    )]
     pub const fn hex(rgba: u32) -> Self {
         Self::new(
             (rgba >> 24) as u8,
@@ -96,6 +95,10 @@ impl Rgba8 {
     /// hides the one entry that is not.
     #[must_use]
     #[inline]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a hex code is taken apart a byte at a time, and the truncation is what taking it apart means"
+    )]
     pub const fn opaque_hex(rgb: u32) -> Self {
         Self::new((rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8, 255)
     }

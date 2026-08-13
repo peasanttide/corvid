@@ -7,8 +7,7 @@
 //! the part a caller composing a multiply and a divide of its own gets wrong in
 //! the middle.
 
-use super::convert::divide;
-use super::{I2F30, I16F16, I24F8};
+use super::{I2F30, I16F16, I24F8, divide, divide_wide, narrow_i64};
 use crate::{Signed16, Signed32};
 
 impl I24F8 {
@@ -192,9 +191,7 @@ impl I2F30 {
         // range before the rounding sees it.
         let numerator = (self.to_bits() as i128) * (factor.canonicalize().to_bits() as i128);
         let denominator = Signed32::MAX.to_bits() as i128;
-        let half = denominator / 2;
-        let bump = if numerator < 0 { -half } else { half };
-        Self::saturate(((numerator + bump) / denominator) as i64)
+        Self::saturate(narrow_i64(divide_wide(numerator, denominator)))
     }
 
     /// One row of a Q30 matrix applied to a Q30 triple.
@@ -229,22 +226,12 @@ impl I2F30 {
     #[must_use]
     #[inline]
     pub const fn dot_q30(coefficients: [i64; 3], values: [Self; 3]) -> Self {
-        let scale = 1i128 << 30;
         let sum = coefficients[0] as i128 * values[0].to_bits() as i128
             + coefficients[1] as i128 * values[1].to_bits() as i128
             + coefficients[2] as i128 * values[2].to_bits() as i128;
-        let half = scale / 2;
-        let bump = if sum < 0 { -half } else { half };
-        let scaled = (sum + bump) / scale;
         // The quotient is inside `i64` whenever the row is, which the caller
-        // owns; `saturate` is what makes that a clamp rather than a wrap if it
-        // is not.
-        Self::saturate(if scaled > i64::MAX as i128 {
-            i64::MAX
-        } else if scaled < i64::MIN as i128 {
-            i64::MIN
-        } else {
-            scaled as i64
-        })
+        // owns; the narrowing and the `saturate` are what make that a clamp
+        // rather than a wrap if it is not.
+        Self::saturate(narrow_i64(divide_wide(sum, 1 << 30)))
     }
 }

@@ -19,19 +19,7 @@ mod scale;
 
 use macros::define_fixed_point;
 use math::define_fixed_point_math;
-use round::define_fixed_point_round;
-
-/// Rounds an `f64` half away from zero, keeping `NaN` at zero.
-///
-/// The caller casts the result to an integer, where Rust's saturating
-/// float-to-int conversion supplies the clamping and the `NaN` behavior.
-const fn round_f64(scaled: f64) -> f64 {
-    if scaled >= 0.0 {
-        scaled + 0.5
-    } else {
-        scaled - 0.5
-    }
-}
+use round::{define_fixed_point_round, divide, divide_wide, narrow_i64, round_f64};
 
 /// Adds the approximate reciprocal square root to one type.
 ///

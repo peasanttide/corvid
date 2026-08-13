@@ -13,7 +13,7 @@
 //! That is what lets a shape crate compare and intersect distances with no
 //! square root in the common case and no floating point in any case.
 
-use super::{I2F30, I16F16, I24F8, I48F16};
+use super::{I2F30, I16F16, I24F8, I48F16, divide};
 
 impl I24F8 {
     /// The same value at sixteen fractional bits, saturating.
@@ -105,22 +105,6 @@ impl I48F16 {
         };
         I24F8::saturate(rounded as i64)
     }
-}
-
-/// A quotient, rounded to nearest with halves away from zero.
-///
-/// Rust's integer division truncates toward zero, which turns every sub-unit
-/// shortfall into a whole step in the last place -- systematic, in the same
-/// direction every time, and enough to put a ray's hit under the surface it was
-/// cast at. The caller has already rejected a zero denominator.
-#[inline]
-pub(super) const fn divide(numerator: i64, denominator: i64) -> i64 {
-    // `unsigned_abs` rather than `abs`, which overflows on `i64::MIN` -- a
-    // value no call site reaches, and a panic the workspace forbids being one
-    // branch away from is not worth the shorter spelling.
-    let half = (denominator.unsigned_abs() / 2) as i64;
-    let bump = if numerator < 0 { -half } else { half };
-    (numerator + bump) / denominator
 }
 
 impl I16F16 {
