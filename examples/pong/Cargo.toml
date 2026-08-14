@@ -1,0 +1,118 @@
+[package]
+name = "pong"
+description = "Two machines, one ball: the smallest Corvid game with real netcode under it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+# An example is not a library anyone installs. This one is here to be read, to
+# be played against another process, and to be the thing `tests/session.rs`
+# measures a rollback with.
+publish = false
+
+[dependencies]
+# The device. Pinned at the workspace level, which is what keeps one `wgpu` and
+# one `raw-window-handle` in the graph now that it is named here rather than
+# reached through `corvid_render`.
+wgpu = { workspace = true }
+# The one name a game depends on: the two contracts, the renderer, the audio
+# frame, the input snapshot, the maths stack and the session.
+corvid = { path = "../..", default-features = false }
+# Spans and events. A demo is the one place the framework's own instrumentation
+# is worth seeing -- which adapter was chosen, which frames were dropped, what
+# the netcode did -- and none of it appears without a subscriber installed.
+# `corvid::watch()` is what installs one; this is for the events this game emits
+# itself.
+tracing = { workspace = true, features = ["std"] }
+# `Serialize` and `Deserialize` on this game's own data types, which
+# `corvid_behavior::Data` demands of every one of them.
+serde = { workspace = true, features = ["derive", "std"] }
+# The vertices, becoming bytes. `unsafe_code = "forbid"` means a game cannot do
+# that by hand, and this is the crate that does it safely.
+bytemuck = { workspace = true, optional = true }
+# The `Display` and `Error` impls on this game's one error, derived.
+thiserror = { workspace = true, features = ["std"] }
+# The link and the peer, named directly rather than reached through
+# `corvid`, because `src/rally.rs` drives a `Peer` and a `MockNet` *below*
+# the runtime: that is what makes the demo and the tests one piece of code, and
+# what lets a session over a bad link be a `for` loop with no clock in it.
+corvid_net = { workspace = true, optional = true }
+# The deterministic stand-in behind the transport contract, which is what makes
+# the demo and the tests one piece of code: two peers in one process, with the
+# link's own schedule under them.
+corvid_net_mock = { workspace = true, optional = true }
+corvid_lockstep = { workspace = true, features = ["std"], optional = true }
+corvid_replay = { workspace = true, features = ["std"], optional = true }
+# The encoding a datagram is written in, which the harness needs because it
+# builds and reads datagrams itself.
+corvid_wire = { workspace = true, features = ["std"], optional = true }
+
+[features]
+# A window, a device, a sound card, and the netcode. All four, because the point
+# of this example is a game two people play and every one of them is part of
+# that.
+default = ["window", "net"]
+# This game's own pipeline: one shader, one buffer, no camera.
+render = ["dep:bytemuck"]
+window = ["render", "corvid/window"]
+# The other machine. It is what `--listen`/`--connect`, `rally::Match` and
+# `rally::together` need, and without it this crate is a single-seat pong that
+# still builds and still plays.
+net = [
+    "render",
+    "corvid/net",
+    "dep:corvid_net",
+    "dep:corvid_net_mock",
+    "dep:corvid_lockstep",
+    "dep:corvid_replay",
+    "dep:corvid_wire",
+]
+
+[dev-dependencies]
+# A directory nothing else is using for the tests that write a capture, and the
+# PNG reader the one test that looks at a picture reads one with.
+corvid_test = { workspace = true }
+# The socket the one test that opens a real one names.
+corvid_net_udp = { workspace = true }
+
+# The binary draws, so it needs a renderer: `Pong` names `Graphics` and there
+# is no build of that without a device half. `default` turns `render` on
+# through `window`, so an ordinary `cargo run` is unaffected; what this changes
+# is a `--no-default-features` build, which skips the target rather than
+# failing to compile it.
+[[bin]]
+name = "pong"
+path = "src/main.rs"
+required-features = ["render"]
+
+# What each test needs, said here rather than left to be true by accident.
+# `default = ["window", "net"]` makes all of them build in an ordinary run;
+# `--no-default-features` is the arm that would otherwise fail to compile a
+# test binary rather than skip it, and Cargo skips a target whose features are
+# absent.
+[[test]]
+name = "drawn"
+required-features = ["render"]
+
+[[test]]
+name = "linked"
+required-features = ["net"]
+
+[[test]]
+name = "session"
+required-features = ["net"]
+
+[[test]]
+name = "socket"
+required-features = ["net"]
+
+[[test]]
+name = "together"
+required-features = ["net"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

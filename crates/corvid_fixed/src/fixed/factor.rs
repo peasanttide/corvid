@@ -352,7 +352,12 @@ impl Factor16 {
     ///
     /// assert_eq!(Factor16::MAX.to_factor32(), Factor32::MAX);
     /// assert_eq!(Factor16::ZERO.to_factor32(), Factor32::ZERO);
-    /// assert_eq!(Factor16::from_f64(0.5).to_factor32(), Factor32::from_f64(0.5));
+    ///
+    /// // Exact, which is the claim: the widened factor denotes the same
+    /// // number, rather than the nearest one the wider grid has to a fresh
+    /// // reading of the same fraction.
+    /// let half = Factor16::from_f64(0.5);
+    /// assert_eq!(half.to_factor32().to_f64(), half.to_f64());
     /// ```
     #[must_use]
     #[inline]

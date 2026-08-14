@@ -1,0 +1,241 @@
+[package]
+name = "corvid_app"
+description = "The fixed-step runtime: the loop that ticks a Corvid game, extracts it, and records what it did."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "headless", "deterministic", "replay", "runtime"]
+categories = ["game-development"]
+
+[dependencies]
+corvid_fixed = { workspace = true, features = ["std"] }
+corvid_sound = { workspace = true, features = ["serde", "std"] }
+# The two halves of a game. `corvid_control` re-exports `corvid_behavior`, but
+# naming it here is what lets this crate's documentation link to `Command` and
+# `ExitCode` and what says the runtime reads the simulation ring directly rather
+# than only through the client one.
+corvid_behavior = { workspace = true, features = ["std"] }
+corvid_control = { workspace = true }
+# The camera a controller answers and the two devices are handed.
+corvid_camera = { workspace = true, features = ["std"] }
+# The session the loop fills in, and the `seek` a capture is checked against.
+corvid_replay = { workspace = true, features = ["std"] }
+# `std` for `Wall`, which is the clock a run in front of a player uses and the
+# one every other crate in the workspace refuses to forward. This is the crate
+# that runs the loop, so this is where a wall clock is asked for.
+corvid_time = { workspace = true, features = ["std", "serde"] }
+# The workspace's one encoding. Every file a capture contains is written through
+# it, which is what makes a capture readable by `Session::load` rather than by
+# something this crate would have had to define.
+corvid_wire = { workspace = true, features = ["std"] }
+corvid_hash = { workspace = true, features = ["std"] }
+# Named for one bound. `corvid_wire::encode` takes a `Serialize`, and the one
+# function here that encodes several different things has to be able to say so.
+serde = { workspace = true, features = ["std"] }
+# How a run reports where it has got to while it is still running. `run` blocks
+# the thread it was called on, so without a cell to publish into there is
+# nothing any other thread could ask.
+corvid_signal = { workspace = true }
+# The warning an unhandled request leaves. A request the runtime drops silently
+# is the failure this crate is not allowed to have, and `tracing` is how the
+# workspace says so -- pinned at the workspace level so there is one subscriber
+# registry rather than two.
+tracing = { workspace = true, features = ["std"] }
+# The subscriber `watch` installs. Named here, in the one crate that is a
+# program rather than a library: `watch` is a function a `main` *calls*, so the
+# decision is still the binary's -- what moved is the twelve lines every game was
+# writing to make this framework audible.
+tracing-subscriber = { workspace = true }
+# `Display` and `std::error::Error` on `Error`, derived. `std` because this is
+# the crate that opens files: `Error` carries `io::Error`, whose `Error` impl
+# is `std`'s, and a `core`-only derive could not name it as a source.
+thiserror = { workspace = true, features = ["std"] }
+# The device half, and not optional: `corvid_control` sits on top of
+# `corvid_render` now, so a build of this crate compiles `wgpu` whatever it was
+# asked for and a feature gating the renderer would gate nothing. What is still
+# optional is the *window*, which is where `winit` and an operating system's
+# event loop come in.
+corvid_render = { workspace = true }
+corvid_window = { workspace = true, optional = true }
+# The binding file, which only a windowed run has any use for: named directly
+# rather than reached through `corvid_control` because this is the crate that
+# reads the file, and `Table` is behind the `serde` feature.
+# The input snapshot, in every build. `Input`, `Viewport` and `Cursor` are read
+# by the loop whether or not there is a device to fill them -- a headless run
+# still hands a game an `Input`, empty. The `platform` half -- the binding table
+# and the device accumulator -- is what `window` turns on.
+corvid_input = { workspace = true }
+serde_json = { workspace = true }
+# The sound card. Its own `device` feature is what pulls `cpal`, and `window`
+# below is what turns it on -- without it this crate is mixing arithmetic and an
+# `Audio` that reports it cannot open, which is the same answer a machine with
+# no speakers gives. The dependency itself is unconditional so that `screen.rs`
+# holds one field and one code path either way instead of a `cfg` on each.
+corvid_audio = { workspace = true }
+# The other machines. Both optional and both turned on by one feature, because
+# neither is any use without the other: a transport with nothing to carry is a
+# socket, and a peer with nothing to carry its datagrams cannot reach anybody.
+corvid_net = { workspace = true, optional = true }
+# The socket behind the transport contract, which is what `--listen` and
+# `--connect` open. Named beside the contract rather than reached through it,
+# because this crate is the one that binds the socket.
+corvid_net_udp = { workspace = true, optional = true }
+corvid_lockstep = { workspace = true, features = ["std"], optional = true }
+
+[dev-dependencies]
+# The harness in `tests/common` writes a real pipeline, the way a game does:
+# `wgpu` by name rather than through `corvid_render`'s re-export, because that is
+# what a game's own manifest carries.
+wgpu = { workspace = true }
+# The geometry that harness draws and its device half. Dev-dependencies rather
+# than dependencies: nothing in this crate's own source names either, and a
+# game reaches both through the facade.
+corvid_mesh = { workspace = true }
+corvid_mesh_render = { workspace = true }
+# The positions the harness's game moves and the normals its cube carries.
+# Nothing above names them, so this is the one edge the test binary adds.
+corvid_vector = { workspace = true, features = ["std"] }
+# `serde` and `tracing` are not here: both are already dependencies above -- the
+# first for `corvid_wire::encode`'s bound and the second for the unhandled-request
+# warning -- and a dependency is already linkable from a test.
+
+[features]
+default = []
+# The extra diagnosis a development build does when a session diverges:
+# `corvid_lockstep::bisect` runs and `Desync::fields` says which field moved
+# first, rather than a desync reporting and resynchronising from a full state
+# transfer.
+#
+# `corvid_lockstep?/dev` rather than `corvid_lockstep/dev`: the netcode is
+# optional, and asking for diagnosis should not be what compiles a transport.
+dev = ["corvid_lockstep?/dev"]
+# Playing against other machines. The loop grows a `Peer` and a transport, and
+# `App::transport` is the whole of what a caller sees of it -- a game implements
+# nothing, which is the claim `corvid_lockstep` exists to make good on.
+#
+# Off by default, because a single-seat run should not compile a transport, and
+# because `corvid_app`'s promise that a run's digest is a function of its action
+# log is exactly what makes adding this arm safe: `tests/net.rs` plays the same
+# opening with and without one and compares the traces.
+net = ["dep:corvid_net", "dep:corvid_net_udp", "dep:corvid_lockstep"]
+# A graphics stack. `wgpu` is most of what one weighs and this is the feature
+# that decides whether it is compiled at all: without it a game owes `Present`
+# and nothing else, `Playable` is one trait rather than two, and
+# `cargo tree -i wgpu` on a build of this crate finds nothing.
+#
+# What still works without it is everything that is not a picture: a tick, a
+# save, a replay, a digest, a session over a transport. A dedicated server and a
+# determinism check in CI are exactly that.
+# `corvid_render` is unconditional: the runtime names `Render` in the `App`'s
+# own bounds, so there is no build of this crate without it. What this gates is
+# the part that opens an adapter, which is `screen.rs` and the two builder
+# methods that reach it. No dependency, because there is none left to add: the
+# device half is already here and what changes is whether one is asked for.
+render = []
+# A window, and everything that is only ever true of a run with a player in
+# front of it. There is one such feature rather than three because the three
+# described the same thing: a keyboard to read, a pad to read it with, and a
+# sound card to answer on are all the devices of a machine somebody is sitting
+# at. An offscreen run has an adapter and no player, and a headless run has
+# neither, and neither of them wants any of this.
+window = [
+    # A window is a surface, and a surface is a device: there is no windowed run
+    # without a renderer under it.
+    "render",
+    "dep:corvid_window",
+    "corvid_input/platform",
+    "corvid_input/serde",
+    "corvid_input/std",
+    # Gamepads. The pad backend is an operating-system device, which is only
+    # ever a windowed run's business.
+    "corvid_window/gamepad",
+    # And the sound card. `Screen::new(.., heard: true)` happens in
+    # `windowed.rs` and nowhere else; the offscreen path passes `false`, because
+    # a determinism check that woke the speakers would be a determinism check
+    # with a side effect. So a build with no window opens no device however this
+    # is resolved.
+    "corvid_audio/device",
+]
+
+# What the test suite needs, said here rather than left to be true by accident.
+#
+# `tests/common/mod.rs` builds a `wgpu` pipeline and names
+# `corvid_mesh_render::VERTEX_LAYOUT`, and `tests/departures.rs` names
+# `Departures` -- a device and a peer, which are `render` and `net`. Neither is
+# on by default, so without these lines `cargo test -p corvid_app` does not
+# compile. It passed only as part of `cargo test --workspace`, where
+# `examples/pong` turns on `corvid/net` and `corvid/window` and feature
+# unification turned them on here too: a test suite that built because of what
+# another package in the workspace happened to ask for.
+#
+# `required-features` is what says it. Cargo skips a target whose features are
+# absent, so a build with neither feature now leaves these alone rather than
+# failing on them, and `--all-features` runs every one.
+[[test]]
+name = "arguments"
+required-features = ["render"]
+
+[[test]]
+name = "capture"
+required-features = ["render"]
+
+[[test]]
+name = "commands"
+required-features = ["render"]
+
+[[test]]
+name = "departures"
+required-features = ["net"]
+
+[[test]]
+name = "applied"
+required-features = ["render"]
+
+[[test]]
+name = "headless"
+required-features = ["render"]
+
+[[test]]
+name = "paced"
+required-features = ["render"]
+
+[[test]]
+name = "requested"
+required-features = ["render"]
+
+[[test]]
+name = "seated"
+required-features = ["render"]
+
+[[test]]
+name = "unsaveable"
+required-features = ["render"]
+
+[[test]]
+name = "pause"
+required-features = ["render"]
+
+[[test]]
+name = "retention"
+required-features = ["render"]
+
+[[test]]
+name = "saves"
+required-features = ["render"]
+
+[[test]]
+name = "transfer"
+required-features = ["render"]
+
+[[test]]
+name = "windowless"
+required-features = ["render"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

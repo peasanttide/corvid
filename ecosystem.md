@@ -68,3 +68,26 @@ with the subscriber that records them chosen by the binary. It is the exception
 to the feature rule: `corvid_signal` takes it unconditionally, because a
 publication that opened no span would be half a handoff, and the span is part of
 what that crate is rather than something a caller may decline.
+
+## cpal
+
+The sound card: one portable stream, and a callback the operating system calls
+on a thread of its own. `corvid_audio`'s `device` feature is the whole of what
+names it, so the mixing arithmetic -- the part that can be wrong in a way a
+person hears -- builds and is tested on a machine with no speakers.
+
+## gilrs
+
+Gamepads, which no window library covers: `evdev`, XInput and IOKit behind one
+vocabulary of buttons and axes. `corvid_window`'s `gamepad` feature is what
+pulls it, and `src/pad.rs` is the only file in the workspace that names it --
+everything downstream sees a `Button` and an `Axis` like any other control.
+
+## openxr
+
+Headsets: the session lifecycle, the reference spaces, the controller poses and
+the swapchain, as one runtime-loaded API across every vendor. `corvid_xr`'s
+`openxr` feature is what compiles it, and the loader is resolved at run time, so
+a build needs no SDK and a machine with no runtime answers `Unavailable` rather
+than failing to start. It is the one place in this workspace where `unsafe` is
+allowed, because the handles it hands out cross into `wgpu-hal` untyped.
