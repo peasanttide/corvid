@@ -285,6 +285,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_mesh"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "corvid_fixed",
+ "corvid_shape",
+ "corvid_vector",
+]
+
+[[package]]
 name = "corvid_name"
 version = "0.1.0"
 dependencies = [

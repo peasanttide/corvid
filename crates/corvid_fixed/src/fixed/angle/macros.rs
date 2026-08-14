@@ -77,6 +77,44 @@ macro_rules! define_angle {
                 Self(rounded as i64 as $repr)
             }
 
+            /// The `step`th of `divisions` equal parts of a turn.
+            ///
+            /// Integer throughout, where [`from_turns`](Self::from_turns) goes
+            /// through an `f64`: stepping a circle is the one place an angle is
+            /// built from a count rather than from a written-down number, and a
+            /// polygon whose vertices came back off a float would not close
+            /// exactly. A full turn is the whole range of the representation,
+            /// so `step / divisions` of it is an exact shift and divide.
+            ///
+            /// `step` wraps, so a step at or past `divisions` is the same angle
+            /// as the one it laps -- which is what makes a loop over a circle
+            /// need no modulus of its own. `divisions` of zero has no parts to
+            /// take, and answers [`ZERO`](Self::ZERO).
+            ///
+            /// ```
+            #[doc = concat!("use corvid_fixed::", stringify!($name), ";")]
+            ///
+            /// // Four steps of four is a whole turn, which is where it started.
+            #[doc = concat!("assert_eq!(", stringify!($name), "::from_steps(0, 4), ", stringify!($name), "::ZERO);")]
+            #[doc = concat!("assert_eq!(", stringify!($name), "::from_steps(4, 4), ", stringify!($name), "::ZERO);")]
+            ///
+            /// // And half of it is half a turn, exactly.
+            #[doc = concat!("assert_eq!(", stringify!($name), "::from_steps(2, 4), ", stringify!($name), "::from_turns(0.5));")]
+            /// ```
+            #[must_use]
+            #[inline]
+            pub const fn from_steps(step: u32, divisions: u32) -> Self {
+                if divisions == 0 {
+                    return Self::ZERO;
+                }
+                // The whole range is one turn, so a fraction of a turn is that
+                // fraction of the range. Taken in `u64` and truncated back,
+                // which is the wrap.
+                let whole = 1u64 << <$repr>::BITS;
+                let scaled = ((step % divisions) as u64 * whole) / divisions as u64;
+                Self(scaled as $repr)
+            }
+
             /// Converts from radians, wrapping into range.
             #[must_use]
             #[inline]

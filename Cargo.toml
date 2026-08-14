@@ -51,6 +51,7 @@ corvid_glm = { version = "0.1.0", path = "crates/corvid_glm" }
 corvid_hash = { version = "0.1.0", path = "crates/corvid_hash" }
 corvid_input = { version = "0.1.0", path = "crates/corvid_input" }
 corvid_macros = { version = "0.1.0", path = "crates/corvid_macros" }
+corvid_mesh = { version = "0.1.0", path = "crates/corvid_mesh" }
 corvid_name = { version = "0.1.0", path = "crates/corvid_name" }
 corvid_net = { version = "0.1.0", path = "crates/corvid_net" }
 corvid_net_mock = { version = "0.1.0", path = "crates/corvid_net_mock" }

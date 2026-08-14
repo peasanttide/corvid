@@ -1,0 +1,38 @@
+[package]
+name = "corvid_mesh"
+description = "Fixed-point geometry: a twelve-byte vertex, an indexed mesh, and the generators that build one, with no device anywhere in it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "mesh", "geometry", "fixed-point", "no-std"]
+categories = ["game-development", "no-std"]
+
+[dependencies]
+corvid_fixed = { workspace = true }
+# The `Aabb` a mesh's bound is. This is what makes that type earn its place
+# outside a raycast: a bound is what a broad phase culls by and what a picking
+# pass tests first, and neither of those needs a device.
+corvid_shape = { workspace = true }
+# `OctDirection`, which is a vertex normal, and the `Direction` a face normal is
+# computed as.
+corvid_vector = { workspace = true, features = ["bytemuck"] }
+# `Pod` and `Zeroable` on `Vertex`, unconditionally: a vertex whose whole
+# purpose is to become the bytes of a vertex buffer and cannot is not useful,
+# which is the same reason `corvid_camera` holds `Eye` this way. Not a feature,
+# so that `default` can be empty as it is everywhere but the facade.
+bytemuck = { workspace = true }
+
+[features]
+default = []
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+std = ["corvid_shape/std", "corvid_vector/std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
