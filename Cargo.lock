@@ -320,6 +320,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_replay"
+version = "0.1.0"
+dependencies = [
+ "corvid_behavior",
+ "corvid_files",
+ "corvid_hash",
+ "corvid_time",
+ "corvid_wire",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "corvid_rotation"
 version = "0.1.0"
 dependencies = [
