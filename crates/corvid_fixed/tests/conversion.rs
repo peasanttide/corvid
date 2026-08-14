@@ -22,8 +22,8 @@ mod common;
 
 use common::Rng;
 use corvid_fixed::{
-    Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I8F8, I16F16, I24F8, I48F16,
-    Signed8, Signed16, Signed32,
+    Angle8, Angle16, Angle32, Factor8, Factor16, Factor32, I0F8, I2F30, I8F8, I16F16, I24F8,
+    I48F16, Signed8, Signed16, Signed32,
 };
 /// Asserts that `bits -> f64 -> bits` is the identity across a whole type.
 macro_rules! assert_f64_round_trip_exhaustive {
@@ -344,4 +344,54 @@ fn a_signed_normalized_value_takes_a_whole_number_of_units() {
     assert_eq!(Signed8::from(1), Signed8::MAX);
     assert_eq!(Signed8::from(-4), Signed8::MIN);
     assert_eq!(Signed16::from(0), Signed16::ZERO);
+}
+
+/// The `I16F16`/`I2F30` pair: exact one way where it fits, rounded back, and
+/// clamped rather than wrapped outside the narrow type's range.
+#[test]
+fn the_fine_pair_converts_both_ways() {
+    // Inside `I2F30`'s range the widening is exact -- it is a shift.
+    for bits in [0, 1, -1, 1 << 16, -(1 << 16), (1 << 17) - 1] {
+        let value = I16F16::from_bits(bits);
+        assert_eq!(value.to_i2f30().to_f64(), value.to_f64(), "{value:?}");
+    }
+
+    // Outside it, it clamps -- the sign is kept, which is what wrapping would
+    // have lost.
+    assert_eq!(I16F16::MAX.to_i2f30(), I2F30::MAX);
+    assert_eq!(I16F16::MIN.to_i2f30(), I2F30::MIN);
+    assert_eq!(I16F16::from_f64(3.0).to_i2f30(), I2F30::MAX);
+    assert_eq!(I16F16::from_f64(-3.0).to_i2f30(), I2F30::MIN);
+
+    // The way back cannot clamp: every `I2F30` is inside `I16F16`.
+    for bits in [0, 1 << 20, -(1 << 20), i32::MAX, i32::MIN + 1] {
+        let value = I2F30::from_bits(bits);
+        let back = value.to_i16f16();
+        let delta = (back.to_f64() - value.to_f64()).abs();
+        assert!(
+            delta <= 1.0 / f64::from(1u32 << 16),
+            "{value:?} -> {back:?}"
+        );
+    }
+
+    // Rounded rather than truncated, on both sides of zero.
+    assert_eq!(I2F30::from_bits(1 << 13).to_i16f16(), I16F16::from_bits(1));
+    assert_eq!(
+        I2F30::from_bits(-(1 << 13)).to_i16f16(),
+        I16F16::from_bits(-1)
+    );
+    assert_eq!(I2F30::from_bits((1 << 13) - 1).to_i16f16(), I16F16::ZERO);
+}
+
+/// Every `I16F16` that survives the trip to `I2F30` comes back unchanged.
+#[test]
+fn the_fine_pair_round_trips_where_it_fits() {
+    let mut bits = 1i32;
+    while bits < 1 << 17 {
+        for signed in [bits, -bits] {
+            let value = I16F16::from_bits(signed);
+            assert_eq!(value.to_i2f30().to_i16f16(), value, "{value:?}");
+        }
+        bits = bits.saturating_add(bits / 7 + 1);
+    }
 }

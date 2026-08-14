@@ -1,5 +1,73 @@
-//! The generator for the roundings, the reciprocal and the three composed
-//! operations built on them.
+//! Rounding: the generator for the per-type roundings, and the three rules the
+//! rest of the tier shares.
+//!
+//! Every one of these rounds half away from zero, which is the one decision
+//! behind them all -- the rest of the crate rounds that way, and a helper that
+//! disagreed would put the disagreement somewhere nobody would look for it.
+//! [`divide`] is the rule at the width a scale conversion works in and
+//! [`divide_wide`] is the same rule where the intermediates pass an `i64`;
+//! [`round_f64`] is it at the boundary with a float.
+
+/// Rounds an `f64` half away from zero, keeping `NaN` at zero.
+///
+/// The caller casts the result to an integer, where Rust's saturating
+/// float-to-int conversion supplies the clamping and the `NaN` behavior.
+pub(super) const fn round_f64(scaled: f64) -> f64 {
+    if scaled >= 0.0 {
+        scaled + 0.5
+    } else {
+        scaled - 0.5
+    }
+}
+
+/// A quotient, rounded to nearest with halves away from zero.
+///
+/// Rust's integer division truncates toward zero, which turns every sub-unit
+/// shortfall into a whole step in the last place -- systematic, in the same
+/// direction every time, and enough to put a ray's hit under the surface it was
+/// cast at. The caller has already rejected a zero denominator.
+#[inline]
+pub(super) const fn divide(numerator: i64, denominator: i64) -> i64 {
+    // `unsigned_abs` rather than `abs`, which overflows on `i64::MIN` -- a
+    // value no call site reaches, and a panic the workspace forbids being one
+    // branch away from is not worth the shorter spelling.
+    let half = (denominator.unsigned_abs() / 2) as i64;
+    let bump = if numerator < 0 { -half } else { half };
+    (numerator + bump) / denominator
+}
+
+/// The same rounding at the width the cube root and the Q30 matrices need.
+///
+/// [`divide`] is the one every scale conversion goes through; this is the twin
+/// for the two places whose intermediates pass an `i64` -- a Q30 value cubed
+/// reaches 2^93, and three Q60 products summed reach past 2^63 -- so that the
+/// rounding is the same rule at both widths rather than two spellings of it.
+#[inline]
+pub(super) const fn divide_wide(numerator: i128, denominator: i128) -> i128 {
+    let half = (denominator.unsigned_abs() / 2).cast_signed();
+    let bump = if numerator < 0 { -half } else { half };
+    (numerator + bump) / denominator
+}
+
+/// A 128-bit intermediate brought back to the width `saturate` takes, clamping.
+///
+/// The step before a saturating narrowing rather than a substitute for it: this
+/// gets the value into an `i64` without wrapping, and `saturate` then clamps it
+/// to the type's own range.
+#[inline]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the value is clamped to i64's range on the two branches above the cast, which is what makes the narrowing exact"
+)]
+pub(super) const fn narrow_i64(value: i128) -> i64 {
+    if value > i64::MAX as i128 {
+        i64::MAX
+    } else if value < i64::MIN as i128 {
+        i64::MIN
+    } else {
+        value as i64
+    }
+}
 
 macro_rules! define_fixed_point_round {
     ($name:ident, $repr:ty, $wide:ty, $uwide:ty, $frac:expr, $factor:ident) => {
