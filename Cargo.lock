@@ -216,6 +216,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_color"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "corvid_fixed",
+ "corvid_hash",
+ "corvid_wire",
+ "serde",
+]
+
+[[package]]
 name = "corvid_files"
 version = "0.1.0"
 
@@ -319,6 +330,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_replay"
+version = "0.1.0"
+dependencies = [
+ "corvid_behavior",
+ "corvid_files",
+ "corvid_hash",
+ "corvid_time",
+ "corvid_wire",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "corvid_rotation"
 version = "0.1.0"
 dependencies = [
@@ -351,6 +376,22 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "tracing",
+]
+
+[[package]]
+name = "corvid_sound"
+version = "0.1.0"
+dependencies = [
+ "corvid_behavior",
+ "corvid_camera",
+ "corvid_fixed",
+ "corvid_hash",
+ "corvid_time",
+ "corvid_transform",
+ "corvid_vector",
+ "corvid_wire",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

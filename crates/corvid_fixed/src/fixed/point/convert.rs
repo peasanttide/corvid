@@ -1,4 +1,4 @@
-//! Operations between scalars of different scales.
+//! Conversions between scalars of different scales.
 //!
 //! Every one of these changes the binary scale, which is where a fixed-point
 //! type is at its most fragile: a widening of the fraction is a narrowing of
@@ -13,8 +13,7 @@
 //! That is what lets a shape crate compare and intersect distances with no
 //! square root in the common case and no floating point in any case.
 
-use super::{I16F16, I24F8, I48F16};
-use crate::{Signed16, Signed32};
+use super::{I2F30, I16F16, I24F8, I48F16, divide};
 
 impl I24F8 {
     /// The same value at sixteen fractional bits, saturating.
@@ -48,53 +47,6 @@ impl I24F8 {
         I16F16::saturate((self.to_bits() as i64) << 8)
     }
 
-    /// `self` scaled by `factor`, which runs `-1.0 ..= 1.0`.
-    ///
-    /// The operation an axis is one of: a control reports how far along its
-    /// range it is, and a game says what a full deflection is worth. The two
-    /// scales do not line up -- a [`Signed16`] is `bits / 32767` and this type
-    /// is a power of two -- so crossing between them is a multiply and a
-    /// rounded divide rather than a shift.
-    ///
-    /// Exact at the ends and at rest: [`Signed16::MAX`] gives `self`,
-    /// [`Signed16::MIN`] gives `-self` and [`Signed16::ZERO`] gives zero.
-    /// Everything between is the product rounded once, and the rounding is
-    /// symmetric, so a push one way is the same size as the same push back --
-    /// which matters because what a game builds out of an axis is hashed by
-    /// every peer.
-    ///
-    /// Saturating in the one case a two's-complement range cannot answer: the
-    /// negation of [`MIN`](Self::MIN) is not a value, so `MIN` scaled by
-    /// [`Signed16::MIN`] gives [`MAX`](Self::MAX) rather than wrapping.
-    ///
-    /// ```
-    /// use corvid_fixed::{I24F8, Signed16};
-    ///
-    /// let full = I24F8::from_f64(100.0);
-    /// assert_eq!(full.saturating_mul_signed16(Signed16::MAX), full);
-    /// assert_eq!(full.saturating_mul_signed16(Signed16::MIN), -full);
-    /// assert_eq!(full.saturating_mul_signed16(Signed16::ZERO), I24F8::ZERO);
-    ///
-    /// // Whatever it rounds to, it rounds there in both directions.
-    /// let half = Signed16::from_bits(16_384);
-    /// assert_eq!(
-    ///     full.saturating_mul_signed16(-half),
-    ///     -full.saturating_mul_signed16(half),
-    /// );
-    ///
-    /// // The one asymmetry is the range's own.
-    /// assert_eq!(I24F8::MIN.saturating_mul_signed16(Signed16::MIN), I24F8::MAX);
-    /// ```
-    #[must_use]
-    #[inline]
-    pub const fn saturating_mul_signed16(self, factor: Signed16) -> Self {
-        // `canonicalize` first, so the `SNORM` denormal -- the second bit
-        // pattern for `-1.0` -- cannot push the product one step outside the
-        // range before the rounding sees it.
-        let numerator = (self.to_bits() as i64) * (factor.canonicalize().to_bits() as i64);
-        Self::saturate(divide(numerator, Signed16::MAX.to_bits() as i64))
-    }
-
     /// The square, at the doubled scale. **Exact**, always.
     ///
     /// A Q8 times a Q8 is a Q16, and the widest square an [`I24F8`] has is
@@ -115,142 +67,6 @@ impl I24F8 {
     pub const fn squared(self) -> I48F16 {
         let bits = self.to_bits() as i64;
         I48F16::from_bits(bits * bits)
-    }
-
-    /// `self / divisor`, or [`None`] when the divisor is zero.
-    ///
-    /// The operation a cast is one of: a length over how much two directions
-    /// agree, which is a distance. The divisor is a [`Signed32`], so dividing
-    /// by it *lengthens* -- a plane seen at a glancing angle is further along
-    /// the ray than it is away -- and the answer saturates rather than
-    /// wrapping when the angle is glancing enough to push it past the range.
-    ///
-    /// ```
-    /// use corvid_fixed::{I24F8, Signed32};
-    ///
-    /// let half = Signed32::from_f64(0.5);
-    /// assert_eq!(I24F8::from(3).checked_div_signed32(half), Some(I24F8::from(6)));
-    /// assert_eq!(I24F8::from(3).checked_div_signed32(Signed32::ZERO), None);
-    ///
-    /// // A ray parallel to nothing: dividing by one is the identity, exactly.
-    /// assert_eq!(I24F8::MAX.checked_div_signed32(Signed32::MAX), Some(I24F8::MAX));
-    /// ```
-    #[must_use]
-    #[inline]
-    pub const fn checked_div_signed32(self, divisor: Signed32) -> Option<Self> {
-        let denominator = divisor.canonicalize().to_bits() as i64;
-        if denominator == 0 {
-            return None;
-        }
-        // Q8 over Q31 is a Q-23, so the numerator carries the unit up front to
-        // land back on a Q8. `2^31 x 2^31` is the widest it reaches, which is
-        // an `i64` with a bit spare -- and the unit rather than a shift of 31,
-        // because `Signed32`'s one is `2^31 - 1` and shifting would floor the
-        // shortfall into a whole step in the last place.
-        let numerator = (self.to_bits() as i64) * (Signed32::MAX.to_bits() as i64);
-        Some(Self::saturate(divide(numerator, denominator)))
-    }
-
-    /// `self / divisor`, saturating at both ends including a zero divisor.
-    ///
-    /// A zero divisor answers [`MAX`](Self::MAX) or [`MIN`](Self::MIN) by the
-    /// sign of the numerator, and zero over zero is zero -- the same reading
-    /// [`recip`](Self::recip) gives, and the one a slab test wants when it has
-    /// already decided that a ray parallel to a pair of faces is constrained by
-    /// neither.
-    #[must_use]
-    #[inline]
-    pub const fn saturating_div_signed32(self, divisor: Signed32) -> Self {
-        match self.checked_div_signed32(divisor) {
-            Some(quotient) => quotient,
-            None if self.is_negative() => Self::MIN,
-            None if self.is_positive() => Self::MAX,
-            None => Self::ZERO,
-        }
-    }
-}
-
-impl I16F16 {
-    /// The same value at eight fractional bits, rounded to nearest.
-    ///
-    /// The way back from [`I24F8::to_i16f16`], and the direction that cannot
-    /// fail: [`I16F16`] reaches +/-32.7 km and [`I24F8`] reaches +/-8388 km, so
-    /// widening the range while narrowing the fraction always fits. Eight
-    /// fractional bits go, rounded rather than truncated.
-    ///
-    /// The conversion a mesh makes. A vertex holds a share of a scale, the
-    /// scale is in [`I16F16`] metres because that is the resolution a size is
-    /// written at, and what comes out is a position in the world's own
-    /// [`I24F8`].
-    ///
-    /// ```
-    /// use corvid_fixed::{I16F16, I24F8};
-    ///
-    /// assert_eq!(I16F16::from_f64(1.5).to_i24f8(), I24F8::from_f64(1.5));
-    ///
-    /// // Rounded: half a step of the destination goes away from zero.
-    /// let half_step = I16F16::from_bits(1 << 7);
-    /// assert_eq!(half_step.to_i24f8(), I24F8::from_bits(1));
-    /// assert_eq!((-half_step).to_i24f8(), I24F8::from_bits(-1));
-    /// ```
-    #[must_use]
-    #[inline]
-    pub const fn to_i24f8(self) -> I24F8 {
-        let bits = self.to_bits() as i64;
-        let half = 1 << 7;
-        let rounded = if bits >= 0 {
-            (bits + half) >> 8
-        } else {
-            -((-bits + half) >> 8)
-        };
-        I24F8::saturate(rounded)
-    }
-
-    /// `self` scaled by `factor`, which runs `-1.0 ..= 1.0`.
-    ///
-    /// The operation an axis is one of: a control reports how far along its
-    /// range it is, and a game says what a full deflection is worth. The two
-    /// scales do not line up -- a [`Signed16`] is `bits / 32767` and this type
-    /// is a power of two -- so crossing between them is a multiply and a
-    /// rounded divide rather than a shift.
-    ///
-    /// Exact at the ends and at rest: [`Signed16::MAX`] gives `self`,
-    /// [`Signed16::MIN`] gives `-self` and [`Signed16::ZERO`] gives zero.
-    /// Everything between is the product rounded once, and the rounding is
-    /// symmetric, so a push one way is the same size as the same push back --
-    /// which matters because what a game builds out of an axis is hashed by
-    /// every peer.
-    ///
-    /// Saturating in the one case a two's-complement range cannot answer: the
-    /// negation of [`MIN`](Self::MIN) is not a value, so `MIN` scaled by
-    /// [`Signed16::MIN`] gives [`MAX`](Self::MAX) rather than wrapping.
-    ///
-    /// ```
-    /// use corvid_fixed::{I16F16, Signed16};
-    ///
-    /// let full = I16F16::from_f64(2.5);
-    /// assert_eq!(full.saturating_mul_signed16(Signed16::MAX), full);
-    /// assert_eq!(full.saturating_mul_signed16(Signed16::MIN), -full);
-    /// assert_eq!(full.saturating_mul_signed16(Signed16::ZERO), I16F16::ZERO);
-    ///
-    /// // Whatever it rounds to, it rounds there in both directions.
-    /// let half = Signed16::from_bits(16_384);
-    /// assert_eq!(
-    ///     full.saturating_mul_signed16(-half),
-    ///     -full.saturating_mul_signed16(half),
-    /// );
-    ///
-    /// // The one asymmetry is the range's own.
-    /// assert_eq!(I16F16::MIN.saturating_mul_signed16(Signed16::MIN), I16F16::MAX);
-    /// ```
-    #[must_use]
-    #[inline]
-    pub const fn saturating_mul_signed16(self, factor: Signed16) -> Self {
-        // `canonicalize` first, so the `SNORM` denormal -- the second bit
-        // pattern for `-1.0` -- cannot push the product one step outside the
-        // range before the rounding sees it.
-        let numerator = (self.to_bits() as i64) * (factor.canonicalize().to_bits() as i64);
-        Self::saturate(divide(numerator, Signed16::MAX.to_bits() as i64))
     }
 }
 
@@ -291,18 +107,165 @@ impl I48F16 {
     }
 }
 
-/// A quotient, rounded to nearest with halves away from zero.
-///
-/// Rust's integer division truncates toward zero, which turns every sub-unit
-/// shortfall into a whole step in the last place -- systematic, in the same
-/// direction every time, and enough to put a ray's hit under the surface it was
-/// cast at. The caller has already rejected a zero denominator.
-#[inline]
-const fn divide(numerator: i64, denominator: i64) -> i64 {
-    // `unsigned_abs` rather than `abs`, which overflows on `i64::MIN` -- a
-    // value no call site reaches, and a panic the workspace forbids being one
-    // branch away from is not worth the shorter spelling.
-    let half = (denominator.unsigned_abs() / 2) as i64;
-    let bump = if numerator < 0 { -half } else { half };
-    (numerator + bump) / denominator
+impl I16F16 {
+    /// The same value at thirty fractional bits, saturating.
+    ///
+    /// Fourteen more fractional bits, and fourteen fewer of range: [`I16F16`]
+    /// reaches +/-32.7 km at 15 microns and [`I2F30`] reaches +/-2 at
+    /// 9.3e-10. Almost every [`I16F16`] therefore has no [`I2F30`] to become,
+    /// and clamping is the answer for the reason the rest of this module gives.
+    ///
+    /// The conversion a colour channel makes. A linear channel is nominally in
+    /// `[0, 1]` and held in a type with room for 32 768 of them; the moment it
+    /// is about to go through an operation that needs resolution rather than
+    /// range -- a cube root, for Oklab -- it wants the narrow, fine type
+    /// instead, and a channel past 2 was already outside any gamut.
+    ///
+    /// ```
+    /// use corvid_fixed::{I2F30, I16F16};
+    ///
+    /// assert_eq!(I16F16::from_f64(0.5).to_i2f30(), I2F30::from_f64(0.5));
+    ///
+    /// // Past what an `I2F30` holds, it clamps.
+    /// assert_eq!(I16F16::MAX.to_i2f30(), I2F30::MAX);
+    /// assert_eq!(I16F16::MIN.to_i2f30(), I2F30::MIN);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_i2f30(self) -> I2F30 {
+        I2F30::saturate((self.to_bits() as i64) << 14)
+    }
+}
+
+impl I2F30 {
+    /// The same value at sixteen fractional bits, rounded to nearest.
+    ///
+    /// The way back from [`I16F16::to_i2f30`], and the one direction of the
+    /// pair that cannot clamp: every [`I2F30`] is inside `+/-2` and so inside
+    /// [`I16F16`]'s range. Fourteen fractional bits go, which is a rounding
+    /// rather than a truncation -- halves away from zero, as everywhere else
+    /// in this crate -- so a round trip through the two is off by at most the
+    /// destination's own last bit rather than always downward.
+    ///
+    /// ```
+    /// use corvid_fixed::{I2F30, I16F16};
+    ///
+    /// assert_eq!(I2F30::from_f64(0.5).to_i16f16(), I16F16::from_f64(0.5));
+    ///
+    /// // Rounded, not truncated: half a step of the destination goes up.
+    /// let half_step = I2F30::from_bits(1 << 13);
+    /// assert_eq!(half_step.to_i16f16(), I16F16::from_bits(1));
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_i16f16(self) -> I16F16 {
+        let bits = self.to_bits() as i64;
+        let half = 1 << 13;
+        let rounded = if bits >= 0 {
+            (bits + half) >> 14
+        } else {
+            -((-bits + half) >> 14)
+        };
+        I16F16::saturate(rounded)
+    }
+}
+
+impl I16F16 {
+    /// The same value at eight fractional bits, rounded to nearest.
+    ///
+    /// The way back from [`I24F8::to_i16f16`], and the direction that cannot
+    /// fail: [`I16F16`] reaches +/-32.7 km and [`I24F8`] reaches +/-8388 km, so
+    /// widening the range while narrowing the fraction always fits. Eight
+    /// fractional bits go, rounded rather than truncated.
+    ///
+    /// The conversion a mesh makes. A vertex holds a share of a scale, the
+    /// scale is in [`I16F16`] metres because that is the resolution a size is
+    /// written at, and what comes out is a position in the world's own
+    /// [`I24F8`].
+    ///
+    /// ```
+    /// use corvid_fixed::{I16F16, I24F8};
+    ///
+    /// assert_eq!(I16F16::from_f64(1.5).to_i24f8(), I24F8::from_f64(1.5));
+    ///
+    /// // Rounded: half a step of the destination goes away from zero.
+    /// let half_step = I16F16::from_bits(1 << 7);
+    /// assert_eq!(half_step.to_i24f8(), I24F8::from_bits(1));
+    /// assert_eq!((-half_step).to_i24f8(), I24F8::from_bits(-1));
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_i24f8(self) -> I24F8 {
+        let bits = self.to_bits() as i64;
+        let half = 1 << 7;
+        let rounded = if bits >= 0 {
+            (bits + half) >> 8
+        } else {
+            -((-bits + half) >> 8)
+        };
+        I24F8::saturate(rounded)
+    }
+
+    /// `self` scaled by `factor`, which runs `-1.0 ..= 1.0`.
+    /// The fraction an 8-bit code denotes, `code / 255`.
+    ///
+    /// The [`UNORM`] convention: 0 is none of it and 255 is all of it, with the
+    /// step between codes 1/255 rather than 1/256, so that both ends are exact.
+    /// A texture, a palette and a colour channel all arrive this way, and the
+    /// conversion is here rather than in each of them because getting it wrong
+    /// by one step is invisible until two of them disagree.
+    ///
+    /// [`to_unorm8`](Self::to_unorm8) is its inverse, exactly, for all 256
+    /// codes.
+    ///
+    /// [`UNORM`]: https://registry.khronos.org/vulkan/specs/latest/html/vkspec.html#fundamentals-fixedconv
+    ///
+    /// ```
+    /// use corvid_fixed::I16F16;
+    ///
+    /// assert_eq!(I16F16::from_unorm8(0), I16F16::ZERO);
+    /// assert_eq!(I16F16::from_unorm8(255), I16F16::ONE);
+    ///
+    /// // And every code survives the trip back.
+    /// assert!((0..=255).all(|code| I16F16::from_unorm8(code).to_unorm8() == code));
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn from_unorm8(code: u8) -> Self {
+        let numerator = (code as i64) << Self::FRAC_BITS;
+        Self::saturate(divide(numerator, 255))
+    }
+
+    /// The 8-bit code this fraction denotes, rounded and clamped.
+    ///
+    /// The inverse of [`from_unorm8`](Self::from_unorm8). Values outside
+    /// `0.0 ..= 1.0` clamp to the ends rather than wrapping, because a colour
+    /// channel that came back as its own complement is the worst answer
+    /// available and an out-of-range one is ordinary -- an HDR value on its way
+    /// to a display, or a blend that overshot.
+    ///
+    /// ```
+    /// use corvid_fixed::I16F16;
+    ///
+    /// assert_eq!(I16F16::ONE.to_unorm8(), 255);
+    /// assert_eq!(I16F16::from_f64(-1.0).to_unorm8(), 0);
+    /// assert_eq!(I16F16::from_f64(2.0).to_unorm8(), 255);
+    /// ```
+    #[must_use]
+    #[inline]
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the value is compared against both ends before the cast, which is what makes the narrowing exact"
+    )]
+    pub const fn to_unorm8(self) -> u8 {
+        let scaled = divide((self.to_bits() as i64) * 255, 1 << Self::FRAC_BITS);
+        if scaled <= 0 {
+            0
+        } else if scaled >= 255 {
+            255
+        } else {
+            scaled as u8
+        }
+    }
 }

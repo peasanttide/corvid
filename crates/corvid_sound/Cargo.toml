@@ -1,0 +1,94 @@
+[package]
+name = "corvid_sound"
+description = "What to hear, as data: a fixed-point audio frame with no device and no mixer behind it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["audio", "deterministic", "rollback", "no-std", "gamedev"]
+categories = ["game-development", "no-std"]
+
+[dependencies]
+# `Auralizer` is one of the four contracts an `App` is made of, so it names a
+# `State`, an `Extract` and a `Time`; and a `Camera`, because the ears go where
+# the eye is.
+corvid_behavior = { workspace = true, features = ["std"] }
+corvid_camera = { workspace = true, features = ["std"] }
+corvid_fixed = { workspace = true }
+corvid_vector = { workspace = true }
+# `Tick` alone, and not the crate whole -- see the `std` feature below.
+corvid_time = { workspace = true }
+corvid_transform = { workspace = true }
+serde = { workspace = true, optional = true, features = ["alloc"] }
+
+[dev-dependencies]
+# The third golden table, and the only one that can see an integer's declared
+# width. Not a normal dependency: nothing in `src` hashes anything, and the
+# digests exist to freeze the encoding rather than to serve it.
+corvid_hash = { workspace = true }
+# The encoding a recorded byte string is recorded under, which is a
+# workspace-wide decision rather than this crate's: `corvid_wire` writes a
+# varint and no names, so what a golden row of it can see is a field's position,
+# a field's absence, a field's value and a variant's index.
+#
+# The choice does nothing for the round trips -- a round trip cannot see the
+# format it uses, because the writer and the reader are derived from one
+# declaration and move together. What it decides is how much a *recorded* byte
+# string can see. Depending on `corvid_wire` here rather than on a format crate
+# is also the point: a test file that named a format could name a different one.
+corvid_wire = { workspace = true }
+# Unconditional here where it is optional above, because an example has to
+# satisfy `State: Data` and that means the two derives whatever this crate's own
+# features are set to. Without it the `Auralizer` doctest builds under
+# `--all-features` and not under a plain one, which is the axis CI runs second.
+serde = { workspace = true }
+# And a self-describing one, for the half of the golden that is about names.
+# `corvid_wire` writes none, so a field or a variant renamed moves not one byte
+# of its table and not one digest either; the text table in `tests/golden.rs` is
+# the only thing in this crate that sees it.
+serde_json = "1"
+
+[features]
+default = []
+# Forwarded to every crate the frame is built out of, so a downstream that turns
+# it on here gets it on the positions and the gains too rather than discovering
+# halfway through a capture that the one thing it cannot serialize is a
+# `FinePoint`.
+#
+# Named one by one rather than left to `corvid_transform` to pass along, even
+# though it does today: a crate forwards for the types *it* holds, and this one
+# holds a `FinePoint` and a `Factor16` of its own. Leaning on somebody else's
+# forwarding makes this crate's serde support a consequence of a dependency's
+# internals, which is a thing that can change without touching this file.
+serde = [
+    "dep:serde",
+    "corvid_fixed/serde",
+    "corvid_time/serde",
+    "corvid_transform/serde",
+    "corvid_vector/serde",
+]
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+#
+# `corvid_time/std` is deliberately not on that list, for the reason
+# `corvid_behavior` gives: it is the one dependency whose `std` feature adds a
+# type, and the type is `Wall`, a clock. Cargo unifies features across a build,
+# so forwarding it here would hand a wall clock to everything that draws an
+# audio frame as a side effect of something else turning `std` on. Nothing in
+# this crate asks what time it is; it is told which `Tick` a cue fired on.
+std = [
+    "corvid_fixed/std",
+    "corvid_transform/std",
+    "corvid_vector/std",
+    "serde?/std",
+]
+
+[lints]
+workspace = true
+
+# Every optional integration is off by default, so a plain build documents none
+# of the serde impls.
+[package.metadata.docs.rs]
+all-features = true
