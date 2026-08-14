@@ -336,3 +336,27 @@ define_factor! {
         wide: u128,
     }
 }
+
+impl Factor16 {
+    /// The same factor at 32 bits, exactly.
+    ///
+    /// Both types denote `v / MAX`, so widening is a multiplication by
+    /// `0x1_0001` rather than a shift: that is what carries
+    /// [`MAX`](Factor16::MAX) to [`Factor32::MAX`] and leaves
+    /// [`ZERO`](Factor16::ZERO) where it is. A shift by sixteen maps `1.0` to
+    /// `1.0 - 2^-16` instead, which is the mistake this exists to stop anyone
+    /// making twice.
+    ///
+    /// ```
+    /// use corvid_fixed::{Factor16, Factor32};
+    ///
+    /// assert_eq!(Factor16::MAX.to_factor32(), Factor32::MAX);
+    /// assert_eq!(Factor16::ZERO.to_factor32(), Factor32::ZERO);
+    /// assert_eq!(Factor16::from_f64(0.5).to_factor32(), Factor32::from_f64(0.5));
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_factor32(self) -> Factor32 {
+        Factor32::from_bits(self.to_bits() as u32 * 0x1_0001)
+    }
+}
