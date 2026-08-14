@@ -58,6 +58,7 @@ corvid_net_udp = { version = "0.1.0", path = "crates/corvid_net_udp" }
 corvid_shape = { version = "0.1.0", path = "crates/corvid_shape" }
 corvid_rotation = { version = "0.1.0", path = "crates/corvid_rotation" }
 corvid_signal = { version = "0.1.0", path = "crates/corvid_signal" }
+corvid_sound = { version = "0.1.0", path = "crates/corvid_sound" }
 corvid_time = { version = "0.1.0", path = "crates/corvid_time" }
 corvid_transform = { version = "0.1.0", path = "crates/corvid_transform" }
 corvid_vector = { version = "0.1.0", path = "crates/corvid_vector" }
