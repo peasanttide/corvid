@@ -6,19 +6,37 @@ use corvid_time::Time;
 
 use crate::AudioFrame;
 
-/// What an ear is handed for one frame.
+/// Where and when this frame is heard from.
 ///
-/// No type parameter: an ear reads the state through
-/// [`Extract`](corvid_behavior::Extract) and writes cues here, so nothing in
-/// this struct is the game's own type.
-#[derive(Debug)]
-pub struct Hearing<'a> {
-    /// The frame to write cues into.
-    pub out: &'a mut AudioFrame,
+/// Owned and [`Copy`], with no lifetime: a [`Camera`] is a pose and a frustum
+/// and a [`Time`] is two numbers, so borrowing them would cost an ear a
+/// lifetime parameter to save a copy smaller than the reference that replaced
+/// it.
+///
+/// The frame being written is **not** in here. It is a separate argument to
+/// [`hear`](Auralizer::hear), because it is the one thing on that call that is
+/// borrowed mutably: keeping it out means this stays a value an ear can hold,
+/// compare and pass on, rather than a borrow of the runtime that has to be
+/// threaded through every helper an ear splits itself into.
+///
+/// No type parameter either: an ear reads the state through
+/// [`Extract`](corvid_behavior::Extract), so nothing here is the game's own
+/// type.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Hearing {
     /// Where the listener is, which is where the eye is.
-    pub camera: &'a Camera,
+    pub camera: Camera,
     /// Where the session is.
     pub time: Time,
+}
+
+impl Hearing {
+    /// Ears at `camera`, at `time`.
+    #[must_use]
+    #[inline]
+    pub const fn new(camera: Camera, time: Time) -> Self {
+        Self { camera, time }
+    }
 }
 
 /// What a game sounds like, and how.
@@ -62,8 +80,10 @@ pub trait Auralizer<S: State>: Extract<S> {
 
     /// Fill one frame of audio.
     ///
-    /// `hearing.camera` is whatever the controller's `look` answered, so the
-    /// ears are where the eye is without either being told twice.
+    /// `out` is the frame to write into and `hearing` is where and when it is
+    /// heard from. `hearing.camera` is whatever the controller's `look`
+    /// answered, so the ears are where the eye is without either being told
+    /// twice.
     ///
     /// # Every position written here is an offset in the listener's own frame
     ///
@@ -85,12 +105,80 @@ pub trait Auralizer<S: State>: Extract<S> {
     ///
     /// # Reuse
     ///
-    /// `hearing.out` is the runtime's frame, handed over cleared and kept for
-    /// the life of the process. Append to it; do not replace it.
+    /// `out` is the runtime's frame, handed over cleared and kept for the life
+    /// of the process. Append to it; do not replace it.
     /// [`AudioFrame::clear`](crate::AudioFrame::clear) retains its vectors'
     /// capacity, so a frame no larger than the largest before it allocates
     /// nothing.
-    fn hear(&mut self, hearing: Hearing<'_>);
+    ///
+    /// ```
+    /// use corvid_sound::{AudioFrame, Auralizer, Cue, Hearing, Listener, SoundId};
+    /// # use corvid_behavior::{Extract, Extracting, Level, State};
+    /// # use corvid_time::{Tick, Time};
+    /// # use serde::{Deserialize, Serialize};
+    /// #
+    /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    /// # struct Only;
+    /// # impl Level for Only {
+    /// #     type Error = core::convert::Infallible;
+    /// #     fn load(_: &str) -> Result<Self, Self::Error> { Ok(Self) }
+    /// # }
+    /// #
+    /// # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    /// # struct Game;
+    /// # impl State for Game {
+    /// #     const NAME: &'static str = "game";
+    /// #     type Level = Only;
+    /// #     type Rules = ();
+    /// #     type Action = ();
+    /// # }
+    /// #
+    /// const THUD: SoundId = SoundId(1);
+    ///
+    /// #[derive(Default)]
+    /// struct Ears {
+    ///     /// Whatever the last `extract` read out of the state.
+    ///     thuds: Vec<Tick>,
+    /// }
+    ///
+    /// # impl Extract<Game> for Ears {
+    /// #     fn extract(&mut self, _extracting: Extracting<'_, Game>) {}
+    /// # }
+    /// #
+    /// impl Ears {
+    ///     /// A helper an ear splits itself into. `Hearing` is owned, so this
+    ///     /// takes it by value and carries no lifetime of its own.
+    ///     fn thud(&self, out: &mut AudioFrame, hearing: Hearing, on: Tick) {
+    ///         out.cue(Cue::new(out.next_id(on), THUD));
+    ///         let _ = hearing.time;
+    ///     }
+    /// }
+    ///
+    /// impl Auralizer<Game> for Ears {
+    ///     type Config = ();
+    ///
+    ///     fn new((): ()) -> Self { Self::default() }
+    ///     fn configure(&mut self, (): ()) {}
+    ///
+    ///     fn hear(&mut self, out: &mut AudioFrame, hearing: Hearing) {
+    ///         // The ears go where the eye is, and the pose is the one
+    ///         // world-space thing in the frame.
+    ///         out.listen(Listener::new(hearing.camera.pose));
+    ///         for on in &self.thuds {
+    ///             self.thud(out, hearing, *on);
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// let mut ears = Ears { thuds: vec![Tick(97), Tick(97)] };
+    /// let mut frame = AudioFrame::new();
+    /// ears.hear(&mut frame, Hearing::default());
+    ///
+    /// // Two cues on one tick, numbered apart by the frame itself.
+    /// assert_eq!(frame.cues.len(), 2);
+    /// assert_ne!(frame.cues[0].id, frame.cues[1].id);
+    /// ```
+    fn hear(&mut self, out: &mut AudioFrame, hearing: Hearing);
 }
 
 /// A game with nothing to hear.
@@ -107,5 +195,5 @@ impl<S: State> Auralizer<S> for () {
 
     fn configure(&mut self, (): ()) {}
 
-    fn hear(&mut self, _hearing: Hearing<'_>) {}
+    fn hear(&mut self, _out: &mut AudioFrame, _hearing: Hearing) {}
 }

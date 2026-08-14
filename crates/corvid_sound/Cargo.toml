@@ -39,6 +39,11 @@ corvid_hash = { workspace = true }
 # string can see. Depending on `corvid_wire` here rather than on a format crate
 # is also the point: a test file that named a format could name a different one.
 corvid_wire = { workspace = true }
+# Unconditional here where it is optional above, because an example has to
+# satisfy `State: Data` and that means the two derives whatever this crate's own
+# features are set to. Without it the `Auralizer` doctest builds under
+# `--all-features` and not under a plain one, which is the axis CI runs second.
+serde = { workspace = true }
 # And a self-describing one, for the half of the golden that is about names.
 # `corvid_wire` writes none, so a field or a variant renamed moves not one byte
 # of its table and not one digest either; the text table in `tests/golden.rs` is
