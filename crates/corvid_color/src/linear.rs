@@ -101,18 +101,18 @@ impl LinearRgba {
     /// boundary `corvid_render::matrix` sits on: everything above is
     /// fixed-point and everything below is what a GPU has. Nothing downstream
     /// of this is hashed, so the rounding is free.
+    ///
+    /// Four [`I16F16::to_f32`]s and no cast of this crate's own. The narrowing
+    /// belongs to the type being narrowed, so a colour crossing to a device
+    /// crosses by the same call an angle or a position does.
     #[must_use]
     #[inline]
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "this is the crate's boundary with the f32 a device wants, and the narrowing is what crossing it means; nothing downstream is hashed, sent or replayed"
-    )]
     pub const fn to_f32_array(self) -> [f32; 4] {
         [
-            self.r.to_f64() as f32,
-            self.g.to_f64() as f32,
-            self.b.to_f64() as f32,
-            self.a.to_f64() as f32,
+            self.r.to_f32(),
+            self.g.to_f32(),
+            self.b.to_f32(),
+            self.a.to_f32(),
         ]
     }
 
