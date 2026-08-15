@@ -187,7 +187,7 @@ fn a_departure_only_ever_moves_earlier() -> Fallible {
     alone.depart(PlayerId(1), Tick(50))?;
     assert_eq!(alone.departed(PlayerId(1)), Some(Tick(50)));
 
-    // Later: refused, and nothing is rolled ().
+    // Later: refused, and nothing is rolled back.
     let rolled = alone.depart(PlayerId(1), Tick(70))?;
     assert!(!rolled.happened());
     assert_eq!(alone.departed(PlayerId(1)), Some(Tick(50)));

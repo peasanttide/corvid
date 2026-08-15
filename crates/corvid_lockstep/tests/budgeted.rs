@@ -68,7 +68,7 @@ fn play(rows: u32, to: u64, confirmed: u64) -> corvid_lockstep::Peer<Swarm> {
 
 #[test]
 fn a_rollback_deeper_than_the_budget_is_worked_off_over_the_ticks_that_follow() {
-    // Two ticks of rollback, and a correction six ticks ().
+    // Two ticks of rollback, and a correction six ticks deep.
     let budget = Budget::new(2, 2, 8);
     let mut peer = peer(32, 2, 0, budget);
     let opening = peer.session.marks.get(Tick::ZERO).unwrap();
@@ -102,7 +102,7 @@ fn a_rollback_deeper_than_the_budget_is_worked_off_over_the_ticks_that_follow() 
     assert!(peer.stalled());
 
     // A visible hitch rather than a missed frame budget: the rest is worked off
-    // one tick per advance, and the peer says so until it is ().
+    // one tick per advance, and the peer says so until it is caught up.
     for expected in [true, false] {
         let advanced = peer.advance(&mut corvid_behavior::Discard::new()).unwrap();
         assert_eq!(advanced.stalled, expected, "at tick {}", advanced.tick.0);

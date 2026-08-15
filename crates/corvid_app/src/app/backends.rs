@@ -48,16 +48,11 @@ where
         capture: Option<Capture>,
         settings: Settings<G>,
     ) -> Result<Outcome<G>, Error> {
-        // the snapshot from the window's devices every frame, and what a
-        // binding table is written against is which actions exist.
         let declaration = plan.input.sets();
         if declaration.is_empty() {
-            // Not an error, because a game with genuinely no actions is a
-            // legal thing to run and refusing it here would be this call
-            // deciding that for it. Said out loud, because the alternative
-            // is a window that opens, draws, and answers every input query
-            // with `RELEASED` for the rest of the run with nothing anywhere
-            // pointing at the missing line.
+            // Not an error: a game with genuinely no actions is a legal thing
+            // to run, and refusing it here would be this call deciding that
+            // for it.
             tracing::warn!(
                 name: "corvid_app.undeclared",
                 "this run declares no action sets, so the window binds no key \
@@ -122,7 +117,6 @@ where
         settings: Settings<G>,
     ) -> Result<Outcome<G>, Error> {
         let renderer = corvid_render::Renderer::offscreen(size).map_err(Error::Drew)?;
-        // The pipelines are built here because here is where the device is.
         let graphics = G::Render::new(
             corvid_render::Opened {
                 device: renderer.device(),
@@ -157,6 +151,7 @@ where
         clock: Box<dyn Elapsed>,
         settings: Settings<G>,
     ) -> Result<Outcome<G>, Error> {
+        // A headless run has no adapter, so there is no device to build
         // pipelines against and no renderer to hold. `None` is that, said
         // plainly, rather than a renderer built from a device that is not
         // there.

@@ -62,7 +62,7 @@ fn a_datagram_at_the_opening_carries_the_opening_and_nothing_before_it() {
         Digest::ZERO,
     );
 
-    // One row, because there is one tick. The window reaches () `WINDOW` rows
+    // One row, because there is one tick. The window reaches back `WINDOW` rows
     // and is clamped to what the log holds, so a datagram sent on a session's
     // first tick does not pad three ticks that never ran, which would put three
     // rows of `Idle` on the wire naming the opening tick over and over.

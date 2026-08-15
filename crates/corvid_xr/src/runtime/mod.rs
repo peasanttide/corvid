@@ -59,7 +59,8 @@ pub use unavailable::Unavailable;
 
 use convert::clipped;
 
-/// device and starts a session.
+/// A real headset: the runtime this process found, the device it was handed,
+/// and the session the two of them are in.
 pub struct OpenXr {
     /// Kept alive because the instance's entry points live in it.
     _entry: openxr::Entry,

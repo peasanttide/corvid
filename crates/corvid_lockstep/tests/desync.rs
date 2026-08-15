@@ -58,7 +58,7 @@ fn perfect(ticks: u64) -> (corvid_lockstep::Peer<Swarm>, corvid_lockstep::Peer<S
 
 #[test]
 fn two_peers_on_a_perfect_link_agree_on_every_mark() {
-    // Every `receive` above compares the mark it (), so reaching the end
+    // Every `receive` above compares the mark it was sent, so reaching the end
     // without a `Halt` is most of this. The traces are the rest.
     let (here, there) = perfect(200);
 

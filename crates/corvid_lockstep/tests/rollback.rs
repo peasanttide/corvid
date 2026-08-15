@@ -118,7 +118,7 @@ fn the_snapshot_at_the_corrected_tick_survives_the_rollback() {
 
     // The state *at* 40 is what the rows *before* 40 produce, and the
     // correction is to the row *at* 40. Counting row 40 would have taken this
-    // entry, and every entry the ring ever holds, and sent the seek () to the
+    // entry, and every entry the ring ever holds, and sent the seek back to the
     // opening.
     assert_eq!(
         peer.snapshots
