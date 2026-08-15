@@ -10,6 +10,7 @@
 use corvid_fixed::{Factor16, Factor32, I16F16, I48F16};
 
 use corvid_rotation::{FineRotation, Versor};
+use corvid_transform::FineTransform;
 
 use corvid_vector::GlobalFinePoint;
 use serde::{Deserialize, Serialize};
@@ -115,11 +116,10 @@ impl Anchor {
     /// use corvid_xr::{Anchor, Pose};
     /// use corvid_fixed::I16F16;
     /// use corvid_rotation::FineRotation;
-    /// use corvid_transform::FineTransform;
     /// use corvid_vector::{FinePoint, GlobalFinePoint};
     ///
     /// let reach = FinePoint::new(I16F16::ZERO, I16F16::from_f64(0.6), I16F16::from_f64(1.4));
-    /// let ahead = FineTransform::new(reach.to_global_fine(), FineRotation::IDENTITY);
+    /// let ahead = Pose::new(reach, FineRotation::IDENTITY);
     /// let held = Anchor::holding(
     ///     GlobalFinePoint::ZERO,
     ///     I16F16::from_f64(5_712.0),
@@ -139,7 +139,7 @@ impl Anchor {
         let metres = across.saturating_div(held);
         let offset = rotation
             .to_basis()
-            .rotate_global_fine(ahead.position().mul(widen(metres)));
+            .rotate_global_fine(ahead.origin().mul(widen(metres)));
         Self {
             origin: centre.sub(offset),
             rotation,
@@ -162,11 +162,14 @@ impl Anchor {
     }
 
     /// Where a stage pose is, in the world.
+    ///
+    /// A [`FineTransform`] rather than a [`Pose`]: the answer is a world
+    /// position, and the widening it goes through is exact.
     #[must_use]
-    pub const fn to_world(self, pose: Pose) -> Pose {
-        let scaled = pose.position().mul(widen(self.metres));
+    pub const fn to_world(self, pose: Pose) -> FineTransform {
+        let scaled = pose.origin().mul(widen(self.metres));
         let turned = self.rotation.to_basis().rotate_global_fine(scaled);
-        Pose::new(
+        FineTransform::new(
             turned.add(self.origin),
             composed(self.rotation, pose.rotation()),
         )
@@ -184,20 +187,21 @@ impl Anchor {
             .unrotate_global_fine(at.sub(self.origin));
         let scale = widen(self.metres);
         let [x, y, z] = local.to_array();
-        Pose::new(
-            GlobalFinePoint::new(
-                x.saturating_div(scale),
-                y.saturating_div(scale),
-                z.saturating_div(scale),
-            ),
-            FineRotation::IDENTITY,
-        )
+        // Saturating, because a stage pose has nowhere to put a refusal. It is
+        // reached only by a world position more than 32 km of stage away, which
+        // is a position outside the room the stage is.
+        let scaled = GlobalFinePoint::new(
+            x.saturating_div(scale),
+            y.saturating_div(scale),
+            z.saturating_div(scale),
+        );
+        Pose::new(scaled.to_fine_saturating(), FineRotation::IDENTITY)
     }
 
     /// Where a world pose is, in the stage: [`to_world`](Self::to_world)
     /// undone.
     #[must_use]
-    pub const fn to_stage_pose(self, world: Pose) -> Pose {
+    pub const fn to_stage_pose(self, world: FineTransform) -> Pose {
         let undo = if is_identity(self.rotation) {
             FineRotation::IDENTITY
         } else {

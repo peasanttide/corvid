@@ -25,9 +25,9 @@ use corvid_xr::{Confidence, Headset, PoseTrack, ScriptedHeadset, Space, State, T
 /// `cargo run --example record` and committing the result -- is a red test
 /// rather than a fixture that quietly moved under every golden built on it.
 const FROZEN: [(&str, u64); 3] = [
-    ("table", 0x360E_5B10_A872_CE02),
-    ("surface", 0xCA34_7056_5646_1F39),
-    ("lossy", 0x5A99_3E66_FEE2_F4A2),
+    ("table", 0x6CF8_0984_11EE_EA0E),
+    ("surface", 0x4BF5_98DF_D626_D84E),
+    ("lossy", 0x7A45_4E2C_7575_DCC4),
 ];
 
 /// A track from `tracks/`.

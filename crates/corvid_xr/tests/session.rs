@@ -17,7 +17,7 @@
 use corvid_fixed::{Angle16, I16F16, I48F16};
 use corvid_glm::{Mat4, Vec3i};
 use corvid_rotation::FineRotation;
-use corvid_vector::{GlobalFinePoint, globalfinepoint};
+use corvid_vector::{FinePoint, GlobalFinePoint, globalfinepoint};
 use corvid_xr::{
     Anchor, EyeView, Hand, Haptic, Headset, Passthrough, Pose, PoseTrack, ScriptedHeadset, Side,
     Space, State, Views,
@@ -177,7 +177,7 @@ fn the_near_and_far_planes_land_at_zero_and_one() {
 fn a_metre_from_the_eye_survives_ten_thousand_kilometres_to_within_a_millimetre() {
     let anchor = Anchor::standing(globalfinepoint(10_000_000, 0, 0), FineRotation::IDENTITY);
     let stage = Pose::new(
-        GlobalFinePoint::new(I48F16::ZERO, I48F16::ZERO, I48F16::from_f64(1.7)),
+        FinePoint::new(I16F16::ZERO, I16F16::ZERO, I16F16::from_f64(1.7)),
         FineRotation::IDENTITY,
     );
     let eye = EyeView::default().at(stage).eye(anchor, NEAR, FAR);
@@ -285,12 +285,9 @@ fn the_head_is_the_stage_pose_and_the_view_space_pose_is_the_identity() {
     assert_eq!(headset.head(Space::View).value, Pose::IDENTITY);
     assert_eq!(
         headset.head(Space::Local).value.position(),
-        GlobalFinePoint::ZERO,
+        FinePoint::ZERO,
         "the first frame is where local space begins"
     );
-    assert_ne!(
-        headset.head(Space::Stage).value.position(),
-        GlobalFinePoint::ZERO
-    );
+    assert_ne!(headset.head(Space::Stage).value.position(), FinePoint::ZERO);
     assert_eq!(headset.rate(), corvid_xr::RATE);
 }

@@ -4,9 +4,9 @@
 //! reading of one runtime value, which is what keeps the session code in
 //! `mod.rs` about *when* things happen rather than about what they mean.
 
-use corvid_fixed::{I2F30, I48F16};
+use corvid_fixed::{I2F30, I16F16};
 use corvid_rotation::{FineRotation, Versor};
-use corvid_vector::GlobalFinePoint;
+use corvid_vector::FinePoint;
 
 use crate::{Confidence, Pose, State};
 
@@ -74,10 +74,10 @@ pub(super) fn seen(flags: openxr::ViewStateFlags) -> Confidence {
 /// negates, and a quaternion's vector part does the same while its scalar is
 /// left alone.
 pub(super) fn pose(from: openxr::Posef) -> Pose {
-    let position = GlobalFinePoint::new(
-        I48F16::from_f64(f64::from(from.position.x)),
-        I48F16::from_f64(f64::from(-from.position.z)),
-        I48F16::from_f64(f64::from(from.position.y)),
+    let position = FinePoint::new(
+        I16F16::from_f64(f64::from(from.position.x)),
+        I16F16::from_f64(f64::from(-from.position.z)),
+        I16F16::from_f64(f64::from(from.position.y)),
     );
     let turn = |value: f32| I2F30::from_f64(f64::from(value));
     let rotation = Versor::from_xyzw(

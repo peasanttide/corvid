@@ -7,17 +7,21 @@
 
 use core::time::Duration;
 
-use corvid_transform::FineTransform;
+use corvid_transform::StageTransform;
 use serde::{Deserialize, Serialize};
 
 /// A pose in stage space: metres from the stage's origin.
 ///
-/// The fine tier, because this is where the precision work earns itself. A
-/// [`GlobalPoint`](corvid_vector::GlobalPoint)'s 3.9 mm is finer than
-/// anything a cursor can pick and coarser than the shimmer a wearer sees on
-/// every frame; [`GlobalFinePoint`](corvid_vector::GlobalFinePoint)'s
-/// 15.26 um is not.
-pub type Pose = FineTransform;
+/// Sixteen fractional bits, because this is where the precision work earns
+/// itself: a [`GlobalPoint`](corvid_vector::GlobalPoint)'s 3.9 mm is finer
+/// than anything a cursor can pick and coarser than the shimmer a wearer sees
+/// on every frame, and 15.26 um is not.
+///
+/// The world range that would come with them is range a stage cannot use. A
+/// stage is a room; where that room sits in the world is the
+/// [`Anchor`](crate::Anchor)'s answer, and the widening on the way there is
+/// exact.
+pub type Pose = StageTransform;
 
 /// How much a tracked value is to be believed.
 ///

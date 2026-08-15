@@ -22,13 +22,16 @@ use core::mem::size_of;
 use common::Rng;
 use corvid_transform::{
     FineRotation, FineTransform, GlobalFinePoint, GlobalPoint, I16F16, I24F8, I48F16, Rotation,
-    Transform,
+    StageTransform, Transform,
 };
 
 #[test]
 fn the_sizes_are_contractual() {
     assert_eq!(size_of::<Transform>(), 16);
     assert_eq!(size_of::<FineTransform>(), 32);
+    // A stage pose keeps the fine rotation and drops the world range: twelve
+    // bytes of position, four of hole, eight of rotation.
+    assert_eq!(size_of::<StageTransform>(), 24);
 }
 
 #[test]

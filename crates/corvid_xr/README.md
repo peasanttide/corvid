@@ -100,27 +100,33 @@ Diving between the two is a camera transition rather than a simulation event, so
 it costs nothing, needs no agreement, and cannot desync. That is why an `Anchor`
 is the client's own and never appears in an action.
 
-## Why the head is the fine tier
+## Why a pose is sixteen fractional bits and sixteen whole ones
 
-A head pose is a `GlobalFinePoint` (`I48F16`) where a world-space shape is a
+A `Pose` is a `FinePoint` (`I16F16`) where a world-space shape is a
 `GlobalPoint` (`I24F8`). A shape is an object, and `I24F8`'s 3.9 mm is finer
 than anything a cursor can pick. A head pose is where the player's eyes are, and
-3.9 mm of jitter at the eye is a visible shimmer on every frame. `I48F16`'s
-15.26 um at ten thousand kilometres is what "does not jitter" means, and the
-conversion at the boundary is a widening rather than a narrowing, so it is free
-and total.
+3.9 mm of jitter at the eye is a visible shimmer on every frame; 15.26 um is
+not.
+
+The whole bits go the other way. A pose is in stage space and a stage is a room,
+so the +/-32 km `I16F16` reaches is range a pose cannot use, and the +/-1.4e14 m
+of a `GlobalFinePoint` is 12 bytes a frame spent on nothing. Where the room sits
+in the world is the `Anchor`'s answer, not the pose's -- and because both tiers
+carry the same sixteen fractional bits, `to_world` is an exact widening. The
+precision at ten thousand kilometres is the anchor's origin, which is a
+`GlobalFinePoint`.
 
 ```rust
 use corvid_xr::{Anchor, Pose};
-use corvid_fixed::I48F16;
+use corvid_fixed::I16F16;
 use corvid_rotation::FineRotation;
-use corvid_vector::{GlobalFinePoint, globalfinepoint};
+use corvid_vector::{FinePoint, globalfinepoint};
 
 let far = globalfinepoint(10_000_000, 0, 0);
 let anchor = Anchor::standing(far, FineRotation::IDENTITY);
 
 // Fifteen micrometres, ten thousand kilometres out, and the pose is different.
-let step = GlobalFinePoint::new(I48F16::DELTA, I48F16::ZERO, I48F16::ZERO);
+let step = FinePoint::new(I16F16::DELTA, I16F16::ZERO, I16F16::ZERO);
 let here = anchor.to_world(Pose::IDENTITY);
 let nudged = anchor.to_world(Pose::new(step, FineRotation::IDENTITY));
 assert_ne!(here, nudged);

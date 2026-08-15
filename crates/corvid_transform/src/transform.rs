@@ -1,8 +1,10 @@
-//! The two rigid transform types.
+//! The three rigid transform types.
 //!
-//! Objects in the world are [`Transform`]. The camera and the VR tracked poses
-//! are [`FineTransform`]. Both come from one macro, so the operation family is
-//! written once and cannot drift between them.
+//! Objects in the world are [`Transform`]. The camera is a [`FineTransform`].
+//! A VR pose is a [`StageTransform`], because a stage is a room and the world
+//! position it ends up at comes from the anchor that places the stage. All
+//! three come from one macro, so the operation family is written once and
+//! cannot drift between them.
 //!
 //! **Both widen to `I48F16` internally.** `Transform`'s own position is a
 //! [`GlobalPoint`], so a naive implementation would subtract in `i32` and need
@@ -11,18 +13,27 @@
 //! first is an exact `<< 8`, makes the subtraction total, and lets both tiers
 //! share one macro body. The shift is free next to the rotation that follows.
 
-use corvid_fixed::{I24F8, I48F16};
 use corvid_rotation::{Basis, FineRotation, Rotation};
-use corvid_vector::{Direction, GlobalFinePoint, GlobalPoint};
+use corvid_vector::{Direction, FinePoint, GlobalFinePoint, GlobalPoint};
 
 /// Generates a rigid transform over one position type and one packed rotation.
+///
+/// Every tier is `Pod`, which forbids padding -- so a tier whose position is
+/// narrower than its rotation's alignment names the hole with `pad:` and gets
+/// a field of that many zero bytes. Spelling it out is what keeps the cast
+/// legal: the bytes are still there either way, and this way something wrote
+/// them.
 macro_rules! define_transform {
+    // The internal rule comes first, so a real invocation -- which begins with
+    // attributes and a name -- is never matched against an `@` it cannot reach.
     (
+        @define
         $(#[$attr:meta])*
         $name:ident {
             position: $position:ident,
             rotation: $rotation:ident,
             widen: $widen:ident,
+            $(pad: $pad:literal,)?
         }
     ) => {
         $(#[$attr])*
@@ -33,6 +44,13 @@ macro_rules! define_transform {
         #[cfg_attr(feature = "bytemuck", derive(::bytemuck::Pod, ::bytemuck::Zeroable))]
         pub struct $name {
             position: $position,
+            $(
+                /// The hole between a narrow position and an eight-aligned
+                /// rotation, named so that `Pod` may be derived. Always zero.
+                #[cfg_attr(feature = "serde", serde(skip))]
+                #[cfg_attr(feature = "arbitrary", arbitrary(value = [0; $pad]))]
+                _pad: [u8; $pad],
+            )?
             rotation: $rotation,
         }
 
@@ -47,6 +65,7 @@ macro_rules! define_transform {
             /// At the origin, facing **+Y** with **+Z** up.
             pub const IDENTITY: Self = Self {
                 position: $position::ZERO,
+                $(_pad: [0; $pad],)?
                 rotation: $rotation::IDENTITY,
             };
 
@@ -54,7 +73,7 @@ macro_rules! define_transform {
             #[must_use]
             #[inline]
             pub const fn new(position: $position, rotation: $rotation) -> Self {
-                Self { position, rotation }
+                Self { position, $(_pad: [0; $pad],)? rotation }
             }
 
             /// The position in world space.
@@ -98,14 +117,14 @@ macro_rules! define_transform {
             #[must_use]
             #[inline]
             pub const fn with_position(self, position: $position) -> Self {
-                Self { position, rotation: self.rotation }
+                Self { position, $(_pad: [0; $pad],)? rotation: self.rotation }
             }
 
             /// The same transform with a different rotation.
             #[must_use]
             #[inline]
             pub const fn with_rotation(self, rotation: $rotation) -> Self {
-                Self { position: self.position, rotation }
+                Self { position: self.position, $(_pad: [0; $pad],)? rotation }
             }
 
             /// Moved by a world-space offset, saturating at the position
@@ -113,7 +132,11 @@ macro_rules! define_transform {
             #[must_use]
             #[inline]
             pub const fn translated_by(self, offset: $position) -> Self {
-                Self { position: self.position.add(offset), rotation: self.rotation }
+                Self {
+                    position: self.position.add(offset),
+                    $(_pad: [0; $pad],)?
+                    rotation: self.rotation,
+                }
             }
 
             /// Turned by a further rotation, applied **after** this one.
@@ -126,6 +149,7 @@ macro_rules! define_transform {
             pub const fn rotated_by(self, rotation: $rotation) -> Self {
                 Self {
                     position: self.position,
+                    $(_pad: [0; $pad],)?
                     rotation: $rotation::from_versor(
                         rotation.to_versor().compose(self.rotation.to_versor()),
                     ),
@@ -169,6 +193,7 @@ macro_rules! define_transform {
                 let moved = q.to_basis().rotate_global_fine(rhs.origin());
                 Self {
                     position: Self::narrow_saturating(moved.add(self.origin())),
+                    $(_pad: [0; $pad],)?
                     rotation: $rotation::from_versor(q.compose(rhs.rotation.to_versor())),
                 }
             }
@@ -201,8 +226,30 @@ macro_rules! define_transform {
                 let moved = q.to_basis().inverse().rotate_global_fine(self.origin());
                 Self {
                     position: Self::narrow_saturating(moved.neg()),
+                    $(_pad: [0; $pad],)?
                     rotation: $rotation::from_versor(q.inverse()),
                 }
+            }
+        }
+    };
+
+    (
+        $(#[$attr:meta])*
+        $name:ident {
+            position: $position:ident,
+            rotation: $rotation:ident,
+            widen: $widen:ident,
+            $(pad: $pad:literal,)?
+        }
+    ) => {
+        define_transform! {
+            @define
+            $(#[$attr])*
+            $name {
+                position: $position,
+                rotation: $rotation,
+                widen: $widen,
+                $(pad: $pad,)?
             }
         }
     };
@@ -253,46 +300,24 @@ define_transform! {
     }
 }
 
-impl Transform {
-    /// Narrows a world-scale point back into this tier's position type,
-    /// saturating.
-    #[inline]
-    pub(crate) const fn narrow_saturating(point: GlobalFinePoint) -> GlobalPoint {
-        if let Some(narrowed) = point.to_global() {
-            narrowed
-        } else {
-            // Past `GlobalPoint`'s range on at least one axis. Clamp each axis
-            // independently, which is what the point type's own saturating
-            // arithmetic would do.
-            let [x, y, z] = point.to_array();
-            GlobalPoint::new(saturate_global(x), saturate_global(y), saturate_global(z))
-        }
-    }
-}
-
-impl FineTransform {
-    /// The identity narrowing: this tier already works at `I48F16`.
-    #[inline]
-    pub(crate) const fn narrow_saturating(point: GlobalFinePoint) -> GlobalFinePoint {
-        point
-    }
-}
-
-/// Clamps one `I48F16` component into `I24F8`.
-#[inline]
-const fn saturate_global(value: I48F16) -> I24F8 {
-    let bits = value.to_bits();
-    // Round the eight fractional bits away first, then clamp. The rounding runs
-    // on the unsigned magnitude: this is reached precisely when a component has
-    // saturated, so `bits` can be `i64::MAX` and `bits + half` would overflow.
-    let scaled = ((bits.unsigned_abs() + (1u64 << 7)) >> 8) as i64;
-    let scaled = if bits >= 0 { scaled } else { -scaled };
-    if scaled > I24F8::MAX.to_bits() as i64 {
-        I24F8::MAX
-    } else if scaled < I24F8::MIN.to_bits() as i64 {
-        I24F8::MIN
-    } else {
-        I24F8::from_bits(scaled as i32)
+define_transform! {
+    /// A VR tracked pose in stage space: a [`FinePoint`] and a
+    /// [`FineRotation`], **24 bytes**.
+    ///
+    /// | | |
+    /// |---|---|
+    /// | Position | +/-32768 m at 15.26 um |
+    /// | Rotation | 0.0033 deg worst case |
+    ///
+    /// The same 15.26 um as [`FineTransform`] and none of its range. A stage is
+    /// a room: the world position a pose ends up at comes from the anchor that
+    /// places the stage, so the range this tier gives up is range a pose was
+    /// never going to use, and the widening to world is exact.
+    StageTransform {
+        position: FinePoint,
+        rotation: FineRotation,
+        widen: to_global_fine,
+        pad: 4,
     }
 }
 
@@ -305,5 +330,15 @@ impl core::fmt::Debug for Transform {
 impl core::fmt::Debug for FineTransform {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "FineTransform({:?}, {:?})", self.position, self.rotation)
+    }
+}
+
+impl core::fmt::Debug for StageTransform {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "StageTransform({:?}, {:?})",
+            self.position, self.rotation
+        )
     }
 }

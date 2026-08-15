@@ -14,9 +14,9 @@
 
 use corvid_camera::{Eye, matrix};
 
-use corvid_fixed::{Angle16, I16F16, I48F16};
+use corvid_fixed::{Angle16, I16F16};
 use corvid_glm::{Mat4, Vec3i};
-use corvid_vector::GlobalFinePoint;
+use corvid_vector::FinePoint;
 use serde::{Deserialize, Serialize};
 
 use crate::{Anchor, Pose, Side};
@@ -101,7 +101,7 @@ impl EyeView {
     /// to one at the far -- from the camera axes `x` right, `y` forward, `z` up.
     #[must_use]
     pub fn clip(self, near: I16F16, far: I16F16) -> Mat4 {
-        self.projection(near, far) * matrix::view(self.pose)
+        self.projection(near, far) * matrix::view(self.pose.to_fine())
     }
 
     /// The asymmetric perspective projection alone, from eye space to clip
@@ -185,13 +185,13 @@ impl Views {
     /// of it to its own side of the head, along the head's own right axis.
     #[must_use]
     pub fn from_head(head: Pose, separation: I16F16, frustum: EyeView) -> Self {
-        // Halved in the near tier, where an interpupillary distance is
-        // written, and widened once: the two share their fractional bits, so
-        // the widening is exact.
-        let half = separation.saturating_div(I16F16::from(2)).to_i48f16();
-        let offset =
-            head.basis()
-                .rotate_global_fine(GlobalFinePoint::new(half, I48F16::ZERO, I48F16::ZERO));
+        // An interpupillary distance is written in the near tier and a stage
+        // pose is in it, so the halving and the rotation both happen there and
+        // nothing is widened on the way.
+        let half = separation.saturating_div(I16F16::from(2));
+        let offset = head
+            .basis()
+            .rotate_fine(FinePoint::new(half, I16F16::ZERO, I16F16::ZERO));
         Self {
             left: frustum.at(head.with_position(head.position().sub(offset))),
             right: frustum.at(head.with_position(head.position().add(offset))),

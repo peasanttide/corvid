@@ -25,7 +25,7 @@ use core::time::Duration;
 
 use corvid_fixed::{Angle32, Factor16, I16F16};
 
-use corvid_vector::{FinePoint, GlobalFinePoint};
+use corvid_vector::FinePoint;
 use serde::{Deserialize, Serialize};
 
 use crate::{Confidence, EyeView, Hand, Passthrough, Pose, Side, State, Tracked, Views};
@@ -194,11 +194,7 @@ impl PoseTrack {
         let facing = turn(motion.yaw);
         // 1.7 m of player, standing on the stage's floor.
         let head = Pose::new(
-            GlobalFinePoint::from(FinePoint::new(
-                I16F16::ZERO,
-                I16F16::ZERO,
-                I16F16::from_f64(1.7),
-            )),
+            FinePoint::new(I16F16::ZERO, I16F16::ZERO, I16F16::from_f64(1.7)),
             facing,
         );
         let hands = Side::ALL.map(|side| {
@@ -218,11 +214,7 @@ impl PoseTrack {
                 I16F16::from_f64(0.45),
                 I16F16::from_f64(-0.3),
             );
-            let palm = Pose::new(
-                head.position()
-                    .add(GlobalFinePoint::from(aim.to_basis().rotate_fine(arm))),
-                aim,
-            );
+            let palm = Pose::new(head.position().add(aim.to_basis().rotate_fine(arm)), aim);
             Tracked::tracked(
                 Hand::open(palm)
                     .gripping(if matches!(side, Side::Right) {

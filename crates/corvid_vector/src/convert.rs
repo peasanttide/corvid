@@ -211,6 +211,29 @@ impl GlobalFinePoint {
             I24F8::from_bits(narrow_saturating(shift_round(z.to_bits(), 8))),
         )
     }
+
+    /// Narrows to the near-field type, clamping per axis.
+    ///
+    /// [`to_fine`](Self::to_fine) for callers that would rather be told. This
+    /// is for the ones with nowhere to put the refusal -- a stage pose taken
+    /// from a world position, where the answer has to be a pose -- and it
+    /// clamps for the reason [`to_global_saturating`](Self::to_global_saturating)
+    /// does: the edge of the range keeps the sign of every axis and stays
+    /// monotonic, where substituting the origin is a plausible-looking answer
+    /// nothing can tell from a real one.
+    ///
+    /// Both types carry sixteen fractional bits, so what survives the clamp is
+    /// bit-exact.
+    #[must_use]
+    #[inline]
+    pub const fn to_fine_saturating(self) -> FinePoint {
+        let [x, y, z] = self.to_array();
+        FinePoint::new(
+            I16F16::from_bits(narrow_saturating(x.to_bits())),
+            I16F16::from_bits(narrow_saturating(y.to_bits())),
+            I16F16::from_bits(narrow_saturating(z.to_bits())),
+        )
+    }
 }
 
 /// Rescales a [`Signed32`] component -- a value over `2^31 - 1` -- onto a

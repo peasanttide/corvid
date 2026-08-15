@@ -18,11 +18,12 @@
 extern crate std;
 
 mod convert;
+mod narrow;
 mod ops;
 mod transform;
 
 pub use convert::PositionOutOfRange;
-pub use transform::{FineTransform, Transform};
+pub use transform::{FineTransform, StageTransform, Transform};
 
 // One name for downstream code to depend on: everything the layers below
 // provide is re-exported here, so a game reaches for `corvid_transform` alone.
