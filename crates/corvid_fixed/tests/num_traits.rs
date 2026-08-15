@@ -14,7 +14,6 @@
     reason = "these tests use ? for the library calls and assert! for the checks"
 )]
 
-use corvid_fixed::{Angle16, Factor16, I8F8, I24F8, Signed16};
 #[cfg(feature = "num-traits")]
 mod num_traits_interop {
     use num_traits::{
@@ -23,7 +22,7 @@ mod num_traits_interop {
         WrappingSub, Zero,
     };
 
-    use super::{Angle16, Factor16, I8F8, I24F8, Signed16};
+    use corvid_fixed::{Angle16, Factor16, I8F8, I24F8, Signed16};
 
     // Every call below goes through the trait explicitly. The inherent methods
     // have the same names and would otherwise win method resolution, which would
