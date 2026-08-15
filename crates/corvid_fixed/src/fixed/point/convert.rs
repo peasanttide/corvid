@@ -269,3 +269,46 @@ impl I16F16 {
         }
     }
 }
+
+impl I16F16 {
+    /// The same value in the far tier, which is exact.
+    ///
+    /// The two share their sixteen fractional bits, so this is the bit pattern
+    /// widened and nothing else: no rounding, no clamping, and every
+    /// [`I16F16`] has an [`I48F16`] equal to it. [`I48F16::to_i16f16`] is the
+    /// way back, and it is the half that can clamp.
+    ///
+    /// ```
+    /// use corvid_fixed::{I16F16, I48F16};
+    ///
+    /// assert_eq!(I16F16::from_f64(1.5).to_i48f16(), I48F16::from_f64(1.5));
+    /// assert_eq!(I16F16::MIN.to_i48f16().to_i16f16(), I16F16::MIN);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_i48f16(self) -> I48F16 {
+        I48F16::from_bits(self.to_bits() as i64)
+    }
+}
+
+impl I48F16 {
+    /// The same value in the near tier, clamped to what it reaches.
+    ///
+    /// The way back from [`I16F16::to_i48f16`], and the half of the pair that
+    /// can lose something: [`I48F16`] reaches +/-140 million km and [`I16F16`]
+    /// reaches +/-32.7 km, so a position outside the near field saturates. The
+    /// fraction is untouched either way, because the two share their sixteen
+    /// fractional bits.
+    ///
+    /// ```
+    /// use corvid_fixed::{I16F16, I48F16};
+    ///
+    /// assert_eq!(I48F16::from_f64(1.5).to_i16f16(), I16F16::from_f64(1.5));
+    /// assert_eq!(I48F16::from_f64(1.0e9).to_i16f16(), I16F16::MAX);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_i16f16(self) -> I16F16 {
+        I16F16::saturate(self.to_bits())
+    }
+}

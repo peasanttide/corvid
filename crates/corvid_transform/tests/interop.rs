@@ -8,7 +8,7 @@
 
 use core::mem::{align_of, size_of};
 
-use corvid_transform::{FineTransform, GlobalPoint, Rotation, Transform};
+use corvid_transform::{FineTransform, GlobalPoint, Rotation, StageTransform, Transform};
 
 #[test]
 fn the_wire_sizes_are_what_the_docs_claim() {
@@ -16,6 +16,13 @@ fn the_wire_sizes_are_what_the_docs_claim() {
     assert_eq!(
         (size_of::<FineTransform>(), align_of::<FineTransform>()),
         (32, 8)
+    );
+    // Twelve bytes of position, the four the `pad:` field names, and eight of
+    // rotation. The hole is spelled out rather than left implicit, which is
+    // what lets this tier be `Pod` like the other two.
+    assert_eq!(
+        (size_of::<StageTransform>(), align_of::<StageTransform>()),
+        (24, 8)
     );
 }
 

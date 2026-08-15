@@ -336,3 +336,27 @@ define_factor! {
         wide: u128,
     }
 }
+
+impl Factor16 {
+    /// The same factor at 32 bits, exactly.
+    ///
+    /// Both types denote a fraction of their own `MAX`, so widening scales
+    /// rather than shifts: a shift would leave [`MAX`](Factor16::MAX) short of
+    /// [`Factor32::MAX`].
+    ///
+    /// ```rust
+    /// use corvid_fixed::{Factor16, Factor32};
+    ///
+    /// assert_eq!(Factor16::MAX.to_factor32(), Factor32::MAX);
+    /// assert_eq!(Factor16::ZERO.to_factor32(), Factor32::ZERO);
+    ///
+    /// // Exact: the widened factor denotes the same number.
+    /// let half = Factor16::from_f64(0.5);
+    /// assert_eq!(half.to_factor32().to_f64(), half.to_f64());
+    /// ```
+    #[must_use]
+    #[inline]
+    pub const fn to_factor32(self) -> Factor32 {
+        Factor32::from_bits(self.to_bits() as u32 * 0x1_0001)
+    }
+}

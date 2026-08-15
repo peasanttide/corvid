@@ -4,15 +4,92 @@ description = "A deterministic multiplayer cross platform game framework."
 publish.workspace = true
 version.workspace = true
 edition.workspace = true
+# Inherited here as well as in `crates/*`: this is the one crate a game names,
+# so it is the one where a downstream on an older toolchain most needs a version
+# error rather than a wall of missing-method errors from somewhere deeper.
+rust-version.workspace = true
 repository.workspace = true
 license.workspace = true
 
 [lints]
 workspace = true
 
+# Every crate a game reaches, named here rather than chained through forwarding
+# neighbours: this is the workspace's one facade, and every other member
+# re-exports nothing. A chain of forwarders gives the same type four spellings
+# and no way to tell which was meant.
+[dependencies]
+corvid_app = { workspace = true }
+corvid_behavior = { workspace = true, features = ["std"] }
+corvid_bits = { workspace = true }
+corvid_camera = { workspace = true, features = ["bytemuck", "std"] }
+corvid_color = { workspace = true, features = ["std"] }
+corvid_control = { workspace = true }
+corvid_dev = { workspace = true }
+corvid_files = { workspace = true }
+corvid_fixed = { workspace = true, features = ["std"] }
+corvid_float = { workspace = true }
+corvid_glm = { workspace = true, features = ["std"] }
+corvid_hash = { workspace = true, features = ["std"] }
+# `platform` unconditionally, and for the reason `corvid_control` names it that
+# way: `Controller::bindings` answers a `Bindings`, so a game implementing the
+# contract needs the binding vocabulary in every build. What that feature does
+# not carry is a device -- `Devices` reads a keyboard and only a windowed run
+# opens one -- so the cost of naming it here is a table of identifiers.
+corvid_input = { workspace = true, features = ["platform"] }
+corvid_mesh = { workspace = true }
+corvid_mesh_render = { workspace = true, optional = true }
+corvid_render = { workspace = true }
+corvid_replay = { workspace = true, features = ["std"] }
+corvid_rotation = { workspace = true, features = ["std"] }
+corvid_shape = { workspace = true, features = ["std"] }
+corvid_signal = { workspace = true }
+corvid_sound = { workspace = true, features = ["std"] }
+corvid_time = { workspace = true, features = ["std"] }
+corvid_transform = { workspace = true, features = ["std"] }
+corvid_ui = { workspace = true, features = ["std"] }
+corvid_ui_render = { workspace = true, optional = true }
+corvid_vector = { workspace = true, features = ["std"] }
+corvid_window = { workspace = true, optional = true }
+corvid_wire = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+# The doctests derive `Serialize` and `Deserialize` on a game's own state, which
+# `corvid_behavior::Data` demands of it. A game's manifest carries the same
+# line, so this is what the examples are showing rather than a detail of
+# testing them.
+serde = { workspace = true, features = ["derive", "std"] }
+
+[features]
+default = []
+# The extra diagnosis a development build does when a session diverges. It
+# changes what a build computes rather than what it exposes, which is why it is
+# forwarded under its own name rather than folded into anything else.
+dev = ["corvid_app/dev"]
+# Playing against other machines. The loop grows a `Peer` and a transport, and
+# `App::transport` is the whole of what a caller sees of it. Off by default,
+# because a single-seat run should not compile one.
+net = ["corvid_app/net"]
+# The device halves of a mesh and of the UI, and the `mesh_render` and
+# `ui_render` modules of this facade. It does not keep `wgpu` out of a build
+# without it and nothing does: `corvid_app` names `corvid_render`
+# unconditionally, because `Render` is in the `App`'s own bounds. What a build
+# without this still does not pay for is the *device*, since `Render::REAL` is
+# false for `()` and no adapter is requested.
+render = ["corvid_app/render", "dep:corvid_mesh_render", "dep:corvid_ui_render"]
+# A window, a keyboard, a pad and a sound card: everything that is only ever
+# true of a run with a player in front of it. One name rather than four,
+# because the four describe the same machine. It implies `render`, because a
+# window is a surface and a surface is a device.
+window = ["render", "corvid_app/window", "dep:corvid_window"]
+
+# As every crate in `crates/*` carries.
+[package.metadata.docs.rs]
+all-features = true
+
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/*", "examples/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -41,31 +118,43 @@ license = "GPL-2.0-or-later"
 # `corvid_fixed = { workspace = true }` and the version and the path are
 # written here once. The facade is absent on purpose: it is the crate that
 # re-exports these, so nothing in the workspace depends on it.
+corvid_app = { version = "0.1.0", path = "crates/corvid_app" }
+corvid_audio = { version = "0.1.0", path = "crates/corvid_audio" }
 corvid_bits = { version = "0.1.0", path = "crates/corvid_bits" }
 corvid_behavior = { version = "0.1.0", path = "crates/corvid_behavior" }
 corvid_camera = { version = "0.1.0", path = "crates/corvid_camera" }
+corvid_control = { version = "0.1.0", path = "crates/corvid_control" }
+corvid_dev = { version = "0.1.0", path = "crates/corvid_dev" }
 corvid_files = { version = "0.1.0", path = "crates/corvid_files" }
 corvid_fixed = { version = "0.1.0", path = "crates/corvid_fixed" }
 corvid_float = { version = "0.1.0", path = "crates/corvid_float" }
 corvid_glm = { version = "0.1.0", path = "crates/corvid_glm" }
 corvid_hash = { version = "0.1.0", path = "crates/corvid_hash" }
 corvid_input = { version = "0.1.0", path = "crates/corvid_input" }
+corvid_lockstep = { version = "0.1.0", path = "crates/corvid_lockstep" }
 corvid_macros = { version = "0.1.0", path = "crates/corvid_macros" }
 corvid_mesh = { version = "0.1.0", path = "crates/corvid_mesh" }
+corvid_mesh_render = { version = "0.1.0", path = "crates/corvid_mesh_render" }
 corvid_name = { version = "0.1.0", path = "crates/corvid_name" }
 corvid_net = { version = "0.1.0", path = "crates/corvid_net" }
 corvid_net_mock = { version = "0.1.0", path = "crates/corvid_net_mock" }
 corvid_net_udp = { version = "0.1.0", path = "crates/corvid_net_udp" }
+corvid_render = { version = "0.1.0", path = "crates/corvid_render" }
 corvid_replay = { version = "0.1.0", path = "crates/corvid_replay" }
 corvid_shape = { version = "0.1.0", path = "crates/corvid_shape" }
 corvid_rotation = { version = "0.1.0", path = "crates/corvid_rotation" }
 corvid_signal = { version = "0.1.0", path = "crates/corvid_signal" }
 corvid_sound = { version = "0.1.0", path = "crates/corvid_sound" }
+corvid_test = { version = "0.1.0", path = "crates/corvid_test" }
 corvid_time = { version = "0.1.0", path = "crates/corvid_time" }
 corvid_transform = { version = "0.1.0", path = "crates/corvid_transform" }
+corvid_ui = { version = "0.1.0", path = "crates/corvid_ui" }
+corvid_ui_render = { version = "0.1.0", path = "crates/corvid_ui_render" }
 corvid_vector = { version = "0.1.0", path = "crates/corvid_vector" }
 corvid_color = { version = "0.1.0", path = "crates/corvid_color" }
+corvid_window = { version = "0.1.0", path = "crates/corvid_window" }
 corvid_wire = { version = "0.1.0", path = "crates/corvid_wire" }
+corvid_xr = { version = "0.1.0", path = "crates/corvid_xr" }
 
 # `default-features = false` for the reason `serde` below has it: a crate here
 # starts `#![no_std]`, and the default feature is what pulls in the `std`
@@ -81,7 +170,14 @@ thiserror = { version = "2", default-features = false }
 criterion = { version = "0.8", default-features = false, features = [
     "cargo_bench_support",
 ] }
-serde = { version = "1", default-features = false, features = ["derive"] }
+# `rc` is what gives `Arc<T>` a `Serialize` and a `Deserialize`, and without it
+# `corvid_replay::Opening` -- a level, its rules and its origin behind `Arc` --
+# could not be written down at all. It is not a default feature, so no crate
+# here loses it to a `default-features = false`, and it changes nothing about
+# how any existing byte is written: an `Arc<T>` is written as its `T`. What it
+# does not do is preserve sharing, so a value behind two handles comes back
+# behind two allocations.
+serde = { version = "1", default-features = false, features = ["derive", "rc"] }
 bytemuck = { version = "1", features = ["derive"] }
 arbitrary = { version = "1", features = ["derive"] }
 # Pinned here rather than per crate: the cross-crate `From` impls only line up
@@ -94,6 +190,55 @@ nalgebra = { version = "0.34", default-features = false }
 # matters is whichever one nobody installed a subscriber on. `corvid_signal` is
 # the only crate that needs it today; the runtime will.
 tracing = { version = "0.1", default-features = false }
+# The subscriber a *binary* installs, pinned beside `tracing` for the same
+# reason and one more: a library that emits events and a binary that shows them
+# have to agree on which registry they mean. One crate in `crates/*` names it,
+# `corvid_app`, for `watch`, which is a function a `main` calls rather than
+# something a library does on its own.
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+    "fmt",
+    "env-filter",
+    "std",
+] }
+
+# The GPU. Pinned at the workspace level for the reason `mint` is: `wgpu` and
+# anything that hands it a window handle have to agree on which
+# `raw-window-handle` they mean, and two versions of that in one graph is a
+# surface that cannot be created from a window that plainly exists.
+wgpu = { version = "30", default-features = false, features = [
+    "wgsl",
+    "vulkan",
+    "metal",
+    "dx12",
+    "webgpu",
+] }
+# The half of `wgpu` that takes a handle somebody else made. Pinned here for a
+# sharper reason than any other entry: `corvid_xr` calls `Device::as_hal` and
+# `create_texture_from_hal`, whose type parameter is the `wgpu_hal::api::Vulkan`
+# that `wgpu` itself was built against. A `wgpu-hal` resolved independently of
+# `wgpu` is a different crate with the same name, and the error says
+# "expected `wgpu_hal::api::Vulkan`, found `wgpu_hal::api::Vulkan`".
+wgpu-hal = { version = "30", default-features = false, features = ["vulkan"] }
+# The window, and the other half of that agreement.
+winit = { version = "0.30", default-features = false, features = [
+    "rwh_06",
+    "x11",
+    "wayland",
+    "wayland-dlopen",
+] }
+# Blocking on a future exactly twice, at start-up, on the thread that owns the
+# window. Nothing in this workspace has an async runtime and nothing here wants
+# one.
+pollster = "0.4"
+# The capture seam's file format. Three manifests name it: `corvid_render`
+# encodes a read-back frame, and `corvid_test` and `corvid_mesh_render` decode
+# one. A golden compared across two versions of an encoder says nothing.
+png = "0.18"
+# The one text format in the workspace, and it is a file a player edits rather
+# than an encoding anything is agreed over: a binding file. `corvid_wire` stays
+# the encoding for everything a peer or a save reads, because a varint is not
+# something to hand somebody a text editor for.
+serde_json = { version = "1", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -1,0 +1,68 @@
+[package]
+name = "corvid_window"
+description = "The winit half: an event loop that owns main, a window whose state is published rather than called back, and raw events turned into a Corvid input snapshot."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "winit", "window", "input"]
+categories = ["game-development", "gui"]
+
+[dependencies]
+corvid_behavior = { workspace = true, features = ["std"] }
+corvid_fixed = { workspace = true, features = ["std"] }
+# The half of the input crate that faces devices. This crate is the thing that
+# fills it: `winit`'s own key codes and buttons are translated into
+# `corvid_input`'s device-neutral vocabulary here and nowhere else.
+corvid_input = { workspace = true, features = ["platform", "std"] }
+# How window state reaches whoever wants it. A resize is state rather than an
+# event -- the latest size is the only one that matters -- so it is published into
+# a cell instead of handed to a callback that reaches into the game.
+corvid_signal = { workspace = true }
+# The client ring's one platform-facing datum: `Render::icon` answers an
+# `Icon`, and this crate is what puts it in a title bar. Naming the contract
+# here rather than defining a second icon type is what keeps a headless build
+# able to build one at all.
+#
+# No feature list, and the price is worth stating: this crate compiles `wgpu` in
+# order to name one struct of pixels. It is not a cycle -- neither
+# `corvid_control` nor `corvid_render` names a window crate -- and the
+# alternative is a second `Icon` for `corvid_app` to translate between.
+corvid_render = { workspace = true }
+winit = { workspace = true }
+tracing = { workspace = true, features = ["std"] }
+# The `Display` and `Error` impls on `Opening` and `Error`, derived. `std`
+# because the sources are `winit`'s, whose own impls are `std`'s.
+thiserror = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+# The gamepad backend, and the only optional thing this crate has. `winit` owns
+# windows and the devices a window has; a pad is exposed by the operating system
+# on its own terms, so reading one needs a crate that covers `evdev`, XInput and
+# IOKit. It is off by default because a build that does not want pads should not
+# pay for three platform bindings, and because it is the one dependency here
+# that is not `winit` itself.
+[dependencies.gilrs]
+version = "0.11"
+optional = true
+
+[features]
+default = []
+# Reads gamepads. `src/pad.rs` is the only file in the workspace that names
+# `gilrs`, and everything downstream of it sees a `Button` and an `Axis` like
+# any other.
+gamepad = ["dep:gilrs"]
+
+# No harness, because this one opens a window and an event loop must be built
+# on the process's main thread -- which `libtest` never gives a `#[test]`. See
+# the file's own documentation.
+[[test]]
+name = "cursor"
+harness = false

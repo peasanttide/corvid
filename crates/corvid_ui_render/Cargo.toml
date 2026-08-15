@@ -1,0 +1,53 @@
+[package]
+name = "corvid_ui_render"
+description = "The device half of a corvid_ui layout: two instanced pipelines, a scissor per clip region, and the upload between them."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "ui", "wgpu", "renderer"]
+categories = ["game-development", "graphics"]
+
+[dependencies]
+corvid_fixed = { workspace = true, features = ["std"] }
+# The device. Pinned at the workspace level, which is what keeps one `wgpu` and
+# one `raw-window-handle` in the graph now that it is named here rather than
+# reached through `corvid_render`.
+wgpu = { workspace = true }
+corvid_float = { workspace = true }
+# The layout. This crate adds a device to it and nothing else.
+#
+# `std` is named here rather than forwarded from a feature of this crate,
+# because there is nothing to decide: this crate is `std` unconditionally -- it
+# holds `wgpu` buffers -- so the answer it gives `corvid_ui` is the same in every
+# build it has. That is also what keeps `corvid_ui/std` reachable from inside
+# this workspace at all, since nothing else here turns it on.
+corvid_ui = { workspace = true, features = ["bytemuck", "std"] }
+# The renderer this one draws through. Not a route to `wgpu`: that is named
+# directly above, and `tests/manifest.rs` is what keeps the *version* out of
+# this file rather than the entry.
+corvid_render = { workspace = true }
+# An instance buffer is bytes to `wgpu`, and this is the workspace's one safe
+# way to turn a struct into them. Without it the casts would need `unsafe`,
+# which is forbidden here. Not optional, unlike everywhere else in the
+# workspace: a crate whose whole job is to hand a device some bytes and cannot
+# is not useful.
+bytemuck = { workspace = true }
+
+[dev-dependencies]
+# The colour a rectangle carries, which `tests/instances.rs` builds one from.
+# A dev-dependency rather than a real one: this crate turns a `corvid_ui`
+# layout into instances and the colour rides along inside it.
+corvid_color = { workspace = true, features = ["std"] }
+
+# No features. A `std` flag earns its place on a crate that has a build without
+# an operating system, and this one does not: it holds `wgpu` buffers. What the
+# layout crate needs is named directly on the `corvid_ui` line above.
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
