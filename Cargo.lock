@@ -462,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "corvid"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_app",
  "corvid_behavior",
@@ -497,7 +497,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_app"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_audio",
  "corvid_behavior",
@@ -529,7 +529,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_audio"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_fixed",
  "corvid_float",
@@ -543,7 +543,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_behavior"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_fixed",
  "corvid_hash",
@@ -558,11 +558,11 @@ dependencies = [
 
 [[package]]
 name = "corvid_bits"
-version = "0.1.0"
+version = "0.1.2"
 
 [[package]]
 name = "corvid_camera"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "corvid_fixed",
@@ -577,7 +577,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_color"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "corvid_fixed",
@@ -588,7 +588,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_control"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_behavior",
  "corvid_camera",
@@ -605,7 +605,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_dev"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_behavior",
  "corvid_fixed",
@@ -620,11 +620,11 @@ dependencies = [
 
 [[package]]
 name = "corvid_files"
-version = "0.1.0"
+version = "0.1.2"
 
 [[package]]
 name = "corvid_fixed"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "arbitrary",
  "bytemuck",
@@ -637,14 +637,14 @@ dependencies = [
 
 [[package]]
 name = "corvid_float"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "const_soft_float",
 ]
 
 [[package]]
 name = "corvid_glm"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "mint",
@@ -653,11 +653,11 @@ dependencies = [
 
 [[package]]
 name = "corvid_hash"
-version = "0.1.0"
+version = "0.1.2"
 
 [[package]]
 name = "corvid_input"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_fixed",
  "corvid_hash",
@@ -670,7 +670,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_lockstep"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_behavior",
  "corvid_hash",
@@ -683,7 +683,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_macros"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -691,7 +691,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_mesh"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "corvid_fixed",
@@ -701,7 +701,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_mesh_render"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "corvid_camera",
@@ -719,7 +719,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_name"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_hash",
  "serde",
@@ -728,7 +728,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_net"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_macros",
  "serde",
@@ -737,7 +737,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_net_mock"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_fixed",
  "corvid_hash",
@@ -747,14 +747,14 @@ dependencies = [
 
 [[package]]
 name = "corvid_net_udp"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_net",
 ]
 
 [[package]]
 name = "corvid_render"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "corvid_behavior",
@@ -776,7 +776,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_replay"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_behavior",
  "corvid_files",
@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_rotation"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "arbitrary",
  "bytemuck",
@@ -805,7 +805,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_shape"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "corvid_fixed",
@@ -817,7 +817,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_signal"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "criterion",
  "tracing",
@@ -825,7 +825,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_sound"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_behavior",
  "corvid_camera",
@@ -841,7 +841,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_test"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_app",
  "corvid_behavior",
@@ -860,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_time"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_fixed",
  "corvid_hash",
@@ -871,7 +871,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_transform"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "arbitrary",
  "bytemuck",
@@ -885,7 +885,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_ui"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "corvid_bits",
@@ -900,7 +900,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_ui_render"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "corvid_color",
@@ -913,7 +913,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_vector"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "arbitrary",
  "bytemuck",
@@ -926,7 +926,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_window"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "corvid_behavior",
  "corvid_fixed",
@@ -941,7 +941,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_wire"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bincode",
  "corvid_hash",
@@ -952,7 +952,7 @@ dependencies = [
 
 [[package]]
 name = "corvid_xr"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "ash",
  "corvid_camera",
@@ -2512,7 +2512,7 @@ checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
 
 [[package]]
 name = "pong"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "bytemuck",
  "corvid",

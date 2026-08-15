@@ -92,7 +92,7 @@ resolver = "3"
 members = ["crates/*", "examples/*"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.2"
 edition = "2024"
 # The toolchain this workspace is developed and tested against, rather than the
 # oldest one the code happens to compile on. A bit-exactness workspace pins its
@@ -118,43 +118,43 @@ license = "GPL-2.0-or-later"
 # `corvid_fixed = { workspace = true }` and the version and the path are
 # written here once. The facade is absent on purpose: it is the crate that
 # re-exports these, so nothing in the workspace depends on it.
-corvid_app = { version = "0.1.0", path = "crates/corvid_app" }
-corvid_audio = { version = "0.1.0", path = "crates/corvid_audio" }
-corvid_bits = { version = "0.1.0", path = "crates/corvid_bits" }
-corvid_behavior = { version = "0.1.0", path = "crates/corvid_behavior" }
-corvid_camera = { version = "0.1.0", path = "crates/corvid_camera" }
-corvid_control = { version = "0.1.0", path = "crates/corvid_control" }
-corvid_dev = { version = "0.1.0", path = "crates/corvid_dev" }
-corvid_files = { version = "0.1.0", path = "crates/corvid_files" }
-corvid_fixed = { version = "0.1.0", path = "crates/corvid_fixed" }
-corvid_float = { version = "0.1.0", path = "crates/corvid_float" }
-corvid_glm = { version = "0.1.0", path = "crates/corvid_glm" }
-corvid_hash = { version = "0.1.0", path = "crates/corvid_hash" }
-corvid_input = { version = "0.1.0", path = "crates/corvid_input" }
-corvid_lockstep = { version = "0.1.0", path = "crates/corvid_lockstep" }
-corvid_macros = { version = "0.1.0", path = "crates/corvid_macros" }
-corvid_mesh = { version = "0.1.0", path = "crates/corvid_mesh" }
-corvid_mesh_render = { version = "0.1.0", path = "crates/corvid_mesh_render" }
-corvid_name = { version = "0.1.0", path = "crates/corvid_name" }
-corvid_net = { version = "0.1.0", path = "crates/corvid_net" }
-corvid_net_mock = { version = "0.1.0", path = "crates/corvid_net_mock" }
-corvid_net_udp = { version = "0.1.0", path = "crates/corvid_net_udp" }
-corvid_render = { version = "0.1.0", path = "crates/corvid_render" }
-corvid_replay = { version = "0.1.0", path = "crates/corvid_replay" }
-corvid_shape = { version = "0.1.0", path = "crates/corvid_shape" }
-corvid_rotation = { version = "0.1.0", path = "crates/corvid_rotation" }
-corvid_signal = { version = "0.1.0", path = "crates/corvid_signal" }
-corvid_sound = { version = "0.1.0", path = "crates/corvid_sound" }
-corvid_test = { version = "0.1.0", path = "crates/corvid_test" }
-corvid_time = { version = "0.1.0", path = "crates/corvid_time" }
-corvid_transform = { version = "0.1.0", path = "crates/corvid_transform" }
-corvid_ui = { version = "0.1.0", path = "crates/corvid_ui" }
-corvid_ui_render = { version = "0.1.0", path = "crates/corvid_ui_render" }
-corvid_vector = { version = "0.1.0", path = "crates/corvid_vector" }
-corvid_color = { version = "0.1.0", path = "crates/corvid_color" }
-corvid_window = { version = "0.1.0", path = "crates/corvid_window" }
-corvid_wire = { version = "0.1.0", path = "crates/corvid_wire" }
-corvid_xr = { version = "0.1.0", path = "crates/corvid_xr" }
+corvid_app = { version = "0.1.2", path = "crates/corvid_app" }
+corvid_audio = { version = "0.1.2", path = "crates/corvid_audio" }
+corvid_bits = { version = "0.1.2", path = "crates/corvid_bits" }
+corvid_behavior = { version = "0.1.2", path = "crates/corvid_behavior" }
+corvid_camera = { version = "0.1.2", path = "crates/corvid_camera" }
+corvid_control = { version = "0.1.2", path = "crates/corvid_control" }
+corvid_dev = { version = "0.1.2", path = "crates/corvid_dev" }
+corvid_files = { version = "0.1.2", path = "crates/corvid_files" }
+corvid_fixed = { version = "0.1.2", path = "crates/corvid_fixed" }
+corvid_float = { version = "0.1.2", path = "crates/corvid_float" }
+corvid_glm = { version = "0.1.2", path = "crates/corvid_glm" }
+corvid_hash = { version = "0.1.2", path = "crates/corvid_hash" }
+corvid_input = { version = "0.1.2", path = "crates/corvid_input" }
+corvid_lockstep = { version = "0.1.2", path = "crates/corvid_lockstep" }
+corvid_macros = { version = "0.1.2", path = "crates/corvid_macros" }
+corvid_mesh = { version = "0.1.2", path = "crates/corvid_mesh" }
+corvid_mesh_render = { version = "0.1.2", path = "crates/corvid_mesh_render" }
+corvid_name = { version = "0.1.2", path = "crates/corvid_name" }
+corvid_net = { version = "0.1.2", path = "crates/corvid_net" }
+corvid_net_mock = { version = "0.1.2", path = "crates/corvid_net_mock" }
+corvid_net_udp = { version = "0.1.2", path = "crates/corvid_net_udp" }
+corvid_render = { version = "0.1.2", path = "crates/corvid_render" }
+corvid_replay = { version = "0.1.2", path = "crates/corvid_replay" }
+corvid_shape = { version = "0.1.2", path = "crates/corvid_shape" }
+corvid_rotation = { version = "0.1.2", path = "crates/corvid_rotation" }
+corvid_signal = { version = "0.1.2", path = "crates/corvid_signal" }
+corvid_sound = { version = "0.1.2", path = "crates/corvid_sound" }
+corvid_test = { version = "0.1.2", path = "crates/corvid_test" }
+corvid_time = { version = "0.1.2", path = "crates/corvid_time" }
+corvid_transform = { version = "0.1.2", path = "crates/corvid_transform" }
+corvid_ui = { version = "0.1.2", path = "crates/corvid_ui" }
+corvid_ui_render = { version = "0.1.2", path = "crates/corvid_ui_render" }
+corvid_vector = { version = "0.1.2", path = "crates/corvid_vector" }
+corvid_color = { version = "0.1.2", path = "crates/corvid_color" }
+corvid_window = { version = "0.1.2", path = "crates/corvid_window" }
+corvid_wire = { version = "0.1.2", path = "crates/corvid_wire" }
+corvid_xr = { version = "0.1.2", path = "crates/corvid_xr" }
 
 # `default-features = false` for the reason `serde` below has it: a crate here
 # starts `#![no_std]`, and the default feature is what pulls in the `std`
