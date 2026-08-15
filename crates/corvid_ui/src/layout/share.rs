@@ -55,8 +55,12 @@ impl<I: Copy + Eq + Hash> Solver<'_, I> {
                 let resolved = resolve(own, self.scale, I16F16::ZERO, content, child, main_axis)?;
                 self.bound(child, child_style, resolved, I16F16::ZERO, main_axis)?
             };
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "a container with four billion children is not a case this crate is asked to answer"
+            )]
             self.kids.push(Kid {
-                at: position,
+                at: position as u32,
                 main,
                 margin: margin.ok_or(TooLarge {
                     node: child,
@@ -74,8 +78,8 @@ impl<I: Copy + Eq + Hash> Solver<'_, I> {
     pub(super) fn taken(&self, gaps: I16F16, axis: Axis) -> Result<I16F16, TooLarge> {
         let mut total = gaps;
         for kid in &self.kids {
-            total = add(total, kid.main, self.order[kid.at], axis)?;
-            total = add(total, kid.margin, self.order[kid.at], axis)?;
+            total = add(total, kid.main, self.order[kid.index()], axis)?;
+            total = add(total, kid.margin, self.order[kid.index()], axis)?;
         }
         Ok(total)
     }
@@ -96,7 +100,13 @@ impl<I: Copy + Eq + Hash> Solver<'_, I> {
             settled.push(if kid.share == Factor16::ZERO {
                 kid.main
             } else {
-                self.bound(self.order[kid.at], self.style_of(kid.at), *want, free, axis)?
+                self.bound(
+                    self.order[kid.index()],
+                    self.style_of(kid.index()),
+                    *want,
+                    free,
+                    axis,
+                )?
             });
         }
         for ((kid, want), bounded) in self.kids.iter_mut().zip(&raw).zip(settled) {
@@ -145,7 +155,13 @@ impl<I: Copy + Eq + Hash> Solver<'_, I> {
             settled.push(if kid.share == Factor16::ZERO || kid.clamped {
                 kid.main
             } else {
-                self.bound(self.order[kid.at], self.style_of(kid.at), want, free, axis)?
+                self.bound(
+                    self.order[kid.index()],
+                    self.style_of(kid.index()),
+                    want,
+                    free,
+                    axis,
+                )?
             });
         }
         for (kid, bounded) in self.kids.iter_mut().zip(settled) {
@@ -224,8 +240,8 @@ impl<I: Copy + Eq + Hash> Solver<'_, I> {
         let mut used = I16F16::ZERO;
         for index in 0..self.kids.len() {
             let kid = self.kids[index];
-            let child = self.order[kid.at];
-            let child_style = self.style_of(kid.at);
+            let child = self.order[kid.index()];
+            let child_style = self.style_of(kid.index());
             let lead = justify_lead(style.justify, leftover, index, self.kids.len());
             let main = main_start
                 .saturating_add(used)
@@ -235,14 +251,14 @@ impl<I: Copy + Eq + Hash> Solver<'_, I> {
             let (cross_length, cross_content, cross_margin, cross_margin_start) = if horizontal {
                 (
                     child_style.height,
-                    self.measured[kid.at].height,
+                    self.measured[kid.index()].height,
                     child_style.margin.vertical(self.scale),
                     child_style.margin.top,
                 )
             } else {
                 (
                     child_style.width,
-                    self.measured[kid.at].width,
+                    self.measured[kid.index()].width,
                     child_style.margin.horizontal(self.scale),
                     child_style.margin.left,
                 )
@@ -277,12 +293,12 @@ impl<I: Copy + Eq + Hash> Solver<'_, I> {
                 .saturating_add(length(cross_margin_start, self.scale, child, cross_axis)?)
                 .saturating_add(offset);
 
-            self.rect[kid.at] = if horizontal {
+            self.rect[kid.index()] = if horizontal {
                 Rect::new(main, cross, kid.main, cross_size)
             } else {
                 Rect::new(cross, main, cross_size, kid.main)
             };
-            self.clip[kid.at] = clip;
+            self.clip[kid.index()] = clip;
 
             used = used
                 .saturating_add(kid.margin)

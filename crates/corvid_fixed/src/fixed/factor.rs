@@ -340,22 +340,17 @@ define_factor! {
 impl Factor16 {
     /// The same factor at 32 bits, exactly.
     ///
-    /// Both types denote `v / MAX`, so widening is a multiplication by
-    /// `0x1_0001` rather than a shift: that is what carries
-    /// [`MAX`](Factor16::MAX) to [`Factor32::MAX`] and leaves
-    /// [`ZERO`](Factor16::ZERO) where it is. A shift by sixteen maps `1.0` to
-    /// `1.0 - 2^-16` instead, which is the mistake this exists to stop anyone
-    /// making twice.
+    /// Both types denote a fraction of their own `MAX`, so widening scales
+    /// rather than shifts: a shift would leave [`MAX`](Factor16::MAX) short of
+    /// [`Factor32::MAX`].
     ///
-    /// ```
+    /// ```rust
     /// use corvid_fixed::{Factor16, Factor32};
     ///
     /// assert_eq!(Factor16::MAX.to_factor32(), Factor32::MAX);
     /// assert_eq!(Factor16::ZERO.to_factor32(), Factor32::ZERO);
     ///
-    /// // Exact, which is the claim: the widened factor denotes the same
-    /// // number, rather than the nearest one the wider grid has to a fresh
-    /// // reading of the same fraction.
+    /// // Exact: the widened factor denotes the same number.
     /// let half = Factor16::from_f64(0.5);
     /// assert_eq!(half.to_factor32().to_f64(), half.to_f64());
     /// ```

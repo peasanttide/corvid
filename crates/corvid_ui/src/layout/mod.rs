@@ -129,7 +129,7 @@ pub fn solve<I: Copy + Eq + Hash>(
 }
 
 /// What pass one worked out about one node.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Measured {
     /// The em size its text is set at.
     font: I16F16,
@@ -156,10 +156,11 @@ impl Measured {
 }
 
 /// One child, as the pass that places them reads it.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Kid {
-    /// Where it is in `order`.
-    at: usize,
+    /// Where it is in `order`. A `NodeId` is a `u32` index long before a
+    /// container is, so this is one too.
+    at: u32,
     /// Its size along the parent's axis.
     main: I16F16,
     /// Its margins along that axis, summed.
@@ -171,6 +172,13 @@ struct Kid {
     /// Whether its bounds cut its share down, in which case it does not take
     /// part in the one redistribution round.
     clamped: bool,
+}
+
+impl Kid {
+    /// Its place in the walk, as the vectors keyed by that walk want it.
+    fn index(self) -> usize {
+        self.at as usize
+    }
 }
 
 /// The two passes, and everything they share.
