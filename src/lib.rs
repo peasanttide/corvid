@@ -161,6 +161,7 @@
 //! |---|---|
 //! | `window` | Forwards `corvid_app/window`: a window, a keyboard, a pad and a sound card -- everything that is only ever true of a run with a player in front of it. One name rather than three, because the three described the same machine |
 //! | `dev` | Forwards `corvid_app/dev`: when a session diverges, `corvid_lockstep::bisect` runs and the report says which field moved first rather than only which tick. Adds no API of its own and changes nothing a build computes |
+//! | `project` | Forwards `corvid_geo/project`: `ConformalConic`, `Projected` and `Wgs84`, which turn the coordinate reference system an archive publishes in into the one [`geo`] works in. Named here in plain text and not as links, because a link to an item this feature has not compiled is an error in every build without it. `f64`, and the only floating point this facade exposes -- a projection runs once, when a level is baked, and stores fixed point, so nothing behind this feature may be reached from a tick |
 //!
 //! # One name, and it is this one
 //!
@@ -221,6 +222,22 @@ pub use corvid_vector::{
     self as vector, Direction, FinePoint, GlobalFinePoint, GlobalPoint, OctDirection,
 };
 
+// The ground a world-scale game stands on, the surface everything on it walks,
+// and the ordered packs the whole of it is read out of. Simulation ring, all
+// three: integer only, iterated by index, and hashed. `corvid_geo`'s `f64`
+// half is behind this crate's `project` feature and is named at the bottom of
+// this file rather than here, so that the unconditional surface stays the one
+// a tick is allowed to touch.
+pub use corvid_asset::{self as asset, Manifest, Pack, PackId, PackStamp, Stack, Unmountable};
+pub use corvid_geo::{
+    self as geo, Anchor, Ellipsoid, Geodetic, GroundPoint, Polygon, Ring, Triangulate,
+    Triangulation, Winding, ground,
+};
+pub use corvid_nav::{
+    self as nav, Affine3, Linear3, NavCords, NavError, NavGrid, NavMesh, NavState, NavTri,
+    NavTriEdge, NavTriRef,
+};
+
 // Geometry, cameras and colour: the client ring that is behind no device.
 pub use corvid_camera::{self as camera, Camera, Eye, FirstPerson, Orbit};
 pub use corvid_color::{self as color, LinearRgba, Rgba8};
@@ -242,3 +259,10 @@ pub use corvid_window::{self as window, Size};
 // The console and the tunables, and the encoding a save is written in.
 pub use corvid_dev as dev_console;
 pub use corvid_wire as wire;
+
+// The bake half of the ground, kept apart from every other re-export in this
+// file because it is the one place `f64` reaches the surface. A map projection
+// is transcendental and runs when a level is built; what a tick reads is the
+// fixed point it stored.
+#[cfg(feature = "project")]
+pub use corvid_geo::{ConformalConic, Projected, Wgs84};

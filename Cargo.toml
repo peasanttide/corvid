@@ -20,6 +20,10 @@ workspace = true
 # and no way to tell which was meant.
 [dependencies]
 corvid_app = { workspace = true }
+# The packs a level is read out of. `serde` because a mod ships a `pack.toml`,
+# and a game that could not read one would have to name this crate in its own
+# manifest, which is the thing this facade exists to prevent.
+corvid_asset = { workspace = true, features = ["serde", "std"] }
 corvid_behavior = { workspace = true, features = ["std"] }
 corvid_bits = { workspace = true }
 corvid_camera = { workspace = true, features = ["bytemuck", "std"] }
@@ -29,6 +33,11 @@ corvid_dev = { workspace = true }
 corvid_files = { workspace = true }
 corvid_fixed = { workspace = true, features = ["std"] }
 corvid_float = { workspace = true }
+# The integer half only. `corvid_geo/project` is the `f64` bake half and is
+# reached through this facade's own `project` feature, so that turning it on is
+# a deliberate line in a game's manifest rather than something a transitive
+# dependency can do on its behalf.
+corvid_geo = { workspace = true, features = ["std"] }
 corvid_glm = { workspace = true, features = ["std"] }
 corvid_hash = { workspace = true, features = ["std"] }
 # `platform` unconditionally, and for the reason `corvid_control` names it that
@@ -39,6 +48,9 @@ corvid_hash = { workspace = true, features = ["std"] }
 corvid_input = { workspace = true, features = ["platform"] }
 corvid_mesh = { workspace = true }
 corvid_mesh_render = { workspace = true, optional = true }
+# `serde` because a `NavTriRef` is where an agent is standing, and where an
+# agent is standing goes into a save and across the wire.
+corvid_nav = { workspace = true, features = ["serde", "std"] }
 corvid_render = { workspace = true }
 corvid_replay = { workspace = true, features = ["std"] }
 corvid_rotation = { workspace = true, features = ["std"] }
@@ -70,6 +82,11 @@ dev = ["corvid_app/dev"]
 # `App::transport` is the whole of what a caller sees of it. Off by default,
 # because a single-seat run should not compile one.
 net = ["corvid_app/net"]
+# `corvid_geo`'s bake half: map projections and the closed-form geodetic
+# inverse, which are `f64` because a conformal conic is transcendental. Off by
+# default and never reachable from a tick -- a projection runs once, when a
+# level is baked, and what it stores is fixed point.
+project = ["corvid_geo/project"]
 # The device halves of a mesh and of the UI, and the `mesh_render` and
 # `ui_render` modules of this facade. It does not keep `wgpu` out of a build
 # without it and nothing does: `corvid_app` names `corvid_render`
