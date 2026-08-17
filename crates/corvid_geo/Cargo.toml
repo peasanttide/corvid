@@ -1,0 +1,37 @@
+[package]
+name = "corvid_geo"
+description = "The ground a world-scale game stands on: geodetic positions, ECEF, local tangent frames, and the polygons a map is made of."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["geodesy", "ecef", "wgs84", "fixed-point", "no-std"]
+categories = ["game-development", "science::geo", "no-std"]
+
+[dependencies]
+corvid_fixed = { workspace = true }
+corvid_vector = { workspace = true }
+# `Display` and `core::error::Error` on `Triangulate`, derived. No `std`
+# feature: the integer half of this crate is `no_std`, and the derive names
+# `core::error::Error` without one.
+thiserror = { workspace = true }
+
+[features]
+default = []
+# Adds no API of its own. It exists so a downstream can forward `std` uniformly
+# across the workspace without special-casing this crate, and so `project` has
+# something to turn on.
+std = ["corvid_fixed/std", "corvid_vector/std"]
+# The bake-time half: map projections and the closed-form geodetic inverse, in
+# `f64`. It pulls `std` because `sin`, `cos`, `tan`, `ln`, `atan` and `powf` are
+# inherent methods on `f64` only when there is an operating system underneath.
+# Nothing behind this feature may be called from a tick; see the README.
+project = ["std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

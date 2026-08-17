@@ -528,6 +528,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_asset"
+version = "0.1.2"
+dependencies = [
+ "corvid_files",
+ "corvid_hash",
+ "corvid_name",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "corvid_audio"
 version = "0.1.2"
 dependencies = [
@@ -643,6 +655,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_geo"
+version = "0.1.2"
+dependencies = [
+ "corvid_fixed",
+ "corvid_vector",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "corvid_glm"
 version = "0.1.2"
 dependencies = [
@@ -724,6 +745,17 @@ dependencies = [
  "corvid_hash",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "corvid_nav"
+version = "0.1.2"
+dependencies = [
+ "corvid_fixed",
+ "corvid_macros",
+ "corvid_vector",
+ "serde",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

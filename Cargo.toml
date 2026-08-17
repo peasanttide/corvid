@@ -155,6 +155,14 @@ corvid_color = { version = "0.1.2", path = "crates/corvid_color" }
 corvid_window = { version = "0.1.2", path = "crates/corvid_window" }
 corvid_wire = { version = "0.1.2", path = "crates/corvid_wire" }
 corvid_xr = { version = "0.1.2", path = "crates/corvid_xr" }
+# The ground a world-scale game stands on. `geo` turns the coordinate reference
+# systems archives publish in into the one `corvid_vector` works in; `nav` is the
+# triangulated surface everything then walks, is indexed by, and diffuses across;
+# `asset` is the ordered stack of data packs a level is read out of. All three
+# are simulation ring, so all three are integer-only and hashed.
+corvid_geo = { version = "0.1.2", path = "crates/corvid_geo" }
+corvid_nav = { version = "0.1.2", path = "crates/corvid_nav" }
+corvid_asset = { version = "0.1.2", path = "crates/corvid_asset" }
 
 # `default-features = false` for the reason `serde` below has it: a crate here
 # starts `#![no_std]`, and the default feature is what pulls in the `std`

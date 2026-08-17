@@ -1,0 +1,38 @@
+[package]
+name = "corvid_nav"
+description = "The triangulated surface a world walks on, is indexed by, and diffuses across."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "navmesh", "fixed-point", "deterministic", "no-std"]
+categories = ["game-development", "no-std"]
+
+[dependencies]
+# The scalars. Every number in this crate is one of them, and none of them is a
+# float.
+corvid_fixed = { workspace = true }
+# `id_type!`, which `NavTriRef` is.
+corvid_macros = { workspace = true }
+# `GlobalPoint` is ECEF, `FinePoint` is a local offset, `Direction` is an up.
+corvid_vector = { workspace = true }
+serde = { workspace = true, optional = true }
+thiserror = { workspace = true }
+
+[features]
+default = []
+# The encoding of a position and of the surface it is on. `NavTriRef` reaches
+# for it through `id_type!`, which is why the feature exists here at all: a
+# `cfg` is read where it expands rather than where it was written.
+serde = ["dep:serde", "corvid_fixed/serde", "corvid_vector/serde"]
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+std = ["corvid_fixed/std", "corvid_vector/std", "serde?/std", "thiserror/std"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
