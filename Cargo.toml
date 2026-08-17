@@ -40,6 +40,14 @@ corvid_float = { workspace = true }
 corvid_geo = { workspace = true, features = ["std"] }
 corvid_glm = { workspace = true, features = ["std"] }
 corvid_hash = { workspace = true, features = ["std"] }
+# Pictures. Both codecs, because the file a game is handed is whatever the
+# archive it was scanned from held, and a facade that carried one of the two
+# would leave the other to be reached around. `serde` for the plan's *inputs*:
+# a `TileConfig` and a `VramBudget` are the sort of thing a settings file
+# holds. The outputs have no encoding at all, by that crate's design, because a
+# `TilePlan` names device slots and is worth nothing on another machine.
+corvid_image = { workspace = true, features = ["jpeg", "png", "serde", "std"] }
+corvid_image_render = { workspace = true, optional = true }
 # `platform` unconditionally, and for the reason `corvid_control` names it that
 # way: `Controller::bindings` answers a `Bindings`, so a game implementing the
 # contract needs the binding vocabulary in every build. What that feature does
@@ -48,15 +56,31 @@ corvid_hash = { workspace = true, features = ["std"] }
 corvid_input = { workspace = true, features = ["platform"] }
 corvid_mesh = { workspace = true }
 corvid_mesh_render = { workspace = true, optional = true }
+# Both halves of the crate, because a score that is composed and never sounded
+# is a data structure and one that is sounded and never composed is a sampler.
+# `sound` is the seam between them and the reason this is client ring rather
+# than a device: what it writes is a `corvid_sound::AudioFrame`, which somebody
+# else plays. `serde` because a motif and a set of parameters ship in a pack,
+# for the reason `corvid_asset` above carries it.
+corvid_music = { workspace = true, features = [
+    "compose",
+    "serde",
+    "sound",
+    "std",
+    "synth",
+] }
 # `serde` because a `NavTriRef` is where an agent is standing, and where an
 # agent is standing goes into a save and across the wire.
 corvid_nav = { workspace = true, features = ["serde", "std"] }
+corvid_particle = { workspace = true, features = ["std"] }
 corvid_render = { workspace = true }
 corvid_replay = { workspace = true, features = ["std"] }
 corvid_rotation = { workspace = true, features = ["std"] }
 corvid_shape = { workspace = true, features = ["std"] }
 corvid_signal = { workspace = true }
+corvid_sky = { workspace = true, features = ["std"] }
 corvid_sound = { workspace = true, features = ["std"] }
+corvid_text = { workspace = true, features = ["std"] }
 corvid_time = { workspace = true, features = ["std"] }
 corvid_transform = { workspace = true, features = ["std"] }
 corvid_ui = { workspace = true, features = ["std"] }
@@ -87,13 +111,18 @@ net = ["corvid_app/net"]
 # default and never reachable from a tick -- a projection runs once, when a
 # level is baked, and what it stores is fixed point.
 project = ["corvid_geo/project"]
-# The device halves of a mesh and of the UI, and the `mesh_render` and
-# `ui_render` modules of this facade. It does not keep `wgpu` out of a build
-# without it and nothing does: `corvid_app` names `corvid_render`
-# unconditionally, because `Render` is in the `App`'s own bounds. What a build
-# without this still does not pay for is the *device*, since `Render::REAL` is
-# false for `()` and no adapter is requested.
-render = ["corvid_app/render", "dep:corvid_mesh_render", "dep:corvid_ui_render"]
+# The device halves of a mesh, of the UI and of a tile plan, and the
+# `mesh_render`, `ui_render` and `image_render` modules of this facade. It does
+# not keep `wgpu` out of a build without it and nothing does: `corvid_app` names
+# `corvid_render` unconditionally, because `Render` is in the `App`'s own
+# bounds. What a build without this still does not pay for is the *device*,
+# since `Render::REAL` is false for `()` and no adapter is requested.
+render = [
+    "corvid_app/render",
+    "dep:corvid_image_render",
+    "dep:corvid_mesh_render",
+    "dep:corvid_ui_render",
+]
 # A window, a keyboard, a pad and a sound card: everything that is only ever
 # true of a run with a player in front of it. One name rather than four,
 # because the four describe the same machine. It implies `render`, because a
@@ -180,6 +209,21 @@ corvid_xr = { version = "0.1.2", path = "crates/corvid_xr" }
 corvid_geo = { version = "0.1.2", path = "crates/corvid_geo" }
 corvid_nav = { version = "0.1.2", path = "crates/corvid_nav" }
 corvid_asset = { version = "0.1.2", path = "crates/corvid_asset" }
+# Pictures, and the four crates that turn one into something on a screen.
+# `image` is decode and tiling with no device in it; `image_render` is the
+# device half. `text` is glyph layout, `particle` is smoke and embers, and
+# `sky` is where the sun, the moon and the stars actually were. All four are
+# client ring: none is hashed and none may be, because two machines are allowed
+# to disagree about a picture and never about a state.
+corvid_image = { version = "0.1.2", path = "crates/corvid_image" }
+corvid_image_render = { version = "0.1.2", path = "crates/corvid_image_render" }
+corvid_particle = { version = "0.1.2", path = "crates/corvid_particle" }
+corvid_text = { version = "0.1.2", path = "crates/corvid_text" }
+corvid_sky = { version = "0.1.2", path = "crates/corvid_sky" }
+# Music that is composed rather than played back, and the door an agent drives
+# a game through. Both are the operating system's side of the fence.
+corvid_music = { version = "0.1.2", path = "crates/corvid_music" }
+corvid_mcp = { version = "0.1.2", path = "crates/corvid_mcp" }
 
 # `default-features = false` for the reason `serde` below has it: a crate here
 # starts `#![no_std]`, and the default feature is what pulls in the `std`

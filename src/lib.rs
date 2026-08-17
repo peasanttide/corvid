@@ -143,15 +143,19 @@
 //! # What is behind it, and what is not
 //!
 //! The simulation ring, the whole of the client ring -- the four contracts, the
-//! renderer, the audio frame, the input snapshot, [`color`], [`shape`] and
-//! [`camera`] -- and the runtime. All of that is reachable here
+//! renderer, the audio frame, the input snapshot, [`color`], [`shape`],
+//! [`camera`], and what a frame is made of: [`image`], [`text`], [`particle`],
+//! [`sky`] and [`music`] -- and the runtime. All of that is reachable here
 //! unconditionally.
 //!
 //! "Unconditionally" is wide on purpose. A camera is fixed-point state, a
 //! raycast is integer arithmetic and a colour is four bytes, so none of those
-//! needs a feature; neither do [`Render`], [`Target`], `wgpu` and the mesh
-//! crates. `Game` names a renderer, so a build of this crate compiles a
-//! graphics stack
+//! needs a feature; neither does the half of a picture that has no device in
+//! it, which is [`TilePlanner`] deciding which tiles fit in a budget,
+//! [`Paragraph`] breaking a line, [`System`] stepping a pool of sparks and
+//! [`Sky`] answering where the moon was. Neither do [`Render`], [`Target`],
+//! `wgpu` and the mesh crates. `Game` names a renderer, so a build of this
+//! crate compiles a graphics stack
 //! whatever it was asked for, and a feature gating one would gate nothing. What
 //! it does not do is *open* a device: a headless run never asks an adapter for
 //! anything, which is the property that was worth having and the one that
@@ -159,6 +163,7 @@
 //!
 //! | Feature | Effect |
 //! |---|---|
+//! | `render` | The three device halves and the modules they are reached through: `mesh_render`, `ui_render` and `image_render`, the last of which puts a `corvid_image` tile plan on a device. Plain text rather than links, for the reason the `project` row below gives. It gates no `wgpu` and keeps no graphics stack out of a build, as the paragraph above says; what it gates is the code that would ask a device for a texture |
 //! | `window` | Forwards `corvid_app/window`: a window, a keyboard, a pad and a sound card -- everything that is only ever true of a run with a player in front of it. One name rather than three, because the three described the same machine |
 //! | `dev` | Forwards `corvid_app/dev`: when a session diverges, `corvid_lockstep::bisect` runs and the report says which field moved first rather than only which tick. Adds no API of its own and changes nothing a build computes |
 //! | `project` | Forwards `corvid_geo/project`: `ConformalConic`, `Projected` and `Wgs84`, which turn the coordinate reference system an archive publishes in into the one [`geo`] works in. Named here in plain text and not as links, because a link to an item this feature has not compiled is an error in every build without it. `f64`, and the only floating point this facade exposes -- a projection runs once, when a level is baked, and stores fixed point, so nothing behind this feature may be reached from a tick |
@@ -244,7 +249,42 @@ pub use corvid_color::{self as color, LinearRgba, Rgba8};
 pub use corvid_shape::{self as shape, Aabb, Cast, Frustum, Hit, Plane, Ray, Sphere, Triangle};
 pub use corvid_ui as ui;
 
+// The rest of the client ring: a picture, a glyph, a spark and the sky over
+// all three. None of them is hashed and none may be, because two machines are
+// allowed to disagree about a picture and never about a state -- which is what
+// lets a viewport, a coverage byte and an ephemeris be floating point.
+//
+// `image` keeps `Extent` and `Source` to its own module rather than flattening
+// them here: `corvid_render::Extent` is a surface size and `corvid_files::Source`
+// is a filesystem, and one spelling per idea is the whole reason this facade
+// exists.
+pub use corvid_image::{
+    self as image, Codec, Image, PixelFormat, SourceView, TileConfig, TilePlan, TilePlanner,
+    TileTable, VramBudget, decode,
+};
+// Both halves of the composer, and `Bar` is the seam: `write_bar` fills an
+// [`AudioFrame`] from one. `Step` and `Transform` stay inside the module, the
+// first because `corvid_time` means something else by it and the second because
+// `corvid_transform` does.
+pub use corvid_music::{
+    self as music, Bank, Bar, Composer, Motif, MotifId, Parameters, Synth, write_bar,
+};
+// `Emitter` is not flattened: `corvid_signal::Emitter` is the sending half of a
+// watch channel and got the name first, so a spark source is `particle::Emitter`.
+pub use corvid_particle::{self as particle, ColorRamp, Instance, System};
+pub use corvid_sky::{
+    self as sky, Atmosphere, Civil, Instant, Moon, Observer, RiseSet, Sky, SkyError, Star, Sun,
+    Twilight,
+};
+// `Atlas` is not flattened either, and for a sharper reason than `Emitter`:
+// `image_render::Atlas` is a tile array on a device and `text::Atlas` is a page
+// of coverage bytes on a CPU. Neither takes the bare name, so neither can be
+// mistaken for the other.
+pub use corvid_text::{self as text, Coverage, Font, Paragraph, Run, Shaping};
+
 // Geometry and the device half of it.
+#[cfg(feature = "render")]
+pub use corvid_image_render::{self as image_render, TileCache};
 pub use corvid_input::platform::Bindings;
 pub use corvid_mesh::{self as mesh, Mesh, Vertex};
 #[cfg(feature = "render")]

@@ -1,0 +1,66 @@
+[package]
+name = "corvid_image"
+description = "Pictures as data, and the plan for getting a very large one onto a GPU: a tile pyramid, a fragment shader's lookup table, and a residency plan with no device in it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["image", "texture", "streaming", "virtual-texture", "no-std"]
+categories = ["game-development", "no-std", "graphics"]
+
+[dependencies]
+# `Rgba8` is what a texel of an sRGB image *is* in this workspace, so reading
+# one answers that type rather than a bare `[u8; 4]`. Nothing else here is a
+# colour: the tile planner never looks inside a picture.
+corvid_color = { workspace = true }
+# `Display` and `Error` on the four error enums, derived.
+thiserror = { workspace = true }
+# What an overloaded plan reports with. A streamer that degrades to a coarser
+# mip has to be able to say so, and it may not print.
+tracing = { workspace = true }
+png = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+# The JPEG decoder, named here rather than in `[workspace.dependencies]`
+# because no other member decodes a JPEG. `default-features = false` drops its
+# `std`, which is what lets the `jpeg` feature stay usable on a target with no
+# operating system; `x86` and `neon` are the SIMD kernels and cost nothing on
+# the targets that do not have them.
+#
+# It is the whole of the archive's second format and does nothing else, which
+# is the test this workspace applies to a dependency. The third format,
+# JPEG 2000, has no pure-Rust decoder to name here at all -- see the README.
+zune-jpeg = { version = "0.5", default-features = false, features = [
+    "x86",
+    "neon",
+], optional = true }
+
+[features]
+default = []
+# Decoding a PNG, which is what the archive holds most of. It implies `std`,
+# because the `png` crate reads through `std::io::Read` and there is no way to
+# ask it not to.
+png = ["dep:png", "std"]
+# Decoding a JPEG. Unlike `png` this one runs on `alloc` alone.
+jpeg = ["dep:zune-jpeg"]
+# An encoding for the plan's inputs: a `TileConfig` and a `PixelFormat` are the
+# sort of thing a settings file holds. The outputs are deliberately absent --
+# a `TilePlan` names device slots and is worth nothing on another machine.
+serde = ["dep:serde", "corvid_color/serde"]
+# `std::error::Error` on the errors, and the `png` decoder's `Read`.
+std = [
+    "corvid_color/std",
+    "serde?/std",
+    "thiserror/std",
+    "tracing/std",
+    "zune-jpeg?/std",
+]
+
+[lints]
+workspace = true
+
+# Every optional integration is off by default, so a plain build documents none
+# of the serde impls and links no codec.
+[package.metadata.docs.rs]
+all-features = true

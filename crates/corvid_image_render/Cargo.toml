@@ -1,0 +1,54 @@
+[package]
+name = "corvid_image_render"
+description = "The device half of a corvid_image tile plan: the tile array texture, the lookup table the fragment shader reads, the uploads and evictions the plan named, and the WGSL that resolves a uv through it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["gamedev", "wgpu", "texture", "streaming", "virtual-texture"]
+categories = ["game-development", "graphics"]
+
+[dependencies]
+# The device. Pinned at the workspace level, which is what keeps one `wgpu` and
+# one `raw-window-handle` in the graph now that it is named here rather than
+# reached through `corvid_render`.
+wgpu = { workspace = true }
+# The plan. This crate adds a device to it and nothing else: every number it
+# reads is a `TilePlan`, a `TileTable` or a `TileConfig`.
+#
+# `std` is named here rather than forwarded from a feature of this crate,
+# because there is nothing to decide: this crate is `std` unconditionally -- it
+# holds `wgpu` textures -- so the answer it gives `corvid_image` is the same in
+# every build it has.
+corvid_image = { workspace = true, features = ["std"] }
+# The uniform block the shader reads is a struct, and this is the workspace's
+# one safe way to turn a struct into the bytes a queue takes. Without it the
+# cast would need `unsafe`, which is forbidden here. Not optional, unlike
+# elsewhere in the workspace: a crate whose whole job is to hand a device some
+# bytes and cannot is not useful.
+bytemuck = { workspace = true }
+# What a cache that could not honour a plan reports with. A streamer that drops
+# an upload because the plan's eviction was never performed has to be able to
+# say so, and it may not print.
+tracing = { workspace = true }
+# `Display` and `Error` on the one error enum, derived.
+thiserror = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+# The device `tests/device.rs` opens. A dev-dependency rather than a real one:
+# this crate builds its resources on whatever `wgpu::Device` it is handed and
+# never acquires a frame, so the only thing here that wants a `Renderer` is the
+# test that has to prove the shader and the table agree on a real adapter.
+corvid_render = { workspace = true }
+
+# No features. A `std` flag earns its place on a crate that has a build without
+# an operating system, and this one does not: it holds `wgpu` textures. What the
+# plan crate needs is named directly on the `corvid_image` line above.
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

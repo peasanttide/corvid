@@ -1,0 +1,37 @@
+[package]
+name = "corvid_sky"
+description = "Where the sun, the moon and the stars actually were: a low-precision ephemeris, a bright-star catalogue rolled back by proper motion, and the atmosphere a sky is shaded through."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["ephemeris", "astronomy", "sky", "no-std", "gamedev"]
+categories = ["game-development", "science", "no-std::no-alloc"]
+
+[dependencies]
+# `Display` and `core::error::Error` on `SkyError`, derived. No `std` feature:
+# this crate is `no_std` under every configuration, and the derive names
+# `core::error::Error` without one.
+thiserror = { workspace = true }
+# The transcendentals. Written here rather than in `[workspace.dependencies]`
+# because this is the only member that names it directly -- `corvid_glm` reaches
+# the same code through `nalgebra/libm`, and nothing crosses between the two, so
+# there is no shared type to hold at one version. An ephemeris is `sin`, `cos`,
+# `atan2` and `asin` from end to end, and `core` has none of them for `f64`;
+# this crate does exactly that and nothing else, which is the whole of why it is
+# cheaper than writing four series here.
+libm = { version = "0.2", default-features = false }
+
+[features]
+default = []
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+std = []
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

@@ -447,6 +447,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "core_maths"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77745e017f5edba1a9c1d854f6f3a52dac8a12dd5af5d2f54aecf61e43d80d30"
+dependencies = [
+ "libm",
+]
+
+[[package]]
 name = "coreaudio-rs"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -478,16 +487,22 @@ dependencies = [
  "corvid_geo",
  "corvid_glm",
  "corvid_hash",
+ "corvid_image",
+ "corvid_image_render",
  "corvid_input",
  "corvid_mesh",
  "corvid_mesh_render",
+ "corvid_music",
  "corvid_nav",
+ "corvid_particle",
  "corvid_render",
  "corvid_replay",
  "corvid_rotation",
  "corvid_shape",
  "corvid_signal",
+ "corvid_sky",
  "corvid_sound",
+ "corvid_text",
  "corvid_time",
  "corvid_transform",
  "corvid_ui",
@@ -680,6 +695,30 @@ name = "corvid_hash"
 version = "0.1.2"
 
 [[package]]
+name = "corvid_image"
+version = "0.1.2"
+dependencies = [
+ "corvid_color",
+ "png",
+ "serde",
+ "thiserror 2.0.20",
+ "tracing",
+ "zune-jpeg",
+]
+
+[[package]]
+name = "corvid_image_render"
+version = "0.1.2"
+dependencies = [
+ "bytemuck",
+ "corvid_image",
+ "corvid_render",
+ "thiserror 2.0.20",
+ "tracing",
+ "wgpu",
+]
+
+[[package]]
 name = "corvid_input"
 version = "0.1.2"
 dependencies = [
@@ -742,6 +781,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_music"
+version = "0.1.2"
+dependencies = [
+ "corvid_fixed",
+ "corvid_sound",
+ "corvid_time",
+ "libm",
+ "serde",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "corvid_name"
 version = "0.1.2"
 dependencies = [
@@ -785,6 +836,19 @@ name = "corvid_net_udp"
 version = "0.1.2"
 dependencies = [
  "corvid_net",
+]
+
+[[package]]
+name = "corvid_particle"
+version = "0.1.2"
+dependencies = [
+ "bytemuck",
+ "corvid_color",
+ "corvid_fixed",
+ "corvid_float",
+ "corvid_glm",
+ "criterion",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -859,6 +923,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "corvid_sky"
+version = "0.1.2"
+dependencies = [
+ "libm",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "corvid_sound"
 version = "0.1.2"
 dependencies = [
@@ -891,6 +963,17 @@ dependencies = [
  "png",
  "serde",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "corvid_text"
+version = "0.1.2"
+dependencies = [
+ "corvid_fixed",
+ "corvid_float",
+ "corvid_ui",
+ "thiserror 2.0.20",
+ "ttf-parser",
 ]
 
 [[package]]
@@ -3139,6 +3222,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ttf-parser"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
+dependencies = [
+ "core_maths",
+]
+
+[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3936,3 +4028,18 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[package]]
+name = "zune-core"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d56377fd46368984a170bc5aac5567e52ca5da874caa60bea39fcbca78fb658b"
+
+[[package]]
+name = "zune-jpeg"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
+dependencies = [
+ "zune-core",
+]

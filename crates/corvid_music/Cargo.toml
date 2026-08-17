@@ -1,0 +1,63 @@
+[package]
+name = "corvid_music"
+description = "Music that is composed rather than played back: a bar-at-a-time composer, and a MIDI/SoundFont voice to sound it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+license.workspace = true
+keywords = ["music", "composition", "soundfont", "midi", "no-std"]
+categories = ["game-development", "multimedia::audio", "no-std"]
+
+[dependencies]
+# Written here rather than in `[workspace.dependencies]` because nothing else
+# in the workspace names it, and because the workspace's own float crate is
+# deliberately the wrong tool for this one. `corvid_float` is software floating
+# point chosen so that a projection matrix can be a `const`; it is slower than
+# the intrinsic at runtime by design, and it has no exponential at all. What is
+# needed here is `powf` for a cent, `exp2` for an envelope segment and `log2`
+# for a ratio, evaluated once per sample rather than once at startup. `libm` is
+# exactly those and nothing else.
+libm = { version = "0.2", default-features = false }
+thiserror = { workspace = true }
+# The three below are the `sound` feature and only the `sound` feature: the
+# vocabulary an `AudioFrame` is written in. Nothing outside `sound.rs` names
+# them, so a build of either half alone compiles none of the three.
+corvid_fixed = { workspace = true, optional = true }
+corvid_sound = { workspace = true, optional = true }
+corvid_time = { workspace = true, optional = true }
+# `alloc` because everything this crate would serialize is behind a `Vec` or a
+# `String`: a motif's events, a bar's lines, a bank's presets. Without it the
+# derives compile and no impl they need exists, which shows up as a wall of
+# unsatisfied bounds rather than as a missing feature.
+serde = { workspace = true, optional = true, features = ["alloc"] }
+
+[features]
+default = []
+# The composer: twelve musical parameters in, a bar of music out.
+compose = []
+# The synthesizer: MIDI, a SoundFont 2 bank, and a mixer that renders samples.
+synth = []
+# Writing a composed bar into a `corvid_sound::AudioFrame`. Implies `compose`,
+# because what it writes is a `Bar`.
+sound = ["compose", "dep:corvid_fixed", "dep:corvid_sound", "dep:corvid_time"]
+# `Serialize`/`Deserialize` on the data a pack carries: the motifs, the
+# parameters, and the bank a `.sf2` parses into.
+serde = ["dep:serde"]
+# Adds no API. It exists so a downstream can forward `std` uniformly across the
+# workspace without special-casing this crate.
+std = [
+    "corvid_fixed?/std",
+    "corvid_sound?/std",
+    "serde?/std",
+    "thiserror/std",
+]
+
+[lints]
+workspace = true
+
+# Every optional integration is off by default, so a plain build documents none
+# of them -- and a plain build of this crate documents neither half.
+[package.metadata.docs.rs]
+all-features = true
