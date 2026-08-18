@@ -12,23 +12,32 @@
 // `alloc` is the one thing past `core` this crate needs -- and the whole of it.
 extern crate alloc;
 
+mod colour;
 mod cords;
 mod diffuse;
 mod error;
 mod grid;
+mod inside;
 mod linear;
 mod mesh;
+mod plane;
+mod resolve;
+mod scaled;
 mod seam;
 mod step;
 mod stitch;
 mod tri;
 
+pub use colour::{MAX_COLOURS, NavColours};
 pub use cords::{MAX_HEIGHT, NavCords, NavState, NavTriRef};
 pub use diffuse::diffuse_step;
 pub use error::NavError;
-pub use grid::NavGrid;
+pub use grid::{NavCell, NavGrid};
+pub use inside::EDGE_MARGIN;
 pub use linear::{Affine3, Linear3};
 pub use mesh::NavMesh;
+pub use plane::NavPlane;
+pub use scaled::Scaled3;
 pub use seam::NavTriEdge;
 pub use step::{
     NavEvent, Tune, apply_drag, apply_gravity, calc_collision_vs_plane, calc_next_nav_tri,

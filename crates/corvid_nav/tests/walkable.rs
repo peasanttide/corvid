@@ -93,7 +93,7 @@ fn a_face_that_stands_on_its_edge_has_no_frame() {
 fn a_face_is_refused_for_being_long_or_empty() {
     let far = [
         metres(0.0, 0.0, 0.0),
-        metres(9.0, 0.0, 0.0),
+        metres(5000.0, 0.0, 0.0),
         metres(0.0, 4.0, 0.0),
     ];
     assert_eq!(
@@ -143,7 +143,13 @@ fn an_edge_three_faces_share_is_refused() {
 #[test]
 fn the_grid_answers_for_the_ground_it_covers() {
     let mesh = strip(4);
-    assert_eq!(mesh.grid().dims(), [2, 1, 1]);
+    let grid = mesh.grid();
+    assert_eq!(grid.pitch(), corvid_nav::NavGrid::DEFAULT_PITCH);
+    assert_eq!(
+        grid.tris_in(grid.cell_of(metres(1.0, 1.0, 0.0))).count(),
+        8,
+        "a twelve-metre strip is inside one thirty-two-metre cell"
+    );
     for column in 0..4 {
         let east = f64::from(column) * 3.0 + 1.0;
         let found = mesh.locate(metres(east, 1.0, 0.0)).expect("on the surface");

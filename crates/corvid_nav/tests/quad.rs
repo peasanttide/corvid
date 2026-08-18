@@ -49,8 +49,8 @@ fn a_walk_across_the_seam_lands_where_arithmetic_says() {
     // a quarter of the second axis less a quarter of the first.
     let start = NavCords {
         tri: NavTriRef(0),
-        position: [153, 51, 0],
-        velocity: [-16, 16, 0],
+        position: [39_321, 13_107, 0],
+        velocity: [-4096, 4096, 0],
     };
     assert!(
         apart(
@@ -91,8 +91,8 @@ fn a_walk_that_stops_short_does_not_cross() {
     let mesh = quad();
     let start = NavCords {
         tri: NavTriRef(0),
-        position: [153, 51, 0],
-        velocity: [-16, 16, 0],
+        position: [39_321, 13_107, 0],
+        velocity: [-4096, 4096, 0],
     };
     let after = kinematic_step(&mesh, start, I16F16::from_f64(2.0), &inert()).expect("a step");
 

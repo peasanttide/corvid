@@ -35,10 +35,10 @@ fn normal_speed(mesh: &NavMesh, tri: NavTriRef, local: FinePoint) -> f64 {
 /// The local axes of face 0 are `(0,-4,-2)`, `(4,-4,-2)` and the up, so a
 /// velocity straight down at four metres per second is `(0, 0, -4)` in them and
 /// encodes exactly.
-fn dropped(velocity: [i8; 3]) -> NavCords {
+fn dropped(velocity: [i16; 3]) -> NavCords {
     NavCords {
         tri: NavTriRef(0),
-        position: [85, 85, 32],
+        position: [21_845, 21_845, 8224],
         velocity,
     }
 }
@@ -53,7 +53,7 @@ fn dropped(velocity: [i8; 3]) -> NavCords {
 fn a_steep_hit_bounces() {
     let mesh = ramp();
     let tune = Tune::default();
-    let state = dropped([0, 0, -32]).decode();
+    let state = dropped([0, 0, -8192]).decode();
 
     let before = normal_speed(&mesh, state.tri, state.velocity);
     assert!(
@@ -85,7 +85,7 @@ fn a_grazing_hit_slides() {
     let tune = Tune::default();
     // Three metres per second east and half a metre per second down, which is
     // `(-0.75, 0.75, -0.5)` in face 0's axes and encodes exactly.
-    let state = dropped([-48, 48, -4]).decode();
+    let state = dropped([-12_288, 12_288, -1024]).decode();
 
     let before = normal_speed(&mesh, state.tri, state.velocity);
     assert!(
@@ -123,7 +123,7 @@ fn the_threshold_is_what_decides() {
         slide_angle: corvid_fixed::Angle16::from_degrees(1.0),
         ..Tune::default()
     };
-    let state = dropped([-48, 48, -4]).decode();
+    let state = dropped([-12_288, 12_288, -1024]).decode();
 
     let event = calc_collision_vs_plane(
         mesh.tri(state.tri).expect("a triangle"),
@@ -146,7 +146,7 @@ fn the_threshold_is_what_decides() {
 fn a_body_at_rest_on_a_ramp_slides_downhill() {
     let mesh = ramp();
     let tune = Tune::default();
-    let mut cords = NavCords::at(NavTriRef(0), [85, 85, 0]);
+    let mut cords = NavCords::centred(NavTriRef(0));
     // Twelve twentieths of a second, which is as long as the body has before it
     // reaches the southern edge of the square and the wall there stops it.
     for _ in 0..12 {

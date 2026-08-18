@@ -43,10 +43,12 @@ pub enum NavError {
 
     /// A face has an edge longer than [`MAX_EDGE`](crate::MAX_EDGE).
     ///
-    /// The local coordinates are eight bits across a whole triangle, so the
-    /// edge length is what sets the resolution. A longer edge would quietly
-    /// coarsen it.
-    #[error("face {face} has an edge longer than the eight metres a local coordinate covers")]
+    /// Not a resolution limit -- the local coordinates are sixteen bits across
+    /// a whole triangle and
+    /// [`NavTri::resolution`](crate::NavTri::resolution) says what that is
+    /// worth on a given face. This is the width of the local frame itself
+    /// running out, which is four kilometres.
+    #[error("face {face} has an edge longer than the four kilometres a local frame covers")]
     EdgeTooLong {
         /// The offending face's index.
         face: usize,

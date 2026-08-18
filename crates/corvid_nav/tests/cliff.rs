@@ -31,8 +31,8 @@ fn a_walker_does_not_walk_off_a_boundary_edge() {
     // axes.
     let start = NavCords {
         tri: NavTriRef(0),
-        position: [153, 51, 0],
-        velocity: [16, 0, 0],
+        position: [39_321, 13_107, 0],
+        velocity: [4096, 0, 0],
     };
 
     let after =
@@ -74,8 +74,8 @@ fn a_walker_does_not_climb_a_scarp() {
     // axes.
     let start = NavCords {
         tri: NavTriRef(1),
-        position: [77, 77, 0],
-        velocity: [32, 0, 0],
+        position: [19_789, 19_789, 0],
+        velocity: [8192, 0, 0],
     };
     let after =
         kinematic_step(&mesh, start, I16F16::from_f64(3.0), &Tune::default()).expect("a step");

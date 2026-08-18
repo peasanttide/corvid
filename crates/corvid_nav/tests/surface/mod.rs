@@ -139,3 +139,45 @@ pub fn world_velocity(mesh: &NavMesh, tri: NavTriRef, local: FinePoint) -> [f64;
         .apply(local);
     [moved.x().to_f64(), moved.y().to_f64(), moved.z().to_f64()]
 }
+
+/// A flat sheet of `squares` by `squares` squares, each `side` metres across.
+///
+/// Every interior vertex has six triangles around it and every interior seam
+/// has ground on both sides, which is what a walk across a seam needs to have
+/// somewhere to arrive. The winding is [`quad`]'s, square by square.
+pub fn sheet(squares: u32, side: f64) -> NavMesh {
+    let mut vertices = Vec::new();
+    for row in 0..=squares {
+        for column in 0..=squares {
+            vertices.push(metres(side * f64::from(column), side * f64::from(row), 0.0));
+        }
+    }
+    let stride = squares + 1;
+    let mut faces = Vec::new();
+    for row in 0..squares {
+        for column in 0..squares {
+            let a = row * stride + column;
+            faces.push([a, a + 1, a + stride]);
+            faces.push([a + stride + 1, a + stride, a + 1]);
+        }
+    }
+    build(&vertices, &faces)
+}
+
+/// A three-metre square of ground tilted `rise` metres to the north, whose four
+/// outer edges have nothing on the other side.
+///
+/// Every outer edge is therefore a wall, and a body walking into one has to
+/// slide along it rather than stop against it. The slope is the variable
+/// because the slope is what used to decide whether it stopped: a wall standing
+/// upright on a tilted face leans out of that face's plane, and the bounce and
+/// the ground collision then take turns undoing one another.
+pub fn bank(rise: f64) -> NavMesh {
+    let vertices = [
+        metres(0.0, 0.0, 0.0),
+        metres(3.0, 0.0, 0.0),
+        metres(0.0, 3.0, rise),
+        metres(3.0, 3.0, rise),
+    ];
+    build(&vertices, &[[0, 1, 2], [3, 2, 1]])
+}

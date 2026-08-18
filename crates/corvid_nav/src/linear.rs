@@ -62,9 +62,41 @@ const fn divide_q16(numerator: i128, divisor: i128) -> I16F16 {
     }
 }
 
+/// Rounds a `Q32` product down a further `shift` bits, back to `Q16`, clamped.
+///
+/// What [`Scaled3`](crate::Scaled3) needs and nothing else does: a matrix whose
+/// entries were scaled up to fill their width has to come back down, and doing
+/// it here rather than at the end of a chain of narrowings is what keeps the
+/// scaling free of rounding.
+#[inline]
+pub(crate) const fn narrow_shifted(value: i128, shift: u32) -> I16F16 {
+    let total = 16 + shift;
+    let half = 1i128 << (total - 1);
+    clamp_q16(if value >= 0 {
+        (value + half) >> total
+    } else {
+        -((-value + half) >> total)
+    })
+}
+
+/// `numerator * 2^(32 + shift) / divisor`, rounded away from zero and clamped.
+///
+/// [`divide_q16`] with the scaling a [`Scaled3`](crate::Scaled3) is built with.
+#[inline]
+pub(crate) const fn divide_shifted(numerator: i128, divisor: i128, shift: u32) -> I16F16 {
+    let scaled = numerator << (32 + shift);
+    let magnitude = divisor.unsigned_abs();
+    let rounded = (scaled.unsigned_abs() + magnitude / 2) / magnitude;
+    if (scaled < 0) == (divisor < 0) {
+        clamp_q16(rounded as i128)
+    } else {
+        clamp_q16(-(rounded as i128))
+    }
+}
+
 /// The three bit patterns of a vector, as the width the products need.
 #[inline]
-const fn bits(vector: FinePoint) -> [i128; 3] {
+pub(crate) const fn bits(vector: FinePoint) -> [i128; 3] {
     [
         vector.x().to_bits() as i128,
         vector.y().to_bits() as i128,

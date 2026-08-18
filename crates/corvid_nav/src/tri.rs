@@ -5,15 +5,26 @@ use corvid_vector::{Direction, FinePoint, GlobalPoint};
 
 use crate::error::NavError;
 use crate::linear::{Linear3, cross_bits};
+use crate::scaled::Scaled3;
 use crate::seam::NavTriEdge;
 
 /// The longest edge a face may have.
 ///
-/// A local coordinate is one byte across a whole triangle, so the edge length
-/// is what its resolution is measured against: eight metres over 255 codes is
-/// 3.1 cm. A longer edge would coarsen every position in the level without
-/// saying so, which is why [`NavMesh::new`](crate::NavMesh::new) refuses one.
-pub const MAX_EDGE: I24F8 = I24F8::from_bits(8 << 8);
+/// Four kilometres, and it is an **arithmetic** limit rather than a resolution
+/// one. A local coordinate is sixteen bits across a whole triangle, so what the
+/// edge length sets is the size of a code -- [`NavTri::resolution`] answers
+/// that for a given face, and a level of mixed triangles has a different answer
+/// on each. What stops here rather than further out is the frame: a
+/// local-to-ECEF column is an edge vector held as an [`I16F16`], which reaches
+/// 32.7 km, and a step forms products of a position and a velocity in those
+/// same units, so the limit leaves a factor of eight of headroom above the
+/// longest edge for the arithmetic that runs on it.
+///
+/// A real ground triangulated from levelling points has triangles of very
+/// different sizes, and refining all of them to the shortest is what turns a
+/// district into a quarter of a million triangles of identical shape. This is
+/// the constant that used to make that mandatory.
+pub const MAX_EDGE: I24F8 = I24F8::from_bits(4096 << 8);
 
 /// The shallowest a face's normal may lean before its local frame gives out.
 ///
@@ -52,7 +63,7 @@ pub struct NavTri {
     down: Direction,
     normal: Direction,
     local_to_ecef: Linear3,
-    ecef_to_local: Linear3,
+    ecef_to_local: Scaled3,
 }
 
 impl NavTri {
@@ -114,10 +125,50 @@ impl NavTri {
     }
 
     /// The map from an ECEF offset from vertex 2 to local coordinates.
+    ///
+    /// A [`Scaled3`] rather than a bare [`Linear3`], because its entries are
+    /// about one over an edge length and a large triangle's would otherwise
+    /// have a handful of bits left. The scale is carried beside them and comes
+    /// off inside [`Scaled3::apply`], so a caller multiplies as it always did
+    /// and gets fifteen bits of the answer whatever size the face is.
     #[must_use]
     #[inline]
-    pub const fn ecef_to_local(&self) -> Linear3 {
+    pub const fn ecef_to_local(&self) -> Scaled3 {
         self.ecef_to_local
+    }
+
+    /// The longest of the three edges, in metres.
+    #[must_use]
+    #[inline]
+    pub fn longest_edge(&self) -> I24F8 {
+        let [a, b, c] = self.triangle;
+        let mut longest = a.distance(b);
+        for (from, to) in [(b, c), (c, a)] {
+            let length = from.distance(to);
+            if length > longest {
+                longest = length;
+            }
+        }
+        longest
+    }
+
+    /// What one position code is worth on this face, in metres.
+    ///
+    /// [`longest_edge`](Self::longest_edge) over the 65535 codes a barycentric
+    /// coordinate has. **This is what a level's precision actually is**, and it
+    /// varies from face to face: a two-metre triangle resolves to 31 um, an
+    /// eight-metre one to 0.12 mm, a six-hundred-metre one to 9.2 mm, and one
+    /// at [`MAX_EDGE`] to 6.3 cm. A caller that cares -- an editor placing a
+    /// door, a test asserting where somebody stands -- asks the face rather
+    /// than assuming the crate.
+    ///
+    /// The answer is in the same [`I16F16`] everything local is, whose own last
+    /// place is 15 um, so a triangle finer than a metre reports the width of
+    /// that place rather than something smaller.
+    #[must_use]
+    #[inline]
+    pub fn resolution(&self) -> I16F16 {
+        I16F16::saturating_from_bits((i64::from(self.longest_edge().to_bits()) << 8) / 65_535)
     }
 
     /// Vertex 2, which is where the local frame is anchored.
@@ -169,39 +220,32 @@ impl NavTri {
     /// The nearest local coordinate that is inside the triangle and not
     /// underground.
     ///
-    /// Every event in a step ends with this, which is what makes "a `NavCords`
-    /// is on the surface by construction" true of the arithmetic and not only
-    /// of the encoding: rounding may put a crossing a last bit outside, and the
-    /// answer is dragged back rather than allowed to name a point in another
-    /// triangle.
+    /// Every event in a step ends with this or with
+    /// [`settle_inside`](Self::settle_inside), which is what makes "a
+    /// `NavCords` is on the surface by construction" true of the arithmetic and
+    /// not only of the encoding: rounding may put a crossing a last bit
+    /// outside, and the answer is dragged back rather than allowed to name a
+    /// point in another triangle.
     #[must_use]
     #[inline]
     pub const fn clamp_inside(local: FinePoint) -> FinePoint {
-        let mut x = at_least_zero(local.x().to_bits()) as i64;
-        let mut y = at_least_zero(local.y().to_bits()) as i64;
-        let one = I16F16::ONE.to_bits() as i64;
-        let over = x + y - one;
-        if over > 0 {
-            // Both weights give up the same share, so a point outside a corner
-            // lands on the edge nearest it rather than on whichever axis the
-            // code happened to test first.
-            let half = over / 2;
-            x -= half;
-            y -= over - half;
-            if y < 0 {
-                x += y;
-                y = 0;
-            }
-            if x < 0 {
-                y += x;
-                x = 0;
-            }
-        }
-        FinePoint::new(
-            I16F16::from_bits(x as i32),
-            I16F16::from_bits(y as i32),
-            I16F16::from_bits(at_least_zero(local.z().to_bits())),
-        )
+        crate::inside::clamp(local)
+    }
+
+    /// The nearest local coordinate that is inside the triangle by
+    /// [`EDGE_MARGIN`](crate::EDGE_MARGIN), and not underground.
+    ///
+    /// [`clamp_inside`](Self::clamp_inside) leaves a body that arrived on an
+    /// edge exactly on it, and a body exactly on an edge is a body the next
+    /// crossing test finds at distance zero: it crosses again, in no time, and
+    /// the two triangles hand it back and forth until the step's event budget
+    /// is gone. **That is what stopped a walker dead on a seam.** This is that
+    /// clamp with a margin of daylight, so a boundary an event has just
+    /// resolved cannot answer again for nothing.
+    #[must_use]
+    #[inline]
+    pub const fn settle_inside(local: FinePoint) -> FinePoint {
+        crate::inside::settle(local)
     }
 
     /// Builds a triangle's frame from its three ECEF vertices.
@@ -237,9 +281,8 @@ impl NavTri {
         let normal = if cosine.is_negative() { raw.neg() } else { raw };
 
         let local_to_ecef = Linear3::from_columns([first, second, fine_direction(up)]);
-        let ecef_to_local = local_to_ecef
-            .inverse()
-            .ok_or(NavError::DegenerateFace { face })?;
+        let ecef_to_local =
+            Scaled3::inverse_of(local_to_ecef).ok_or(NavError::DegenerateFace { face })?;
 
         Ok(Self {
             triangle,
@@ -257,12 +300,6 @@ impl NavTri {
             self.edges[index] = Some(edge);
         }
     }
-}
-
-/// `value`, or zero if it is below.
-#[inline]
-const fn at_least_zero(value: i32) -> i32 {
-    if value < 0 { 0 } else { value }
 }
 
 /// The three vertices summed, at full width.

@@ -17,44 +17,55 @@ use corvid_nav::{NavCords, NavTriRef};
 
 use surface::{apart, quad, world};
 
-/// The six bytes are six bytes, and they are the position and the velocity.
+/// The twelve bytes are twelve bytes, and they are the position and the
+/// velocity.
 #[test]
-fn a_position_and_a_velocity_are_six_bytes() {
-    assert_eq!(size_of::<[u8; 3]>() + size_of::<[i8; 3]>(), 6);
+fn a_position_and_a_velocity_are_twelve_bytes() {
+    assert_eq!(size_of::<[u16; 3]>() + size_of::<[i16; 3]>(), 12);
     let cords = NavCords {
         tri: NavTriRef(9),
         position: [1, 2, 3],
         velocity: [-4, 5, -6],
     };
-    assert_eq!(cords.local_bytes(), [1, 2, 3, 252, 5, 250]);
+    assert_eq!(
+        cords.local_bytes(),
+        [1, 0, 2, 0, 3, 0, 252, 255, 5, 0, 250, 255]
+    );
 }
 
 /// Every code a `NavCords` can hold comes back as itself.
 ///
-/// Exhaustive over both bytes of the position and both ends of the velocity,
-/// because a coordinate that drifted by one code per tick would drift a metre a
-/// minute and no sampled test would find it.
+/// Exhaustive over each of the position's three codes and over every velocity
+/// code, because a coordinate that drifted by one code per tick would drift and
+/// no sampled test would find it. The pair of barycentric codes is swept along
+/// its own axes and along the diagonal the repair in
+/// [`NavCords::encode`](corvid_nav::NavCords::encode) acts on, rather than over
+/// all four billion combinations of the two.
 #[test]
 fn every_code_round_trips() {
-    for first in 0..=255u8 {
-        for second in 0..=(255 - first) {
+    for code in 0..=65_535u16 {
+        for position in [
+            [code, 0, code],
+            [0, code, 65_535 - code],
+            [code / 2, code / 2, code],
+        ] {
             let cords = NavCords {
                 tri: NavTriRef(0),
-                position: [first, second, first],
-                velocity: [-127, 0, 127],
+                position,
+                velocity: [-32_767, 0, 32_767],
             };
             assert_eq!(
                 NavCords::encode(cords.decode()),
                 cords,
-                "position [{first}, {second}]"
+                "position {position:?}"
             );
         }
     }
 
-    for code in -127..=127i8 {
+    for code in -32_767..=32_767i16 {
         let cords = NavCords {
             tri: NavTriRef(0),
-            position: [40, 40, 40],
+            position: [10_000, 10_000, 10_000],
             velocity: [code, -code, code],
         };
         assert_eq!(NavCords::encode(cords.decode()), cords, "velocity {code}");
@@ -69,8 +80,8 @@ fn every_code_round_trips() {
 #[test]
 fn an_encoded_position_is_always_inside() {
     let mesh = quad();
-    for first in [0u8, 1, 128, 200, 255] {
-        for second in [0u8, 1, 128, 200, 255] {
+    for first in [0u16, 1, 32_768, 50_000, 65_535] {
+        for second in [0u16, 1, 32_768, 50_000, 65_535] {
             let outside = NavCords {
                 tri: NavTriRef(0),
                 position: [first, second, 0],
@@ -111,12 +122,12 @@ fn a_crossing_and_a_crossing_back_leave_a_position_where_it_was() {
     assert_eq!(out.next(), NavTriRef(1));
     assert_eq!(back.next(), NavTriRef(0));
 
-    for first in [0u8, 32, 64, 128, 200] {
-        for second in [0u8, 16, 55] {
+    for first in [0u16, 8192, 16_384, 32_768, 51_200] {
+        for second in [0u16, 4096, 14_080] {
             let start = NavCords {
                 tri: NavTriRef(0),
-                position: [first, second, 24],
-                velocity: [7, -7, 3],
+                position: [first, second, 6144],
+                velocity: [1792, -1792, 768],
             };
             let here = start.decode();
             let there = out.local_to_next().apply(here.position);

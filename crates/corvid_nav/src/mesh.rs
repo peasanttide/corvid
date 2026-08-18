@@ -4,6 +4,7 @@ use alloc::vec::Vec;
 
 use corvid_vector::{FinePoint, GlobalPoint};
 
+use crate::colour::NavColours;
 use crate::cords::{NavCords, NavState, NavTriRef};
 use crate::error::NavError;
 use crate::grid::NavGrid;
@@ -39,6 +40,7 @@ const MAX_WALK: usize = 64;
 pub struct NavMesh {
     tris: Vec<NavTri>,
     grid: NavGrid,
+    colours: NavColours,
 }
 
 impl NavMesh {
@@ -85,10 +87,12 @@ impl NavMesh {
 
         let mut mesh = Self {
             tris,
-            grid: NavGrid::build(&[])?,
+            grid: NavGrid::build(&[], tune.grid_pitch)?,
+            colours: NavColours::default(),
         };
         mesh.stitch(faces, tune)?;
-        mesh.grid = NavGrid::build(&mesh.tris)?;
+        mesh.grid = NavGrid::build(&mesh.tris, tune.grid_pitch)?;
+        mesh.colours = NavColours::build(&mesh.tris);
         Ok(mesh)
     }
 
@@ -121,6 +125,16 @@ impl NavMesh {
     #[inline]
     pub fn tri(&self, reference: NavTriRef) -> Option<&NavTri> {
         self.tris.get(reference.0 as usize)
+    }
+
+    /// The colouring a threaded tick steps one class at a time.
+    ///
+    /// Computed once, here, because it is a fact about the adjacency and the
+    /// adjacency does not change while the mesh exists.
+    #[must_use]
+    #[inline]
+    pub const fn colours(&self) -> &NavColours {
+        &self.colours
     }
 
     /// The grid that guesses where a query starts.
@@ -190,7 +204,12 @@ impl NavMesh {
     pub fn locate(&self, point: GlobalPoint) -> Option<NavCords> {
         let start = self
             .grid
-            .lookup(point)
+            .candidates(point)
+            .find(|&reference| {
+                self.tri(reference)
+                    .is_some_and(|tri| NavTri::contains(tri.local(point)))
+            })
+            .or_else(|| self.grid.lookup(point))
             .or_else(|| (!self.is_empty()).then_some(NavTriRef(0)))?;
         let found = self.walk_toward(start, point)?;
         let tri = self.tri(found)?;

@@ -17,8 +17,8 @@ use corvid_nav::NavTriRef;
 
 use surface::{apart, fold, metres, world};
 
-/// The whole valley is one grid cell, so the grid has one guess for four
-/// triangles and it is wrong for three of them.
+/// The whole valley is inside one 32-metre cell, so the grid has one bucket
+/// for four triangles and the first of them is wrong for three.
 ///
 /// That is the fixture's point: what is being tested is that the answer does
 /// not depend on the guess.
@@ -26,7 +26,10 @@ use surface::{apart, fold, metres, world};
 fn the_grid_has_one_cell_for_the_whole_fold() {
     let mesh = fold();
     assert_eq!(mesh.len(), 4);
-    assert_eq!(mesh.grid().dims(), [1, 1, 1]);
+    let grid = mesh.grid();
+    let corner = grid.cell_of(metres(0.0, 0.0, 2.0));
+    assert_eq!(grid.tris_in(corner).count(), 4, "one cell, four triangles");
+    assert_eq!(grid.len(), 4, "and no other cell holds anything");
 }
 
 /// A walk that starts in the far triangle of the fold arrives in the near one.

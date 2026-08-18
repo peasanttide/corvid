@@ -1,12 +1,14 @@
 //! The ballistic substep loop, and the two calculations it picks between.
 
-use corvid_fixed::{Angle16, Factor16, I16F16};
-use corvid_vector::{Direction, FinePoint};
+use corvid_fixed::{Angle16, Factor16, I16F16, I24F8};
+use corvid_vector::FinePoint;
 
 use crate::cords::{NavCords, NavState};
 use crate::error::NavError;
+use crate::grid::NavGrid;
 use crate::mesh::NavMesh;
-use crate::tri::{NavTri, fine_direction};
+use crate::resolve::{resolve_ground, resolve_wall};
+use crate::tri::NavTri;
 
 /// The numbers a game gets to choose.
 ///
@@ -46,6 +48,17 @@ pub struct Tune {
     /// A walking agent uses two or three. The cap is what keeps a body wedged
     /// in a corner from turning a tick into a search.
     pub max_events: u8,
+    /// How wide a cell of the level's locating grid is, in metres.
+    ///
+    /// The one number here that is about the mesh rather than about the world,
+    /// and it is here because it reaches the hashed state exactly as the others
+    /// do: two peers whose grids are cut differently would answer
+    /// [`NavMesh::locate`](crate::NavMesh::locate) differently on a point that
+    /// lies between two triangles. Coarser is a longer walk per query and less
+    /// memory; finer is the other way about.
+    /// [`NavGrid::DEFAULT_PITCH`](crate::NavGrid::DEFAULT_PITCH) is what this
+    /// defaults to.
+    pub grid_pitch: I24F8,
 }
 
 impl Default for Tune {
@@ -58,6 +71,7 @@ impl Default for Tune {
             step_height: I16F16::from_bits(22_938),
             max_slope: Angle16::from_degrees(50.0),
             max_events: 8,
+            grid_pitch: NavGrid::DEFAULT_PITCH,
         }
     }
 }
@@ -203,7 +217,7 @@ pub fn calc_next_nav_tri(
             duration: when,
             state: NavState {
                 tri: seam.next(),
-                position: NavTri::clamp_inside(seam.local_to_next().apply(travelled)),
+                position: NavTri::settle_inside(seam.local_to_next().apply(travelled)),
                 velocity: seam.vel_to_next().apply(velocity),
             },
         }),
@@ -211,8 +225,8 @@ pub fn calc_next_nav_tri(
             duration: when,
             state: NavState {
                 tri: state.tri,
-                position: travelled,
-                velocity: resolve_wall(tri, velocity, edge, tune),
+                position: NavTri::settle_inside(travelled),
+                velocity: resolve_wall(tri, state, edge, tune),
             },
         }),
     }
@@ -243,6 +257,7 @@ pub fn kinematic_step(
     let mut state = cords.decode();
     let mut remaining = duration;
     let mut events = 0;
+    let mut idle = 0u8;
 
     while remaining.is_positive() && events < tune.max_events {
         events += 1;
@@ -251,17 +266,30 @@ pub fn kinematic_step(
             count: mesh.len(),
         })?;
 
-        let taken = if let Some(event) = pick_next_event([
-            calc_collision_vs_plane(tri, state, remaining, tune),
-            calc_next_nav_tri(tri, state, remaining, tune),
-        ]) {
+        // Two events in a row that take no time are two constraints arguing,
+        // and the tick is not the place to settle it: what a third would buy is
+        // another zero, and what it would cost is the rest of the budget and
+        // every metre the body was going to walk. So the arguing stops and the
+        // body spends what is left of the tick going where it is pointing,
+        // inside the triangle it is in.
+        let event = if idle < 2 {
+            pick_next_event([
+                calc_collision_vs_plane(tri, state, remaining, tune),
+                calc_next_nav_tri(tri, state, remaining, tune),
+            ])
+        } else {
+            None
+        };
+
+        let taken = if let Some(event) = event {
             state = event.state;
             event.duration
         } else {
             state.position =
-                NavTri::clamp_inside(state.position.add(state.velocity.mul(remaining)));
+                NavTri::settle_inside(state.position.add(state.velocity.mul(remaining)));
             remaining
         };
+        idle = if taken.is_zero() { idle + 1 } else { 0 };
 
         remaining = remaining.saturating_sub(taken);
         state.velocity = apply_gravity(state.velocity, taken, tune);
@@ -307,90 +335,4 @@ pub fn apply_drag(velocity: FinePoint, duration: I16F16, tune: &Tune) -> FinePoi
         scale(velocity.y()),
         scale(velocity.z()),
     )
-}
-
-/// The velocity a hit against the triangle's own plane leaves behind.
-fn resolve_ground(tri: &NavTri, velocity: FinePoint, tune: &Tune) -> FinePoint {
-    let world = tri.local_to_ecef().apply(velocity);
-    let normal = tri.normal();
-    let approach = along(world, normal);
-    if !approach.is_negative() {
-        return velocity;
-    }
-    let kept = if slides(approach, world, tune.slide_angle) {
-        Factor16::MIN
-    } else {
-        tune.restitution
-    };
-    tri.ecef_to_local()
-        .apply(reflect(world, normal, approach, kept))
-}
-
-/// The velocity a hit against an edge the body may not cross leaves behind.
-///
-/// The wall's normal is a row of the triangle's ECEF-to-local matrix, which
-/// costs nothing to have: row 0 is orthogonal to both the second edge vector
-/// and the up direction, so it is exactly the outward normal of a vertical wall
-/// standing on the edge those two span. Edge 0's is the two rows summed,
-/// because its constraint is the two coordinates summed.
-fn resolve_wall(tri: &NavTri, velocity: FinePoint, edge: usize, tune: &Tune) -> FinePoint {
-    let [first, second, _] = tri.ecef_to_local().rows();
-    let inward = match edge {
-        1 => first,
-        2 => second,
-        _ => first.add(second).neg(),
-    };
-    let Some(normal) = inward.normalize() else {
-        return velocity;
-    };
-
-    let world = tri.local_to_ecef().apply(velocity);
-    let approach = along(world, normal);
-    if !approach.is_negative() {
-        return velocity;
-    }
-    tri.ecef_to_local()
-        .apply(reflect(world, normal, approach, tune.restitution))
-}
-
-/// `world` with its component along `normal` replaced by `-kept` of itself.
-///
-/// `kept` of zero is a slide and leaves the body moving along the surface;
-/// anything more is a bounce.
-#[inline]
-fn reflect(world: FinePoint, normal: Direction, approach: I16F16, kept: Factor16) -> FinePoint {
-    let damped = I16F16::from_bits(
-        (i64::from(approach.to_bits()) * i64::from(kept.to_bits()) / 65_535) as i32,
-    );
-    let change = approach.saturating_add(damped).saturating_neg();
-    world.add(fine_direction(normal).mul(change))
-}
-
-/// The component of a near-field vector along a unit direction.
-#[inline]
-fn along(vector: FinePoint, direction: Direction) -> I16F16 {
-    let [x, y, z] = direction.to_array();
-    let product = i128::from(vector.x().to_bits()) * i128::from(x.canonicalize().to_bits())
-        + i128::from(vector.y().to_bits()) * i128::from(y.canonicalize().to_bits())
-        + i128::from(vector.z().to_bits()) * i128::from(z.canonicalize().to_bits());
-    let scale = i128::from(corvid_fixed::Signed32::MAX.to_bits());
-    let rounded = if product >= 0 {
-        (product + scale / 2) / scale
-    } else {
-        -((-product + scale / 2) / scale)
-    };
-    I16F16::saturating_from_bits(rounded as i64)
-}
-
-/// Whether a hit is shallow enough to slide.
-///
-/// `sin(incidence) = |approach| / |world|`, so the comparison is a pair of
-/// squares and never an angle: no square root, no trigonometry, and the same
-/// answer on every machine.
-#[inline]
-fn slides(approach: I16F16, world: FinePoint, limit: Angle16) -> bool {
-    let sine = i128::from(limit.sin().to_bits());
-    let normal = i128::from(approach.to_bits());
-    let full = i128::from(corvid_fixed::Signed16::MAX.to_bits());
-    normal * normal * full * full <= i128::from(world.length_squared()) * sine * sine
 }
