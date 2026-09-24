@@ -35,6 +35,11 @@ corvid_render = { workspace = true }
 # workspace: a crate whose whole job is to hand a device some bytes and cannot
 # is not useful.
 bytemuck = { workspace = true }
+# The glyphs `Font8x8` draws: public-domain eight-by-eight bitmaps as `const`
+# tables and nothing else. Named here rather than in the workspace because this
+# is the one crate that draws text; the legacy tables are all it reads, so the
+# `unicode` lookup and `std` stay off.
+font8x8 = { version = "0.3", default-features = false }
 
 [dev-dependencies]
 # The colour a rectangle carries, which `tests/instances.rs` builds one from.

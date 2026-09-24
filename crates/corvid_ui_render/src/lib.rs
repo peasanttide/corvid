@@ -7,12 +7,14 @@ extern crate alloc;
 
 mod atlas;
 mod batch;
+mod bitmap;
 mod instance;
 mod painter;
 mod scissor;
 
 pub use atlas::{Atlas, Grid};
 pub use batch::{Batch, batches};
+pub use bitmap::Font8x8;
 pub use instance::{GlyphInstance, RectInstance};
 pub use painter::Painter;
 pub use scissor::scissor;
