@@ -37,7 +37,7 @@ pub use cli::{Argument, Arguments, Load, main, watch};
 pub use commands::{Answer, Command, Request, Requests};
 #[cfg(feature = "window")]
 pub use controls::Misbound;
-pub use game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig};
+pub use game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig, ViewOf};
 #[cfg(feature = "net")]
 pub use net::{Departures, TickTraffic, Traffic, peer_of, seat_of};
 pub use retention::Retention;

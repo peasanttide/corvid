@@ -78,8 +78,8 @@ pub struct Opened<'a> {
 /// so a renderer that splits its frame across helpers hands each of them the
 /// whole of this and keeps the encoder as the one thing it passes by mutable
 /// reference.
-#[derive(Clone, Copy, Debug)]
-pub struct Drawing<'a> {
+#[derive(Debug)]
+pub struct Drawing<'a, V = ()> {
     /// Where the frame goes.
     pub target: Target<'a>,
     /// Whatever the controller's `look` answered.
@@ -95,7 +95,30 @@ pub struct Drawing<'a> {
     /// The weight between the two extracted states: [`ZERO`](Factor16::ZERO)
     /// is the older.
     pub alpha: Factor16,
+    /// Whatever the controller's `view` answered: the client-local state a
+    /// heads-up display is drawn from.
+    ///
+    /// A panel that is open, a thing under the pointer, a selection. None of
+    /// it is in the state, because none of it is anything a peer agrees on,
+    /// and none of it is in the camera, because it is not where the eye is.
+    /// The controller is the one type that reads a player, so it is the one
+    /// that holds what the player is doing with the interface, and this is the
+    /// one road from there to a picture.
+    pub view: &'a V,
 }
+
+/// A copy, because every field is one.
+///
+/// Hand-written because a derive goes by which type parameters appear rather
+/// than by what the fields hold, and would put `V: Clone` on the impl for a
+/// struct that holds `&V`.
+impl<V> Clone for Drawing<'_, V> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<V> Copy for Drawing<'_, V> {}
 
 /// What a game draws with, and how.
 ///
@@ -123,7 +146,7 @@ pub struct Drawing<'a> {
 ///
 /// The cost of that arrangement is stated on [`Extract`]: after a rollback the
 /// pair can span more than one tick, so the GPU lerps across a gap.
-pub trait Render<S: State>: Extract<S> {
+pub trait Render<S: State, V = ()>: Extract<S> {
     /// What a player has set: resolution scale, shadow quality, gamma.
     ///
     /// The renderer's half of a game's settings, and never
@@ -185,7 +208,7 @@ pub trait Render<S: State>: Extract<S> {
     /// *is* loading is in the state, because every peer agrees about that;
     /// how far along one disk has got is nobody else's business, which is why
     /// it is here instead.
-    fn draw(&mut self, drawing: Drawing<'_>, encoder: &mut wgpu::CommandEncoder);
+    fn draw(&mut self, drawing: Drawing<'_, V>, encoder: &mut wgpu::CommandEncoder);
 
     /// The picture a platform puts in the title bar, the dock and the task
     /// switcher, or [`None`] to leave whatever the platform would have used.
@@ -208,7 +231,7 @@ pub trait Render<S: State>: Extract<S> {
 /// The default for an [`App`](../corvid_app/struct.App.html)'s renderer, and
 /// the whole of what a dedicated server owes: no device is opened, no surface
 /// is acquired, and [`draw`](Render::draw) is never called.
-impl<S: State> Render<S> for () {
+impl<S: State, V> Render<S, V> for () {
     type Config = ();
 
     const REAL: bool = false;
@@ -217,5 +240,5 @@ impl<S: State> Render<S> for () {
 
     fn configure(&mut self, (): ()) {}
 
-    fn draw(&mut self, _drawing: Drawing<'_>, _encoder: &mut wgpu::CommandEncoder) {}
+    fn draw(&mut self, _drawing: Drawing<'_, V>, _encoder: &mut wgpu::CommandEncoder) {}
 }

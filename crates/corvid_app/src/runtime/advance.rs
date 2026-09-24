@@ -68,6 +68,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         let action = self.seating.playing().map(|seat| {
             self.controller.action(Acting {
                 state: &self.current,
+                level: &self.play.session().opening.content,
                 input: self.acting(),
                 time: self.now(),
                 seat,
@@ -187,6 +188,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             index += 1;
             let action = self.bot.action(Acting {
                 state: &self.current,
+                level: &self.play.session().opening.content,
                 input: self.acting(),
                 time: self.now(),
                 seat,

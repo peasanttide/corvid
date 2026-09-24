@@ -115,3 +115,30 @@ A `Rgba8` in a style is sRGB, and what reaches the shader is
 encodes on store, so the value written is the linear one. A `Unorm` surface
 without the `Srgb` suffix will look washed out, which is the same trade every
 other technique in this workspace makes.
+
+## A face that ships
+
+`Font8x8` is a whole font with nothing to load: the public-domain eight by
+eight bitmaps for ASCII, Latin-1, box drawing and block elements, laid out in
+one coverage texture. It answers `corvid_ui::Metrics` for the layout and
+`Atlas` for the device from the same cells, so what a label was measured
+against is what it is drawn from, and `Font8x8::upload` hands back the view
+and the nearest-filtered sampler `Painter::new` takes.
+
+```rust
+use corvid_fixed::I16F16;
+use corvid_ui::{Rect, Scale, Tree, column, label, solve};
+use corvid_ui_render::Font8x8;
+
+let mut tree = Tree::<()>::new();
+tree.reconcile(column().child(label("case open")));
+let painted = solve(
+    &tree,
+    &Font8x8,
+    Scale::DEFAULT,
+    Rect::of(I16F16::from_f64(320.0), I16F16::from_f64(200.0)),
+)?;
+// Nine cells, the space among them: a space is a glyph with no ink.
+assert_eq!(painted.glyphs.len(), 9);
+# Ok::<(), corvid_ui::TooLarge>(())
+```

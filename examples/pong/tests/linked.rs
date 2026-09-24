@@ -121,6 +121,7 @@ struct Metronome {
 
 impl Controller<Table> for Metronome {
     type Config = u64;
+    type View = ();
 
     const SETS: &'static [SetDescriptor] = action::SETS;
 
@@ -141,6 +142,10 @@ impl Controller<Table> for Metronome {
     }
 
     fn update(&mut self, _updating: Updating<'_, Table>) {}
+
+    fn view(&self) -> &() {
+        &()
+    }
 
     fn look(&self) -> Camera {
         Camera::default()

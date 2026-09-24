@@ -66,6 +66,7 @@ use corvid_time::{Tick, TickSpan, Ticks};
 # struct Legs;
 # impl Controller<Climb> for Legs {
 #     type Config = ();
+#     type View = ();
 #     const SETS: &'static [corvid_input::SetDescriptor] = &[];
 #     fn new((): ()) -> Self { Self }
 #     fn configure(&mut self, (): ()) {}
@@ -73,6 +74,7 @@ use corvid_time::{Tick, TickSpan, Ticks};
 #         Effort::Up
 #     }
 #     fn update(&mut self, _: corvid_control::Updating<'_, Climb>) {}
+#     fn view(&self) -> &() { &() }
 #     fn look(&self) -> corvid_camera::Camera { corvid_camera::Camera::default() }
 # }
 #

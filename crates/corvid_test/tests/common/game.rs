@@ -24,6 +24,7 @@ pub(crate) struct Legs {
 
 impl corvid_control::Controller<Climb> for Legs {
     type Config = Rules;
+    type View = ();
 
     /// A fixture with nothing to press.
     const SETS: &'static [corvid_input::SetDescriptor] = &[];
@@ -47,6 +48,10 @@ impl corvid_control::Controller<Climb> for Legs {
     }
 
     fn update(&mut self, _updating: corvid_control::Updating<'_, Climb>) {}
+
+    fn view(&self) -> &() {
+        &()
+    }
 
     fn look(&self) -> corvid_camera::Camera {
         corvid_camera::Camera::default()

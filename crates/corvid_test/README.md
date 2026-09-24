@@ -57,11 +57,13 @@ is four calls, and `examples/headless` makes all four.
 # struct Legs;
 # impl Controller<Climb> for Legs {
 #     type Config = ();
+#     type View = ();
 #     const SETS: &'static [corvid_input::SetDescriptor] = &[];
 #     fn new((): ()) -> Self { Self }
 #     fn configure(&mut self, (): ()) {}
 #     fn action(&self, _: corvid_control::Acting<'_, Climb>) -> Effort { Effort::Up }
 #     fn update(&mut self, _: corvid_control::Updating<'_, Climb>) {}
+#     fn view(&self) -> &() { &() }
 #     fn look(&self) -> corvid_camera::Camera { corvid_camera::Camera::default() }
 # }
 #

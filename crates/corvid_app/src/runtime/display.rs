@@ -37,8 +37,10 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         // call and the three calls below are free to take `&mut self` in
         // whatever order they like.
         let time = self.now();
+        let level = Arc::clone(&self.play.session().opening.content);
         self.controller.update(Updating {
             state: &self.current,
+            level: &level,
             input: &self.input,
             loading: None,
             time,
@@ -79,6 +81,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 audio: &self.audio,
             },
             self.graphics.as_mut(),
+            self.controller.view(),
         )
     }
 

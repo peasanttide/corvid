@@ -23,6 +23,10 @@ use corvid_time::Time;
 pub struct Acting<'a, S: State> {
     /// The state to read.
     pub state: &'a S,
+    /// The level the session is played on: what a bot plans against and what
+    /// a pointer is resolved against, and the same value every tick is
+    /// handed.
+    pub level: &'a S::Level,
     /// What the devices say, with every edge since the last tick folded in.
     pub input: &'a Input,
     /// Where the session is.
@@ -58,6 +62,9 @@ impl<S: State> Copy for Acting<'_, S> {}
 pub struct Updating<'a, S: State> {
     /// The state to read.
     pub state: &'a S,
+    /// The level the session is played on, so an interface can name what the
+    /// state only numbers.
+    pub level: &'a S::Level,
     /// What the devices say.
     pub input: &'a Input,
     /// How far along this machine's bytes are, while a level is being read.
@@ -133,6 +140,16 @@ pub trait Controller<S: State> {
     /// feels and never what the simulation computes, so it is hashed by nothing
     /// and sent to nobody.
     type Config: Data;
+
+    /// What a heads-up display is drawn from: the part of this controller a
+    /// renderer is allowed to see.
+    ///
+    /// Which panel is open, what is under the pointer, what is selected. It is
+    /// client-local in the same way the camera is -- no peer has it, nothing
+    /// hashes it -- and it is a type of the game's own, handed to the renderer
+    /// by reference once per displayed frame. A controller with no interface
+    /// writes `()`.
+    type View: core::fmt::Debug;
 
     /// Whether this controller wants the platform's input devices.
     ///
@@ -252,6 +269,12 @@ pub trait Controller<S: State> {
     /// twice.
     fn look(&self) -> Camera;
 
+    /// What the renderer draws a heads-up display from.
+    ///
+    /// A pure read, asked once per displayed frame after [`look`](Self::look),
+    /// of whatever [`update`](Self::update) left behind.
+    fn view(&self) -> &Self::View;
+
     /// One tick's intent. **This is the whole of what goes on the wire.**
     ///
     /// `input` already carries `pressed` and `released` folded across every
@@ -351,6 +374,7 @@ pub trait Controller<S: State> {
 /// simulation already knows what to do with one.
 impl<S: State> Controller<S> for () {
     type Config = ();
+    type View = ();
 
     const REAL: bool = false;
     const SETS: &'static [SetDescriptor] = &[];
@@ -363,6 +387,10 @@ impl<S: State> Controller<S> for () {
 
     fn look(&self) -> Camera {
         Camera::default()
+    }
+
+    fn view(&self) -> &() {
+        &()
     }
 
     fn action(&self, acting: Acting<'_, S>) -> S::Action {

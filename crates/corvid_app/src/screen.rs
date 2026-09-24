@@ -17,7 +17,7 @@ use crate::{
     Error,
     backend::{Backend, Frame},
     capture::Capture,
-    game::Game,
+    game::{Game, ViewOf},
 };
 
 /// Where a displayed frame goes when there is a device to draw it with.
@@ -177,7 +177,12 @@ impl<G: Game> Backend<G> for Screen<G> {
         Some(Viewport::new(size.width, size.height))
     }
 
-    fn present(&mut self, frame: Frame<'_>, graphics: Option<&mut G::Render>) -> Result<(), Error> {
+    fn present(
+        &mut self,
+        frame: Frame<'_>,
+        graphics: Option<&mut G::Render>,
+        view: &ViewOf<G>,
+    ) -> Result<(), Error> {
         let Frame {
             at,
             camera,
@@ -217,6 +222,7 @@ impl<G: Game> Backend<G> for Screen<G> {
                         loading,
                         time,
                         alpha,
+                        view,
                     },
                     encoder,
                 );

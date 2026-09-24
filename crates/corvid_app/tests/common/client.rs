@@ -52,6 +52,7 @@ pub(crate) struct Holding {
 
 impl Controller<Tally> for Hands {
     type Config = Holding;
+    type View = ();
 
     /// A fixture with nothing to press.
     const SETS: &'static [corvid_input::SetDescriptor] = &[];
@@ -101,6 +102,10 @@ impl Controller<Tally> for Hands {
             self.held = self.held.saturating_add(1);
             self.paused = self.held <= self.pause_for;
         }
+    }
+
+    fn view(&self) -> &() {
+        &()
     }
 
     fn look(&self) -> corvid_camera::Camera {
