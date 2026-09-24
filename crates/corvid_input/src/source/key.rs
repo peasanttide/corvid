@@ -65,4 +65,5 @@ keys! {
     LeftShift => "LeftShift", RightShift => "RightShift",
     LeftControl => "LeftControl", RightControl => "RightControl",
     LeftAlt => "LeftAlt", RightAlt => "RightAlt",
+    PageUp => "PageUp", PageDown => "PageDown", Home => "Home", End => "End",
 }

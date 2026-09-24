@@ -68,6 +68,10 @@ pub(crate) const fn key(code: KeyCode) -> Option<Key> {
         KeyCode::ControlRight => Key::RightControl,
         KeyCode::AltLeft => Key::LeftAlt,
         KeyCode::AltRight => Key::RightAlt,
+        KeyCode::PageUp => Key::PageUp,
+        KeyCode::PageDown => Key::PageDown,
+        KeyCode::Home => Key::Home,
+        KeyCode::End => Key::End,
         _ => return None,
     })
 }
@@ -161,6 +165,10 @@ mod tests {
         KeyCode::ControlRight,
         KeyCode::AltLeft,
         KeyCode::AltRight,
+        KeyCode::PageUp,
+        KeyCode::PageDown,
+        KeyCode::Home,
+        KeyCode::End,
     ];
 
     #[test]
