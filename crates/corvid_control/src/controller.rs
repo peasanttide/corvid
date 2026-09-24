@@ -23,6 +23,10 @@ use corvid_time::Time;
 pub struct Acting<'a, S: State> {
     /// The state to read.
     pub state: &'a S,
+    /// The level the session is played on: what a bot plans against and what
+    /// a pointer is resolved against, and the same value every tick is
+    /// handed.
+    pub level: &'a S::Level,
     /// What the devices say, with every edge since the last tick folded in.
     pub input: &'a Input,
     /// Where the session is.
@@ -58,6 +62,9 @@ impl<S: State> Copy for Acting<'_, S> {}
 pub struct Updating<'a, S: State> {
     /// The state to read.
     pub state: &'a S,
+    /// The level the session is played on, so an interface can name what the
+    /// state only numbers.
+    pub level: &'a S::Level,
     /// What the devices say.
     pub input: &'a Input,
     /// How far along this machine's bytes are, while a level is being read.

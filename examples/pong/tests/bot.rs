@@ -159,6 +159,7 @@ fn the_opponent_moves_the_paddle_of_the_seat_it_is_asked_for() {
     let asked = |seat: usize| {
         Opponent.action(Acting {
             state: &table,
+            level: &pong::court(),
             input: &Input::new(pong::action::SETS),
             time: Time::default(),
             seat: PlayerId(u16::try_from(seat).unwrap()),

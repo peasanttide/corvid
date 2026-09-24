@@ -96,6 +96,7 @@ impl Controller<Walk> for Hands {
 fn frame(hands: &mut Hands, millis: u64) {
     hands.update(Updating {
         state: &Walk,
+        level: &Field,
         input: &Input::new(&[]),
         loading: None,
         time: Time::default(),
@@ -164,6 +165,7 @@ fn the_unit_controller_is_not_real_and_answers_the_idle_action() {
     assert_eq!(
         nobody.action(Acting {
             state: &Walk,
+            level: &Field,
             input: &Input::new(&[]),
             time: Time::default(),
             seat: PlayerId(0),
@@ -181,6 +183,7 @@ fn the_unit_controller_is_not_real_and_answers_the_idle_action() {
         &mut nobody,
         Updating {
             state: &Walk,
+            level: &Field,
             input: &Input::new(&[]),
             loading: None,
             time: Time::default(),
@@ -242,12 +245,14 @@ fn a_controller_is_told_which_seat_it_answers_for() {
 
     let first = seated.action(Acting {
         state: &state,
+        level: &Field,
         input: &input,
         time,
         seat: PlayerId(0),
     });
     let second = seated.action(Acting {
         state: &state,
+        level: &Field,
         input: &input,
         time,
         seat: PlayerId(1),

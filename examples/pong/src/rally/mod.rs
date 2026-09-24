@@ -237,6 +237,7 @@ impl Match {
 
         let action = policy.action(corvid::Acting {
             state: peer.state(),
+            level: &crate::court(),
             input: &corvid::Input::new(crate::action::SETS),
             time: corvid::Time {
                 tick: peer.tick(),

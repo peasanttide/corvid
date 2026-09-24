@@ -101,6 +101,7 @@ fn opponent_loop(
 
         let action = Policy::Chase.action(corvid::Acting {
             state: peer.state(),
+            level: &crate::court(),
             input: &corvid::Input::new(crate::action::SETS),
             time: corvid::Time {
                 tick: peer.tick(),

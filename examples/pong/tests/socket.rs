@@ -87,6 +87,7 @@ fn step(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let action = Policy::Chase.action(corvid::Acting {
         state: peer.state(),
+        level: &pong::court(),
         input: &corvid::Input::new(pong::action::SETS),
         time: corvid::Time {
             tick: peer.tick(),
