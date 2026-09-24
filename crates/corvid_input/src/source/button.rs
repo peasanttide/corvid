@@ -266,7 +266,7 @@ impl Button {
     /// The control a name denotes, or [`None`] if this vocabulary does not name
     /// it.
     ///
-    /// Keys first, because there are forty of them and three mouse buttons, and
+    /// Keys first, because there are far more of them than mouse buttons, and
     /// because no key is spelled like a mouse button.
     ///
     /// ```

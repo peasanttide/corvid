@@ -11,8 +11,9 @@ macro_rules! keys {
         /// The set is the one a game bound today can be played with, and it is
         /// deliberately not every key a keyboard has: a key that nothing can
         /// name is a key nothing can be bound to, and adding one later is a
-        /// variant at the end of this list. Function keys, the numeric pad, the
-        /// international keys and the media keys are not here.
+        /// variant at the end of this list. The numeric pad, the international
+        /// keys and the media keys are not here; `Slash`, `Minus` and `Equal`
+        /// are the keys by position on a US board, whatever they print.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
         #[cfg_attr(
             feature = "serde",
@@ -66,4 +67,7 @@ keys! {
     LeftControl => "LeftControl", RightControl => "RightControl",
     LeftAlt => "LeftAlt", RightAlt => "RightAlt",
     PageUp => "PageUp", PageDown => "PageDown", Home => "Home", End => "End",
+    F1 => "F1", F2 => "F2", F3 => "F3", F4 => "F4", F5 => "F5", F6 => "F6",
+    F7 => "F7", F8 => "F8", F9 => "F9", F10 => "F10", F11 => "F11", F12 => "F12",
+    Slash => "Slash", Minus => "Minus", Equal => "Equal",
 }
