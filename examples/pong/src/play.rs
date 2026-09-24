@@ -76,6 +76,7 @@ impl Controller<Table> for Hands {
     /// Nothing to set. Which control raises which action is the binding table,
     /// which is a file of its own.
     type Config = ();
+    type View = ();
 
     /// What this game can be asked to do.
     const SETS: &'static [corvid::SetDescriptor] = action::SETS;
@@ -115,6 +116,10 @@ impl Controller<Table> for Hands {
 
     /// Nothing accumulates: there is no camera to smooth and no cursor to cast.
     fn update(&mut self, _updating: Updating<'_, Table>) {}
+
+    fn view(&self) -> &() {
+        &()
+    }
 
     fn look(&self) -> Camera {
         Camera::default()

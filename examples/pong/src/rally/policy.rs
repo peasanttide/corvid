@@ -44,6 +44,7 @@ pub enum Policy {
 impl Controller<Table> for Policy {
     /// Itself: which of the two it is, is the whole of what one is.
     type Config = Self;
+    type View = ();
 
     /// No device on either arm, so nothing to declare. The lab hands every
     /// policy the same empty snapshot and neither of them reads it.
@@ -69,6 +70,10 @@ impl Controller<Table> for Policy {
 
     /// Nothing accumulates: there is no camera to smooth and no cursor to cast.
     fn update(&mut self, _updating: corvid::Updating<'_, Table>) {}
+
+    fn view(&self) -> &() {
+        &()
+    }
 
     fn look(&self) -> corvid::Camera {
         corvid::Camera::default()

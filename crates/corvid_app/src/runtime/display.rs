@@ -79,6 +79,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 audio: &self.audio,
             },
             self.graphics.as_mut(),
+            self.controller.view(),
         )
     }
 

@@ -57,6 +57,7 @@ struct Speed(i32);
 
 impl Controller<Walk> for Hands {
     type Config = Speed;
+    type View = ();
     const SETS: &'static [SetDescriptor] = &[];
 
     fn new(config: Speed) -> Self {
@@ -74,6 +75,10 @@ impl Controller<Walk> for Hands {
 
     fn update(&mut self, updating: Updating<'_, Walk>) {
         self.height += self.speed * i32::try_from(updating.dt.as_millis()).unwrap_or(i32::MAX);
+    }
+
+    fn view(&self) -> &() {
+        &()
     }
 
     fn look(&self) -> Camera {
@@ -204,6 +209,7 @@ struct Seated;
 
 impl Controller<Walk> for Seated {
     type Config = ();
+    type View = ();
     const SETS: &'static [SetDescriptor] = &[];
 
     fn new((): ()) -> Self {
@@ -213,6 +219,10 @@ impl Controller<Walk> for Seated {
     fn configure(&mut self, (): ()) {}
 
     fn update(&mut self, _updating: Updating<'_, Walk>) {}
+
+    fn view(&self) -> &() {
+        &()
+    }
 
     fn look(&self) -> Camera {
         Camera::default()

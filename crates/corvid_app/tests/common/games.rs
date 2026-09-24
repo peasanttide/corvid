@@ -309,6 +309,7 @@ pub(crate) struct Nudge;
 
 impl Controller<Tally> for Nudge {
     type Config = ();
+    type View = ();
 
     const REAL: bool = false;
     const SETS: &'static [corvid_input::SetDescriptor] = &[];
@@ -324,6 +325,10 @@ impl Controller<Tally> for Nudge {
     }
 
     fn update(&mut self, _updating: Updating<'_, Tally>) {}
+
+    fn view(&self) -> &() {
+        &()
+    }
 
     fn look(&self) -> corvid_camera::Camera {
         corvid_camera::Camera::default()
@@ -357,6 +362,7 @@ pub(crate) struct Marker;
 
 impl Controller<Attendance> for Marker {
     type Config = ();
+    type View = ();
 
     const SETS: &'static [corvid_input::SetDescriptor] = &[];
 
@@ -374,6 +380,10 @@ impl Controller<Attendance> for Marker {
     }
 
     fn update(&mut self, _updating: Updating<'_, Attendance>) {}
+
+    fn view(&self) -> &() {
+        &()
+    }
 
     fn look(&self) -> corvid_camera::Camera {
         corvid_camera::Camera::default()

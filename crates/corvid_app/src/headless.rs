@@ -8,7 +8,7 @@ use crate::{
     Error,
     backend::{Backend, Frame},
     capture::Capture,
-    game::Game,
+    game::{Game, ViewOf},
 };
 
 /// Where a displayed frame goes when there is nowhere to display it.
@@ -57,6 +57,7 @@ impl<G: Game> Backend<G> for Headless<G> {
         &mut self,
         frame: Frame<'_>,
         _graphics: Option<&mut G::Render>,
+        _view: &ViewOf<G>,
     ) -> Result<(), Error> {
         self.frames = self.frames.saturating_add(1);
         self.capture

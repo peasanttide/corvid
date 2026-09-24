@@ -60,6 +60,7 @@ struct Scripted {
 
 impl Controller<Table> for Scripted {
     type Config = u16;
+    type View = ();
 
     const SETS: &'static [SetDescriptor] = pong::action::SETS;
 
@@ -81,6 +82,10 @@ impl Controller<Table> for Scripted {
     }
 
     fn update(&mut self, _updating: Updating<'_, Table>) {}
+
+    fn view(&self) -> &() {
+        &()
+    }
 
     fn look(&self) -> Camera {
         Camera::default()

@@ -134,6 +134,16 @@ pub trait Controller<S: State> {
     /// and sent to nobody.
     type Config: Data;
 
+    /// What a heads-up display is drawn from: the part of this controller a
+    /// renderer is allowed to see.
+    ///
+    /// Which panel is open, what is under the pointer, what is selected. It is
+    /// client-local in the same way the camera is -- no peer has it, nothing
+    /// hashes it -- and it is a type of the game's own, handed to the renderer
+    /// by reference once per displayed frame. A controller with no interface
+    /// writes `()`.
+    type View: core::fmt::Debug;
+
     /// Whether this controller wants the platform's input devices.
     ///
     /// `false` means the runtime opens no window and reads no keyboard, and is
@@ -252,6 +262,12 @@ pub trait Controller<S: State> {
     /// twice.
     fn look(&self) -> Camera;
 
+    /// What the renderer draws a heads-up display from.
+    ///
+    /// A pure read, asked once per displayed frame after [`look`](Self::look),
+    /// of whatever [`update`](Self::update) left behind.
+    fn view(&self) -> &Self::View;
+
     /// One tick's intent. **This is the whole of what goes on the wire.**
     ///
     /// `input` already carries `pressed` and `released` folded across every
@@ -351,6 +367,7 @@ pub trait Controller<S: State> {
 /// simulation already knows what to do with one.
 impl<S: State> Controller<S> for () {
     type Config = ();
+    type View = ();
 
     const REAL: bool = false;
     const SETS: &'static [SetDescriptor] = &[];
@@ -363,6 +380,10 @@ impl<S: State> Controller<S> for () {
 
     fn look(&self) -> Camera {
         Camera::default()
+    }
+
+    fn view(&self) -> &() {
+        &()
     }
 
     fn action(&self, acting: Acting<'_, S>) -> S::Action {

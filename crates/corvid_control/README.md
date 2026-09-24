@@ -10,6 +10,7 @@ rather than a flag inside one.
 ```rust,ignore
 impl Controller<Table> for Hands {
     type Config = Sensitivity;
+    type View = ();
     const SETS: &'static [SetDescriptor] = action::SETS;
 
     fn new(config: Sensitivity) -> Self { /* ... */ }
@@ -17,6 +18,7 @@ impl Controller<Table> for Hands {
 
     fn update(&mut self, updating: Updating<'_, Table>) { /* the camera moves here */ }
 
+    fn view(&self) -> &() { &() }
     fn look(&self) -> Camera { self.eye.camera() }
     fn action(&self, acting: Acting<'_, Table>) -> Move { /* ... */ }
 }

@@ -65,7 +65,13 @@ pub trait Game {
     type Bot: Controller<Self::State>;
 
     /// What draws.
-    type Render: Render<Self::State>;
+    ///
+    ///
+    /// It is handed the controller's [`View`](Controller::View) every frame,
+    /// which is what lets a heads-up display show what the player is doing
+    /// with the interface without the renderer and the controller naming each
+    /// other. `()` draws nothing and takes any view.
+    type Render: Render<Self::State, ViewOf<Self>>;
 
     /// What sounds.
     type Auralizer: Auralizer<Self::State>;
@@ -88,11 +94,17 @@ pub trait Game {
 /// which is the thing these exist to stop.
 pub type ControllerConfig<G> = <<G as Game>::Controller as Controller<<G as Game>::State>>::Config;
 
+/// The controller's heads-up view, spelled once.
+///
+/// The type a renderer is handed in [`Drawing::view`](corvid_render::Drawing),
+/// because it is what the controller built.
+pub type ViewOf<G> = <<G as Game>::Controller as Controller<<G as Game>::State>>::View;
+
 /// The bot's config, spelled once.
 pub type BotConfig<G> = <<G as Game>::Bot as Controller<<G as Game>::State>>::Config;
 
 /// The renderer's config, spelled once.
-pub type RenderConfig<G> = <<G as Game>::Render as Render<<G as Game>::State>>::Config;
+pub type RenderConfig<G> = <<G as Game>::Render as Render<<G as Game>::State, ViewOf<G>>>::Config;
 
 /// The ear's config, spelled once.
 pub type AuralizerConfig<G> = <<G as Game>::Auralizer as Auralizer<<G as Game>::State>>::Config;

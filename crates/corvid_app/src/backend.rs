@@ -39,7 +39,11 @@ use corvid_behavior::Loading;
 use corvid_camera::Camera;
 use corvid_fixed::Factor16;
 
-use crate::{Error, capture::Capture, game::Game};
+use crate::{
+    Error,
+    capture::Capture,
+    game::{Game, ViewOf},
+};
 
 /// One displayed frame, as the loop hands it to a backend.
 ///
@@ -104,7 +108,12 @@ pub(crate) trait Backend<G: Game> {
     /// # Errors
     ///
     /// Whatever the device or the filesystem said. Nothing about the game.
-    fn present(&mut self, frame: Frame<'_>, graphics: Option<&mut G::Render>) -> Result<(), Error>;
+    fn present(
+        &mut self,
+        frame: Frame<'_>,
+        graphics: Option<&mut G::Render>,
+        view: &ViewOf<G>,
+    ) -> Result<(), Error>;
 
     /// How many displayed frames have been handed over.
     fn frames(&self) -> u64;

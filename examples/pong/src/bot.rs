@@ -64,6 +64,7 @@ impl Controller<Table> for Opponent {
     /// Nothing to set. Which seat it plays is the runtime's to say, once per
     /// call, and how it plays is the two constants above.
     type Config = ();
+    type View = ();
 
     /// No device, which is what makes a seat filled by `--bots` cost a run
     /// nothing but the arithmetic.
@@ -106,6 +107,10 @@ impl Controller<Table> for Opponent {
 
     /// Nothing accumulates: there is no camera to smooth and no cursor to cast.
     fn update(&mut self, _updating: Updating<'_, Table>) {}
+
+    fn view(&self) -> &() {
+        &()
+    }
 
     fn look(&self) -> Camera {
         Camera::default()
