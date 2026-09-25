@@ -40,13 +40,18 @@
 
 mod bind;
 mod devices;
-// The by-name table is what a file holds, and a file is written by `serde`.
-// Nothing else here needs it, so nothing else here is gated on it.
+// The by-name table is what a file holds, and a file is read by `serde`;
+// laying a player's file over the shipped table is the same table's business.
+// Nothing else here needs either, so nothing else here is gated on it.
+#[cfg(feature = "serde")]
+mod overlay;
 #[cfg(feature = "serde")]
 mod table;
 
 pub use bind::{AxisBinding, Bindings, Component, PairBinding, Reading};
 pub use devices::Devices;
+#[cfg(feature = "serde")]
+pub use overlay::Overlaid;
 #[cfg(feature = "serde")]
 pub use table::{Table, Unknown};
 

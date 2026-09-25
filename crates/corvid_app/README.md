@@ -463,9 +463,10 @@ settings file and the binding file. **One directory rather than three**: a
 player who moves a game to another machine copies one path, and a test that must
 not touch theirs redirects one flag. The specification does keep configuration
 and data apart, and that split is real for a program whose configuration is
-edited by something else; here all three files are written by the game and read
-by the same game, and separating them would mean a `--state` that moved some of
-what a run writes.
+edited by something else; here the settings file and the saves are written by
+the game, the binding file by its player, and all three are read by the same
+game, so separating them would mean a `--state` that moved some of what a run
+reads.
 
 The default follows the XDG Base Directory specification: an absolute
 `XDG_DATA_HOME` if the environment sets one, `$HOME/.local/share` if it does

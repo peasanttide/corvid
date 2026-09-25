@@ -201,8 +201,8 @@ pub trait Controller<S: State> {
     /// any action means. It is honestly good for one thing: a game with a
     /// window opens and something happens when a key is pressed.
     ///
-    /// What overrides this is the player: a binding file on disk is read after
-    /// this is asked for, and replaces it entirely.
+    /// What overrides this is the player: a binding file on disk is laid over
+    /// it, and an action the file does not mention keeps what this returns.
     #[must_use]
     fn bindings() -> Bindings {
         Bindings::placeholder(Self::SETS)
