@@ -53,23 +53,19 @@ impl Surface {
     /// Returns what actually took. Pointer grabbing is a permission in a
     /// browser, a protocol extension on Wayland and a compositor's choice
     /// elsewhere, so this walks [`Cursor::fallback`] rather than failing:
-    /// `Locked` that is refused is tried as `Confined`, and `Confined` that is
-    /// refused as `Free`, which no platform declines.
-    ///
-    /// Visibility is applied whatever the grab did, because hiding a pointer is
-    /// not a permission anywhere -- so a game that asked for `Locked` and was
-    /// given `Confined` still gets a hidden pointer if it asked for one, and
-    /// the value returned says which of the two it has.
+    /// `Locked` that is refused is tried as `Captured`, then `Hidden`, and
+    /// `Confined` that is refused as `Free`, which no platform declines. Every
+    /// mode tried keeps the visibility of the one asked for, so the pointer is
+    /// drawn exactly when the mode returned says it is.
     ///
     /// `pub(crate)` on purpose. A game that could reach the window could resize
     /// it and move it as well, which is the paragraph on [`Surface`] itself;
     /// what a game asks for goes through `Host::cursor` instead, once a frame,
     /// where the loop is the only thing that touches the window.
-    pub(crate) fn set_cursor(&self, wanted: Cursor) -> Cursor {
-        let mut request = wanted;
+    pub(crate) fn set_cursor(&self, mut request: Cursor) -> Cursor {
         loop {
             let grab = match request {
-                Cursor::Confined => CursorGrabMode::Confined,
+                Cursor::Confined | Cursor::Captured => CursorGrabMode::Confined,
                 Cursor::Locked => CursorGrabMode::Locked,
                 _ => CursorGrabMode::None,
             };

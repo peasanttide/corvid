@@ -9,7 +9,7 @@
 /// digest, for the same reason a camera does not. Two peers whose pointers are
 /// in different modes still agree about the game.
 ///
-/// # The four, and which one a game wants
+/// # The five, and which one a game wants
 ///
 /// | | Visible | Leaves the window | For |
 /// |---|---|---|---|
@@ -17,6 +17,7 @@
 /// | [`Hidden`](Self::Hidden) | no | yes | a game drawing its own cursor, or a cutscene |
 /// | [`Confined`](Self::Confined) | yes | no | a windowed game with edge-scrolling, or a drag that must not escape |
 /// | [`Locked`](Self::Locked) | no | no | first-person look, and an orbit camera being dragged |
+/// | [`Captured`](Self::Captured) | no | no | what a refused [`Locked`](Self::Locked) becomes |
 ///
 /// [`Locked`](Self::Locked) is the one that matters and the one worth being
 /// precise about: it pins the pointer where it is and the platform reports
@@ -37,10 +38,14 @@
 /// than assume, because the failure mode of assuming is a camera that turns at
 /// the speed of a mouse hitting the edge of a monitor.
 ///
-/// The runtime falls back rather than failing: a refused
-/// [`Locked`](Self::Locked) becomes [`Confined`](Self::Confined), and a refused
-/// [`Confined`](Self::Confined) becomes [`Free`](Self::Free). Visibility is not
-/// a permission anywhere, so the hiding half of a request always takes.
+/// The runtime falls back rather than failing, down [`fallback`](Self::fallback),
+/// and every step it takes keeps the visibility asked for: hiding a pointer is
+/// not a permission anywhere, so [`Hidden`](Self::Hidden) is never refused and
+/// its own step to [`Free`](Self::Free) is never taken. A refused [`Locked`](Self::Locked) becomes
+/// [`Captured`](Self::Captured): hidden and kept inside the window, with the
+/// pointer still moving, so [`Input::pointer`](crate::Input::pointer) goes on
+/// changing while [`Input::delta`](crate::Input::delta) keeps reporting
+/// motion.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(::serde::Serialize, ::serde::Deserialize))]
 #[non_exhaustive]
@@ -58,6 +63,13 @@ pub enum Cursor {
     Confined,
     /// Invisible and pinned in place; motion is reported as displacement only.
     Locked,
+    /// Invisible and kept inside the window, but not pinned.
+    ///
+    /// Not a mode a game has reason to ask for: it is what a platform that
+    /// cannot lock the pointer (X11 is one) gives a game that asked for
+    /// [`Locked`](Self::Locked). Last, so that adding it moved no variant's
+    /// place in an encoding.
+    Captured,
 }
 
 impl Cursor {
@@ -72,7 +84,7 @@ impl Cursor {
     #[must_use]
     #[inline]
     pub const fn is_grabbed(self) -> bool {
-        matches!(self, Self::Confined | Self::Locked)
+        matches!(self, Self::Confined | Self::Locked | Self::Captured)
     }
 
     /// Whether the pointer is pinned, so only displacement is reported.
@@ -90,15 +102,17 @@ impl Cursor {
     /// The mode to try when this one is refused, or [`None`] for
     /// [`Free`](Self::Free), which no platform refuses.
     ///
-    /// `Locked -> Confined -> Free`, and `Hidden -> Free`. The runtime walks this
-    /// so that a game asking for a lock it cannot have still gets the strongest
-    /// thing the platform will give it, rather than nothing.
+    /// `Locked -> Captured -> Hidden -> Free`, and `Confined -> Free`: each step
+    /// gives up one thing the platform may refuse. The runtime walks this so that a game asking for a lock it
+    /// cannot have still gets the strongest thing the platform will give it,
+    /// rather than nothing.
     #[must_use]
     #[inline]
     pub const fn fallback(self) -> Option<Self> {
         match self {
             Self::Free => None,
-            Self::Locked => Some(Self::Confined),
+            Self::Locked => Some(Self::Captured),
+            Self::Captured => Some(Self::Hidden),
             Self::Hidden | Self::Confined => Some(Self::Free),
         }
     }

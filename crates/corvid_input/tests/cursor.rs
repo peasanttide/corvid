@@ -22,13 +22,19 @@ fn the_four_modes_are_two_decisions() {
     assert!(!Cursor::Hidden.is_visible() && !Cursor::Hidden.is_grabbed());
     assert!(Cursor::Confined.is_visible() && Cursor::Confined.is_grabbed());
     assert!(!Cursor::Locked.is_visible() && Cursor::Locked.is_grabbed());
+    assert!(!Cursor::Captured.is_visible() && Cursor::Captured.is_grabbed());
 }
 
 /// Only one of them pins the pointer, and it is the one a camera asks about.
 #[test]
 fn only_one_mode_is_locked() {
     assert!(Cursor::Locked.is_locked());
-    for other in [Cursor::Free, Cursor::Hidden, Cursor::Confined] {
+    for other in [
+        Cursor::Free,
+        Cursor::Hidden,
+        Cursor::Confined,
+        Cursor::Captured,
+    ] {
         assert!(!other.is_locked(), "{other:?}");
     }
 }
@@ -45,6 +51,7 @@ fn every_fallback_chain_terminates() {
         Cursor::Hidden,
         Cursor::Confined,
         Cursor::Locked,
+        Cursor::Captured,
     ] {
         let mut mode = start;
         let mut steps = 0;
@@ -57,15 +64,16 @@ fn every_fallback_chain_terminates() {
     }
 }
 
-/// A lock degrades to a confinement rather than straight to nothing, which is
-/// the whole reason the chain has three links rather than two.
+/// A lock degrades to a hidden confinement rather than straight to nothing, and
+/// rather than to a pointer the game asked to hide being drawn over its view.
 #[test]
 fn a_refused_lock_is_still_a_grab() {
     let next = Cursor::Locked
         .fallback()
         .expect("a lock has somewhere to go");
     assert!(next.is_grabbed());
-    assert_eq!(next, Cursor::Confined);
+    assert!(!next.is_visible(), "and the pointer it hid stays hidden");
+    assert_eq!(next, Cursor::Captured);
 }
 
 /// A snapshot starts free, because that is what a window does when nobody has

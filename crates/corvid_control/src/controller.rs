@@ -326,7 +326,7 @@ pub trait Controller<S: State> {
     /// Pointer locking is a permission in a browser, a protocol extension on
     /// Wayland, and a compositor's choice elsewhere. The runtime walks
     /// [`Cursor::fallback`] rather than failing -- a refused
-    /// [`Cursor::Locked`] becomes [`Cursor::Confined`] -- and reports what
+    /// [`Cursor::Locked`] becomes [`Cursor::Captured`] -- and reports what
     /// actually happened through [`Input::cursor`], which the next frame's
     /// [`update`](Self::update) reads. A controller that assumes the lock took
     /// and steers from [`Input::pointer`] has a camera that stops at the edge

@@ -147,6 +147,7 @@ mod tests {
             Cursor::Hidden,
             Cursor::Confined,
             Cursor::Locked,
+            Cursor::Captured,
         ] {
             // What a game asks for is what a window somebody is looking at
             // does.
