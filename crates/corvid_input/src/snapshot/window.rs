@@ -104,7 +104,7 @@ impl Input {
     /// compositor's choice elsewhere -- so this is where a game finds out. The
     /// runtime falls back down [`Cursor::fallback`] rather than failing, so
     /// asking for [`Cursor::Locked`] on a platform that refuses gives
-    /// [`Cursor::Confined`] here rather than [`Cursor::Free`].
+    /// [`Cursor::Captured`] here rather than [`Cursor::Free`].
     ///
     /// Reading it matters for one thing above the rest: while
     /// [`Cursor::is_locked`] is true, [`pointer`](Self::pointer) stops moving

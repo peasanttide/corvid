@@ -79,9 +79,9 @@ fn data_home() -> Option<PathBuf> {
 /// touch nothing of theirs redirects one flag. The specification does keep
 /// configuration and data apart, and the split is real for a program whose
 /// configuration is edited by something other than the program; here the
-/// settings file, the binding file and the slots are all written by the game
-/// and read by the same game, and separating them would mean a `--state` that
-/// redirected some of what a run writes.
+/// settings file and the slots are written by the game, the binding file by
+/// its player, and all three are read by the same game, so separating them
+/// would mean a `--state` that redirected some of what a run reads.
 ///
 /// # The machine that names no home
 ///

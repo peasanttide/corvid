@@ -90,6 +90,14 @@ pub struct Table {
     /// to get wrong about either.
     #[serde(default)]
     pub pairs: Vec<PairEntry>,
+    /// Actions the player wants no control on at all.
+    ///
+    /// A player's table is laid over the one the game ships
+    /// ([`overlay`](Self::overlay)), so an action it does not mention keeps
+    /// its shipped controls, and leaving an action out cannot take them away.
+    /// Naming it here does.
+    #[serde(default)]
+    pub unbound: Vec<String>,
 }
 
 /// Something in a table did not name anything this build has.
@@ -134,8 +142,8 @@ impl Table {
     /// Writes a table down against a declaration.
     ///
     /// A binding whose action the declaration does not name is **left out**
-    /// rather than refused. This direction is used to write a file for a player
-    /// to edit, and an identifier with no name is one a game bound by hand
+    /// rather than refused. This direction is how a shipped table is written
+    /// down, and an identifier with no name is one a game bound by hand
     /// outside its own declaration -- there is nothing to call it in a file, and
     /// stopping a run from starting over a binding nobody can name would be the
     /// wrong end to fail at. The other direction refuses, because there a name
@@ -180,6 +188,7 @@ impl Table {
             buttons,
             axes,
             pairs,
+            unbound: Vec::new(),
         }
     }
 

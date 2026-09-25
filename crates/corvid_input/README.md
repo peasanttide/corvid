@@ -175,18 +175,28 @@ surviving bindings look like evidence.
 every action beside its identifier -- the spelling the programmer declared it
 under, which is the one thing about an action that does not move -- and
 `platform::Table` is a binding table written down in those names, which is what
-`corvid_app` reads and writes as JSON:
+`corvid_app` reads as JSON:
 
 ```json
-{ "buttons": [{ "control": "W", "action": "PLACE" }] }
+{ "buttons": [{ "control": "W", "action": "PLACE" }],
+  "unbound": ["CANCEL"] }
 ```
 
-A file like that survives every reorder above. What it does not survive is an
-action being *renamed* or removed, and that is the trade taken deliberately:
-renaming is a thing somebody did on purpose and can be told about, where
-reordering is a thing that happens while you are looking at something else. A
-name this build does not declare is refused with the word in it rather than
-resolved to whatever now sits at that number.
+A file like that survives every reorder above. It holds only what the player
+changed: `platform::Table::overlay` lays it over the table the game ships, so
+an action it does not mention keeps its shipped controls -- whatever a later
+build ships for it -- and `unbound` is how a player takes every control off
+one. A shipped control the player gave to something else in the same set is
+left off the action it was shipped on, since it would fire both.
+
+What a file does not survive is an action being *renamed*, which loses the
+player's controls for it. That is the trade taken deliberately: renaming is a
+thing somebody did on purpose, where reordering is a thing that happens while
+you are looking at something else. A name this build does not declare is
+never resolved to whatever now sits at that number. It is left out and
+reported, because the file cannot say whether it is a typo or an action the
+game has since dropped, and refusing the second would stop a game from
+starting over its own rename.
 
 Numbers are still what a snapshot is indexed by, and the paragraph above is
 still true of anything that records one. Nothing here can detect that break,

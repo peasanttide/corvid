@@ -68,6 +68,25 @@ pub(crate) const fn key(code: KeyCode) -> Option<Key> {
         KeyCode::ControlRight => Key::RightControl,
         KeyCode::AltLeft => Key::LeftAlt,
         KeyCode::AltRight => Key::RightAlt,
+        KeyCode::PageUp => Key::PageUp,
+        KeyCode::PageDown => Key::PageDown,
+        KeyCode::Home => Key::Home,
+        KeyCode::End => Key::End,
+        KeyCode::F1 => Key::F1,
+        KeyCode::F2 => Key::F2,
+        KeyCode::F3 => Key::F3,
+        KeyCode::F4 => Key::F4,
+        KeyCode::F5 => Key::F5,
+        KeyCode::F6 => Key::F6,
+        KeyCode::F7 => Key::F7,
+        KeyCode::F8 => Key::F8,
+        KeyCode::F9 => Key::F9,
+        KeyCode::F10 => Key::F10,
+        KeyCode::F11 => Key::F11,
+        KeyCode::F12 => Key::F12,
+        KeyCode::Slash => Key::Slash,
+        KeyCode::Minus => Key::Minus,
+        KeyCode::Equal => Key::Equal,
         _ => return None,
     })
 }
@@ -161,6 +180,25 @@ mod tests {
         KeyCode::ControlRight,
         KeyCode::AltLeft,
         KeyCode::AltRight,
+        KeyCode::PageUp,
+        KeyCode::PageDown,
+        KeyCode::Home,
+        KeyCode::End,
+        KeyCode::F1,
+        KeyCode::F2,
+        KeyCode::F3,
+        KeyCode::F4,
+        KeyCode::F5,
+        KeyCode::F6,
+        KeyCode::F7,
+        KeyCode::F8,
+        KeyCode::F9,
+        KeyCode::F10,
+        KeyCode::F11,
+        KeyCode::F12,
+        KeyCode::Slash,
+        KeyCode::Minus,
+        KeyCode::Equal,
     ];
 
     #[test]
@@ -177,7 +215,7 @@ mod tests {
     fn a_key_this_vocabulary_does_not_name_is_left_alone() {
         // Returning `None` rather than mapping onto something nearby: an F-key
         // silently bound to `Escape` would close the game.
-        assert_eq!(key(KeyCode::F1), None);
+        assert_eq!(key(KeyCode::F13), None);
         assert_eq!(key(KeyCode::Numpad0), None);
         // And a spot check that the translation is a translation rather than an
         // ordering coincidence, since the test above would pass on any
