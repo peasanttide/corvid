@@ -6,9 +6,8 @@ use std::vec::Vec;
 use corvid_behavior::PlayerId;
 use corvid_net::PeerId;
 
-use super::handoff::{self, Started};
 use super::say::{Say, Seen};
-use super::{HOST, Lobby, Member, Stage};
+use super::{HOST, Lobby, Member, Stage, Started};
 
 impl Lobby {
     pub(super) fn guest_poll(
@@ -33,6 +32,7 @@ impl Lobby {
                 Say::Room { members, seats } => self.mirror(members, seats),
                 Say::Refused { why } => self.stage = Stage::Refused(why),
                 Say::Start { terms } => self.started(terms),
+                Say::Leave => self.stage = Stage::Closed,
                 _ => {}
             }
         }
@@ -55,9 +55,7 @@ impl Lobby {
                 address: seen.address,
             })
             .collect();
-        let Some(net) = self.net.as_ref() else {
-            return;
-        };
+        let net = &self.net;
         for m in &self.members {
             if m.peer == self.me || m.peer == HOST || net.address(m.peer).is_some() {
                 continue;
@@ -71,22 +69,18 @@ impl Lobby {
     }
 
     fn started(&mut self, terms: Vec<u8>) {
-        let Some(net) = self.net.take() else {
-            return;
-        };
         let seat = self
             .members
             .iter()
             .find(|m| m.peer == self.me)
             .map_or(PlayerId(0), |m| m.seat);
-        handoff::leave(Started {
-            transport: Box::new(net),
+        self.began = Some(Started {
             seat,
             seats: self.seat_map(),
             width: self.seats,
             terms: Some(terms),
             guests: Vec::new(),
         });
-        self.stage = Stage::Started;
+        self.stage = Stage::Linked;
     }
 }

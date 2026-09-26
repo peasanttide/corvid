@@ -103,6 +103,8 @@ fn frame(hands: &mut Hands, millis: u64) {
         time: Time::default(),
         dt: Duration::from_millis(millis),
         seat: PlayerId(0),
+        net: &corvid_control::NetView::default(),
+        requests: &mut Vec::new(),
     });
 }
 
@@ -190,6 +192,8 @@ fn the_unit_controller_is_not_real_and_answers_the_idle_action() {
             time: Time::default(),
             dt: Duration::from_millis(16),
             seat: PlayerId(0),
+            net: &corvid_control::NetView::default(),
+            requests: &mut Vec::new(),
         },
     );
 }

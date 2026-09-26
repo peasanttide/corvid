@@ -93,6 +93,10 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             let answered = match &command {
                 Command::Save(slot) => Some(self.write_save(asked, *slot)),
                 Command::Read(slot) => Some(self.read_save(asked, *slot)),
+                Command::Lobby => {
+                    self.net.back = true;
+                    None
+                }
                 _ => None,
             };
             self.sink.absorb(asked, command, answered);

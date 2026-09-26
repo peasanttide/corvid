@@ -1,10 +1,10 @@
 //! Starting to play over a lobby's socket, in the middle of a run.
 //!
-//! A game's title screen runs alone; its lobby, once started, leaves a
-//! transport for this thread (see `lobby::handoff`). Before the next tick
-//! the loop takes it, opens the session the lobby agreed on, and plays that
-//! session linked from its first tick. What was being played alone is let
-//! go.
+//! A game's title screen runs alone; its lobby, once started, is taken by
+//! the loop's network stage (see `net.rs`) before the next tick, which opens
+//! the session the lobby agreed on and plays it linked from its first tick
+//! over the lobby's socket. What was being played alone is kept, to go back
+//! to.
 //!
 //! The host sends the guests its opening's *terms* -- the level's name, the
 //! rules, a seat for everyone, the seed and the schema -- and a digest of
@@ -24,7 +24,7 @@ use corvid_replay::{Changes, Opening, Profile, Seed, Session};
 use corvid_time::Tick;
 use serde::{Deserialize, Serialize};
 
-use crate::lobby::{announce, handoff};
+use crate::lobby::{Shared, Started, announce};
 use crate::{Error, backend::Backend, game::Game, seating::Seating};
 
 use super::{Horizon, Play, Runtime};
@@ -52,10 +52,12 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     ///
     /// [`Error::Shape`] for an opening whose roster does not fit its log,
     /// which a host running the same build as this one never sends.
-    pub(super) fn relink(&mut self) -> Result<(), Error> {
-        let Some(started) = handoff::take() else {
-            return Ok(());
-        };
+    pub(super) fn link(
+        &mut self,
+        started: Started,
+        socket: Arc<corvid_net_udp::UdpNet>,
+    ) -> Result<(), Error> {
+        self.remember_home();
         let session = self.play.session();
         let here = &session.opening;
         let origin = session.levels.origin();
@@ -121,7 +123,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 changes: session.levels.changes().clone(),
             };
             match corvid_wire::encode(&terms) {
-                Ok(bytes) => announce(&*started.transport, &started.guests, bytes),
+                Ok(bytes) => announce(&*socket, &started.guests, bytes),
                 Err(why) => tracing::error!(
                     name: "corvid_app.lobby_unencoded",
                     %why,
@@ -133,7 +135,8 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         let session = Session::new(opening).map_err(Error::Shape)?;
         let at = session.first();
         let origin = session.opening.origin();
-        let link = crate::net::Link::new(session, started.seat, self.budget, started.transport)
+        let transport = Box::new(Shared(socket));
+        let link = crate::net::Link::new(session, started.seat, self.budget, transport)
             .seated(started.seats);
         tracing::info!(
             name: "corvid_app.lobby_started",

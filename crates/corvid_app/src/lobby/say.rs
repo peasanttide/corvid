@@ -39,6 +39,8 @@ pub(super) enum Say {
         /// A sentence a person can read.
         why: String,
     },
+    /// Going: a guest telling the host, or the host telling every guest.
+    Leave,
     /// The host starting the session: the terms of the opening every
     /// machine plays from, encoded.
     Start {

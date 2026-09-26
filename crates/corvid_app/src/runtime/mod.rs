@@ -18,6 +18,7 @@ use crate::{
 mod advance;
 mod display;
 mod drive;
+mod net;
 mod plan;
 #[cfg(feature = "net")]
 mod relink;
@@ -118,6 +119,9 @@ pub(crate) struct Runtime<G: Game, B> {
     /// starts in the middle of the run.
     #[cfg(feature = "net")]
     budget: corvid_lockstep::Budget,
+    /// Where this machine stands on the network, and what its controller
+    /// asked of it.
+    net: net::Net<G::State>,
     /// What the player has set, as it stands. Compared against what the
     /// controller answers after every displayed frame, and written down when
     /// the two differ.
@@ -256,6 +260,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             horizon,
             #[cfg(feature = "net")]
             budget: plan.budget,
+            net: net::Net::new(),
             settings,
         })
     }

@@ -14,7 +14,7 @@ use std::vec::Vec;
 use serde::{Deserialize, Serialize};
 
 /// The port lobbies are announced on.
-pub const BEACON_PORT: u16 = 47_901;
+pub(super) const BEACON_PORT: u16 = 47_901;
 
 /// What a beacon datagram starts with, so a stray packet on the port is not
 /// read as one.
@@ -33,17 +33,21 @@ pub(super) struct Shout {
     pub(super) name: String,
     pub(super) port: u16,
     pub(super) open: u16,
+    /// Whether its session is already being played.
+    pub(super) running: bool,
 }
 
 /// A lobby a [`Browser`] has heard of.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Found {
+pub(crate) struct Found {
     /// Where to join it: the host's address and its lobby's port.
-    pub address: SocketAddr,
+    pub(crate) address: SocketAddr,
     /// The host's name.
-    pub name: String,
+    pub(crate) name: String,
     /// How many seats are still open.
-    pub open: u16,
+    pub(crate) open: u16,
+    /// Whether its session is already being played.
+    pub(crate) running: bool,
     /// When it was last heard from.
     heard: Instant,
 }
@@ -87,7 +91,7 @@ impl Shouter {
 
 /// A listener for lobbies on the local network, for one game.
 #[derive(Debug)]
-pub struct Browser {
+pub(crate) struct Browser {
     socket: UdpSocket,
     game: String,
     found: Vec<Found>,
@@ -100,7 +104,7 @@ impl Browser {
     ///
     /// Whatever binding the port says -- most often that another program on
     /// this machine is already listening on it.
-    pub fn new(game: &str) -> io::Result<Self> {
+    pub(crate) fn new(game: &str) -> io::Result<Self> {
         let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, BEACON_PORT))?;
         socket.set_nonblocking(true)?;
         Ok(Self {
@@ -111,7 +115,7 @@ impl Browser {
     }
 
     /// Reads whatever beacons have arrived and forgets lobbies gone quiet.
-    pub fn poll(&mut self) {
+    pub(crate) fn poll(&mut self) {
         let mut buffer = [0_u8; 1_200];
         while let Ok((length, from)) = self.socket.recv_from(&mut buffer) {
             let Some(body) = buffer.get(..length).and_then(|b| b.strip_prefix(MAGIC)) else {
@@ -129,6 +133,7 @@ impl Browser {
                 address,
                 name: shout.name,
                 open: shout.open,
+                running: shout.running,
                 heard,
             };
             match self.found.iter_mut().find(|f| f.address == address) {
@@ -141,7 +146,7 @@ impl Browser {
 
     /// The lobbies heard from lately, in the order they were first heard.
     #[must_use]
-    pub fn found(&self) -> &[Found] {
+    pub(crate) fn found(&self) -> &[Found] {
         &self.found
     }
 }

@@ -45,6 +45,9 @@ pub(crate) struct Link<S: State> {
     /// A field rather than a local so that the allocation is made once for the
     /// run rather than once per tick.
     inbox: Vec<Vec<u8>>,
+    /// What arrived for the lobby while this link had the socket: its frames,
+    /// and `None` for a peer lost. The runtime hands them on.
+    lobby: Vec<(PeerId, Option<Vec<u8>>)>,
     /// The last datagram this peer built, encoded. Also once per run.
     outbound: Vec<u8>,
     /// What the last tick did.
@@ -116,6 +119,7 @@ impl<S: State> Link<S> {
             peer: Peer::new(session, seat, budget),
             transport,
             inbox: Vec::new(),
+            lobby: Vec::new(),
             outbound: Vec::new(),
             traffic: TickTraffic::default(),
             totals: Traffic::default(),
@@ -124,6 +128,11 @@ impl<S: State> Link<S> {
             heard_head: Tick::ZERO,
             seats: None,
         }
+    }
+
+    /// What arrived for the lobby since this was last asked.
+    pub(crate) fn lobby_frames(&mut self) -> Vec<(PeerId, Option<Vec<u8>>)> {
+        std::mem::take(&mut self.lobby)
     }
 
     /// The session being played, which the peer owns.

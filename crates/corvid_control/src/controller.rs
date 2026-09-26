@@ -80,6 +80,10 @@ pub struct Updating<'a, S: State> {
     /// It is here rather than on [`Time`] because a seat is not something a
     /// frame may read.
     pub seat: PlayerId,
+    /// Where the network stands this frame.
+    pub net: &'a crate::NetView,
+    /// What this frame asks of the network; acted on after it.
+    pub requests: &'a mut std::vec::Vec<crate::NetRequest>,
 }
 
 /// The half of a game's client-local code that reads a player.

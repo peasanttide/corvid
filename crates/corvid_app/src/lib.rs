@@ -18,7 +18,7 @@ mod headless;
 // Gathering machines into a session: hosting, joining, and finding a host
 // on the local network.
 #[cfg(feature = "net")]
-pub mod lobby;
+mod lobby;
 // `#[macro_export]` puts what is in here at this crate's root and not under
 // this path, so the module is private and the macros are still `corvid_app::game!`.
 mod macros;

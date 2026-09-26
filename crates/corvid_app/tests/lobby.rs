@@ -1,6 +1,7 @@
-//! Machines gather in a lobby over real sockets on this machine: a host seats
-//! whoever says hello, turns away the wrong game and the one too many, and
-//! starts once every seat is taken and every guest is ready.
+//! Two runs meet in a lobby over a socket on this machine, driven by nothing
+//! but their controllers' requests: they gather, play the lobby's session in
+//! lockstep, come back to the lobby when a tick says so, play again, and a
+//! run that leaves goes back to playing alone while the other sees it go.
 
 #![allow(
     clippy::expect_used,
@@ -10,230 +11,74 @@
     reason = "a failed unwrap or assertion in a test is a failed test, which is what a test is for"
 )]
 
-use std::time::{Duration, Instant};
+use std::sync::{Arc, Mutex};
 
-use corvid_app::lobby::{Lobby, Stage};
-use corvid_behavior::PlayerId;
+use corvid_app::{App, Settings};
+use corvid_behavior::{Command, ExitCode, PlayerState, ProfileId};
+use corvid_control::net::{NetRequest, Stage};
+use corvid_control::{Acting, Controller, Updating};
+use corvid_replay::{Opening, Profile, Schema, Seed};
+use corvid_time::{Clock, Tick, TickSpan, Ticks};
+use serde::{Deserialize, Serialize};
 
-/// Polls every lobby until `done` says so, or fails after a few seconds.
-fn until(lobbies: &mut [&mut Lobby], what: &str, done: impl Fn(&[&mut Lobby]) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !done(lobbies) {
-        assert!(Instant::now() < deadline, "timed out waiting for {what}");
-        for lobby in lobbies.iter_mut() {
-            lobby.poll();
-        }
-        std::thread::sleep(Duration::from_millis(5));
+/// Every stage a run's controller passed through, by the run's tag.
+static SEEN: Mutex<Vec<(u16, Stage)>> = Mutex::new(Vec::new());
+/// How many members a host saw once its guest had left, by tag.
+static AFTER: Mutex<Vec<(u16, usize)>> = Mutex::new(Vec::new());
+
+/// A sum of the seats present. A seat's action is 1 for present, 2 to ask
+/// everyone back to the lobby, 3 to end the run.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+struct Sum {
+    total: i64,
+    now: u64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+struct Field;
+
+impl corvid_behavior::Level for Field {
+    type Error = core::convert::Infallible;
+    type Edit = ();
+
+    fn load(_name: &str) -> Result<Self, Self::Error> {
+        Ok(Self)
     }
 }
 
-fn address(host: &Lobby) -> String {
-    let port = host.local().expect("a host has a socket").port();
-    format!("127.0.0.1:{port}")
+impl corvid_behavior::State for Sum {
+    const NAME: &'static str = "lobbied";
+
+    type Level = Field;
+    type Rules = ();
+    type Action = u8;
+
+    fn tick(
+        self,
+        _level: &Field,
+        players: &[PlayerState<u8>],
+        (): &(),
+        command: &mut impl Command,
+    ) -> Self {
+        if players.iter().any(|p| p.action == 2) {
+            command.lobby();
+        }
+        if players.iter().any(|p| p.action == 3) {
+            command.quit(ExitCode::SUCCESS);
+        }
+        let add: i64 = players
+            .iter()
+            .map(|p| i64::from(p.action.min(1)) * (i64::from(p.id.0) + 1))
+            .sum();
+        Self {
+            total: self.total + add,
+            now: self.now + 1,
+        }
+    }
 }
 
-#[test]
-fn a_guest_is_seated_readies_and_starts_with_the_host() {
-    let mut host = Lobby::host(0, "hosty", "pong", 2).expect("the host binds");
-    let mut guest = Lobby::join(&address(&host), "guesty", "pong").expect("the guest binds");
-    assert!(host.hosting() && !guest.hosting());
-
-    until(
-        &mut [&mut host, &mut guest],
-        "the guest to be seated",
-        |l| l[1].members().len() == 2,
-    );
-    let seated = &guest.members()[1];
-    assert_eq!(seated.name, "guesty");
-    assert_eq!(seated.seat, PlayerId(1));
-    assert_eq!(guest.seats(), 2);
-    assert!(!host.can_start(), "started before the guest was ready");
-    assert!(!host.start());
-
-    guest.set_ready(true);
-    until(&mut [&mut host, &mut guest], "the guest to be ready", |l| {
-        l[0].can_start() && l[1].ready()
-    });
-    assert!(host.start());
-    assert_eq!(host.stage(), &Stage::Started);
-    // The host's loop sends the opening, and there is no loop here: the
-    // guest starts in `linked` below, where there is.
-    guest.poll();
-    assert_eq!(guest.stage(), &Stage::Gathering);
-}
-
-#[test]
-fn the_wrong_game_and_one_too_many_are_turned_away() {
-    let mut host = Lobby::host(0, "hosty", "pong", 2).expect("the host binds");
-    let at = address(&host);
-    let mut stranger = Lobby::join(&at, "stranger", "chess").expect("binds");
-    until(
-        &mut [&mut host, &mut stranger],
-        "the stranger to be refused",
-        |l| matches!(l[1].stage(), Stage::Refused(_)),
-    );
-    assert_eq!(host.members().len(), 1);
-
-    let mut first = Lobby::join(&at, "first", "pong").expect("binds");
-    until(
-        &mut [&mut host, &mut first],
-        "the first guest to be seated",
-        |l| l[0].members().len() == 2,
-    );
-    let mut second = Lobby::join(&at, "second", "pong").expect("binds");
-    until(
-        &mut [&mut host, &mut first, &mut second],
-        "the second guest to be refused",
-        |l| matches!(l[2].stage(), Stage::Refused(_)),
-    );
-    assert_eq!(host.members().len(), 2);
-}
-
-/// The whole way through two real runs: each starts alone, meets the other
-/// in a lobby over a socket on this machine, and from the start plays one
-/// session with it in lockstep.
-mod linked {
-    use std::sync::Arc;
-
-    use corvid_app::lobby::{Lobby, Stage};
-    use corvid_app::{App, Settings};
-    use corvid_behavior::{Command, PlayerState, ProfileId};
-    use corvid_control::{Acting, Controller, Updating};
-    use corvid_replay::{Opening, Profile, Schema, Seed};
-    use corvid_time::{Clock, Tick, TickSpan, Ticks};
-    use serde::{Deserialize, Serialize};
-
-    /// Where the host of this test listens.
-    const PORT: u16 = 47_917;
-
-    /// How many ticks each run plays.
-    const TICKS: u64 = 240;
-
-    /// A sum of every seat's action, weighted by seat, and a tick count.
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-    pub(super) struct Sum {
-        pub(super) total: i64,
-        pub(super) now: u64,
-    }
-
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-    pub(super) struct Field;
-
-    impl corvid_behavior::Level for Field {
-        type Error = core::convert::Infallible;
-        type Edit = ();
-
-        fn load(_name: &str) -> Result<Self, Self::Error> {
-            Ok(Self)
-        }
-    }
-
-    impl corvid_behavior::State for Sum {
-        const NAME: &'static str = "sum";
-
-        type Level = Field;
-        type Rules = ();
-        type Action = i8;
-
-        fn tick(
-            self,
-            _level: &Field,
-            players: &[PlayerState<i8>],
-            (): &(),
-            _command: &mut impl Command,
-        ) -> Self {
-            let add: i64 = players
-                .iter()
-                .map(|p| i64::from(p.action) * (i64::from(p.id.0) + 1))
-                .sum();
-            Self {
-                total: self.total + add,
-                now: self.now + 1,
-            }
-        }
-    }
-
-    /// Hosts, or joins, a lobby, and readies or starts as soon as it can.
-    #[derive(Debug, Default)]
-    pub(super) struct Lobbyist {
-        host: bool,
-        lobby: Option<Lobby>,
-        done: bool,
-    }
-
-    impl Controller<Sum> for Lobbyist {
-        type Config = bool;
-        type View = ();
-
-        const SETS: &'static [corvid_input::SetDescriptor] = &[];
-
-        fn new(host: bool) -> Self {
-            Self {
-                host,
-                ..Self::default()
-            }
-        }
-
-        fn configure(&mut self, host: bool) {
-            self.host = host;
-        }
-
-        fn action(&self, _acting: Acting<'_, Sum>) -> i8 {
-            1
-        }
-
-        fn update(&mut self, _updating: Updating<'_, Sum>) {
-            if self.done {
-                return;
-            }
-            if self.lobby.is_none() {
-                let at = format!("127.0.0.1:{PORT}");
-                self.lobby = if self.host {
-                    Lobby::host(PORT, "host", "sum", 2).ok()
-                } else {
-                    Lobby::join(&at, "guest", "sum").ok()
-                };
-            }
-            let Some(lobby) = self.lobby.as_mut() else {
-                return;
-            };
-            lobby.poll();
-            if lobby.hosting() {
-                if lobby.can_start() {
-                    lobby.start();
-                }
-            } else if lobby.members().len() == 2 && !lobby.ready() {
-                lobby.set_ready(true);
-            }
-            if lobby.stage() == &Stage::Started {
-                self.lobby = None;
-                self.done = true;
-            }
-        }
-
-        fn view(&self) -> &() {
-            &()
-        }
-
-        fn look(&self) -> corvid_camera::Camera {
-            corvid_camera::Camera::default()
-        }
-    }
-
-    corvid_app::game! {
-        pub(super) struct Summing;
-        const PERIOD: TickSpan = TickSpan::CRADLE;
-        type State = Sum;
-        type Controller = Lobbyist;
-    }
-
-    impl corvid_replay::Opens for Sum {
-        fn opening() -> Opening<Self> {
-            opening()
-        }
-    }
-
-    fn opening() -> Opening<Sum> {
+impl corvid_replay::Opens for Sum {
+    fn opening() -> Opening<Self> {
         Opening {
             level: "field".to_owned(),
             content: Arc::new(Field),
@@ -248,60 +93,224 @@ mod linked {
             seed: Seed(7),
             first: Tick::ZERO,
             origin: None,
-            schema: Schema::new("sum").digest(),
+            schema: Schema::new("lobbied").digest(),
+        }
+    }
+}
+
+/// Which run a controller is, and what it does.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+struct Script {
+    /// A tag for what it records.
+    tag: u16,
+    port: u16,
+    host: bool,
+    /// The guest leaves 60 frames into the first match, rather than both
+    /// going back to the lobby and playing a second.
+    leave: bool,
+}
+
+#[derive(Debug, Default)]
+struct Lobbyist {
+    script: Script,
+    asked: bool,
+    stage: Stage,
+    matches: u32,
+    /// Frames in the current stage, for waiting a moment alone.
+    frames: u32,
+    /// The action for the next tick.
+    next: u8,
+    /// Whether it asked to leave.
+    left: bool,
+}
+
+impl Lobbyist {
+    fn linked(&mut self, members: usize, now: u64) {
+        let script = &self.script;
+        if script.leave {
+            if script.host && members == 1 {
+                AFTER.lock().unwrap().push((script.tag, members));
+                self.next = 3;
+            }
+        } else if script.host && self.matches == 1 && now >= 80 {
+            self.next = 2;
+        } else if script.host && self.matches == 2 && now >= 120 {
+            self.next = 3;
+        }
+    }
+}
+
+impl Controller<Sum> for Lobbyist {
+    type Config = Script;
+    type View = ();
+
+    const SETS: &'static [corvid_input::SetDescriptor] = &[];
+
+    fn new(script: Script) -> Self {
+        Self {
+            script,
+            ..Self::default()
         }
     }
 
-    fn play(host: bool) -> corvid_app::Result<corvid_app::Outcome<Summing>> {
-        App::<Summing>::new()
-            .opening(opening())
-            // The wall clock: a lobby meets over a real socket, in real time.
-            .clock(Clock::wall())
-            .settings(Settings {
-                controls: host,
-                ..Settings::default()
-            })
-            .for_ticks(Ticks(TICKS))
-            .retain(corvid_app::Retention::Everything)
-            .run()
+    fn configure(&mut self, script: Script) {
+        self.script = script;
     }
 
-    #[test]
-    fn two_runs_meet_in_a_lobby_and_play_one_session() {
-        let host = std::thread::spawn(|| play(true));
-        let guest = std::thread::spawn(|| play(false));
-        let host = host
-            .join()
-            .expect("the host's thread")
-            .expect("the host's run");
-        let guest = guest
-            .join()
-            .expect("the guest's thread")
-            .expect("the guest's run");
-        // Both seats played in both sessions: three a tick once linked, where
-        // a run alone adds one.
-        let (h, g) = (&host.state, &guest.state);
-        assert!(
-            h.total > i64::try_from(h.now).unwrap_or(0) * 2,
-            "the host played alone: {h:?}"
-        );
-        assert!(
-            g.total > i64::try_from(g.now).unwrap_or(0) * 2,
-            "the guest played alone: {g:?}"
-        );
-        let overlap = h.now.min(g.now).saturating_sub(20);
-        assert!(overlap >= TICKS / 2, "barely overlapped: {h:?} {g:?}");
-        let mut compared = 0;
-        for at in 0..=overlap {
-            let (Some(mine), Some(theirs)) = (
-                host.session.marks.get(Tick(at)),
-                guest.session.marks.get(Tick(at)),
-            ) else {
-                continue;
-            };
-            assert_eq!(mine, theirs, "the two disagree at tick {at}");
-            compared += 1;
-        }
-        assert!(compared > 0, "no tick was compared");
+    fn action(&self, _acting: Acting<'_, Sum>) -> u8 {
+        self.next
     }
+
+    fn update(&mut self, updating: Updating<'_, Sum>) {
+        let net = updating.net;
+        if net.stage != self.stage {
+            SEEN.lock().unwrap().push((self.script.tag, net.stage));
+            if net.stage == Stage::Linked {
+                self.matches += 1;
+            }
+            self.stage = net.stage;
+            self.frames = 0;
+        }
+        self.frames += 1;
+        self.next = 1;
+        let script = self.script.clone();
+        match net.stage {
+            Stage::Alone if !self.asked => {
+                self.asked = true;
+                let name = if script.host { "host" } else { "guest" }.to_owned();
+                updating.requests.push(if script.host {
+                    NetRequest::Host {
+                        port: script.port,
+                        seats: 2,
+                        name,
+                    }
+                } else {
+                    NetRequest::Join {
+                        address: format!("127.0.0.1:{}", script.port),
+                        name,
+                    }
+                });
+            }
+            // Alone again, after leaving: done.
+            Stage::Alone if self.frames > 20 => self.next = 3,
+            Stage::Alone => {}
+            Stage::Gathering => {
+                let unready = net.members.iter().any(|m| m.me && !m.ready);
+                if script.host && net.can_start && self.matches < 2 {
+                    updating.requests.push(NetRequest::Start);
+                } else if !script.host && unready && net.members.len() == 2 {
+                    updating.requests.push(NetRequest::Ready(true));
+                }
+            }
+            Stage::Linked => {
+                if script.leave && !script.host && updating.state.now == 60 && !self.left {
+                    self.left = true;
+                    updating.requests.push(NetRequest::Leave);
+                }
+                self.linked(net.members.len(), updating.state.now);
+            }
+        }
+    }
+
+    fn view(&self) -> &() {
+        &()
+    }
+
+    fn look(&self) -> corvid_camera::Camera {
+        corvid_camera::Camera::default()
+    }
+}
+
+corvid_app::game! {
+    struct Lobbied;
+    const PERIOD: TickSpan = TickSpan::CRADLE;
+    type State = Sum;
+    type Controller = Lobbyist;
+}
+
+fn play(script: Script) -> corvid_app::Outcome<Lobbied> {
+    App::<Lobbied>::new()
+        .opening(<Sum as corvid_replay::Opens>::opening())
+        .clock(Clock::wall())
+        .settings(Settings {
+            controls: script,
+            ..Settings::default()
+        })
+        .for_ticks(Ticks(3_000))
+        .retain(corvid_app::Retention::Everything)
+        .run()
+        .expect("the run")
+}
+
+fn stages(tag: u16) -> Vec<Stage> {
+    SEEN.lock()
+        .unwrap()
+        .iter()
+        .filter(|(t, _)| *t == tag)
+        .map(|(_, stage)| *stage)
+        .collect()
+}
+
+#[test]
+fn two_runs_play_go_back_to_the_lobby_and_play_again() {
+    let script = |tag, host| Script {
+        tag,
+        port: 47_941,
+        host,
+        leave: false,
+    };
+    let host = std::thread::spawn(move || play(script(1, true)));
+    let guest = std::thread::spawn(move || play(script(2, false)));
+    let host = host.join().unwrap();
+    let guest = guest.join().unwrap();
+    let round = [
+        Stage::Gathering,
+        Stage::Linked,
+        Stage::Gathering,
+        Stage::Linked,
+    ];
+    assert_eq!(stages(1), round, "the host");
+    assert_eq!(stages(2), round, "the guest");
+    // The second match: both seats played it, and both machines agree.
+    assert!(host.state.total > i64::try_from(host.state.now).unwrap() * 2);
+    let last = host.session.last().min(guest.session.last());
+    let mut compared = 0;
+    for at in 0..last.0.saturating_sub(20) {
+        let (Some(a), Some(b)) = (
+            host.session.marks.get(Tick(at)),
+            guest.session.marks.get(Tick(at)),
+        ) else {
+            continue;
+        };
+        assert_eq!(a, b, "the second match disagrees at tick {at}");
+        compared += 1;
+    }
+    assert!(compared > 60, "only {compared} ticks compared");
+}
+
+#[test]
+fn a_run_that_leaves_plays_alone_and_the_other_sees_it_go() {
+    let script = |tag, host| Script {
+        tag,
+        port: 47_942,
+        host,
+        leave: true,
+    };
+    let host = std::thread::spawn(move || play(script(3, true)));
+    let guest = std::thread::spawn(move || play(script(4, false)));
+    host.join().unwrap();
+    guest.join().unwrap();
+    assert_eq!(
+        stages(4),
+        [Stage::Gathering, Stage::Linked, Stage::Alone],
+        "the guest"
+    );
+    assert!(
+        AFTER
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(tag, n)| *tag == 3 && *n == 1),
+        "the host never saw the guest go"
+    );
 }

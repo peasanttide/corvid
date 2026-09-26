@@ -17,6 +17,11 @@ impl Lobby {
         for (from, said) in heard {
             match said {
                 Say::Hello { name, game } => changed |= self.admit(*from, name, game),
+                Say::Leave => {
+                    let before = self.members.len();
+                    self.members.retain(|m| m.peer != *from);
+                    changed |= self.members.len() != before;
+                }
                 Say::Ready { ready } => {
                     if let Some(m) = self.members.iter_mut().find(|m| m.peer == *from) {
                         m.ready = *ready;
@@ -43,6 +48,7 @@ impl Lobby {
             name: self.name.clone(),
             port,
             open,
+            running: self.stage == super::Stage::Linked,
         };
         if let Some(shouter) = self.shouter.as_mut() {
             shouter.shout(&shout);
@@ -79,11 +85,7 @@ impl Lobby {
                 false
             }
             (None, Some(seat)) => {
-                let address = self
-                    .net
-                    .as_ref()
-                    .and_then(|net| net.address(from))
-                    .map(|at| at.to_string());
+                let address = self.net.address(from).map(|at| at.to_string());
                 self.members.push(Member {
                     peer: from,
                     name: name.to_string(),
@@ -96,7 +98,7 @@ impl Lobby {
         }
     }
 
-    fn tell_room(&self) {
+    pub(super) fn tell_room(&self) {
         let members: Vec<Seen> = self
             .members
             .iter()

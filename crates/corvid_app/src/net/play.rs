@@ -127,6 +127,7 @@ impl<S: State> Link<S> {
         // than inside each other.
         self.inbox.clear();
         let inbox = &mut self.inbox;
+        let lobby = &mut self.lobby;
         // What this poll turned up that is not a datagram, acted on after the
         // borrow ends: the sink borrows the transport, and everything below
         // borrows the peer or sends something.
@@ -162,10 +163,13 @@ impl<S: State> Link<S> {
                     "a state transfer this session could not read; dropped",
                 ),
             },
-            // The other reliable channels carry an opening and a state
-            // transfer, and this runtime transfers no state -- so a frame on one
-            // is somebody else's traffic and saying so is all that can honestly
-            // be done with it.
+            // The lobby's talk goes on while its session is played: a guest
+            // leaving, a machine asking to join in progress.
+            Delivery::Stream {
+                channel: Channel::Opening,
+                bytes,
+            } => lobby.push((from, Some(bytes.to_vec()))),
+            // Nothing else rides a reliable channel this runtime reads.
             Delivery::Stream { channel, bytes } => tracing::debug!(
                 name: "corvid_app.unread_stream",
                 peer = %from,
@@ -181,6 +185,7 @@ impl<S: State> Link<S> {
             }
             Delivery::Lost { because } => {
                 gone.push(from);
+                lobby.push((from, None));
                 tracing::warn!(
                     name: "corvid_app.peer_lost",
                     peer = %from,

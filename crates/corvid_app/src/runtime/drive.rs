@@ -62,10 +62,9 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         // rectangle a pointer was reported against is.
         self.read_devices();
 
-        // A lobby on this thread that started since the last frame: from
-        // here on, the session is the one it agreed on, played linked.
-        #[cfg(feature = "net")]
-        self.relink()?;
+        // What the controller asked of the network last frame, and what the
+        // network said: a lobby that started is played linked from here on.
+        self.network()?;
 
         // The one place a pause happens, and it happens by not advancing the
         // step rather than by throwing the owed ticks away. `elapsed` is the

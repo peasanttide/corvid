@@ -46,6 +46,8 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             time,
             dt,
             seat: self.seating.watched(),
+            net: &self.net.view,
+            requests: &mut self.net.requests,
         });
         self.persist_settings();
         let camera = self.controller.look();
