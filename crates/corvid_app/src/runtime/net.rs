@@ -186,7 +186,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             }
             NetRequest::Start => match self.net.lobby.as_mut().map(Lobby::start) {
                 Some(true) => None,
-                Some(false) => Some("every seat has to be taken and ready".to_string()),
+                Some(false) => Some("every machine in the lobby has to be ready".to_string()),
                 None => Some("not in a lobby".to_string()),
             },
             NetRequest::Leave => {
