@@ -32,6 +32,7 @@ struct Nowhere;
 
 impl Level for Nowhere {
     type Error = Infallible;
+    type Edit = ();
     fn load(_: &str) -> Result<Self, Infallible> {
         Ok(Self)
     }
@@ -223,9 +224,9 @@ fn seeking_reaches_the_state_the_run_recorded() {
     for tick in 0_u64..=50 {
         let expected = step * i64::try_from(tick).expect("fifty fits");
         let (from_generous, _replayed) =
-            Slider::seek(&session, &mut generous, Tick(tick)).expect("inside the log");
+            Slider::seek(&mut session, &mut generous, Tick(tick)).expect("inside the log");
         let (from_mean, _replayed) =
-            Slider::seek(&session, &mut mean, Tick(tick)).expect("inside the log");
+            Slider::seek(&mut session, &mut mean, Tick(tick)).expect("inside the log");
 
         assert_eq!(from_generous.0, expected);
         assert_eq!(digest(&from_mean), digest(&expected));
@@ -239,7 +240,7 @@ fn seeking_outside_the_log_is_unreachable() {
     let mut snapshots = Snapshots::<Counter>::new(1 << 20);
 
     assert_eq!(
-        Slider::seek(&session, &mut snapshots, Tick(51)),
+        Slider::seek(&mut session, &mut snapshots, Tick(51)),
         Err(Unreachable::After {
             to: Tick(51),
             last: Tick(50),

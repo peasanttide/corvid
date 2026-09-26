@@ -381,7 +381,8 @@ fn a_networked_session_replays_to_the_same_state() -> Fallible {
     );
 
     let mut snapshots = corvid_replay::Snapshots::<Table>::new(1 << 20);
-    let (state, _replayed) = here.session.seek(&mut snapshots, settled)?;
+    let mut session = here.session.clone();
+    let (state, _replayed) = session.seek(&mut snapshots, settled)?;
     assert_eq!(
         Some(digest(&state)),
         here.session.marks.get(settled),

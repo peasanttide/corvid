@@ -299,6 +299,7 @@ fn requests(rules: &Rules, now: Tick, command: &mut impl Command) {
 /// without the fixture needing a file.
 impl corvid_behavior::Level for Level {
     type Error = Unreadable;
+    type Edit = ();
 
     fn load(name: &str) -> Result<Self, Unreadable> {
         if name == ELSEWHERE {

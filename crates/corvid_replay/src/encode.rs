@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::opening::{Opening, Profile, Seed};
 use crate::session::Session;
+use crate::timeline::Timeline;
 use crate::{ActionLog, HashTrace};
 
 // Every derive below would put a bound on `G` -- `G: Clone`, `G: Serialize` --
@@ -192,10 +193,14 @@ impl<'de, S: State> Deserialize<'de> for Session<S> {
         }
 
         let wire = Wire::<S>::deserialize(deserializer)?;
+        // The level's timeline is not written down: stepping the log from the
+        // opening makes it again.
+        let levels = Timeline::new(alloc::sync::Arc::clone(&wire.opening.content));
         Ok(Self {
             opening: wire.opening,
             log: wire.log,
             marks: wire.marks,
+            levels,
         })
     }
 }
@@ -206,6 +211,7 @@ impl<S: State> Clone for Session<S> {
             opening: self.opening.clone(),
             log: self.log.clone(),
             marks: self.marks.clone(),
+            levels: self.levels.clone(),
         }
     }
 }
@@ -216,6 +222,7 @@ impl<S: State> fmt::Debug for Session<S> {
             .field("opening", &self.opening)
             .field("log", &self.log)
             .field("marks", &self.marks)
+            .field("levels", &self.levels)
             .finish()
     }
 }

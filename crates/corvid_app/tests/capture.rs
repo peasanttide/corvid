@@ -52,7 +52,7 @@ fn a_captured_run_replays_to_the_same_state() {
     // against: the session comes off the disk, through the same `load` a game
     // opening a save file would use.
     let bytes = fs::read(scratchpad.path().join("session")).unwrap();
-    let session: Session<Tally> = Session::load(&bytes, schema()).unwrap();
+    let mut session: Session<Tally> = Session::load(&bytes, schema()).unwrap();
     assert_eq!(session.last(), run.session.last());
 
     // A budget of zero keeps no snapshots, so this replays every tick from the
@@ -180,7 +180,7 @@ fn a_captured_audio_frame_is_the_one_the_extractor_produced_at_that_tick() {
     // sources per tick.
     let scratchpad = Scratchpad::new("audio");
     let run = capture_into(&scratchpad);
-    let session = run.session;
+    let mut session = run.session;
 
     let recorded = |at: Tick| -> AudioFrame {
         let bytes = fs::read(scratchpad.path().join("audio").join(at.to_string())).unwrap();
@@ -204,7 +204,7 @@ fn a_captured_audio_frame_is_the_one_the_extractor_produced_at_that_tick() {
     // emitted for that tick, rebuilt from the session alone -- the same
     // comparison the frames get, so a capture that wrote the right frame
     // under the wrong name fails here.
-    let extracted = |at: Tick| -> AudioFrame {
+    let mut extracted = |at: Tick| -> AudioFrame {
         let (previous, _) = session.seek(&mut Snapshots::new(0), at.prev()).unwrap();
         let (current, _) = session.seek(&mut Snapshots::new(0), at).unwrap();
         let mut frame = AudioFrame::new();

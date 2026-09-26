@@ -182,7 +182,9 @@ impl Sink {
                 }
                 Answer::Done
             }
-            Command::Screenshot => Answer::Done,
+            // A load is applied by `corvid_replay::step` after the tick that
+            // asked, before this sees it.
+            Command::Screenshot | Command::Load(_) => Answer::Done,
             other => {
                 // Never a panic and never a silent drop. A game that asks for
                 // something this runtime cannot do yet keeps running, and the
@@ -212,7 +214,7 @@ impl Sink {
 #[derive(Debug, Default)]
 pub(crate) struct Asked(pub(crate) Vec<Command>);
 
-impl corvid_behavior::Command for Asked {
+impl<E> corvid_behavior::Command<E> for Asked {
     fn load(&mut self, name: &str) {
         self.0.push(Command::Load(name.to_owned()));
     }

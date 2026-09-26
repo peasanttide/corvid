@@ -26,6 +26,7 @@ struct NoField(String);
 
 impl Level for Field {
     type Error = NoField;
+    type Edit = ();
 
     /// Where the bytes come from is the game's business. This one has its
     /// levels in the binary; another opens a file, and neither is named here.
@@ -184,7 +185,8 @@ denote.** A level's contents, never its handle.
 ## Commands are a sink, not a return value
 
 `Command` is a trait with one method per effect, and a tick is handed a
-`&mut impl Command`. Every method has a default that does nothing.
+`&mut impl Command<E>`, `E` being its level's edit. Every method has a
+default that does nothing.
 
 ```rust
 use corvid_behavior::{Command, ExitCode, SaveSlot};

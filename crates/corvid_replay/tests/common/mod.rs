@@ -97,6 +97,7 @@ pub(crate) enum Action {
 /// motivated dropping the `Source` argument.
 impl LevelContract for Level {
     type Error = UnknownLevel;
+    type Edit = ();
 
     fn load(name: &str) -> Result<Self, Self::Error> {
         let ceiling = match name {

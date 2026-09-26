@@ -198,6 +198,7 @@ pub(crate) struct Hoard {
 /// The cliff reads nothing: this fixture's is a constant.
 impl Level for Cliff {
     type Error = Infallible;
+    type Edit = ();
 
     fn load(_name: &str) -> Result<Self, Infallible> {
         Ok(Self::default())

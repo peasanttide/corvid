@@ -24,6 +24,7 @@ struct Field;
 
 impl Level for Field {
     type Error = Infallible;
+    type Edit = ();
     fn load(_: &str) -> Result<Self, Infallible> {
         Ok(Self)
     }

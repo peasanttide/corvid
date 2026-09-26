@@ -2,10 +2,22 @@
 
 use crate::Data;
 
-/// Authored, immutable within a session, hashed into the opening.
+/// Authored, hashed into the opening, and changed during a session only by
+/// what a tick asks for.
 ///
 /// Behind an [`Arc`](alloc::sync::Arc) at the call site, so switching levels is
 /// a pointer swap and a snapshot ring does not hold a copy per tick.
+///
+/// # Changing during a session
+///
+/// A tick asks for a change through its command sink: a
+/// [`load`](crate::Command::load) of another level by name, or an
+/// [`edit`](crate::Command::edit) of the one being played. Every peer ran
+/// that tick, so every peer applies the change after it, in the order asked,
+/// and the state folds the new level in through
+/// [`State::load_level`](crate::State::load_level) before the next tick. A
+/// level that nothing edits says `type Edit = ();` and keeps
+/// [`edit`](Self::edit)'s default.
 pub trait Level: Data {
     /// Why a level could not be read.
     ///
@@ -68,4 +80,26 @@ pub trait Level: Data {
     /// claim to be. A peer that cannot load leaves the session rather than
     /// hanging it, which is what the runtime does with this.
     fn load(name: &str) -> Result<Self, Self::Error>;
+
+    /// One change to a level while it is played: what a map editor's stroke,
+    /// a door knocked through or a bridge raised comes to.
+    ///
+    /// On the wire, like an action, when it rides in one: keep it small.
+    type Edit: crate::Data;
+
+    /// The level with an edit made to it.
+    ///
+    /// Pure, like a tick: the same level and the same edit answer the same
+    /// level on every machine. It runs between two ticks, on the level the
+    /// earlier one was played on, and the later one is played on what it
+    /// answers.
+    ///
+    /// # Errors
+    ///
+    /// [`Error`](Self::Error) for an edit this level refuses -- a wall off the
+    /// map, a room of a kind nobody defined. The edit is then dropped, the same
+    /// way on every machine, and the level stays as it was.
+    fn edit(&self, _edit: &Self::Edit) -> Result<Self, Self::Error> {
+        Ok(self.clone())
+    }
 }

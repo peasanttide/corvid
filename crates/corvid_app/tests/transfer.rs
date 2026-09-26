@@ -240,6 +240,7 @@ fn a_machine_handed_a_state_restarts_on_it() -> Fallible {
             movers: Vec::new(),
         },
         departed: Vec::new(),
+        changes: Vec::new(),
     };
     let bytes = corvid_wire::encode(&handed)?;
     let (outcome, _sent) = play(1, 12, vec![(machine(0), bytes, Some(Channel::Transfer))])?;
@@ -286,6 +287,7 @@ fn a_state_from_a_seat_that_does_not_answer_is_dropped() -> Fallible {
             movers: Vec::new(),
         },
         departed: Vec::new(),
+        changes: Vec::new(),
     };
     let bytes = corvid_wire::encode(&handed)?;
     let ticks = 8;
@@ -325,6 +327,7 @@ fn a_state_brings_the_departures_with_it() -> Fallible {
             movers: Vec::new(),
         },
         departed: vec![(0, Tick(100))],
+        changes: Vec::new(),
     };
     let bytes = corvid_wire::encode(&handed)?;
     let (outcome, _sent) = play(1, 12, vec![(machine(0), bytes, Some(Channel::Transfer))])?;
@@ -382,4 +385,6 @@ struct Handover {
     state: Tally,
     /// Every seat that has left, and when.
     departed: Vec<(u16, Tick)>,
+    /// The level's changes, which the tally's level never has.
+    changes: Vec<(Tick, Vec<corvid_replay::Change<()>>)>,
 }

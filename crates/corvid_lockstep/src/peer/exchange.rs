@@ -109,7 +109,7 @@ impl<S: State> Peer<S> {
     /// `State` and lets the client read it out of a confirmed tick.
     pub fn advance(
         &mut self,
-        command: &mut impl corvid_behavior::Command,
+        command: &mut impl corvid_behavior::Command<corvid_behavior::LevelEdit<S>>,
     ) -> Result<Advanced, Halt> {
         let ceiling = self
             .frontier

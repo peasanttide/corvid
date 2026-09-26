@@ -71,7 +71,7 @@ impl<S: State> Link<S> {
     pub(crate) fn play(
         &mut self,
         action: Option<S::Action>,
-        command: &mut impl corvid_behavior::Command,
+        command: &mut impl corvid_behavior::Command<corvid_behavior::LevelEdit<S>>,
     ) -> Result<(), crate::Error> {
         let mut traffic = TickTraffic::default();
 

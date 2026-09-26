@@ -17,9 +17,10 @@ use std::string::String;
 use std::sync::Arc;
 use std::vec::Vec;
 
+use corvid_behavior::LevelEdit;
 use corvid_behavior::{ProfileId, State};
 use corvid_hash::Digest;
-use corvid_replay::{Opening, Profile, Seed, Session};
+use corvid_replay::{Changes, Opening, Profile, Seed, Session};
 use corvid_time::Tick;
 use serde::{Deserialize, Serialize};
 
@@ -37,8 +38,11 @@ struct Terms<S: State> {
     roster: Vec<Profile>,
     seed: Seed,
     schema: u64,
-    /// The digest of the level every machine is to have loaded.
+    /// The digest of the level every machine opened on.
     content: u64,
+    /// What the host's session did to that level since, which the new
+    /// session opens on the result of.
+    changes: Changes<LevelEdit<S>>,
 }
 
 impl<G: Game, B: Backend<G>> Runtime<G, B> {
@@ -52,7 +56,9 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         let Some(started) = handoff::take() else {
             return Ok(());
         };
-        let here = &self.play.session().opening;
+        let session = self.play.session();
+        let here = &session.opening;
+        let origin = session.levels.origin();
         let opening: Opening<G::State> = if let Some(bytes) = &started.terms {
             let terms: Terms<G::State> = match corvid_wire::decode(bytes) {
                 Ok(terms) => terms,
@@ -65,7 +71,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                     return Ok(());
                 }
             };
-            let mine = corvid_hash::digest(&*here.content);
+            let mine = corvid_hash::digest(&**origin);
             if mine.to_u64() != terms.content || terms.level != here.level {
                 tracing::error!(
                     name: "corvid_app.lobby_other_level",
@@ -75,9 +81,12 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 );
                 return Ok(());
             }
+            let content = Arc::clone(
+                corvid_replay::Timeline::rebuild(Arc::clone(origin), &terms.changes).current(),
+            );
             Opening {
                 level: terms.level,
-                content: Arc::clone(&here.content),
+                content,
                 rules: Arc::new(terms.rules),
                 roster: terms.roster,
                 seed: terms.seed,
@@ -88,7 +97,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         } else {
             let opening = Opening {
                 level: here.level.clone(),
-                content: Arc::clone(&here.content),
+                content: Arc::clone(session.levels.current()),
                 rules: Arc::clone(&here.rules),
                 roster: (0..started.width)
                     .map(|seat| Profile {
@@ -108,7 +117,8 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 roster: opening.roster.clone(),
                 seed: opening.seed,
                 schema: opening.schema.to_u64(),
-                content: corvid_hash::digest(&*opening.content).to_u64(),
+                content: corvid_hash::digest(&**origin).to_u64(),
+                changes: session.levels.changes().clone(),
             };
             match corvid_wire::encode(&terms) {
                 Ok(bytes) => announce(&*started.transport, &started.guests, bytes),

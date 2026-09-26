@@ -97,6 +97,7 @@ pub(crate) struct NoSuchLevel(String);
 /// The levels this game has, by the names they answer to.
 impl corvid_behavior::Level for Level {
     type Error = NoSuchLevel;
+    type Edit = ();
 
     fn load(name: &str) -> Result<Self, NoSuchLevel> {
         let start = match name {

@@ -26,6 +26,7 @@
 //!
 //! impl Level for Nowhere {
 //!     type Error = Infallible;
+//!     type Edit = ();
 //!     fn load(_: &str) -> Result<Self, Infallible> {
 //!         Ok(Self)
 //!     }
@@ -94,6 +95,7 @@
 //! # struct Nowhere;
 //! # impl Level for Nowhere {
 //! #     type Error = Infallible;
+//! #     type Edit = ();
 //! #     fn load(_: &str) -> Result<Self, Infallible> { Ok(Self) }
 //! # }
 //! # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

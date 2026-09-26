@@ -57,7 +57,7 @@ fn seats_no_player_id_can_name_are_left_out_rather_than_folded_onto_the_last() {
 
 #[test]
 fn a_tick_outside_the_log_is_named_rather_than_clamped() {
-    let session = play(10);
+    let mut session = play(10);
     let mut snapshots = Snapshots::new(ROOMY);
 
     assert_eq!(
@@ -98,7 +98,7 @@ fn a_tick_before_the_opening_is_named_rather_than_clamped() {
 
 #[test]
 fn seeking_to_the_opening_returns_the_opening_state() {
-    let session = play(20);
+    let mut session = play(20);
     let mut snapshots = Snapshots::new(ROOMY);
     let (state, _) = session.seek(&mut snapshots, Tick::ZERO).unwrap();
     assert_eq!(state, session.opening.origin());
@@ -115,7 +115,7 @@ fn a_replay_folds_a_joining_profile_in_on_the_tick_the_session_did() {
     // that handed every seat `Presence::Active` -- or that offered a seat before
     // it joined -- would get a different column here, and the digest comparison
     // in the first test would catch it only because of this column.
-    let session = play(200);
+    let mut session = play(200);
     let mut snapshots = Snapshots::new(ROOMY);
 
     // The state *at* tick 8 is what the tick at 7 produced, and 7 is the tick
@@ -199,7 +199,7 @@ fn the_ring_is_what_decides_how_much_a_seek_re_simulates() {
     // so the evidence that the ring does anything is the number of ticks that
     // produced it. A budget of zero replays the whole session; a warm ring
     // replays what is left after the nearest entry.
-    let session = play(100);
+    let mut session = play(100);
 
     let mut cold = Snapshots::new(0);
     let (from_cold, replayed) = session.seek(&mut cold, Tick(100)).unwrap();

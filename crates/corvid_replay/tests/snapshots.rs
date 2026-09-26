@@ -137,7 +137,7 @@ fn eviction_thickens_towards_the_present() {
     // of dozen states spread evenly over five hundred ticks puts every gap near
     // twenty, which satisfies the last assertion below and none of the other
     // three.
-    let session = play(500);
+    let mut session = play(500);
     let mut ring: Snapshots<Counter> = Snapshots::new(1 << 12);
     let mut current = session.opening.origin();
     for tick in 0..=500 {

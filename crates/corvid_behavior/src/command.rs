@@ -157,7 +157,16 @@ pub enum Scope {
 /// network round trip in order to reach a device exactly one machine has --
 /// which is the same argument the camera and the pointer are client-local for,
 /// and it has the same answer.
-pub trait Command {
+pub trait Command<E = ()> {
+    /// Edit the level being played, after this tick, on every peer. `E` is
+    /// the level's own [`Edit`](crate::Level::Edit).
+    fn edit(&mut self, _edit: E) {}
+
+    /// Everyone back to the lobby they started this session from, after this
+    /// tick: the session ends on every peer together, and they stay
+    /// connected. Nothing, in a session played alone.
+    fn lobby(&mut self) {}
+
     /// Load a level, by the name [`Level::load`](crate::Level::load) reads.
     /// **Global.**
     ///
@@ -235,7 +244,7 @@ pub trait Command {
 /// # let _ = &mut nobody;
 /// ```
 ///
-/// A named type rather than `impl Command for ()`, so that a call site says
+/// A named type rather than `impl<E> Command<E> for ()`, so that a call site says
 /// which of its arguments is the one nobody is listening to. `()` implements it
 /// as well, for the caller that would rather write nothing at all.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -249,6 +258,6 @@ impl Discard {
     }
 }
 
-impl Command for Discard {}
+impl<E> Command<E> for Discard {}
 
-impl Command for () {}
+impl<E> Command<E> for () {}

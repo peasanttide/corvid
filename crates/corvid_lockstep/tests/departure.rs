@@ -283,7 +283,7 @@ fn a_peer_beyond_catching_up_is_rescued_by_a_state() -> Fallible {
     // `resync` rather than `adopt`, and the difference is the whole point: this
     // state is from *ahead* of where the rescued peer has been, so there is no
     // trace to correct -- the session is reopened there instead.
-    behind.resync(at, ahead.state().clone())?;
+    behind.resync(at, ahead.state().clone(), &Vec::new())?;
 
     assert_eq!(behind.tick(), at);
     assert_eq!(

@@ -56,6 +56,7 @@ impl<S: State> Link<S> {
                 .all()
                 .map(|(seat, at)| (seat.0, at))
                 .collect(),
+            changes: self.peer.session.levels.changes().clone(),
         };
         let Ok(bytes) = corvid_wire::encode(&transfer) else {
             tracing::error!(
@@ -85,7 +86,9 @@ impl<S: State> Link<S> {
         // rows the peer it just rescued is never going to send.
         let at = transfer.at;
         let state = S::clone(self.peer.state());
-        self.peer.resync(at, state).map_err(halted)?;
+        self.peer
+            .resync(at, state, &transfer.changes)
+            .map_err(halted)?;
         Ok(())
     }
 
@@ -179,7 +182,7 @@ impl<S: State> Link<S> {
         }
 
         self.peer
-            .resync(transfer.at, transfer.state)
+            .resync(transfer.at, transfer.state, &transfer.changes)
             .map_err(halted)?;
         traffic.rescued = true;
         tracing::info!(

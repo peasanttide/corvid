@@ -167,7 +167,7 @@ impl<S: State> Play<S> {
 /// An alias because it is written at both ends of the one call that produces
 /// it, and the second half is a list of a game's own requests rather than
 /// anything this crate has a shorter name for.
-pub(super) type Ticked<G> = (<G as Game>::State, Vec<Command>);
+pub(super) type Ticked<G> = (<G as Game>::State, corvid_hash::Digest, Vec<Command>);
 
 /// Whether the loop carries on.
 pub(super) enum Flow {

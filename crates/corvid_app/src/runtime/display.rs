@@ -37,7 +37,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         // call and the three calls below are free to take `&mut self` in
         // whatever order they like.
         let time = self.now();
-        let level = Arc::clone(&self.play.session().opening.content);
+        let level = Arc::clone(self.play.session().levels.at(self.at));
         self.controller.update(Updating {
             state: &self.current,
             level: &level,
@@ -54,7 +54,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         // never once per replayed tick. The renderer holds the pair and the
         // shader lerps between them with `alpha`.
         let state = Arc::clone(&self.current);
-        let level = Arc::clone(&self.play.session().opening.content);
+        let level = Arc::clone(self.play.session().levels.at(self.at));
         let extracting = Extracting {
             state: &*state,
             level: &*level,

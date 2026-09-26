@@ -27,6 +27,7 @@ use corvid_time::{Tick, TickSpan, Ticks};
 # struct Nowhere;
 # impl Level for Nowhere {
 #     type Error = Infallible;
+#     type Edit = ();
 #     fn load(_: &str) -> Result<Self, Infallible> { Ok(Self) }
 # }
 #
@@ -114,7 +115,7 @@ impl Game for Climbing {
     type Auralizer = ();
 }
 
-let run = App::<Climbing>::new()
+let mut run = App::<Climbing>::new()
     .headless()
     .opening(opening())
     .until(|state: &Climb, _at: Tick| state.metres >= 100)

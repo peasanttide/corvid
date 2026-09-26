@@ -93,6 +93,7 @@ pub(crate) enum Action {
 /// The level reads nothing: this fixture's is a constant.
 impl corvid_behavior::Level for Level {
     type Error = Infallible;
+    type Edit = ();
 
     fn load(_name: &str) -> Result<Self, Infallible> {
         Ok(Self {

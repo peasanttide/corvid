@@ -9,7 +9,6 @@ use std::{mem, sync::Arc};
 
 use corvid_behavior::{ExitCode, State};
 use corvid_control::{Acting, Controller};
-use corvid_hash::digest;
 use corvid_time::Tick;
 
 use crate::Error;
@@ -68,7 +67,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         let action = self.seating.playing().map(|seat| {
             self.controller.action(Acting {
                 state: &self.current,
-                level: &self.play.session().opening.content,
+                level: self.play.session().levels.at(self.at),
                 input: self.acting(),
                 time: self.now(),
                 seat,
@@ -150,8 +149,8 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         }
         self.play_bots(asked)?;
 
-        let (next, commands) = self.simulate();
-        self.play.session_mut().marks.push(digest(&next));
+        let (next, mark, commands) = self.simulate();
+        self.play.session_mut().marks.push(mark);
 
         // The pair the display sits between shifts by one, and what falls out
         // of the far end is dropped here -- the last handle to it, unless an
@@ -188,7 +187,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             index += 1;
             let action = self.bot.action(Acting {
                 state: &self.current,
-                level: &self.play.session().opening.content,
+                level: self.play.session().levels.at(asked),
                 input: self.acting(),
                 time: self.now(),
                 seat,

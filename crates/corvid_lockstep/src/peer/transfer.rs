@@ -31,7 +31,16 @@ impl<S: State> Peer<S> {
     ///
     /// [`Halt::Unreachable`](crate::Halt::Unreachable) for a tick before the session's opening or after
     /// the one this peer has reached.
-    pub fn adopt(&mut self, at: Tick, state: S) -> Result<(), Halt> {
+    pub fn adopt(
+        &mut self,
+        at: Tick,
+        state: S,
+        changes: &corvid_replay::Changes<corvid_behavior::LevelEdit<S>>,
+    ) -> Result<(), Halt> {
+        self.session.levels = corvid_replay::Timeline::rebuild(
+            alloc::sync::Arc::clone(self.session.levels.origin()),
+            changes,
+        );
         let first = self.session.first();
         if at < first {
             return Err(Unreachable::Before { to: at, first }.into());
@@ -89,7 +98,16 @@ impl<S: State> Peer<S> {
     ///
     /// [`Halt::Unreachable`](crate::Halt::Unreachable) for a tick before the session's opening, and
     /// [`Halt::Refused`](crate::Halt::Refused) if the log could not be grown to reach it.
-    pub fn resync(&mut self, at: Tick, state: S) -> Result<(), Halt> {
+    pub fn resync(
+        &mut self,
+        at: Tick,
+        state: S,
+        changes: &corvid_replay::Changes<corvid_behavior::LevelEdit<S>>,
+    ) -> Result<(), Halt> {
+        self.session.levels = corvid_replay::Timeline::rebuild(
+            alloc::sync::Arc::clone(self.session.levels.origin()),
+            changes,
+        );
         let first = self.session.first();
         if at < first {
             return Err(Unreachable::Before { to: at, first }.into());

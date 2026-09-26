@@ -7,8 +7,10 @@
 #[cfg(feature = "dev")]
 use alloc::vec::Vec;
 
+use alloc::sync::Arc;
 use corvid_behavior::{PlayerId, State};
-use corvid_hash::{Digest, digest};
+
+use corvid_hash::Digest;
 use corvid_time::Tick;
 
 #[cfg(feature = "dev")]
@@ -44,6 +46,9 @@ impl<S: State> Peer<S> {
         self.state = restored;
         self.tick = from;
         self.session.marks.truncate_from(from.next());
+        // The ticks from here are played again, and ask again for whatever
+        // they change of the level.
+        self.session.levels.forget_after(from);
 
         while self.tick < target {
             self.simulate_one(&mut corvid_behavior::Discard::new());
@@ -62,7 +67,10 @@ impl<S: State> Peer<S> {
 
     /// One tick forward from wherever this peer is, against the row prediction
     /// makes.
-    pub(super) fn simulate_one(&mut self, command: &mut impl corvid_behavior::Command) {
+    pub(super) fn simulate_one(
+        &mut self,
+        command: &mut impl corvid_behavior::Command<corvid_behavior::LevelEdit<S>>,
+    ) {
         row_at(&self.session.log, &self.frontier, self.tick, &mut self.row);
         // Whether this is the first time this tick has been simulated, read
         // before the tick moves. `reached` is the high-water mark rather than
@@ -73,23 +81,40 @@ impl<S: State> Peer<S> {
         // the fact: a tick simulated for the first time may ask the runtime for
         // things, and a tick being replayed to work off a rollback may not.
         // A tick that asked to quit, to save, or to rumble a pad asked once.
-        self.state = if fresh {
-            step::<S>(&self.session, &self.state, self.tick, &self.row, command)
+        let level = Arc::clone(self.session.levels.at(self.tick));
+        let stepped = if fresh {
+            step::<S>(
+                &self.session,
+                &level,
+                &self.state,
+                self.tick,
+                &self.row,
+                command,
+            )
         } else {
             step::<S>(
                 &self.session,
+                &level,
                 &self.state,
                 self.tick,
                 &self.row,
                 &mut corvid_behavior::Discard::new(),
             )
         };
+        let mark = corvid_replay::mark(
+            &stepped.state,
+            stepped.changed.as_ref().map(|(level, _)| &**level),
+        );
+        if let Some((level, changes)) = stepped.changed {
+            self.session.levels.push(self.tick.next(), level, changes);
+        }
+        self.state = stepped.state;
         self.tick = self.tick.next();
         if self.tick > self.reached {
             self.reached = self.tick;
         }
         self.session.marks.truncate_from(self.tick);
-        self.session.marks.push(digest(&self.state));
+        self.session.marks.push(mark);
         self.snapshots
             .keep(&self.session.log, self.tick, &self.state);
     }

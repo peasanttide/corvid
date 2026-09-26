@@ -121,6 +121,7 @@ mod linked {
 
     impl corvid_behavior::Level for Field {
         type Error = core::convert::Infallible;
+        type Edit = ();
 
         fn load(_name: &str) -> Result<Self, Self::Error> {
             Ok(Self)

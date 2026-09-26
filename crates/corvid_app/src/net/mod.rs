@@ -171,7 +171,10 @@ impl<S: State> Link<S> {
     /// [`Error::Halted`](crate::Error::Halted) for a tick outside the session
     /// the peer is holding.
     pub(crate) fn adopt(&mut self, at: Tick, state: S) -> Result<(), crate::Error> {
-        self.peer.adopt(at, state).map_err(halted)
+        // The session's own changes so far: a save resumed here was stepped
+        // to `at` on this machine, so its timeline is already this session's.
+        let changes = self.peer.session.levels.changes().clone();
+        self.peer.adopt(at, state, &changes).map_err(halted)
     }
 }
 

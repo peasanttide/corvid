@@ -23,6 +23,7 @@ use crate::{FieldReport, Where};
 /// # struct Ground;
 /// # impl Level for Ground {
 /// #     type Error = Infallible;
+/// #     type Edit = ();
 /// #     fn load(_: &str) -> Result<Self, Infallible> { Ok(Self) }
 /// # }
 /// #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -243,6 +244,7 @@ mod with_dev {
         };
 
         let (mut at, mut state) = peer.restore(first.at)?;
+        let mut level = alloc::sync::Arc::clone(peer.session.levels.at(at));
         let mut row: Vec<S::Action> = Vec::new();
         let mut probes = Probes::default();
         let mut last = None;
@@ -255,13 +257,18 @@ mod with_dev {
                 // machines stopped agreeing, and a tick replayed by an
                 // investigation is not a tick asking the runtime for anything a
                 // second time.
-                state = step::<S>(
+                let stepped = step::<S>(
                     &peer.session,
+                    &level,
                     &state,
                     at,
                     &row,
                     &mut corvid_behavior::Discard::new(),
                 );
+                if let Some((changed, _)) = stepped.changed {
+                    level = changed;
+                }
+                state = stepped.state;
                 at = at.next();
             }
 

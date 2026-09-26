@@ -31,6 +31,7 @@ use corvid_replay::{Opening, Profile, Schema, Seed};
 # struct Level { ceiling: i64 }
 # impl LevelContract for Level {
 #     type Error = Infallible;
+#     type Edit = ();
 #     fn load(_: &str) -> Result<Self, Infallible> {
 #         Ok(Self { ceiling: 1_000 })
 #     }

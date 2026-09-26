@@ -231,7 +231,7 @@ fn the_default_keeps_a_window_and_a_capture_keeps_everything() {
 
 #[test]
 fn a_bounded_run_can_still_save_replay_and_seek_across_its_window() {
-    let run = play(Retention::Recent { ticks: WINDOW });
+    let mut run = play(Retention::Recent { ticks: WINDOW });
     let first = run.session.first();
 
     // Save and load: the session that comes back is the one that went in, and
@@ -240,7 +240,7 @@ fn a_bounded_run_can_still_save_replay_and_seek_across_its_window() {
         .session
         .save()
         .expect("every part of this session encodes");
-    let loaded = Session::<Tally>::load(&bytes, common::schema())
+    let mut loaded = Session::<Tally>::load(&bytes, common::schema())
         .expect("a session that forgot its far past is still a session");
     assert_eq!(loaded, run.session);
 
@@ -354,7 +354,7 @@ fn a_window_of_nothing_keeps_the_row_it_is_writing() {
     // is here because it is the floor the sawtooth is measured from: a session
     // always covers the tick the loop is writing at, so "keep nothing" is one
     // row rather than none.
-    let run = App::<Counting>::new()
+    let mut run = App::<Counting>::new()
         .headless()
         .opening(opening::<Tally>(Rules::quiet()))
         .retain(Retention::Recent { ticks: 0 })

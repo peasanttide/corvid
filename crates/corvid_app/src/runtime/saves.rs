@@ -6,7 +6,7 @@
 
 use std::{mem, sync::Arc};
 
-use corvid_behavior::{PlayerId, PlayerState, SaveSlot, State};
+use corvid_behavior::SaveSlot;
 use corvid_time::Tick;
 
 use crate::backend::Backend;
@@ -159,41 +159,34 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// [`Session::seek`](corvid_replay::Session::seek) rebuilds from the same
     /// two things. A roster the runtime remembered would be a fourth input to
     /// the simulation that no capture records.
-    pub(super) fn simulate(&self) -> Ticked<G> {
-        let idle = <<G::State as State>::Action>::default();
-        let mut roster: Vec<PlayerState<<G::State as State>::Action>> = Vec::new();
-        for (seat, profile) in self.play.session().opening.roster.iter().enumerate() {
-            let Ok(seat) = u16::try_from(seat) else {
-                break;
-            };
-            let id = PlayerId(seat);
-            let Some(presence) = profile.presence_at(self.at) else {
-                continue;
-            };
-            roster.push(PlayerState {
-                id,
-                presence,
-                action: self
-                    .play
-                    .session()
-                    .log
-                    .get(self.at, id)
-                    .cloned()
-                    .unwrap_or_else(|| idle.clone()),
-            });
-        }
-
+    pub(super) fn simulate(&mut self) -> Ticked<G> {
+        let at = self.at;
+        let session = self.play.session();
+        let players = corvid_replay::players(&session.opening, at, |seat| {
+            session.log.get(at, seat).cloned()
+        });
+        let level = Arc::clone(session.levels.at(at));
         // A `Vec`-backed sink, which is what the trait's whole shape is for:
         // the runtime wants the requests in order so it can route and record
         // them, and a test wants exactly the same thing.
         let mut asked = crate::commands::Asked::default();
-        let next = <G::State>::clone(&self.current).tick(
-            &self.play.session().opening.content,
-            &roster,
-            &self.play.session().opening.rules,
+        let stepped = corvid_replay::step(
+            <G::State>::clone(&self.current),
+            &level,
+            &players,
+            &session.opening.rules,
             &mut asked,
         );
-        drop(roster);
-        (next, asked.0)
+        let mark = corvid_replay::mark(
+            &stepped.state,
+            stepped.changed.as_ref().map(|(level, _)| &**level),
+        );
+        if let Some((level, changes)) = stepped.changed {
+            self.play
+                .session_mut()
+                .levels
+                .push(at.next(), level, changes);
+        }
+        (stepped.state, mark, asked.0)
     }
 }

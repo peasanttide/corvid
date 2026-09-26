@@ -1,9 +1,9 @@
 //! The seek, and the generation rule.
 
-use alloc::vec::Vec;
+use alloc::sync::Arc;
 
-use corvid_behavior::{PlayerId, PlayerState, State};
-use corvid_replay::Session;
+use corvid_behavior::{Command, LevelEdit, State};
+use corvid_replay::{Session, Stepped};
 use corvid_time::Tick;
 
 /// How far a rollback went.
@@ -64,33 +64,19 @@ pub struct Advanced {
 /// by a rollback is asking again for something already asked.
 pub(crate) fn step<S: State>(
     session: &Session<S>,
+    level: &Arc<S::Level>,
     previous: &S,
     at: Tick,
     row: &[S::Action],
-    command: &mut impl corvid_behavior::Command,
-) -> S {
-    let mut roster: Vec<PlayerState<S::Action>> = Vec::with_capacity(session.opening.roster.len());
-    for (seat, profile) in session.opening.roster.iter().enumerate() {
-        // A roster longer than a `PlayerId` can address has seats no action can
-        // be attributed to, and stopping is what `seek` does with one.
-        let Ok(id) = u16::try_from(seat) else {
-            break;
-        };
-        let Some(presence) = profile.presence_at(at) else {
-            continue;
-        };
-        let Some(action) = row.get(seat) else {
-            continue;
-        };
-        roster.push(PlayerState {
-            id: PlayerId(id),
-            presence,
-            action: action.clone(),
-        });
-    }
-    S::clone(previous).tick(
-        &session.opening.content,
-        &roster,
+    command: &mut impl Command<LevelEdit<S>>,
+) -> Stepped<S> {
+    let players = corvid_replay::players(&session.opening, at, |seat| {
+        row.get(usize::from(seat.0)).cloned()
+    });
+    corvid_replay::step(
+        S::clone(previous),
+        level,
+        &players,
         &session.opening.rules,
         command,
     )

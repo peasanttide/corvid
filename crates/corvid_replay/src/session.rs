@@ -15,6 +15,7 @@ use corvid_time::Tick;
 
 use crate::opening::Opening;
 use crate::replay_error::{Forget, Load, Shape};
+use crate::timeline::Timeline;
 use crate::{ActionLog, HashTrace};
 
 /// Everything needed to reproduce a session bit for bit.
@@ -40,6 +41,9 @@ pub struct Session<S: State> {
     pub log: ActionLog<S::Action>,
     /// One digest per tick.
     pub marks: HashTrace,
+    /// The level each tick is played on. Kept as the session is played and
+    /// not written down: stepping the log from the opening makes it again.
+    pub levels: Timeline<S::Level>,
 }
 
 /// A session is what an opening becomes, and this is that becoming.
@@ -66,6 +70,7 @@ impl<S: State> TryFrom<Opening<S>> for Session<S> {
         Ok(Self {
             log: ActionLog::new(opening.first, seats),
             marks,
+            levels: Timeline::new(alloc::sync::Arc::clone(&opening.content)),
             opening,
         })
     }
@@ -181,6 +186,9 @@ impl<S: State> Session<S> {
         }
         self.log.forget_before(tick);
         self.marks.forget_before(tick);
+        // The level played at `tick` becomes the one the session opens on.
+        self.opening.content = alloc::sync::Arc::clone(self.levels.at(tick));
+        self.levels.forget_before(tick);
         self.opening.first = tick;
         // The old origin resolved: a session whose opening carried none was
         // opening on `S::default()`, and that is the state being replaced.
