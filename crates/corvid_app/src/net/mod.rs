@@ -83,9 +83,27 @@ pub(crate) struct Link<S: State> {
     /// I decline" reached any threshold in microseconds of ordinary play and
     /// asked for a state transfer in the middle of a healthy session.
     heard_head: Tick,
+    /// Which machine plays which seat, as a lobby arranged it; [`None`] for
+    /// a link two command lines set up, where [`seat_of`] is the arithmetic.
+    seats: Option<BTreeMap<PeerId, PlayerId>>,
 }
 
 impl<S: State> Link<S> {
+    /// The same link, with the seating a lobby arranged.
+    pub(crate) fn seated(mut self, seats: BTreeMap<PeerId, PlayerId>) -> Self {
+        self.seats = Some(seats);
+        self
+    }
+
+    /// The seat a peer plays: the lobby's seating if there was a lobby, else
+    /// [`seat_of`].
+    pub(crate) fn seat_of(&self, peer: PeerId) -> PlayerId {
+        self.seats
+            .as_ref()
+            .and_then(|seats| seats.get(&peer).copied())
+            .unwrap_or_else(|| seat_of(peer))
+    }
+
     /// A link over `transport`, playing `seat` of `session`.
     pub(crate) fn new(
         session: Session<S>,
@@ -104,6 +122,7 @@ impl<S: State> Link<S> {
             departures: Departures::new(seats),
             mine: BTreeMap::new(),
             heard_head: Tick::ZERO,
+            seats: None,
         }
     }
 

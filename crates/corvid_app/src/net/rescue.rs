@@ -9,7 +9,7 @@ use corvid_behavior::{PlayerId, State};
 use corvid_net::{Channel, PeerId};
 use corvid_time::Tick;
 
-use crate::net::{Link, TickTraffic, Transfer, halted, seat_of};
+use crate::net::{Link, TickTraffic, Transfer, halted};
 
 impl<S: State> Link<S> {
     /// Answers a peer that says it cannot catch up, with a state.
@@ -117,7 +117,7 @@ impl<S: State> Link<S> {
         transferred
             .into_iter()
             .filter(|(from, _)| {
-                if seat_of(*from) == authority {
+                if self.seat_of(*from) == authority {
                     return true;
                 }
                 tracing::warn!(

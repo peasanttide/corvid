@@ -19,6 +19,8 @@ mod advance;
 mod display;
 mod drive;
 mod plan;
+#[cfg(feature = "net")]
+mod relink;
 mod saves;
 
 pub(crate) use plan::Plan;
@@ -112,6 +114,10 @@ pub(crate) struct Runtime<G: Game, B> {
     progress: Option<Emitter<Progress>>,
     /// How far back the session is kept.
     horizon: Horizon<G::State>,
+    /// How far a linked session may run ahead, kept for a session a lobby
+    /// starts in the middle of the run.
+    #[cfg(feature = "net")]
+    budget: corvid_lockstep::Budget,
     /// What the player has set, as it stands. Compared against what the
     /// controller answers after every displayed frame, and written down when
     /// the two differ.
@@ -248,6 +254,8 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             deadline: plan.deadline,
             progress: plan.progress,
             horizon,
+            #[cfg(feature = "net")]
+            budget: plan.budget,
             settings,
         })
     }

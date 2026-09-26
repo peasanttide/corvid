@@ -148,10 +148,29 @@ where
     RenderConfig<G>: Default,
     AuralizerConfig<G>: Default,
 {
+    main_with::<G, _, _>(std::env::args().skip(1));
+}
+
+/// [`main`], reading `arguments` rather than the process's own.
+///
+/// For a program that is more than one game: it reads its first word itself
+/// -- `edit`, say -- and hands the rest of the command line to the game that
+/// word names. `arguments` is everything after the program name and after
+/// whatever the program took for itself.
+pub fn main_with<G, I, S>(arguments: I)
+where
+    G: Game,
+    ControllerConfig<G>: Default,
+    BotConfig<G>: Default,
+    RenderConfig<G>: Default,
+    AuralizerConfig<G>: Default,
+    I: IntoIterator<Item = S>,
+    S: Into<String>,
+{
     // Before anything, so that a refusal to parse the command line is itself
     // reportable.
     watch();
-    let Some(arguments) = command_line() else {
+    let Some(arguments) = command_line(Arguments::parse(arguments)) else {
         return;
     };
     // Whether the operator asked for a run with no devices, which is the one
@@ -242,8 +261,8 @@ const FAILED: i32 = 1;
 /// `main` is a program, and a program answers a command line it was given.
 /// [`App::launch`] is the library half -- it hands [`Error::Argument`](crate::Error::Argument) back and
 /// writes nothing -- which is what a harness driving a run by hand wants.
-fn command_line() -> Option<Arguments> {
-    match Arguments::from_env() {
+fn command_line(parsed: Result<Arguments, Argument>) -> Option<Arguments> {
+    match parsed {
         Ok(arguments) => Some(arguments),
         Err(Argument::Help) => {
             #[expect(

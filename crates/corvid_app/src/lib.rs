@@ -15,6 +15,10 @@ mod commands;
 mod controls;
 mod game;
 mod headless;
+// Gathering machines into a session: hosting, joining, and finding a host
+// on the local network.
+#[cfg(feature = "net")]
+pub mod lobby;
 // `#[macro_export]` puts what is in here at this crate's root and not under
 // this path, so the module is private and the macros are still `corvid_app::game!`.
 mod macros;
@@ -33,7 +37,7 @@ mod settings;
 mod windowed;
 
 pub use app::{App, Error, Outcome, Progress};
-pub use cli::{Argument, Arguments, Load, main, watch};
+pub use cli::{Argument, Arguments, Load, main, main_with, watch};
 pub use commands::{Answer, Command, Request, Requests};
 #[cfg(feature = "window")]
 pub use controls::Misbound;

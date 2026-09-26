@@ -191,6 +191,10 @@ name = "departures"
 required-features = ["net"]
 
 [[test]]
+name = "lobby"
+required-features = ["net"]
+
+[[test]]
 name = "applied"
 required-features = ["render"]
 

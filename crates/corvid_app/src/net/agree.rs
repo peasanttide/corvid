@@ -8,7 +8,7 @@ use corvid_behavior::{PlayerId, State};
 use corvid_net::PeerId;
 use corvid_time::Tick;
 
-use crate::net::{Control, Link, TickTraffic, halted, seat_of};
+use crate::net::{Control, Link, TickTraffic, halted};
 
 impl<S: State> Link<S> {
     /// Says what this machine thinks about who has left, folds in what everyone
@@ -37,7 +37,7 @@ impl<S: State> Link<S> {
         // beyond what every seat has spoken for -- so an agreement reached on it
         // costs no rollback.
         for peer in gone {
-            let seat = seat_of(*peer);
+            let seat = self.seat_of(*peer);
             let at = self.peer.tick().saturating_add(lead);
             let mine = *self.mine.entry(seat).or_insert(at);
             self.say_all(Control::Departed {

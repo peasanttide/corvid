@@ -112,6 +112,16 @@ impl UdpNet {
         self.socket.local_addr()
     }
 
+    /// Where a peer is, as this socket last heard from it or was told: the
+    /// address it would send that peer a datagram to.
+    ///
+    /// [`None`] for a peer this socket has never been told about or heard
+    /// from. A lobby reads it to tell each machine where the others are.
+    #[must_use]
+    pub fn address(&self, peer: PeerId) -> Option<SocketAddr> {
+        self.lock().peers.get(&peer).map(|known| known.address)
+    }
+
     /// Says where a peer is, and starts greeting it.
     ///
     /// The peer is not in [`peers`](Transport::peers) until it answers, and it
