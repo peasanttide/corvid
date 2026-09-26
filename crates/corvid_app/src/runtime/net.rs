@@ -37,7 +37,7 @@ pub(crate) struct Net<S: State> {
     /// A tick asked for everyone back to the lobby.
     pub(crate) back: bool,
     #[cfg(feature = "net")]
-    lobby: Option<Lobby>,
+    pub(super) lobby: Option<Lobby>,
     #[cfg(feature = "net")]
     browser: Option<Browser>,
     /// The opening this machine played alone before it linked, to go back
@@ -107,6 +107,10 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 if let Play::Linked(link) = &mut self.play {
                     for (from, frame) in link.lobby_frames() {
                         lobby.hear(from, frame.as_deref());
+                    }
+                    // Whoever the lobby let in since is who plays that seat.
+                    for member in lobby.members() {
+                        link.admit(member.peer, member.seat);
                     }
                 }
             }

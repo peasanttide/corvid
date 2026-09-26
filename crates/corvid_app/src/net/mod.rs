@@ -18,6 +18,7 @@ use corvid_replay::Session;
 use corvid_time::Tick;
 
 mod agree;
+mod join;
 mod play;
 mod rescue;
 mod tell;
@@ -89,6 +90,17 @@ pub(crate) struct Link<S: State> {
     /// Which machine plays which seat, as a lobby arranged it; [`None`] for
     /// a link two command lines set up, where [`seat_of`] is the arithmetic.
     seats: Option<BTreeMap<PeerId, PlayerId>>,
+    /// The seats this machine plays besides its own, with the game's bot.
+    bots: Vec<PlayerId>,
+    /// Seats this machine played and has handed to a machine that joined,
+    /// with the tick the joiner speaks from; kept until every seat is past
+    /// it, because until then somebody may still need the rows before it.
+    handing: BTreeMap<PlayerId, Tick>,
+    /// On a machine joining a session in progress, before its state
+    /// arrives: how many ticks it has waited.
+    waiting: Option<u32>,
+    /// On a machine that joined: the tick its seat is its own from.
+    starts: Option<Tick>,
 }
 
 impl<S: State> Link<S> {
@@ -127,6 +139,10 @@ impl<S: State> Link<S> {
             mine: BTreeMap::new(),
             heard_head: Tick::ZERO,
             seats: None,
+            bots: Vec::new(),
+            handing: BTreeMap::new(),
+            waiting: None,
+            starts: None,
         }
     }
 

@@ -196,7 +196,7 @@ impl Controller<Sum> for Lobbyist {
             Stage::Alone => {}
             Stage::Gathering => {
                 let unready = net.members.iter().any(|m| m.me && !m.ready);
-                if script.host && net.can_start && self.matches < 2 {
+                if script.host && net.can_start && net.members.len() == 2 && self.matches < 2 {
                     updating.requests.push(NetRequest::Start);
                 } else if !script.host && unready && net.members.len() == 2 {
                     updating.requests.push(NetRequest::Ready(true));

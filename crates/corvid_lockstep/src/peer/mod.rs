@@ -62,6 +62,9 @@ pub struct Peer<S: State> {
     /// The row a tick is simulated against, kept so that one buffer serves
     /// every tick.
     row: Vec<S::Action>,
+    /// The seats this machine plays besides its own: a bot's, submitted
+    /// with [`submit_for`](Self::submit_for).
+    pub extra: Vec<PlayerId>,
     /// The newest tick each seat has said it has every action for, which is the
     /// acknowledgement its datagrams carry.
     ///
@@ -137,6 +140,7 @@ impl<S: State> Peer<S> {
             agreed_marks: tick,
             blamed: seat,
             row: Vec::new(),
+            extra: Vec::new(),
             heard: alloc::vec![None::<Tick>; seats],
             reached: tick,
             session,

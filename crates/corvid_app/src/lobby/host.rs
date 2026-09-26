@@ -39,6 +39,10 @@ impl Lobby {
         if changed {
             self.tell_room();
         }
+        // After the room, so a machine let in knows everyone when it starts.
+        for (to, joining) in std::mem::take(&mut self.joining) {
+            self.say(to, &joining);
+        }
         let open = self
             .seats
             .saturating_sub(u16::try_from(self.members.len()).unwrap_or(u16::MAX));
@@ -71,9 +75,17 @@ impl Lobby {
         } else {
             None
         };
+        // While a session is played, only a seat the bot plays is free: one
+        // whose machine left is gone from the session for good.
+        let linked = self.stage == super::Stage::Linked;
         let free = (0..self.seats)
             .map(PlayerId)
+            .filter(|seat| !linked || self.open.contains(seat))
             .find(|seat| self.members.iter().all(|m| m.seat != *seat));
+        let why = why.or_else(|| {
+            (linked && self.terms.is_none())
+                .then(|| "the game is starting; try again in a moment".to_string())
+        });
         match (why, free) {
             (Some(why), _) => {
                 self.say(from, &Say::Refused { why });
@@ -90,9 +102,19 @@ impl Lobby {
                     peer: from,
                     name: name.to_string(),
                     seat,
-                    ready: false,
+                    ready: linked,
                     address,
                 });
+                if let Some(terms) = self.terms.clone().filter(|_| linked) {
+                    self.open.retain(|open| *open != seat);
+                    self.joining.push((
+                        from,
+                        Say::Joining {
+                            terms,
+                            seat: seat.0,
+                        },
+                    ));
+                }
                 true
             }
         }

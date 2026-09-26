@@ -145,6 +145,9 @@ pub(super) struct Transfer<S: State> {
     /// Every change the session's level has been through, so the machine
     /// taking the state plays on the same level.
     pub(super) changes: corvid_replay::Changes<corvid_behavior::LevelEdit<S>>,
+    /// For a machine joining a seat the sender's bot was playing: the tick
+    /// the seat is the joiner's from.
+    pub(super) handover: Option<Tick>,
 }
 
 /// Who has proposed what about which seat leaving, and what has been agreed.

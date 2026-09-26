@@ -21,15 +21,17 @@ use std::sync::Arc;
 use std::vec::Vec;
 
 use corvid_behavior::PlayerId;
-use corvid_net::{Channel, Delivery, PeerId, Transport};
+use corvid_net::{Channel, Delivery, PeerId, Transport as _};
 use corvid_net_udp::UdpNet;
 
 mod beacon;
 mod guest;
 mod host;
 mod say;
+mod shared;
 
 pub(crate) use beacon::Browser;
+pub(crate) use shared::{Shared, announce};
 
 use beacon::Shouter;
 use say::Say;
@@ -79,37 +81,12 @@ pub(crate) struct Started {
     pub(crate) terms: Option<Vec<u8>>,
     /// Who the host sends the terms to. Empty on a guest.
     pub(crate) guests: Vec<PeerId>,
-}
-
-/// The lobby's socket, as the transport a session's link plays over.
-#[derive(Debug)]
-pub(crate) struct Shared(pub(crate) Arc<UdpNet>);
-
-impl Transport for Shared {
-    fn send_datagram(&self, to: PeerId, bytes: &[u8]) -> Result<(), corvid_net::SendError> {
-        self.0.send_datagram(to, bytes)
-    }
-
-    fn send_stream(
-        &self,
-        to: PeerId,
-        channel: Channel,
-        bytes: &[u8],
-    ) -> Result<(), corvid_net::SendError> {
-        self.0.send_stream(to, channel, bytes)
-    }
-
-    fn poll(&self, sink: &mut dyn FnMut(PeerId, Delivery<'_>)) {
-        self.0.poll(sink);
-    }
-
-    fn peers(&self) -> corvid_net::PeerSet {
-        self.0.peers()
-    }
-
-    fn datagram_limit(&self) -> usize {
-        self.0.datagram_limit()
-    }
+    /// The seats nobody took, which the host plays with the game's bot.
+    /// Empty on a guest.
+    pub(crate) bots: Vec<PlayerId>,
+    /// Whether this machine joins a session already being played, and so
+    /// waits for a state before it plays.
+    pub(crate) joining: bool,
 }
 
 /// A lobby, hosted here or joined.
@@ -129,6 +106,15 @@ pub(crate) struct Lobby {
     shouter: Option<Shouter>,
     /// Whether a guest has said hello yet.
     greeted: bool,
+    /// On a host while linked: the terms its session started on, for a
+    /// machine that joins it in progress.
+    terms: Option<Vec<u8>>,
+    /// On a host while linked: the seats its bot plays, which a machine can
+    /// join.
+    open: Vec<PlayerId>,
+    /// Machines let into the session in progress, to be told so once the
+    /// room has been.
+    joining: Vec<(PeerId, Say)>,
 }
 
 /// A peer number for a guest: anything but nobody and the host, and unlikely
@@ -169,6 +155,9 @@ impl Lobby {
             stage: Stage::Gathering,
             shouter: Shouter::new().ok(),
             greeted: true,
+            terms: None,
+            open: Vec::new(),
+            joining: Vec::new(),
         })
     }
 
@@ -192,6 +181,9 @@ impl Lobby {
             stage: Stage::Gathering,
             shouter: None,
             greeted: false,
+            terms: None,
+            open: Vec::new(),
+            joining: Vec::new(),
         })
     }
 
@@ -231,13 +223,11 @@ impl Lobby {
         &self.stage
     }
 
-    /// Whether the host could start now: every seat taken and every guest
-    /// ready.
+    /// Whether the host could start now: every guest ready. A seat nobody
+    /// took is played by the host's bot, and a machine can join it later.
     #[must_use]
     pub(crate) fn can_start(&self) -> bool {
-        self.stage == Stage::Gathering
-            && self.members.len() == usize::from(self.seats)
-            && self.members.iter().all(|m| m.ready)
+        self.stage == Stage::Gathering && self.members.iter().all(|m| m.ready)
     }
 
     /// Says whether this guest is ready. Nothing on the host.
@@ -262,15 +252,27 @@ impl Lobby {
             .filter(|m| m.peer != HOST)
             .map(|m| m.peer)
             .collect();
+        self.open = (0..self.seats)
+            .map(PlayerId)
+            .filter(|seat| self.members.iter().all(|m| m.seat != *seat))
+            .collect();
         self.began = Some(Started {
             seat: PlayerId(0),
             seats: self.seat_map(),
             width: self.seats,
             terms: None,
             guests,
+            bots: self.open.clone(),
+            joining: false,
         });
         self.stage = Stage::Linked;
         true
+    }
+
+    /// Keeps the terms a host's session started on, for a machine that
+    /// joins it in progress.
+    pub(crate) fn keep_terms(&mut self, terms: Vec<u8>) {
+        self.terms = Some(terms);
     }
 
     /// A session this lobby started, for the loop to play; once.
@@ -288,6 +290,8 @@ impl Lobby {
     pub(crate) fn back(&mut self) {
         self.stage = Stage::Gathering;
         self.began = None;
+        self.terms = None;
+        self.open.clear();
         for member in &mut self.members {
             member.ready = member.peer == HOST;
         }
@@ -374,19 +378,6 @@ impl Lobby {
             && let Err(why) = self.net.send_stream(to, Channel::Opening, &bytes)
         {
             tracing::warn!(name: "corvid_app.lobby_unsent", peer = %to, %why, "a lobby frame was not sent");
-        }
-    }
-}
-
-/// Sends every guest the terms of the opening a host is starting from.
-pub(crate) fn announce(transport: &dyn Transport, guests: &[PeerId], terms: Vec<u8>) {
-    let Ok(bytes) = corvid_wire::encode(&Say::Start { terms }) else {
-        tracing::error!(name: "corvid_app.lobby_unencoded", "the terms could not be encoded, so no guest can start");
-        return;
-    };
-    for guest in guests {
-        if let Err(why) = transport.send_stream(*guest, Channel::Opening, &bytes) {
-            tracing::error!(name: "corvid_app.lobby_unstarted", peer = %guest, %why, "a guest was not sent the terms");
         }
     }
 }

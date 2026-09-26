@@ -31,7 +31,8 @@ impl Lobby {
             match said {
                 Say::Room { members, seats } => self.mirror(members, seats),
                 Say::Refused { why } => self.stage = Stage::Refused(why),
-                Say::Start { terms } => self.started(terms),
+                Say::Start { terms } => self.started(terms, None),
+                Say::Joining { terms, seat } => self.started(terms, Some(PlayerId(seat))),
                 Say::Leave => self.stage = Stage::Closed,
                 _ => {}
             }
@@ -68,18 +69,23 @@ impl Lobby {
         }
     }
 
-    fn started(&mut self, terms: Vec<u8>) {
-        let seat = self
-            .members
-            .iter()
-            .find(|m| m.peer == self.me)
-            .map_or(PlayerId(0), |m| m.seat);
+    /// The host started, or let this machine into a session already being
+    /// played in `joining`'s seat.
+    fn started(&mut self, terms: Vec<u8>, joining: Option<PlayerId>) {
+        let seat = joining.unwrap_or_else(|| {
+            self.members
+                .iter()
+                .find(|m| m.peer == self.me)
+                .map_or(PlayerId(0), |m| m.seat)
+        });
         self.began = Some(Started {
             seat,
             seats: self.seat_map(),
             width: self.seats,
             terms: Some(terms),
             guests: Vec::new(),
+            bots: Vec::new(),
+            joining: joining.is_some(),
         });
         self.stage = Stage::Linked;
     }

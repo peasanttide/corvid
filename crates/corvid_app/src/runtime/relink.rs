@@ -97,47 +97,20 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 schema: Digest::from_u64(terms.schema),
             }
         } else {
-            let opening = Opening {
-                level: here.level.clone(),
-                content: Arc::clone(session.levels.current()),
-                rules: Arc::clone(&here.rules),
-                roster: (0..started.width)
-                    .map(|seat| Profile {
-                        account: ProfileId(u64::from(seat) + 1),
-                        joined: Tick::ZERO,
-                        left: None,
-                    })
-                    .collect(),
-                seed: here.seed,
-                first: Tick::ZERO,
-                origin: None,
-                schema: here.schema,
-            };
-            let terms = Terms::<G::State> {
-                level: opening.level.clone(),
-                rules: <G::State as State>::Rules::clone(&opening.rules),
-                roster: opening.roster.clone(),
-                seed: opening.seed,
-                schema: opening.schema.to_u64(),
-                content: corvid_hash::digest(&**origin).to_u64(),
-                changes: session.levels.changes().clone(),
-            };
-            match corvid_wire::encode(&terms) {
-                Ok(bytes) => announce(&*socket, &started.guests, bytes),
-                Err(why) => tracing::error!(
-                    name: "corvid_app.lobby_unencoded",
-                    %why,
-                    "this machine's terms could not be encoded, so no guest can start",
-                ),
-            }
-            opening
+            self.host_opening(&started, &socket)
         };
         let session = Session::new(opening).map_err(Error::Shape)?;
         let at = session.first();
         let origin = session.opening.origin();
         let transport = Box::new(Shared(socket));
         let link = crate::net::Link::new(session, started.seat, self.budget, transport)
-            .seated(started.seats);
+            .seated(started.seats)
+            .with_bots(started.bots);
+        let link = if started.joining {
+            link.joining()
+        } else {
+            link
+        };
         tracing::info!(
             name: "corvid_app.lobby_started",
             seat = started.seat.0,
@@ -155,5 +128,57 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             *kept = None;
         }
         Ok(())
+    }
+
+    /// The opening a host starts its lobby's session on: the level this
+    /// machine has come to, a seat for everyone. Its terms go to every guest
+    /// and are kept for a machine that joins later.
+    fn host_opening(
+        &mut self,
+        started: &Started,
+        socket: &corvid_net_udp::UdpNet,
+    ) -> Opening<G::State> {
+        let session = self.play.session();
+        let here = &session.opening;
+        let origin = session.levels.origin();
+        let opening = Opening {
+            level: here.level.clone(),
+            content: Arc::clone(session.levels.current()),
+            rules: Arc::clone(&here.rules),
+            roster: (0..started.width)
+                .map(|seat| Profile {
+                    account: ProfileId(u64::from(seat) + 1),
+                    joined: Tick::ZERO,
+                    left: None,
+                })
+                .collect(),
+            seed: here.seed,
+            first: Tick::ZERO,
+            origin: None,
+            schema: here.schema,
+        };
+        let terms = Terms::<G::State> {
+            level: opening.level.clone(),
+            rules: <G::State as State>::Rules::clone(&opening.rules),
+            roster: opening.roster.clone(),
+            seed: opening.seed,
+            schema: opening.schema.to_u64(),
+            content: corvid_hash::digest(&**origin).to_u64(),
+            changes: session.levels.changes().clone(),
+        };
+        match corvid_wire::encode(&terms) {
+            Ok(bytes) => {
+                if let Some(lobby) = self.net.lobby.as_mut() {
+                    lobby.keep_terms(bytes.clone());
+                }
+                announce(socket, &started.guests, bytes);
+            }
+            Err(why) => tracing::error!(
+                name: "corvid_app.lobby_unencoded",
+                %why,
+                "this machine's terms could not be encoded, so no guest can start",
+            ),
+        }
+        opening
     }
 }

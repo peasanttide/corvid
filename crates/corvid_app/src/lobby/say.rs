@@ -48,6 +48,15 @@ pub(super) enum Say {
         /// the schema, as the loop encodes them.
         terms: Vec<u8>,
     },
+    /// The host letting a guest into a session already being played, in a
+    /// seat its bot was playing: the terms the session started on. The
+    /// guest opens them and asks the session for a state.
+    Joining {
+        /// As [`Start`](Self::Start) sent them.
+        terms: Vec<u8>,
+        /// The seat it takes over.
+        seat: u16,
+    },
 }
 
 /// One member, as the host describes it to everyone.

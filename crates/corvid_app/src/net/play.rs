@@ -68,9 +68,15 @@ impl<S: State> Link<S> {
     /// it is counted and dropped, because a socket carries whatever is sent to
     /// it and a run that stopped on the first stray byte would be a run
     /// anybody could stop.
+    ///
+    /// `bots` are the game's bot's actions for the seats this machine plays
+    /// besides its own ([`bots`](Self::bots)); a machine that joined plays
+    /// nothing until its state arrives, and its own seat from the tick it was
+    /// handed.
     pub(crate) fn play(
         &mut self,
         action: Option<S::Action>,
+        bots: Vec<(corvid_behavior::PlayerId, S::Action)>,
         command: &mut impl corvid_behavior::Command<corvid_behavior::LevelEdit<S>>,
     ) -> Result<(), crate::Error> {
         let mut traffic = TickTraffic::default();
@@ -78,9 +84,23 @@ impl<S: State> Link<S> {
         // This machine's own intent, for `now + Budget::delay`. It goes in
         // before the sending below, so the datagram this tick puts on the wire
         // already carries it.
-        if let Some(action) = action {
+        if self.is_waiting() {
+            self.ask_to_join();
+            self.collect(&mut traffic)?;
+            self.traffic = traffic;
+            self.totals.fold(traffic);
+            return Ok(());
+        }
+        let at = self
+            .peer
+            .tick()
+            .saturating_add(u64::from(self.peer.budget.delay));
+        if let Some(action) = action
+            && self.speaks_at(at)
+        {
             self.peer.submit(action).map_err(refused)?;
         }
+        self.submit_bots(bots)?;
 
         self.collect(&mut traffic)?;
 
@@ -222,12 +242,21 @@ impl<S: State> Link<S> {
         if let Some(transfer) = self.solicited(transferred) {
             self.rescue(transfer, traffic)?;
         }
+        self.fold(traffic)
+    }
 
+    /// Folds in every datagram [`collect`](Self::collect) copied out.
+    fn fold(&mut self, traffic: &mut TickTraffic) -> Result<(), crate::Error> {
         // Out of `self` for the loop, and back at the end: folding a datagram
         // in takes `&mut self.peer`, and the buffer it is being read out of is
         // a field of the same struct. What the round trip preserves is the
         // outer allocation, which is the one made once per run.
         let mut inbox = std::mem::take(&mut self.inbox);
+        // A machine waiting to join holds the opening, and a window of rows
+        // from the middle of the session says nothing it could use.
+        if self.is_waiting() {
+            inbox.clear();
+        }
         for bytes in &inbox {
             let datagram: Datagram<S::Action> = match corvid_wire::decode(bytes) {
                 Ok(datagram) => datagram,

@@ -242,6 +242,25 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         action: Option<<G::State as State>::Action>,
     ) -> Result<Vec<Command>, Error> {
         let was = self.at;
+        // The seats the link plays with the game's bot, asked here because
+        // asking reads the whole runtime and the link is about to be borrowed.
+        let seats = match &self.play {
+            Play::Linked(link) => link.bots().to_vec(),
+            Play::Local(_) => Vec::new(),
+        };
+        let bots = seats
+            .into_iter()
+            .map(|seat| {
+                let action = self.bot.action(Acting {
+                    state: &self.current,
+                    level: self.play.session().levels.at(was),
+                    input: self.acting(),
+                    time: self.now(),
+                    seat,
+                });
+                (seat, action)
+            })
+            .collect();
         let Play::Linked(link) = &mut self.play else {
             // Reached only if this were called on a local run, which the one
             // call site's `match` rules out. Answering "nothing happened" is
@@ -255,7 +274,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         // first time -- a rollback's re-simulation reaches nothing, which is
         // `Peer::advance`'s rule rather than this loop's.
         let mut asked = crate::commands::Asked::default();
-        link.play(action, &mut asked)?;
+        link.play(action, bots, &mut asked)?;
 
         let now = link.tick();
         let corrected = link.traffic().rolled.happened();
