@@ -190,6 +190,7 @@ impl<G: Game> Backend<G> for Screen<G> {
             time,
             alpha,
             audio,
+            last,
         } = frame;
         // Heard before it is drawn, because the mixer runs on a thread the
         // operating system owns and the sooner a note is queued the sooner it
@@ -243,6 +244,13 @@ impl<G: Game> Backend<G> for Screen<G> {
         let Some(capture) = self.capture.as_ref() else {
             return Ok(());
         };
+        // Asked before the read-back rather than before the write: the
+        // read-back waits on the device and the encode after it is the cost a
+        // frame the capture does not keep is spared. The frame above was still
+        // drawn and submitted, so what the device did is the same either way.
+        if !capture.wants(at, last) {
+            return Ok(());
+        }
         // `read_back` answers `NotOffscreen` on a windowed run, which is not a
         // failure: a presented frame belongs to the compositor, and the rest of
         // the capture is still written.

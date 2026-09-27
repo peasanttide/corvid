@@ -27,7 +27,14 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// `dt` is the same interval the [`Step`] was advanced by, which is the
     /// only wall-clock quantity either half of a game ever sees and is the one
     /// [`look`](corvid_control::Controller::look) is specified to take.
-    pub(super) fn display(&mut self, alpha: Factor16, dt: Duration) -> Result<(), Error> {
+    /// `last` is whether the run stops after this frame, which a capture keeping
+    /// only the frame a run ends on is told through the [`Frame`].
+    pub(super) fn display(
+        &mut self,
+        alpha: Factor16,
+        dt: Duration,
+        last: bool,
+    ) -> Result<(), Error> {
         // Three views of one instant, so one frame is built and cloned twice
         // rather than three being built from the same fields. A clone is four
         // atomic increments and no copy of a state, which is what a `Frame` of
@@ -81,6 +88,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 time,
                 alpha,
                 audio: &self.audio,
+                last,
             },
             self.graphics.as_mut(),
             self.controller.view(),

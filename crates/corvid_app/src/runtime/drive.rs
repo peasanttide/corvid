@@ -26,7 +26,8 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// elapsed time into a whole number of owed ticks, each of those runs, and
     /// then exactly one frame is displayed -- including on the iteration the run
     /// stops on, so the last tick a capture holds a state for is also the last
-    /// tick it holds a frame for.
+    /// tick it holds a frame for. That frame is the one flagged last, since the
+    /// ticks that said stop have run before it is displayed.
     pub(crate) fn drive(
         mut self,
         mut clock: Box<dyn Elapsed>,
@@ -100,7 +101,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             self.spend();
         }
 
-        self.display(alpha, elapsed)?;
+        self.display(alpha, elapsed, stopped.is_some())?;
         Ok(stopped)
     }
 

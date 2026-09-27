@@ -86,6 +86,9 @@ pub(crate) struct Frame<'a> {
     pub(crate) alpha: Factor16,
     /// What to hear.
     pub(crate) audio: &'a AudioFrame,
+    /// Whether the run stops after this frame. The loop knows before it
+    /// displays one: the ticks it owed have run, and one of them said stop.
+    pub(crate) last: bool,
 }
 
 /// Somewhere a displayed frame goes.

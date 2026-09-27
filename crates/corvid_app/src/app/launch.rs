@@ -242,7 +242,12 @@ where
             .take(usize::from(self.bots))
             .collect();
 
-        let capture = self.capture.take().map(Capture::open).transpose()?;
+        let frames = core::mem::take(&mut self.frames);
+        let capture = self
+            .capture
+            .take()
+            .map(|root| Capture::open(root, frames))
+            .transpose()?;
         let record = self.record.take();
 
         // Counted from where the run opened, which is the opening's first tick

@@ -37,6 +37,7 @@ mod settings;
 mod windowed;
 
 pub use app::{App, Error, Outcome, Progress};
+pub use capture::Frames;
 pub use cli::{Argument, Arguments, Load, main, main_with, watch};
 pub use commands::{Answer, Command, Request, Requests};
 #[cfg(feature = "window")]

@@ -13,7 +13,7 @@ use corvid_signal::Emitter;
 use corvid_time::{Elapsed, Tick, TickSpan, Ticks};
 
 use crate::{
-    Arguments, Retention,
+    Arguments, Frames, Retention,
     game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig},
     saves::StateAt,
     seating::Seating,
@@ -149,6 +149,9 @@ pub struct App<G: Game> {
     /// a player. See [`inputs`](Self::inputs).
     /// Where to write the run down, if anywhere.
     capture: Option<PathBuf>,
+    /// Which displayed frames the capture writes down. See
+    /// [`capture_frames`](Self::capture_frames).
+    frames: Frames,
     /// Where to write the session by itself, if anywhere. See
     /// [`record`](Self::record).
     record: Option<PathBuf>,
@@ -229,6 +232,7 @@ where
             budget: corvid_lockstep::Budget::DEFAULT,
             input: Input::new(&[]),
             capture: None,
+            frames: Frames::Every,
             record: None,
             retention: None,
             arguments: None,

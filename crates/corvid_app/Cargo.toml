@@ -238,6 +238,10 @@ required-features = ["render"]
 name = "windowless"
 required-features = ["render"]
 
+[[test]]
+name = "selected"
+required-features = ["render"]
+
 [lints]
 workspace = true
 

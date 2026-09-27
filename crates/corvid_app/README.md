@@ -150,7 +150,8 @@ assert_eq!(replayed, run.state);
 One iteration is one reading of the clock. The [`Step`] turns the elapsed time
 into a whole number of owed ticks, each of those runs, and then exactly one
 frame is displayed -- including on the iteration the run stops on, so the last
-tick a capture holds a state for is also the last tick it holds a frame for.
+tick a capture holds a state for is also the last tick it holds a frame for, and
+the one frame a [`Frames::Last`] capture keeps.
 
 Before any of it, the loop asks the game two questions the view answers.
 [`Controller::simulating`] decides whether the step is advanced at all: `false` is
@@ -230,8 +231,8 @@ drew.
 
 | Path | What |
 |---|---|
-| `frames/<tick>.png` | the frame a device drew, read back -- **offscreen runs only** |
-| `audio/<tick>` | the [`AudioFrame`] `hear` produced for that tick |
+| `frames/<tick>.png` | the frame a device drew, read back -- **offscreen runs only** -- for each displayed frame [`App::capture_frames`] keeps, which is every one by default |
+| `audio/<tick>` | the [`AudioFrame`] `hear` produced for that tick, for the same frames |
 | `trace` | the [`HashTrace`]: one digest per tick |
 | `session` | the whole [`Session`], which is what a replay needs |
 
@@ -239,6 +240,13 @@ The trace is in the session as well, and it is written twice on purpose:
 diffing one build's marks against another's is the common operation and it
 should not mean decoding a whole session -- which carries the level, the rules
 and the opening state -- to reach a column of digests.
+
+The frames a capture keeps are chosen before anything is read back, because the
+read-back is what an offscreen run pays for: it waits on the device and encodes a
+PNG. A [`Frames::Last`] capture holds one row in each directory, named for the
+tick the run stopped at, and a [`Frames::At`] capture holds the ticks it listed
+that the run displayed. Every frame is still drawn either way, and the trace and
+the session are always whole.
 
 [`App::record`] writes the last of those four and nothing else: the same bytes
 as `session`, at a path of its own rather than in a directory. That is what
