@@ -66,7 +66,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         let level = Arc::clone(self.play.session().levels.at(self.at));
         let extracting = Extracting {
             state: &*state,
-            level: &*level,
+            level: &level,
             time,
             player: Some(self.seating.watched()),
         };
