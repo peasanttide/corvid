@@ -1,6 +1,7 @@
 //! What a player is doing, where they are looking, and what their pad feels.
 
 use core::time::Duration;
+use std::sync::Arc;
 
 use corvid_behavior::{Data, Loading, PlayerId, RumbleId, State};
 use corvid_camera::Camera;
@@ -64,7 +65,13 @@ pub struct Updating<'a, S: State> {
     pub state: &'a S,
     /// The level the session is played on, so an interface can name what the
     /// state only numbers.
-    pub level: &'a S::Level,
+    ///
+    /// By the handle the session holds it by, as
+    /// [`Extracting`](corvid_behavior::Extracting) hands it to a device: an
+    /// interface that works something out from the level -- whether a map
+    /// differs from the one saved -- keeps the handle and works it out again
+    /// when [`Arc::ptr_eq`] says the level moved, not every frame.
+    pub level: &'a Arc<S::Level>,
     /// What the devices say.
     pub input: &'a Input,
     /// How far along this machine's bytes are, while a level is being read.

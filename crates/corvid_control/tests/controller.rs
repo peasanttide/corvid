@@ -7,6 +7,7 @@
 //! The split between the one method that writes and the three that read.
 
 use core::{convert::Infallible, time::Duration};
+use std::sync::Arc;
 
 use corvid_behavior::{Level, PlayerId, State};
 use corvid_camera::Camera;
@@ -97,7 +98,7 @@ impl Controller<Walk> for Hands {
 fn frame(hands: &mut Hands, millis: u64) {
     hands.update(Updating {
         state: &Walk,
-        level: &Field,
+        level: &Arc::new(Field),
         input: &Input::new(&[]),
         loading: None,
         time: Time::default(),
@@ -186,7 +187,7 @@ fn the_unit_controller_is_not_real_and_answers_the_idle_action() {
         &mut nobody,
         Updating {
             state: &Walk,
-            level: &Field,
+            level: &Arc::new(Field),
             input: &Input::new(&[]),
             loading: None,
             time: Time::default(),
