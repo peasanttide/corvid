@@ -87,6 +87,9 @@ pub(crate) const fn key(code: KeyCode) -> Option<Key> {
         KeyCode::Slash => Key::Slash,
         KeyCode::Minus => Key::Minus,
         KeyCode::Equal => Key::Equal,
+        KeyCode::BracketLeft => Key::BracketLeft,
+        KeyCode::BracketRight => Key::BracketRight,
+        KeyCode::Backquote => Key::Backquote,
         _ => return None,
     })
 }
@@ -199,6 +202,9 @@ mod tests {
         KeyCode::Slash,
         KeyCode::Minus,
         KeyCode::Equal,
+        KeyCode::BracketLeft,
+        KeyCode::BracketRight,
+        KeyCode::Backquote,
     ];
 
     #[test]
