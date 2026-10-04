@@ -11,7 +11,10 @@
 //! its level, not the level itself: every machine in a session loads the
 //! same level from its own disk, and a level is far bigger than a lobby
 //! frame. A guest whose own level does not match the digest says so and
-//! plays on alone rather than joining a session it would desync.
+//! plays on alone rather than joining a session it would desync. A guest
+//! built with another schema than the host's -- another build, whose
+//! types or pace differ -- leaves the lobby, telling the host, and is told
+//! why (`OTHER_BUILD`).
 
 use std::string::String;
 use std::sync::Arc;
@@ -28,6 +31,9 @@ use crate::lobby::{Shared, Started, announce};
 use crate::{Error, backend::Backend, game::Game, seating::Seating};
 
 use super::{Horizon, Play, Runtime};
+
+/// Why a guest turns down a host built with another schema.
+const OTHER_BUILD: &str = "that lobby runs a different build";
 
 /// What a host sends its guests to open the session on.
 #[derive(Serialize, Deserialize)]
@@ -57,7 +63,6 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         started: Started,
         socket: Arc<corvid_net_udp::UdpNet>,
     ) -> Result<(), Error> {
-        self.remember_home();
         let session = self.play.session();
         let here = &session.opening;
         let origin = session.levels.origin();
@@ -73,6 +78,18 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                     return Ok(());
                 }
             };
+            if terms.schema != here.schema.to_u64() {
+                tracing::error!(
+                    name: "corvid_app.lobby_other_build",
+                    host = terms.schema,
+                    here = here.schema.to_u64(),
+                    "the host runs a build with another schema, so this machine leaves its lobby",
+                );
+                if let Some(lobby) = self.net.lobby.as_mut() {
+                    lobby.refuse(OTHER_BUILD);
+                }
+                return Ok(());
+            }
             let mine = corvid_hash::digest(&**origin);
             if mine.to_u64() != terms.content || terms.level != here.level {
                 tracing::error!(
@@ -99,6 +116,9 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         } else {
             self.host_opening(&started, &socket)
         };
+        // What was played alone is remembered only once a session is to be
+        // played linked, so a guest that turned the host down keeps playing.
+        self.remember_home();
         let session = Session::new(opening).map_err(Error::Shape)?;
         let at = session.first();
         let origin = session.opening.origin();

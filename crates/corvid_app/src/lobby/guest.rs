@@ -1,6 +1,7 @@
 //! A guest's half of a lobby: saying hello once the host answers, keeping
 //! the room as the host describes it, and starting when the host does.
 
+use std::string::ToString;
 use std::vec::Vec;
 
 use corvid_behavior::PlayerId;
@@ -73,6 +74,16 @@ impl Lobby {
                 tracing::warn!(name: "corvid_app.lobby_unreached", peer = %m.peer, %why, "another guest could not be reached");
             }
         }
+    }
+
+    /// Turns down the session the host started, which this machine cannot
+    /// play (it runs another build): tells the host it is going, so the
+    /// host sees it leave, and is refused for `why`, which the runtime
+    /// tells the player as it drops the lobby.
+    pub(crate) fn refuse(&mut self, why: &str) {
+        self.leave();
+        self.began = None;
+        self.stage = Stage::Refused(why.to_string());
     }
 
     /// The host started, or let this machine into a session already being

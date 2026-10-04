@@ -195,6 +195,10 @@ name = "lobby"
 required-features = ["net"]
 
 [[test]]
+name = "builds"
+required-features = ["net"]
+
+[[test]]
 name = "applied"
 required-features = ["render"]
 
