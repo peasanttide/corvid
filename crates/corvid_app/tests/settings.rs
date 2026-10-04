@@ -97,3 +97,40 @@ fn a_document_missing_a_key_keeps_the_keys_it_has() {
     let read: Furnished = serde_json::from_value(document).expect("a file with one key in it");
     assert_eq!(read, written);
 }
+
+#[test]
+fn a_controller_section_this_build_cannot_read_starts_from_its_defaults() {
+    // A file another build of the game wrote: its controller's config had
+    // another shape. The run starts, with the controller at its defaults and
+    // the rest of the file as written, rather than refusing over the one
+    // section that is the game's own and the likeliest to change.
+    let scratch = common::Scratchpad::new("settings-controls");
+    std::fs::create_dir_all(scratch.path()).unwrap();
+    let written = Furnished {
+        controls: Holding {
+            pause_at: Some(Tick(4)),
+            pause_for: 9,
+        },
+        ..Furnished::default()
+    };
+    let mut document = serde_json::to_value(&written).unwrap();
+    let object = document
+        .as_object_mut()
+        .expect("the settings are a JSON object");
+    object.insert(
+        "controls".to_owned(),
+        serde_json::json!({ "pause_for": "lots" }),
+    );
+    std::fs::write(Furnished::path(scratch.path()), document.to_string()).unwrap();
+
+    let read = Furnished::load(scratch.path()).expect("a file whose controls are another build's");
+    assert_eq!(read, Furnished::default());
+
+    // A controller section this build can read is kept as written.
+    written.save(scratch.path()).unwrap();
+    assert_eq!(Furnished::load(scratch.path()).unwrap(), written);
+
+    // A file that is not JSON at all is still refused.
+    std::fs::write(Furnished::path(scratch.path()), "{ not json").unwrap();
+    assert!(Furnished::load(scratch.path()).is_err());
+}
