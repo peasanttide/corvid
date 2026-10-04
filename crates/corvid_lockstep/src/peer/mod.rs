@@ -1,14 +1,16 @@
 //! One machine's whole lockstep state.
 
 mod exchange;
+mod held;
 mod speak;
 mod step;
 mod transfer;
 
+use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::fmt;
 
-use corvid_behavior::{PlayerId, State};
+use corvid_behavior::{LevelEdit, PlayerId, State};
 use corvid_replay::{Session, Snapshots};
 use corvid_time::Tick;
 
@@ -78,13 +80,13 @@ pub struct Peer<S: State> {
     /// the same as one that has acknowledged the opening: the first would want
     /// the opening's own row sent again and the second would not.
     heard: Vec<Option<Tick>>,
-    /// The newest tick this peer has ever simulated to, which is not
-    /// [`tick`](Self::tick) while a rollback is being worked off.
-    ///
-    /// What it decides is which simulation of a tick is the first one, and that
-    /// decides which of them may ask the runtime for anything --
-    /// [`commands`](Self::commands) is where the argument lives.
-    reached: Tick,
+    /// What the ticks not yet final asked the runtime for, by tick: the
+    /// newest simulation of each, handed over once every seat has confirmed
+    /// its row (`held.rs` has the argument).
+    held: BTreeMap<Tick, held::Held<LevelEdit<S>>>,
+    /// The ticks before this one are final and what they asked for has been
+    /// handed over; a re-simulation of one of them asks nothing again.
+    told: Tick,
 }
 
 impl<S: State> Peer<S> {
@@ -142,7 +144,8 @@ impl<S: State> Peer<S> {
             row: Vec::new(),
             extra: Vec::new(),
             heard: alloc::vec![None::<Tick>; seats],
-            reached: tick,
+            held: BTreeMap::new(),
+            told: tick,
             session,
         }
     }

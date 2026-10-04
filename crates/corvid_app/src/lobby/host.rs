@@ -22,8 +22,12 @@ impl Lobby {
                     self.members.retain(|m| m.peer != *from);
                     changed |= self.members.len() != before;
                 }
+                // Only a change is told the room: a guest saying again what
+                // it said is no news.
                 Say::Ready { ready } => {
-                    if let Some(m) = self.members.iter_mut().find(|m| m.peer == *from) {
+                    if let Some(m) = self.members.iter_mut().find(|m| m.peer == *from)
+                        && m.ready != *ready
+                    {
                         m.ready = *ready;
                         changed = true;
                     }

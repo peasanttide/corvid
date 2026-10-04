@@ -183,6 +183,7 @@ impl Controller<Sum> for Lobbyist {
                         port: script.port,
                         seats: 2,
                         name,
+                        local: true,
                     }
                 } else {
                     NetRequest::Join {

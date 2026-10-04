@@ -13,6 +13,7 @@ use corvid_behavior::{PlayerId, State};
 use corvid_hash::Digest;
 use corvid_time::Tick;
 
+use super::held::Held;
 #[cfg(feature = "dev")]
 use crate::Desync;
 use crate::{Halt, Peer, Rolled, predict::row_at, rollback::step};
@@ -49,9 +50,11 @@ impl<S: State> Peer<S> {
         // The ticks from here are played again, and ask again for whatever
         // they change of the level.
         self.session.levels.forget_after(from);
+        // What the replayed ticks asked for is asked again by the replay.
+        drop(self.held.split_off(&from));
 
         while self.tick < target {
-            self.simulate_one(&mut corvid_behavior::Discard::new());
+            self.simulate_one();
         }
 
         if self.resume < was {
@@ -67,29 +70,23 @@ impl<S: State> Peer<S> {
 
     /// One tick forward from wherever this peer is, against the row prediction
     /// makes.
-    pub(super) fn simulate_one(
-        &mut self,
-        command: &mut impl corvid_behavior::Command<corvid_behavior::LevelEdit<S>>,
-    ) {
+    ///
+    /// What the tick asks the runtime for is held, over whatever an earlier
+    /// simulation of it asked, until the tick is final ([`release`](Self::release)).
+    /// A tick already final and handed over asks nothing again: a rollback
+    /// restoring an older snapshot replays some of those.
+    pub(super) fn simulate_one(&mut self) {
         row_at(&self.session.log, &self.frontier, self.tick, &mut self.row);
-        // Whether this is the first time this tick has been simulated, read
-        // before the tick moves. `reached` is the high-water mark rather than
-        // `tick`, because a rollback puts `tick` back and the ticks it replays
-        // are ticks this peer has already been through.
-        let fresh = self.tick >= self.reached;
-        // The rule, as a choice of sink rather than as a `Vec` filtered after
-        // the fact: a tick simulated for the first time may ask the runtime for
-        // things, and a tick being replayed to work off a rollback may not.
-        // A tick that asked to quit, to save, or to rumble a pad asked once.
         let level = Arc::clone(self.session.levels.at(self.tick));
-        let stepped = if fresh {
+        let mut asked = Held::default();
+        let stepped = if self.tick >= self.told {
             step::<S>(
                 &self.session,
                 &level,
                 &self.state,
                 self.tick,
                 &self.row,
-                command,
+                &mut asked,
             )
         } else {
             step::<S>(
@@ -101,6 +98,11 @@ impl<S: State> Peer<S> {
                 &mut corvid_behavior::Discard::new(),
             )
         };
+        if asked.is_empty() {
+            self.held.remove(&self.tick);
+        } else {
+            self.held.insert(self.tick, asked);
+        }
         let mark = corvid_replay::mark(
             &stepped.state,
             stepped.changed.as_ref().map(|(level, _)| &**level),
@@ -110,13 +112,29 @@ impl<S: State> Peer<S> {
         }
         self.state = stepped.state;
         self.tick = self.tick.next();
-        if self.tick > self.reached {
-            self.reached = self.tick;
-        }
         self.session.marks.truncate_from(self.tick);
         self.session.marks.push(mark);
         self.snapshots
             .keep(&self.session.log, self.tick, &self.state);
+    }
+
+    /// Hands `sink` what every final tick asked for, oldest first: the ticks
+    /// this peer has simulated whose rows every seat has confirmed. Each
+    /// tick's requests go once, from its last simulation.
+    pub(super) fn release(
+        &mut self,
+        sink: &mut impl corvid_behavior::Command<corvid_behavior::LevelEdit<S>>,
+    ) {
+        let settled = self.frontier.agreed().min(self.tick);
+        while let Some(entry) = self.held.first_entry() {
+            if *entry.key() >= settled {
+                break;
+            }
+            entry.remove().tell(sink);
+        }
+        if settled > self.told {
+            self.told = settled;
+        }
     }
 
     /// Compares a mark that arrived, when there is anything final to compare it

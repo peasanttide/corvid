@@ -291,13 +291,20 @@ pub(crate) fn udp(
     let Some(other) = 1_u16.checked_sub(seat.0) else {
         return Err(crate::Error::Argument(crate::Argument::Pairing { seat }));
     };
-    let here = ("0.0.0.0", port);
-    let socket =
-        corvid_net_udp::UdpNet::bind(here, peer_of(seat)).map_err(|why| crate::Error::Socket {
+    // On the loopback address when the other machine is this one: two runs
+    // paired on one machine touch no network.
+    let ip = crate::lobby::here_for(peer).map_err(|why| crate::Error::Socket {
+        what: "reach",
+        address: peer.to_owned(),
+        why,
+    })?;
+    let socket = corvid_net_udp::UdpNet::bind((ip, port), peer_of(seat)).map_err(|why| {
+        crate::Error::Socket {
             what: "bind",
-            address: format!("0.0.0.0:{port}"),
+            address: format!("{ip}:{port}"),
             why,
-        })?;
+        }
+    })?;
     socket
         .connect(peer_of(PlayerId(other)), peer)
         .map_err(|why| crate::Error::Socket {

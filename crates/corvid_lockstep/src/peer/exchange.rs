@@ -91,22 +91,23 @@ impl<S: State> Peer<S> {
     ///
     /// [`Halt::Refused`](crate::Halt::Refused) if the log could not be grown to the tick being
     /// simulated.
-    /// # Only a tick's first simulation reaches the sink
+    /// # Only a final tick reaches the sink, once
     ///
     /// A rollback re-simulates ticks this peer has already been through, and a
     /// [`save`](corvid_behavior::Command::save) is a file rather than a value --
     /// so a peer on a link that mispredicts every second tick would write one
-    /// save per correction if the re-simulation reached `command` too. It does
-    /// not: a replayed tick is handed a
-    /// [`Discard`](corvid_behavior::Discard) instead.
+    /// save per correction if every simulation reached `command`. And a tick
+    /// first simulated on a prediction may not be the tick that happened: a
+    /// request made only by a guess never was, and one the guess missed --
+    /// another machine's [`lobby`](corvid_behavior::Command::lobby), on a tick
+    /// this one predicted idle -- is made only by the re-simulation.
     ///
-    /// What that rule costs is worth stating rather than leaving to be found. A
-    /// networked game reaches the same command stream a single-seat one does
-    /// **for the ticks that were never corrected**, and that is the honest form
-    /// of the claim: a command from a tick whose prediction turned out wrong
-    /// was asked for by a state that never happened, and nothing here can unsay
-    /// it. A game whose requests must survive that puts the request in its
-    /// `State` and lets the client read it out of a confirmed tick.
+    /// So what each simulation of a tick asks for is held in place of what the
+    /// one before asked, and `command` hears a tick's requests once every
+    /// seat has confirmed its row, from its last simulation. A networked game
+    /// reaches the same command stream a single-seat one does, tick for tick,
+    /// a little later while it is predicting. They are handed over here,
+    /// stalled or not.
     pub fn advance(
         &mut self,
         command: &mut impl corvid_behavior::Command<corvid_behavior::LevelEdit<S>>,
@@ -116,6 +117,7 @@ impl<S: State> Peer<S> {
             .agreed()
             .saturating_add(u64::from(self.budget.ahead));
         if self.tick >= ceiling {
+            self.release(command);
             return Ok(Advanced {
                 tick: self.tick,
                 predicted_seats: 0,
@@ -124,7 +126,8 @@ impl<S: State> Peer<S> {
         }
 
         let predicted = predict(&mut self.session.log, &self.frontier, self.tick)?;
-        self.simulate_one(command);
+        self.simulate_one();
+        self.release(command);
         if self.tick > self.resume {
             self.resume = self.tick;
         }

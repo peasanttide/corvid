@@ -181,6 +181,7 @@ impl Controller<Seats> for Player {
                         port: PORT,
                         seats: 2,
                         name: "host".to_owned(),
+                        local: true,
                     }
                 } else {
                     NetRequest::Join {

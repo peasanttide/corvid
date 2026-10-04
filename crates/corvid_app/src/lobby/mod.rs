@@ -15,7 +15,7 @@
 
 use std::collections::BTreeMap;
 use std::io;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::string::{String, ToString};
 use std::sync::Arc;
 use std::vec::Vec;
@@ -25,6 +25,7 @@ use corvid_net::{Channel, Delivery, PeerId, Transport as _};
 use corvid_net_udp::UdpNet;
 
 mod beacon;
+mod bind;
 mod guest;
 mod host;
 mod say;
@@ -34,6 +35,8 @@ pub(crate) use beacon::Browser;
 pub(crate) use shared::{Shared, announce};
 
 use beacon::Shouter;
+use bind::guest_id;
+pub(crate) use bind::here_for;
 use say::Say;
 
 /// The peer a host always is.
@@ -106,6 +109,9 @@ pub(crate) struct Lobby {
     shouter: Option<Shouter>,
     /// Whether a guest has said hello yet.
     greeted: bool,
+    /// On a guest: the readiness it last told the host, until a room says
+    /// otherwise; asked again, it says nothing (see `set_ready`).
+    told: Option<bool>,
     /// On a host while linked: the terms its session started on, for a
     /// machine that joins it in progress.
     terms: Option<Vec<u8>>,
@@ -117,26 +123,28 @@ pub(crate) struct Lobby {
     joining: Vec<(PeerId, Say)>,
 }
 
-/// A peer number for a guest: anything but nobody and the host, and unlikely
-/// to be another guest's.
-fn guest_id() -> PeerId {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.subsec_nanos());
-    let mixed = nanos ^ std::process::id().rotate_left(16);
-    let low = u16::try_from(mixed % 65_000).unwrap_or(0);
-    PeerId(low.saturating_add(2))
-}
-
 impl Lobby {
     /// Hosts a lobby for `game` on `port` -- 0 for any free one -- with
-    /// `seats` seats, the first of them this machine's.
+    /// `seats` seats, the first of them this machine's. A `local` lobby is
+    /// bound to the loopback address and shouts nothing: only this machine
+    /// can join it, and it touches no network.
     ///
     /// # Errors
     ///
     /// Whatever binding the port says.
-    pub(crate) fn host(port: u16, name: &str, game: &str, seats: u16) -> io::Result<Self> {
-        let net = UdpNet::bind(("0.0.0.0", port), HOST)?;
+    pub(crate) fn host(
+        port: u16,
+        name: &str,
+        game: &str,
+        seats: u16,
+        local: bool,
+    ) -> io::Result<Self> {
+        let at = if local {
+            Ipv4Addr::LOCALHOST
+        } else {
+            Ipv4Addr::UNSPECIFIED
+        };
+        let net = UdpNet::bind((at, port), HOST)?;
         let host = Member {
             peer: HOST,
             name: name.to_string(),
@@ -153,22 +161,25 @@ impl Lobby {
             seats: seats.max(1),
             members: std::vec![host],
             stage: Stage::Gathering,
-            shouter: Shouter::new().ok(),
+            shouter: if local { None } else { Shouter::new().ok() },
             greeted: true,
+            told: None,
             terms: None,
             open: Vec::new(),
             joining: Vec::new(),
         })
     }
 
-    /// Joins the lobby at `address`, as `HOST:PORT`.
+    /// Joins the lobby at `address`, as `HOST:PORT`: from the loopback
+    /// address when it is on this machine's, so a lobby on this machine is
+    /// joined without touching the network.
     ///
     /// # Errors
     ///
     /// Whatever binding a port or resolving the address says.
     pub(crate) fn join(address: &str, name: &str, game: &str) -> io::Result<Self> {
         let me = guest_id();
-        let net = UdpNet::bind(("0.0.0.0", 0), me)?;
+        let net = UdpNet::bind((here_for(address)?, 0), me)?;
         net.connect(HOST, address)?;
         Ok(Self {
             net: Arc::new(net),
@@ -181,6 +192,7 @@ impl Lobby {
             stage: Stage::Gathering,
             shouter: None,
             greeted: false,
+            told: None,
             terms: None,
             open: Vec::new(),
             joining: Vec::new(),
@@ -230,11 +242,14 @@ impl Lobby {
         self.stage == Stage::Gathering && self.members.iter().all(|m| m.ready)
     }
 
-    /// Says whether this guest is ready. Nothing on the host.
+    /// Says whether this guest is ready, unless it said so last and no room
+    /// has said otherwise: asked every frame, copies would fill the window
+    /// and the host's answers its own, refusing a room. Nothing on the host.
     pub(crate) fn set_ready(&mut self, ready: bool) {
-        if self.hosting() {
+        if self.hosting() || self.told == Some(ready) {
             return;
         }
+        self.told = Some(ready);
         self.say(HOST, &Say::Ready { ready });
     }
 
@@ -291,6 +306,7 @@ impl Lobby {
         self.stage = Stage::Gathering;
         self.began = None;
         self.terms = None;
+        self.told = None;
         self.open.clear();
         for member in &mut self.members {
             member.ready = member.peer == HOST;

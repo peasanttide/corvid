@@ -59,9 +59,9 @@ pub struct Advanced {
 /// are handed the same arguments.
 ///
 /// The sink is the caller's, and what decides
-/// whether anybody acts on them is [`Peer::simulate_one`](crate::Peer): a tick
-/// simulated for the first time asked for them, and the same tick re-simulated
-/// by a rollback is asking again for something already asked.
+/// whether anybody acts on them is the [`Peer`](crate::Peer): it holds what
+/// each simulation of a tick asked for and hands over the last, once the tick
+/// is final (see [`Peer::advance`](crate::Peer::advance)).
 pub(crate) fn step<S: State>(
     session: &Session<S>,
     level: &Arc<S::Level>,

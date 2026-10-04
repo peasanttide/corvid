@@ -59,11 +59,12 @@ impl<S: State> Peer<S> {
         self.tick = at;
         self.resume = at;
         // The ticks after `at` are about to be simulated from a state that
-        // arrived from another machine, so none of them has been simulated
-        // *from this state* before and every one of them is a first time. A
-        // high-water mark left where it was would silence the commands of every
-        // tick between here and where this peer had got to.
-        self.reached = at;
+        // arrived from another machine, so what they asked for before was
+        // asked from a state that is not this one: it goes, and they ask
+        // again. A mark of what was told left where it was would silence the
+        // commands of every tick between here and where this peer had got to.
+        drop(self.held.split_off(&at));
+        self.told = at;
         self.depth = 0;
         self.session.marks.truncate_from(at);
         self.session.marks.push(digest(&self.state));
@@ -141,7 +142,8 @@ impl<S: State> Peer<S> {
         self.state = state;
         self.tick = at;
         self.resume = at;
-        self.reached = at;
+        self.held.clear();
+        self.told = at;
         self.depth = 0;
         self.session.marks.truncate_from(at);
         self.session.marks.push(digest(&self.state));

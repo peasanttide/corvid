@@ -93,6 +93,11 @@ pub enum NetRequest {
         seats: u16,
         /// What this machine calls itself.
         name: String,
+        /// Whether to host on this machine alone: bound to the loopback
+        /// address, so only a program on this machine can join (by
+        /// `127.0.0.1`), and not shouted on the local network. A test's
+        /// lobby is one, and touches no network a firewall guards.
+        local: bool,
     },
     /// Join the lobby at `address`, as `HOST:PORT`, as `name`; one in play is
     /// joined in progress.

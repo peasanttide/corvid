@@ -56,6 +56,12 @@ impl Lobby {
                 address: seen.address,
             })
             .collect();
+        // A room saying otherwise than this guest last told the host: the
+        // next ask is said again.
+        let me = self.members.iter().find(|m| m.peer == self.me);
+        if me.is_some_and(|m| Some(m.ready) != self.told) {
+            self.told = None;
+        }
         let net = &self.net;
         for m in &self.members {
             if m.peer == self.me || m.peer == HOST || net.address(m.peer).is_some() {

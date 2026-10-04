@@ -134,11 +134,16 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     fn ask(&mut self, request: NetRequest) {
         let game = <G::State as State>::NAME;
         let note = match request {
-            NetRequest::Host { port, seats, name } => {
+            NetRequest::Host {
+                port,
+                seats,
+                name,
+                local,
+            } => {
                 if self.net.lobby.is_some() {
                     Some("already in a lobby".to_string())
                 } else {
-                    match Lobby::host(port, &name, game, seats) {
+                    match Lobby::host(port, &name, game, seats, local) {
                         Ok(lobby) => {
                             self.net.lobby = Some(lobby);
                             self.net.browser = None;

@@ -54,10 +54,11 @@ impl<S: State> Link<S> {
     /// rather than stalling it.
     ///
     /// The sink is the caller's, for the reason it is everywhere
-    /// else in this workspace -- a rollback simulates with it, so it cannot be
-    /// borrowed from the loop for the length of the call -- and the commands
-    /// come back because [`Peer::take_commands`](corvid_lockstep::Peer::take_commands)
-    /// holds what the ticks simulated for the first time asked for.
+    /// else in this workspace, and it hears what each tick asked for once the
+    /// tick is final, from its last simulation
+    /// ([`Peer::advance`](corvid_lockstep::Peer::advance)): a `lobby` another
+    /// machine asked for on a tick this one had predicted still brings this
+    /// one back to the lobby with it.
     ///
     /// # Errors
     ///
