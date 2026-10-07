@@ -68,6 +68,8 @@ pub(crate) struct Screen<G> {
     game: core::marker::PhantomData<fn() -> G>,
     /// Where to write, if anywhere.
     capture: Option<Capture>,
+    /// Whether a person sits at it: a window, not an offscreen target.
+    watched: bool,
     /// How many frames have arrived.
     frames: u64,
     /// The sound card, if there is somebody in front of the run to hear it and
@@ -151,6 +153,7 @@ impl<G> Screen<G> {
             renderer,
             game: core::marker::PhantomData,
             capture,
+            watched: heard,
             frames: 0,
             audio: heard.then(open_audio).flatten(),
         }
@@ -169,7 +172,9 @@ impl<G> Screen<G> {
 }
 
 impl<G: Game> Backend<G> for Screen<G> {
-    const WATCHED: bool = true;
+    fn watched(&self) -> bool {
+        self.watched
+    }
 
     /// The renderer's target, which a windowed run's
     /// [`resize`](Self::resize) keeps in step with the window and an offscreen

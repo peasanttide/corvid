@@ -96,8 +96,12 @@ pub(crate) trait Backend<G: Game> {
     /// Whether a person sits at this run: a window. A run nobody sits at --
     /// headless or offscreen, which is what tests are -- keeps any lobby it
     /// hosts or listens for on this machine's loopback address, so it never
-    /// opens a port to the network and never makes a firewall ask.
-    const WATCHED: bool = false;
+    /// opens a port to the network and never makes a firewall ask. An
+    /// offscreen run draws through the same [`Screen`](crate::screen::Screen)
+    /// as a window, so this is asked of the run, not of its type.
+    fn watched(&self) -> bool {
+        false
+    }
 
     /// How big the target is, or [`None`] where there is nothing to draw into.
     ///

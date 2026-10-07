@@ -143,7 +143,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 if self.net.lobby.is_some() {
                     Some("already in a lobby".to_string())
                 } else {
-                    match Lobby::host(port, &name, game, seats, local || !B::WATCHED) {
+                    match Lobby::host(port, &name, game, seats, local || !self.backend.watched()) {
                         Ok(lobby) => {
                             self.net.lobby = Some(lobby);
                             self.net.browser = None;
@@ -174,7 +174,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 } else if self.net.browser.is_some() {
                     None
                 } else {
-                    match Browser::new(game, !B::WATCHED) {
+                    match Browser::new(game, !self.backend.watched()) {
                         Ok(browser) => {
                             self.net.browser = Some(browser);
                             None
