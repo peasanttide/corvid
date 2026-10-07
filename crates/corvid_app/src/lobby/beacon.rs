@@ -98,14 +98,21 @@ pub(crate) struct Browser {
 }
 
 impl Browser {
-    /// Listens for `game`'s lobbies on [`BEACON_PORT`].
+    /// Listens for `game`'s lobbies on [`BEACON_PORT`]: on the loopback
+    /// address only when `local`, where it hears this machine's own lobbies
+    /// (a host shouts at loopback too) and touches no network.
     ///
     /// # Errors
     ///
     /// Whatever binding the port says -- most often that another program on
     /// this machine is already listening on it.
-    pub(crate) fn new(game: &str) -> io::Result<Self> {
-        let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, BEACON_PORT))?;
+    pub(crate) fn new(game: &str, local: bool) -> io::Result<Self> {
+        let at = if local {
+            Ipv4Addr::LOCALHOST
+        } else {
+            Ipv4Addr::UNSPECIFIED
+        };
+        let socket = UdpSocket::bind((at, BEACON_PORT))?;
         socket.set_nonblocking(true)?;
         Ok(Self {
             socket,

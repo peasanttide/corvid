@@ -169,6 +169,8 @@ impl<G> Screen<G> {
 }
 
 impl<G: Game> Backend<G> for Screen<G> {
+    const WATCHED: bool = true;
+
     /// The renderer's target, which a windowed run's
     /// [`resize`](Self::resize) keeps in step with the window and an offscreen
     /// run fixed when it opened.

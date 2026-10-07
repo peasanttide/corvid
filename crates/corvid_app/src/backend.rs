@@ -93,6 +93,12 @@ pub(crate) struct Frame<'a> {
 
 /// Somewhere a displayed frame goes.
 pub(crate) trait Backend<G: Game> {
+    /// Whether a person sits at this run: a window. A run nobody sits at --
+    /// headless or offscreen, which is what tests are -- keeps any lobby it
+    /// hosts or listens for on this machine's loopback address, so it never
+    /// opens a port to the network and never makes a firewall ask.
+    const WATCHED: bool = false;
+
     /// How big the target is, or [`None`] where there is nothing to draw into.
     ///
     /// This is the one thing that crosses back out of a backend besides an
