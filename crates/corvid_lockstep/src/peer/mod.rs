@@ -2,6 +2,7 @@
 
 mod exchange;
 mod held;
+mod keep;
 mod speak;
 mod step;
 mod transfer;
@@ -10,7 +11,7 @@ use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::fmt;
 
-use corvid_behavior::{LevelEdit, PlayerId, State};
+use corvid_behavior::{LevelEdit, PlayerId, SaveSlot, State};
 use corvid_replay::{Session, Snapshots};
 use corvid_time::Tick;
 
@@ -87,6 +88,11 @@ pub struct Peer<S: State> {
     /// The ticks before this one are final and what they asked for has been
     /// handed over; a re-simulation of one of them asks nothing again.
     told: Tick,
+    /// The saves final ticks asked for and the runtime has not written yet,
+    /// each with the tick that asked: what a save holds is the state that
+    /// tick produced, and the request alone does not say which tick that was
+    /// (`keep.rs`).
+    saved: Vec<(Tick, SaveSlot)>,
 }
 
 impl<S: State> Peer<S> {
@@ -146,6 +152,7 @@ impl<S: State> Peer<S> {
             heard: alloc::vec![None::<Tick>; seats],
             held: BTreeMap::new(),
             told: tick,
+            saved: Vec::new(),
             session,
         }
     }

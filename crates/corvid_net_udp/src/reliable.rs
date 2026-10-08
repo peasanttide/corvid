@@ -41,7 +41,12 @@ pub const RETRY: Duration = Duration::from_millis(50);
 /// a memory allocation controlled by whether somebody else's machine is
 /// answering, which is the shape of a denial of service rather than of a
 /// transport.
-pub const IN_FLIGHT: usize = 256;
+///
+/// Four mebibytes of fragments: room for one whole state of a game whose
+/// state runs to several hundred kilobytes -- a lobby's terms carrying a save,
+/// a state handed to a machine joining in progress -- with the frames around
+/// it, where a quarter of a mebibyte refused them outright.
+pub const IN_FLIGHT: usize = 4096;
 
 /// How much of one frame goes in one packet.
 ///

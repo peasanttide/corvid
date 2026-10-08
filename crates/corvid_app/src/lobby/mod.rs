@@ -8,6 +8,10 @@
 //! plays that opening over the lobby's socket in lockstep from its next tick.
 //! When the session ends by the game's say-so, everyone comes back here,
 //! still connected, to start another; a machine that leaves says so and goes.
+//! A guest that leaves a session in play, or whose machine drops, leaves its
+//! seat to the host's bot rather than to nobody: the seat is open again, and
+//! the same player -- or anyone -- joins back into it from here, as a
+//! machine joins a seat nobody took.
 //!
 //! The runtime owns the lobby and drives it from the requests a game's
 //! controller makes (see `runtime/net.rs`). The socket is shared: the lobby
@@ -90,6 +94,9 @@ pub(crate) struct Started {
     /// Whether this machine joins a session already being played, and so
     /// waits for a state before it plays.
     pub(crate) joining: bool,
+    /// Whether this machine hosts: its link keeps the seat of a guest that
+    /// goes for its bot to play, rather than letting it leave the session.
+    pub(crate) keeps: bool,
 }
 
 /// A lobby, hosted here or joined.
@@ -121,6 +128,9 @@ pub(crate) struct Lobby {
     /// Machines let into the session in progress, to be told so once the
     /// room has been.
     joining: Vec<(PeerId, Say)>,
+    /// On a host while linked: the seats of guests that left or dropped
+    /// since the runtime last asked, for its link to keep with the bot.
+    released: Vec<PlayerId>,
 }
 
 impl Lobby {
@@ -167,6 +177,7 @@ impl Lobby {
             terms: None,
             open: Vec::new(),
             joining: Vec::new(),
+            released: Vec::new(),
         })
     }
 
@@ -196,6 +207,7 @@ impl Lobby {
             terms: None,
             open: Vec::new(),
             joining: Vec::new(),
+            released: Vec::new(),
         })
     }
 
@@ -279,6 +291,7 @@ impl Lobby {
             guests,
             bots: self.open.clone(),
             joining: false,
+            keeps: true,
         });
         self.stage = Stage::Linked;
         true
@@ -288,6 +301,13 @@ impl Lobby {
     /// joins it in progress.
     pub(crate) fn keep_terms(&mut self, terms: Vec<u8>) {
         self.terms = Some(terms);
+    }
+
+    /// The seats of guests that went while the session was played, since
+    /// this was last asked: the host's link keeps each for its bot, and the
+    /// seat is open to join again.
+    pub(crate) fn released(&mut self) -> Vec<PlayerId> {
+        std::mem::take(&mut self.released)
     }
 
     /// A session this lobby started, for the loop to play; once.
@@ -308,6 +328,7 @@ impl Lobby {
         self.terms = None;
         self.told = None;
         self.open.clear();
+        self.released.clear();
         for member in &mut self.members {
             member.ready = member.peer == HOST;
         }

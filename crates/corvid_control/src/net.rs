@@ -76,6 +76,17 @@ pub struct NetView {
     pub browsing: bool,
     /// The lobbies heard lately.
     pub heard: Vec<Heard>,
+    /// On a host while its session is played: the seats its bot plays,
+    /// which a machine can join -- one nobody took, or one whose machine left
+    /// and can come back into it.
+    pub open: Vec<u16>,
+    /// Where this run keeps its save slots, `<slot>.corvid` each, for a menu
+    /// that lists them; [`None`] for a runtime that writes none.
+    pub saves: Option<String>,
+    /// The slot this machine's own session was last resumed from by a
+    /// [`NetRequest::Resume`], until a lobby's session or another resume
+    /// replaces it: on a host, the save its lobby will start from.
+    pub resumed: Option<u16>,
     /// A line for a person to read about what just happened, if anything:
     /// why a join was turned away, that the host left.
     pub note: Option<String>,
@@ -115,4 +126,13 @@ pub enum NetRequest {
     Start,
     /// Leave the lobby or the session and play alone again.
     Leave,
+    /// Play on from a save slot: the session written there replaces this
+    /// machine's own, from the tick it was saved at. Alone, that is the game
+    /// played; on a host still gathering, it is what the lobby's session
+    /// starts from, every guest sent the saved state. Refused on a guest and
+    /// while linked, where the session is everyone's.
+    Resume {
+        /// Which slot.
+        slot: u16,
+    },
 }

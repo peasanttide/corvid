@@ -191,6 +191,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         settings: Settings<G>,
     ) -> Result<Self, Error> {
         let resumed = plan.resumed.take();
+        let plan_saves_dir = plan.saves.dir().display().to_string();
         let (at, state) = resumed
             .clone()
             .unwrap_or_else(|| (plan.session.first(), plan.session.opening.origin()));
@@ -260,7 +261,11 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             horizon,
             #[cfg(feature = "net")]
             budget: plan.budget,
-            net: net::Net::new(),
+            net: {
+                let mut net = net::Net::new();
+                net.view.saves = Some(plan_saves_dir);
+                net
+            },
             settings,
         })
     }

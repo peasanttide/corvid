@@ -49,6 +49,12 @@ struct Terms<S: State> {
     /// What the host's session did to that level since, which the new
     /// session opens on the result of.
     changes: Changes<LevelEdit<S>>,
+    /// The tick the session opens on: the opening's for a fresh one, the
+    /// saved tick for a host that resumed a save before starting.
+    first: Tick,
+    /// The state it opens on, encoded, for a host that resumed a save; a
+    /// fresh session opens on the game's own default.
+    origin: Option<Vec<u8>>,
 }
 
 impl<G: Game, B: Backend<G>> Runtime<G, B> {
@@ -103,14 +109,26 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             let content = Arc::clone(
                 corvid_replay::Timeline::rebuild(Arc::clone(origin), &terms.changes).current(),
             );
+            let state = match terms.origin.as_deref().map(corvid_wire::decode::<G::State>) {
+                None => None,
+                Some(Ok(state)) => Some(Arc::new(state)),
+                Some(Err(why)) => {
+                    tracing::error!(
+                        name: "corvid_app.lobby_unreadable_state",
+                        %why,
+                        "the saved state the host started from could not be read, so this machine plays on alone",
+                    );
+                    return Ok(());
+                }
+            };
             Opening {
                 level: terms.level,
                 content,
                 rules: Arc::new(terms.rules),
                 roster: terms.roster,
                 seed: terms.seed,
-                first: Tick::ZERO,
-                origin: None,
+                first: terms.first,
+                origin: state,
                 schema: Digest::from_u64(terms.schema),
             }
         } else {
@@ -131,6 +149,10 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         } else {
             link
         };
+        let link = if started.keeps { link.keeping() } else { link };
+        // A save resumed for this lobby is in its session now.
+        self.net.resumed = false;
+        self.net.view.resumed = None;
         tracing::info!(
             name: "corvid_app.lobby_started",
             seat = started.seat.0,
@@ -151,8 +173,10 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     }
 
     /// The opening a host starts its lobby's session on: the level this
-    /// machine has come to, a seat for everyone. Its terms go to every guest
-    /// and are kept for a machine that joins later.
+    /// machine has come to, a seat for everyone -- and, for a host that
+    /// resumed a save while gathering, the saved state at the saved tick.
+    /// Its terms go to every guest and are kept for a machine that joins
+    /// later.
     fn host_opening(
         &mut self,
         started: &Started,
@@ -161,6 +185,11 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         let session = self.play.session();
         let here = &session.opening;
         let origin = session.levels.origin();
+        let (first, state) = if self.net.resumed {
+            (self.at, Some(Arc::clone(&self.current)))
+        } else {
+            (Tick::ZERO, None)
+        };
         let opening = Opening {
             level: here.level.clone(),
             content: Arc::clone(session.levels.current()),
@@ -168,13 +197,13 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             roster: (0..started.width)
                 .map(|seat| Profile {
                     account: ProfileId(u64::from(seat) + 1),
-                    joined: Tick::ZERO,
+                    joined: first,
                     left: None,
                 })
                 .collect(),
             seed: here.seed,
-            first: Tick::ZERO,
-            origin: None,
+            first,
+            origin: state,
             schema: here.schema,
         };
         let terms = Terms::<G::State> {
@@ -185,6 +214,11 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             schema: opening.schema.to_u64(),
             content: corvid_hash::digest(&**origin).to_u64(),
             changes: session.levels.changes().clone(),
+            first,
+            origin: opening
+                .origin
+                .as_deref()
+                .and_then(|state| corvid_wire::encode(state).ok()),
         };
         match corvid_wire::encode(&terms) {
             Ok(bytes) => {

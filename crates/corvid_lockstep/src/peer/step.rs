@@ -130,6 +130,9 @@ impl<S: State> Peer<S> {
             if *entry.key() >= settled {
                 break;
             }
+            let at = *entry.key();
+            self.saved
+                .extend(entry.get().saves().map(|slot| (at, slot)));
             entry.remove().tell(sink);
         }
         if settled > self.told {

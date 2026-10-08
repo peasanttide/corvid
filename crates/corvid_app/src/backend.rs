@@ -99,6 +99,13 @@ pub(crate) trait Backend<G: Game> {
     /// opens a port to the network and never makes a firewall ask. An
     /// offscreen run draws through the same [`Screen`](crate::screen::Screen)
     /// as a window, so this is asked of the run, not of its type.
+    #[cfg_attr(
+        not(feature = "net"),
+        expect(
+            dead_code,
+            reason = "only a lobby asks it, and lobbies are what `net` adds"
+        )
+    )]
     fn watched(&self) -> bool {
         false
     }

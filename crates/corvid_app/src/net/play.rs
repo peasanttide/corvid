@@ -113,6 +113,7 @@ impl<S: State> Link<S> {
         self.broadcast(&mut traffic);
 
         traffic.advanced = self.peer.advance(command).map_err(halted)?;
+        self.note_saves();
 
         // Stalling is ordinary: a peer declines to simulate whenever it is
         // ahead of what every seat has confirmed, and the next datagram ends
@@ -275,6 +276,11 @@ impl<S: State> Link<S> {
                     continue;
                 }
             };
+            // Rows for a seat this machine speaks for -- a kept seat whose
+            // machine had some in flight as it went -- are not news.
+            if !self.hears_for(datagram.seat) {
+                continue;
+            }
             let rolled = self.peer.receive(&datagram).map_err(halted)?;
             traffic.heard = traffic.heard.saturating_add(1);
             let newest = datagram.head();

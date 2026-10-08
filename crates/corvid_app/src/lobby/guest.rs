@@ -103,6 +103,7 @@ impl Lobby {
             guests: Vec::new(),
             bots: Vec::new(),
             joining: joining.is_some(),
+            keeps: false,
         });
         self.stage = Stage::Linked;
     }

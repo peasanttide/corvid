@@ -53,6 +53,16 @@ impl<E> Held<E> {
         self.0.is_empty()
     }
 
+    /// The slots the tick asked to save into, in order: the one request whose
+    /// answer depends on the tick it was made on, because what a save holds is
+    /// the state that tick produced.
+    pub(crate) fn saves(&self) -> impl Iterator<Item = SaveSlot> + '_ {
+        self.0.iter().filter_map(|asked| match asked {
+            Asked::Save(slot) => Some(*slot),
+            _ => None,
+        })
+    }
+
     /// Hands every request to `sink`, in the order the tick made them.
     pub(crate) fn tell(self, sink: &mut impl Command<E>) {
         for asked in self.0 {

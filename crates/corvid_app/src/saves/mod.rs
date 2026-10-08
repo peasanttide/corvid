@@ -163,6 +163,11 @@ impl Saves {
         }
     }
 
+    /// The directory the slot files sit in, `<slot>.corvid` each.
+    pub(crate) fn dir(&self) -> &Path {
+        &self.root
+    }
+
     /// Where slot `slot` is written.
     fn path(&self, slot: SaveSlot) -> PathBuf {
         self.root.join(format!("{}.{EXTENSION}", slot.0))

@@ -19,6 +19,7 @@ use corvid_time::Tick;
 
 mod agree;
 mod join;
+mod keep;
 mod play;
 mod rescue;
 mod tell;
@@ -101,6 +102,12 @@ pub(crate) struct Link<S: State> {
     waiting: Option<u32>,
     /// On a machine that joined: the tick its seat is its own from.
     starts: Option<Tick>,
+    /// Whether a machine that goes leaves its seat to this link's bot
+    /// rather than to nobody: a lobby's host's link (`keep.rs`).
+    keeps: bool,
+    /// The saves final ticks asked for, each with the tick that asked, for
+    /// the runtime to write (`keep.rs`).
+    saving: Vec<(Tick, corvid_behavior::SaveSlot)>,
 }
 
 impl<S: State> Link<S> {
@@ -143,6 +150,8 @@ impl<S: State> Link<S> {
             handing: BTreeMap::new(),
             waiting: None,
             starts: None,
+            keeps: false,
+            saving: Vec::new(),
         }
     }
 

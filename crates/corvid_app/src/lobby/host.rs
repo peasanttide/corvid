@@ -17,11 +17,7 @@ impl Lobby {
         for (from, said) in heard {
             match said {
                 Say::Hello { name, game } => changed |= self.admit(*from, name, game),
-                Say::Leave => {
-                    let before = self.members.len();
-                    self.members.retain(|m| m.peer != *from);
-                    changed |= self.members.len() != before;
-                }
+                Say::Leave => changed |= self.release(*from),
                 // Only a change is told the room: a guest saying again what
                 // it said is no news.
                 Say::Ready { ready } => {
@@ -36,9 +32,7 @@ impl Lobby {
             }
         }
         for peer in lost {
-            let before = self.members.len();
-            self.members.retain(|m| m.peer != *peer);
-            changed |= self.members.len() != before;
+            changed |= self.release(*peer);
         }
         if changed {
             self.tell_room();
@@ -80,7 +74,7 @@ impl Lobby {
             None
         };
         // While a session is played, only a seat the bot plays is free: one
-        // whose machine left is gone from the session for good.
+        // nobody took, or one whose machine left, which the bot has kept.
         let linked = self.stage == super::Stage::Linked;
         let free = (0..self.seats)
             .map(PlayerId)
@@ -122,6 +116,29 @@ impl Lobby {
                 true
             }
         }
+    }
+
+    /// Lets a machine go from the room. While a session is played, a
+    /// guest's seat goes to the bot and is open to join again: the link is
+    /// told through [`released`](Lobby::released). Answers whether the room
+    /// changed.
+    fn release(&mut self, peer: PeerId) -> bool {
+        let Some(at) = self.members.iter().position(|m| m.peer == peer) else {
+            return false;
+        };
+        let member = self.members.remove(at);
+        if self.stage == super::Stage::Linked && member.peer != HOST {
+            if !self.open.contains(&member.seat) {
+                self.open.push(member.seat);
+            }
+            self.released.push(member.seat);
+            tracing::info!(
+                name: "corvid_app.lobby_kept",
+                seat = member.seat.0,
+                "a guest went in play; the bot keeps its seat, which is open to join again",
+            );
+        }
+        true
     }
 
     pub(super) fn tell_room(&self) {

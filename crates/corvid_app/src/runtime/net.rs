@@ -36,6 +36,9 @@ pub(crate) struct Net<S: State> {
     pub(crate) requests: Vec<NetRequest>,
     /// A tick asked for everyone back to the lobby.
     pub(crate) back: bool,
+    /// Whether this machine's own session was resumed from a save since it
+    /// last linked: a host's lobby then starts from the saved state.
+    pub(crate) resumed: bool,
     #[cfg(feature = "net")]
     pub(super) lobby: Option<Lobby>,
     #[cfg(feature = "net")]
@@ -58,6 +61,7 @@ impl<S: State> Net<S> {
             },
             requests: Vec::new(),
             back: false,
+            resumed: false,
             #[cfg(feature = "net")]
             lobby: None,
             #[cfg(feature = "net")]
@@ -83,7 +87,15 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         )
     )]
     pub(super) fn network(&mut self) -> Result<(), Error> {
-        let requests = std::mem::take(&mut self.net.requests);
+        let mut requests = std::mem::take(&mut self.net.requests);
+        // A resume is the runtime's own business, network or none.
+        requests.retain(|request| match request {
+            NetRequest::Resume { slot } => {
+                self.resume(*slot);
+                false
+            }
+            _ => true,
+        });
         #[cfg(not(feature = "net"))]
         {
             if !requests.is_empty() {
@@ -111,6 +123,11 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                     // Whoever the lobby let in since is who plays that seat.
                     for member in lobby.members() {
                         link.admit(member.peer, member.seat);
+                    }
+                    // And whoever left, the bot plays for until somebody
+                    // joins that seat again.
+                    for seat in lobby.released() {
+                        link.keep(seat);
                     }
                 }
             }
@@ -277,6 +294,58 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         }
     }
 
+    /// Plays on from a save slot, replacing this machine's own session: alone,
+    /// or on a host still gathering, whose lobby then starts from it. Refused
+    /// on a guest and while linked, where the session is everyone's; a slot
+    /// that will not read is said in the view's note, and nothing changes.
+    fn resume(&mut self, slot: u16) {
+        #[cfg(feature = "net")]
+        {
+            let why = if matches!(self.play, Play::Linked(_)) {
+                Some("a game played together cannot load a save; leave it first")
+            } else if self
+                .net
+                .lobby
+                .as_ref()
+                .is_some_and(|lobby| !lobby.hosting())
+            {
+                Some("only the host loads a save for a lobby")
+            } else {
+                None
+            };
+            if let Some(why) = why {
+                self.net.view.note = Some(why.to_string());
+                return;
+            }
+        }
+        let schema = self.play.session().opening.schema;
+        let slot_id = corvid_behavior::SaveSlot(slot);
+        let (session, state) = match self.saves.read::<G::State>(slot_id, schema) {
+            Ok(Some(resumed)) => resumed,
+            Ok(None) => {
+                self.net.view.note = Some(std::format!("slot {slot} is empty"));
+                return;
+            }
+            Err(why) => {
+                tracing::warn!(name: "corvid_app.unresumed", slot, %why, "a save could not be resumed");
+                self.net.view.note = Some(std::format!("slot {slot} would not load: {why}"));
+                return;
+            }
+        };
+        let at = session.last();
+        self.play = super::Play::Local(std::boxed::Box::new(session));
+        self.previous = std::sync::Arc::clone(&state);
+        self.current = state;
+        self.at = at;
+        if let super::Horizon::Recent { marked, kept, .. } = &mut self.horizon {
+            *marked = at;
+            *kept = None;
+        }
+        self.net.resumed = true;
+        self.net.view.resumed = Some(slot);
+        tracing::info!(name: "corvid_app.resumed", slot, at = %at, "playing on from a save");
+    }
+
     /// The view the controller sees next frame.
     #[cfg(feature = "net")]
     fn see(&mut self) {
@@ -293,6 +362,12 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 })
                 .collect()
         });
+        view.open = match (&self.play, self.net.lobby.as_ref()) {
+            (Play::Linked(link), Some(lobby)) if lobby.hosting() => {
+                link.bots().iter().map(|seat| seat.0).collect()
+            }
+            _ => Vec::new(),
+        };
         match self.net.lobby.as_ref() {
             None => {
                 view.stage = Stage::Alone;

@@ -30,8 +30,32 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// the ticks after this one asked for. The failure is said out loud at
     /// `ERROR`, because a run that lost a player's save and mentioned it only in
     /// a value nobody printed would be worse than one that stopped.
-    pub(super) fn write_save(&self, at: Tick, slot: SaveSlot) -> Answer {
-        match self.saves.write(slot, self.play.session(), &self.current) {
+    ///
+    /// Linked, what is written is the state the tick that asked produced --
+    /// final, so the same on every machine -- under a session that opens on
+    /// it ([`Link::saved`](crate::net::Link::saved)): the session being
+    /// played holds rows past the state on display, some of them guesses.
+    pub(super) fn write_save(&mut self, at: Tick, slot: SaveSlot) -> Answer {
+        #[cfg(feature = "net")]
+        if let super::Play::Linked(link) = &mut self.play {
+            let Some((session, state)) = link.saved(slot) else {
+                tracing::error!(
+                    name: "corvid_app.unsaved",
+                    tick = %at,
+                    slot = slot.0,
+                    "the state this save asked for could no longer be reached, so nothing was written",
+                );
+                return Answer::Failed;
+            };
+            return Self::answer(at, slot, self.saves.write(slot, &session, &state));
+        }
+        let written = self.saves.write(slot, self.play.session(), &self.current);
+        Self::answer(at, slot, written)
+    }
+
+    /// What a save's write came to.
+    fn answer(at: Tick, slot: SaveSlot, written: Result<(), crate::Error>) -> Answer {
+        match written {
             Ok(()) => Answer::Done,
             Err(why) => {
                 tracing::error!(
