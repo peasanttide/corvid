@@ -162,6 +162,7 @@
 //! | Feature | Effect |
 //! |---|---|
 //! | `window` | Forwards `corvid_app/window`: a window, a keyboard, a pad and a sound card -- everything that is only ever true of a run with a player in front of it. One name rather than three, because the three described the same machine |
+//! | `music` | [`music`]: a soundtrack of MIDI files played through a soundfont on rameau's synthesizer, with the CC0 Unison bank embedded (about 6.6 MiB). With `window` it opens a sound card; without, `music::Music::open` answers that there is none. **It changes the licence of the binary**: `corvid_music` links rameau, which is AGPL-3.0-or-later |
 //! | `dev` | Forwards `corvid_app/dev`: when a session diverges, `corvid_lockstep::bisect` runs and the report says which field moved first rather than only which tick. Adds no API of its own and changes nothing a build computes |
 //!
 //! # One name, and it is this one
@@ -240,6 +241,11 @@ pub use corvid_render::{self as render, Drawing, Extent, Icon, Opened, Render, T
 pub use corvid_ui_render as ui_render;
 #[cfg(feature = "window")]
 pub use corvid_window::{self as window, Size};
+
+// The soundtrack, which an ear plays itself when `Hearing::audible` says
+// somebody is listening.
+#[cfg(feature = "music")]
+pub use corvid_music as music;
 
 // The console and the tunables, and the encoding a save is written in.
 pub use corvid_dev as dev_console;

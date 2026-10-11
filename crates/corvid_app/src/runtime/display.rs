@@ -76,7 +76,11 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         self.ear.extract(extracting);
 
         self.audio.clear();
-        self.ear.hear(&mut self.audio, Hearing::new(camera, time));
+        // A window is the one run with somebody to hear it; an ear that plays
+        // a soundtrack of its own reads this rather than waking a device in a
+        // test.
+        let hearing = Hearing::new(camera, time).audible(self.backend.watched());
+        self.ear.hear(&mut self.audio, hearing);
         // Nothing about the two states crosses this seam. The renderer already
         // holds whatever `extract` put in it; what goes over is the weight
         // between them.

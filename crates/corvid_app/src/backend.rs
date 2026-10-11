@@ -98,14 +98,9 @@ pub(crate) trait Backend<G: Game> {
     /// hosts or listens for on this machine's loopback address, so it never
     /// opens a port to the network and never makes a firewall ask. An
     /// offscreen run draws through the same [`Screen`](crate::screen::Screen)
-    /// as a window, so this is asked of the run, not of its type.
-    #[cfg_attr(
-        not(feature = "net"),
-        expect(
-            dead_code,
-            reason = "only a lobby asks it, and lobbies are what `net` adds"
-        )
-    )]
+    /// as a window, so this is asked of the run, not of its type. It is also
+    /// what an ear is told as [`Hearing::audible`](corvid_sound::Hearing),
+    /// so one that plays a soundtrack of its own plays it only to a person.
     fn watched(&self) -> bool {
         false
     }

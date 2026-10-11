@@ -127,6 +127,10 @@ pub(crate) const HUM: SoundId = SoundId(1);
 /// What a bump rings.
 pub(crate) const CHIME: SoundId = SoundId(2);
 
+/// What the ear adds when it is told somebody is listening, so a capture can
+/// show which runs told it so.
+pub(crate) const LISTENED: SoundId = SoundId(3);
+
 /// Authored, immutable within a session.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) struct Level {

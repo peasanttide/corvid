@@ -28,14 +28,34 @@ pub struct Hearing {
     pub camera: Camera,
     /// Where the session is.
     pub time: Time,
+    /// Whether somebody is in front of this run to hear it: a window.
+    ///
+    /// The frame is written either way, because a capture records it. What
+    /// this is for is sound an ear plays *itself* rather than through the
+    /// frame -- a soundtrack on a device of its own, as `corvid_music` opens
+    /// one -- which a headless or offscreen run, a test or a determinism
+    /// check should never wake. It is the answer the runtime gives its own
+    /// sound card, handed on so that an ear does not have to guess.
+    pub audible: bool,
 }
 
 impl Hearing {
-    /// Ears at `camera`, at `time`.
+    /// Ears at `camera`, at `time`, with nobody listening.
     #[must_use]
     #[inline]
     pub const fn new(camera: Camera, time: Time) -> Self {
-        Self { camera, time }
+        Self {
+            camera,
+            time,
+            audible: false,
+        }
+    }
+
+    /// The same ears, with somebody listening or not.
+    #[must_use]
+    #[inline]
+    pub const fn audible(self, audible: bool) -> Self {
+        Self { audible, ..self }
     }
 }
 

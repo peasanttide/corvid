@@ -18,7 +18,7 @@ use corvid_behavior::{Extract, Extracting};
 use corvid_sound::Auralizer;
 use std::{fs, num::NonZeroU32};
 
-use common::{Action, Counting, Ears, Rules, Scratchpad, Tally, opening, schema};
+use common::{Action, Counting, Ears, LISTENED, Rules, Scratchpad, Tally, opening, schema};
 use corvid_app::App;
 use corvid_hash::digest;
 use corvid_replay::{HashTrace, Load, Schema, Session, Snapshots};
@@ -249,6 +249,31 @@ fn a_captured_audio_frame_is_the_one_the_extractor_produced_at_that_tick() {
     // is never told an alpha -- interpolation is the renderer's, and it happens
     // in a shader. So there is no alpha here to be right or wrong about, and
     // the comparison above is the whole of what this test can still claim.
+}
+
+#[test]
+fn a_run_nobody_watches_tells_its_ear_nobody_is_listening() {
+    // `Hearing::audible` is what keeps an ear's own soundtrack out of a test:
+    // the fixture adds a `LISTENED` source when it is told somebody is
+    // listening, and a headless run must never tell it so.
+    let scratchpad = Scratchpad::new("audible");
+    let _ = capture_into(&scratchpad);
+    for tick in 1..=TICKS {
+        let bytes = fs::read(scratchpad.path().join("audio").join(tick.to_string())).unwrap();
+        let frame: AudioFrame = corvid_wire::decode(&bytes).unwrap();
+        assert!(
+            frame.sources.iter().all(|source| source.sound != LISTENED),
+            "tick {tick}: {frame:?}",
+        );
+    }
+    let mut frame = AudioFrame::new();
+    let mut ears = <Ears as Auralizer<Tally>>::new(());
+    let heard = Hearing::new(corvid_camera::Camera::default(), Time::default());
+    ears.hear(&mut frame, heard.audible(true));
+    assert!(
+        frame.sources.iter().any(|source| source.sound == LISTENED),
+        "and the fixture does add it for a person, so the check above can fail",
+    );
 }
 
 #[test]
