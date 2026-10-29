@@ -86,10 +86,25 @@ pub(crate) struct Frame<'a> {
     pub(crate) alpha: Factor16,
     /// What to hear.
     pub(crate) audio: &'a AudioFrame,
+    /// Whether the run stops after this frame. The loop knows before it
+    /// displays one: the ticks it owed have run, and one of them said stop.
+    pub(crate) last: bool,
 }
 
 /// Somewhere a displayed frame goes.
 pub(crate) trait Backend<G: Game> {
+    /// Whether a person sits at this run: a window. A run nobody sits at --
+    /// headless or offscreen, which is what tests are -- keeps any lobby it
+    /// hosts or listens for on this machine's loopback address, so it never
+    /// opens a port to the network and never makes a firewall ask. An
+    /// offscreen run draws through the same [`Screen`](crate::screen::Screen)
+    /// as a window, so this is asked of the run, not of its type. It is also
+    /// what an ear is told as [`Hearing::audible`](corvid_sound::Hearing),
+    /// so one that plays a soundtrack of its own plays it only to a person.
+    fn watched(&self) -> bool {
+        false
+    }
+
     /// How big the target is, or [`None`] where there is nothing to draw into.
     ///
     /// This is the one thing that crosses back out of a backend besides an

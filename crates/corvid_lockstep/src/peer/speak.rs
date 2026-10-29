@@ -38,6 +38,18 @@ impl<S: State> Peer<S> {
     /// answer: they are what this player did, and the other machines have
     /// already simulated them.
     pub fn submit(&mut self, action: S::Action) -> Result<Tick, Refused> {
+        self.submit_for(self.seat, action)
+    }
+
+    /// [`submit`](Self::submit), for a seat this machine plays besides its
+    /// own: one a bot of this machine's plays in the session, whose actions
+    /// go out in a datagram of their own (see
+    /// [`outgoing_for`](Self::outgoing_for)).
+    ///
+    /// # Errors
+    ///
+    /// As [`submit`](Self::submit).
+    pub fn submit_for(&mut self, seat: PlayerId, action: S::Action) -> Result<Tick, Refused> {
         let at = self.tick.saturating_add(u64::from(self.budget.delay));
         // Already spoken for. A peer that is stalled, or that a correction has
         // put back a few ticks, reaches this every tick until its own tick
@@ -46,15 +58,15 @@ impl<S: State> Peer<S> {
         // only answer that keeps one story on the wire.
         if self
             .frontier
-            .confirmed(self.seat)
+            .confirmed(seat)
             .is_some_and(|spoken| spoken >= at)
         {
             drop(action);
-            return Ok(self.frontier.of(self.seat));
+            return Ok(self.frontier.of(seat));
         }
         self.session.log.extend_to(at)?;
-        self.session.log.set(at, self.seat, action)?;
-        self.frontier.observe(self.seat, at);
+        self.session.log.set(at, seat, action)?;
+        self.frontier.observe(seat, at);
         Ok(at)
     }
 
@@ -67,6 +79,13 @@ impl<S: State> Peer<S> {
     /// would report a desync every time a packet was late.
     #[must_use]
     pub fn outgoing(&self) -> Datagram<S::Action> {
+        self.outgoing_for(self.seat)
+    }
+
+    /// [`outgoing`](Self::outgoing), for a seat this machine plays besides
+    /// its own.
+    #[must_use]
+    pub fn outgoing_for(&self, seat: PlayerId) -> Datagram<S::Action> {
         // What this seat has actually submitted, and never a tick past it. The
         // window is read out of the log, and a row this peer has not written is
         // `Action::default()` -- so a head taken from `now + delay` alone would
@@ -76,7 +95,7 @@ impl<S: State> Peer<S> {
         // reachable from an ordinary call order: `advance` moves `tick`, so
         // sending after simulating overshoots by exactly one tick.
         let want = self.tick.saturating_add(u64::from(self.budget.delay));
-        let head = self.frontier.confirmed(self.seat).map_or_else(
+        let head = self.frontier.confirmed(seat).map_or_else(
             || self.session.first(),
             |spoken| {
                 if want < spoken { want } else { spoken }
@@ -91,7 +110,7 @@ impl<S: State> Peer<S> {
         let mark = self.session.marks.get(marked).unwrap_or_default();
         Datagram::build(
             &self.session.log,
-            self.seat,
+            seat,
             head,
             self.acked(),
             self.heard_through(),
@@ -122,7 +141,12 @@ impl<S: State> Peer<S> {
         self.heard
             .iter()
             .enumerate()
-            .filter(|(seat, _)| *seat != usize::from(self.seat.0))
+            // Only the machines this one hears from: its own seat and the
+            // seats it plays besides acknowledge nothing to it.
+            .filter(|(seat, _)| {
+                *seat != usize::from(self.seat.0)
+                    && !self.extra.iter().any(|extra| usize::from(extra.0) == *seat)
+            })
             .map(|(_, heard)| *heard)
             // `None` is a seat that has acknowledged nothing, and `Option`'s own
             // order puts it below every tick -- so a seat still catching up

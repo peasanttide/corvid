@@ -182,7 +182,9 @@ impl Sink {
                 }
                 Answer::Done
             }
-            Command::Screenshot => Answer::Done,
+            // A load is applied by `corvid_replay::step` after the tick that
+            // asked, before this sees it.
+            Command::Screenshot | Command::Load(_) | Command::Lobby => Answer::Done,
             other => {
                 // Never a panic and never a silent drop. A game that asks for
                 // something this runtime cannot do yet keeps running, and the
@@ -212,7 +214,7 @@ impl Sink {
 #[derive(Debug, Default)]
 pub(crate) struct Asked(pub(crate) Vec<Command>);
 
-impl corvid_behavior::Command for Asked {
+impl<E> corvid_behavior::Command<E> for Asked {
     fn load(&mut self, name: &str) {
         self.0.push(Command::Load(name.to_owned()));
     }
@@ -247,6 +249,10 @@ impl corvid_behavior::Command for Asked {
 
     fn leave_lobby(&mut self) {
         self.0.push(Command::LeaveLobby);
+    }
+
+    fn lobby(&mut self) {
+        self.0.push(Command::Lobby);
     }
 
     fn set_presence(&mut self, presence: corvid_behavior::PresenceText) {
@@ -297,6 +303,8 @@ pub enum Command {
     JoinLobby(corvid_behavior::LobbyId),
     /// Leave whichever lobby this peer is in.
     LeaveLobby,
+    /// Everyone back to the lobby this session was started from.
+    Lobby,
     /// Set the line a friends list shows.
     SetPresence(corvid_behavior::PresenceText),
     /// Open a link outside the game.
@@ -323,7 +331,8 @@ impl Command {
             | Self::Save(_)
             | Self::Read(_)
             | Self::JoinLobby(_)
-            | Self::LeaveLobby => Scope::Global,
+            | Self::LeaveLobby
+            | Self::Lobby => Scope::Global,
             Self::Invite(_)
             | Self::SetPresence(_)
             | Self::OpenUrl(_)

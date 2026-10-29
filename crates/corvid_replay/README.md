@@ -29,6 +29,7 @@ use corvid_time::Tick;
 # struct Level { ceiling: i64 }
 # impl LevelContract for Level {
 #     type Error = core::convert::Infallible;
+#     type Edit = ();
 #     fn load(_: &str) -> Result<Self, Self::Error> { Ok(Self { ceiling: 100 }) }
 # }
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

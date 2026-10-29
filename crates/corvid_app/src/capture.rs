@@ -23,15 +23,18 @@ use corvid_time::Tick;
 
 use crate::Error;
 
-/// The subdirectory one PNG per displayed frame goes in.
+/// The subdirectory one PNG per kept frame goes in: every displayed frame
+/// unless [`Frames`] says otherwise.
 ///
 /// Only a run with an offscreen renderer writes into it. A headless run has no
 /// adapter and a windowed run has no texture left to read, so both leave it
 /// empty -- created, because a directory that is sometimes absent is a second
-/// thing for a comparison to be confused by.
+/// thing for a comparison to be confused by. That holds for a run whose
+/// [`Frames`] keeps nothing, too.
 pub(crate) const FRAMES: &str = "frames";
 
-/// The subdirectory one serialized audio frame per displayed frame goes in.
+/// The subdirectory one serialized audio frame per kept frame goes in, for the
+/// same frames [`FRAMES`] holds pictures of.
 pub(crate) const AUDIO: &str = "audio";
 
 /// The file the [`HashTrace`] goes in.
@@ -43,6 +46,46 @@ pub(crate) const SESSION: &str = "session";
 /// The extension a frame is written under.
 pub(crate) const PNG: &str = "png";
 
+/// Which displayed frames a capture writes down.
+///
+/// Decided per displayed frame and before anything is read back, because the
+/// read-back is the cost: it waits on the device, and encoding the PNG after it
+/// is most of what an offscreen run spends its time on. Every frame is still
+/// drawn; one this does not keep is simply never read. A frame's picture and its
+/// audio row follow the same selection, so `frames/` and `audio/` always name
+/// the same ticks, and the `trace` and the `session` are written whole whatever
+/// this says.
+///
+/// Handed to [`App::capture_frames`](crate::App::capture_frames).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Frames {
+    /// Every displayed frame, which is what a capture writes unless told
+    /// otherwise.
+    #[default]
+    Every,
+    /// Only the frame the run stops on, however it stops: a tick count, an
+    /// [`until`](crate::App::until) predicate or a tick that asked to quit. A
+    /// run stopped from outside -- a window closed, an error -- has no frame it
+    /// knew was its last, and keeps none.
+    Last,
+    /// The frames displayed at these ticks. A tick the run never displays
+    /// writes nothing, and is not an error.
+    At(Vec<Tick>),
+}
+
+impl Frames {
+    /// Whether the frame displayed at `at` is kept, where `last` is whether the
+    /// run stops after it.
+    fn holds(&self, at: Tick, last: bool) -> bool {
+        match self {
+            Self::Every => true,
+            Self::Last => last,
+            Self::At(ticks) => ticks.contains(&at),
+        }
+    }
+}
+
 /// A directory a run writes itself into.
 ///
 /// Everything but the pictures goes through `corvid_wire`, which is the
@@ -52,6 +95,8 @@ pub(crate) const PNG: &str = "png";
 pub(crate) struct Capture {
     /// The directory everything is written under.
     root: PathBuf,
+    /// Which displayed frames get a row in [`FRAMES`] and [`AUDIO`].
+    frames: Frames,
 }
 
 impl Capture {
@@ -61,18 +106,29 @@ impl Capture {
     /// captures over the top of a shorter run leaves the longer run's frames
     /// behind it, which is a hazard worth knowing about and is the caller's to
     /// avoid -- this crate will not remove a directory somebody named.
-    pub(crate) fn open(root: PathBuf) -> Result<Self, Error> {
+    pub(crate) fn open(root: PathBuf, frames: Frames) -> Result<Self, Error> {
         for directory in [root.as_path(), &root.join(FRAMES), &root.join(AUDIO)] {
             fs::create_dir_all(directory).map_err(|why| Error::Wrote {
                 path: directory.to_path_buf(),
                 why,
             })?;
         }
-        Ok(Self { root })
+        Ok(Self { root, frames })
     }
 
-    /// Writes one displayed frame's picture, if there is one, and its audio
-    /// frame.
+    /// Whether the frame displayed at `at` is written down, where `last` is
+    /// whether the run stops after it.
+    ///
+    /// A backend asks before it reads anything back, so a frame this refuses
+    /// costs no wait on the device and no encode.
+    pub(crate) fn wants(&self, at: Tick, last: bool) -> bool {
+        self.frames.holds(at, last)
+    }
+
+    /// Writes one kept frame's picture, if there is one, and its audio frame.
+    ///
+    /// Only for a frame [`wants`](Self::wants) accepted; the caller asks first,
+    /// because by the time there is a picture to hand over it has been paid for.
     ///
     /// Both are named for the tick the frame's `current` state is at. A run
     /// that displays several frames between two ticks writes each of them over

@@ -23,7 +23,7 @@ corvid_sound = { workspace = true, features = ["std"] }
 # Optional, because a build that only wants the mixing arithmetic -- a test, a
 # dedicated server, a target this crate has no backend for -- should not link a
 # platform audio API to get it.
-cpal = { version = "0.18", optional = true }
+cpal = { workspace = true, optional = true }
 # What an opened device, a broken stream and a queue the callback could not read
 # are reported as. A backend that could only fail loudly or not at all would
 # have to choose between a game that stops because a sound card is busy and a

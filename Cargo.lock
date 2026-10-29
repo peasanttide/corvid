@@ -246,6 +246,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "byteorder"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+
+[[package]]
 name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -479,6 +485,7 @@ dependencies = [
  "corvid_input",
  "corvid_mesh",
  "corvid_mesh_render",
+ "corvid_music",
  "corvid_render",
  "corvid_replay",
  "corvid_rotation",
@@ -715,6 +722,22 @@ dependencies = [
  "corvid_vector",
  "png",
  "wgpu",
+]
+
+[[package]]
+name = "corvid_music"
+version = "0.1.2"
+dependencies = [
+ "cpal",
+ "rameau_clip",
+ "rameau_midi",
+ "rameau_playback",
+ "rameau_software",
+ "rameau_soundfont",
+ "rameau_synthesizer",
+ "rameau_unison",
+ "thiserror 2.0.20",
+ "tracing",
 ]
 
 [[package]]
@@ -1662,6 +1685,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
+name = "lewton"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "777b48df9aaab155475a83a7df3070395ea1ac6902f5cd062b8f2b028075c030"
+dependencies = [
+ "byteorder",
+ "ogg",
+ "tinyvec",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2350,6 +2384,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ogg"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6951b4e8bf21c8193da321bcce9c9dd2e13c858fe078bf9054a288b419ae5d6e"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2612,6 +2655,74 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
+name = "rameau_clip"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0806a2428c0252d29db580b7f7a3a88a2b19407bacaa048cd6514b8c8727857"
+
+[[package]]
+name = "rameau_midi"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "552702585fd9d5aac5b43755688a15800cb8df130b7bcabd7ed894f438b55030"
+dependencies = [
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "rameau_playback"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb02fcf00893344098eb686785144aa1bbc8be2c848ee4de50bc546cc8e11aac"
+dependencies = [
+ "rameau_clip",
+]
+
+[[package]]
+name = "rameau_software"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9f144ba7f3c3998b5ccb6d118ea7d51269729f7d80afbd8f59a0af17a50f01d"
+dependencies = [
+ "rameau_clip",
+ "rameau_playback",
+]
+
+[[package]]
+name = "rameau_soundfont"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76add696484a08a983b35bd4dac5e5b16e780ceec7be737b64c4168ce3d25208"
+dependencies = [
+ "lewton",
+ "rameau_clip",
+ "rameau_playback",
+ "riff",
+]
+
+[[package]]
+name = "rameau_synthesizer"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9a89512f3be3e80bdafcceffb96152de464b97c810e1b35d25114aa28210b08"
+dependencies = [
+ "rameau_clip",
+ "rameau_midi",
+ "rameau_playback",
+ "rameau_soundfont",
+]
+
+[[package]]
+name = "rameau_unison"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b645a24c298b5d998f59e7b21698e85d424a3eca7a2c1c1491e6e6b14a91c31"
+dependencies = [
+ "rameau_playback",
+ "rameau_soundfont",
+]
+
+[[package]]
 name = "rand"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2718,6 +2829,12 @@ name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
+
+[[package]]
+name = "riff"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c601484456988d75017d86700d3743b949c21cdc7399f940c75e34680d185c5"
 
 [[package]]
 name = "rustc-hash"
@@ -3045,6 +3162,12 @@ dependencies = [
  "serde",
  "serde_json",
 ]
+
+[[package]]
+name = "tinyvec"
+version = "1.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "toml_datetime"

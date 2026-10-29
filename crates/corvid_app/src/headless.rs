@@ -60,9 +60,12 @@ impl<G: Game> Backend<G> for Headless<G> {
         _view: &ViewOf<G>,
     ) -> Result<(), Error> {
         self.frames = self.frames.saturating_add(1);
-        self.capture
-            .as_ref()
-            .map_or(Ok(()), |capture| capture.frame(frame.at, None, frame.audio))
+        match &self.capture {
+            Some(capture) if capture.wants(frame.at, frame.last) => {
+                capture.frame(frame.at, None, frame.audio)
+            }
+            _ => Ok(()),
+        }
     }
 
     fn frames(&self) -> u64 {

@@ -35,7 +35,7 @@ fn a_session_replays_to_the_same_state_after_being_written_down() {
     let (states, marks) = forward(&session);
 
     let bytes = session.save().unwrap();
-    let read = Session::<Counter>::load(&bytes, schema()).unwrap();
+    let mut read = Session::<Counter>::load(&bytes, schema()).unwrap();
 
     // The whole session, not just the state it happens to reach: the log, the
     // marks and the opening all have to come back, and `Eq` on a `Session`
@@ -235,7 +235,7 @@ fn a_capture_carries_the_level_and_not_only_its_name() {
     // read back out of bytes seeks without anything else being handed to it.
     let session = play(30);
     let bytes = session.save().unwrap();
-    let read = Session::<Counter>::load(&bytes, schema()).unwrap();
+    let mut read = Session::<Counter>::load(&bytes, schema()).unwrap();
     assert_eq!(
         read.opening.content.ceiling,
         session.opening.content.ceiling

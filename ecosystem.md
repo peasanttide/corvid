@@ -72,9 +72,20 @@ what that crate is rather than something a caller may decline.
 ## cpal
 
 The sound card: one portable stream, and a callback the operating system calls
-on a thread of its own. `corvid_audio`'s `device` feature is the whole of what
-names it, so the mixing arithmetic -- the part that can be wrong in a way a
-person hears -- builds and is tested on a machine with no speakers.
+on a thread of its own. The `device` features of `corvid_audio` and
+`corvid_music` are the whole of what names it, so the mixing arithmetic and
+the synthesizer -- the parts that can be wrong in a way a person hears -- build
+and are tested on a machine with no speakers.
+
+## rameau
+
+SoundFont MIDI playback: a Standard MIDI File parser, a `.sf2`/`.sf3` loader
+and a polyphonic synthesizer over a software sample mixer, plus the CC0 Unison
+general-MIDI bank. `corvid_music` names only its pure crates and drives the
+device itself through the `cpal` above, so a game links one audio stack. It is
+AGPL-3.0-or-later, so the facade's `music` feature, which pulls it, changes the
+licence a binary is distributed under; that is the reason it is a feature of its
+own rather than part of `window`.
 
 ## gilrs
 

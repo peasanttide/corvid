@@ -177,7 +177,7 @@ fn a_run_whose_save_fails_keeps_its_capture_and_says_the_save_failed() {
     // session and the trace are there, and replaying the one lands on the state
     // the run stopped at.
     let bytes = fs::read(capture.join("session")).unwrap();
-    let session: Session<Tally> = Session::load(&bytes, schema()).unwrap();
+    let mut session: Session<Tally> = Session::load(&bytes, schema()).unwrap();
     assert_eq!(session.last(), run.session.last());
     let mut snapshots = Snapshots::<Tally>::new(0);
     let (state, _) = session.seek(&mut snapshots, session.last()).unwrap();

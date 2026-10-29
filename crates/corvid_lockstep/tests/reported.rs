@@ -268,6 +268,7 @@ struct Nowhere;
 
 impl corvid_behavior::Level for Nowhere {
     type Error = Infallible;
+    type Edit = ();
     fn load(_name: &str) -> Result<Self, Infallible> {
         Ok(Self)
     }

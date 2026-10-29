@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use corvid_behavior::SaveSlot;
 use corvid_time::{Elapsed, TickSpan};
 
+use crate::Frames;
 use crate::app::App;
 use crate::game::{AuralizerConfig, BotConfig, ControllerConfig, Game, RenderConfig};
 use crate::retention::Retention;
@@ -109,10 +110,23 @@ where
     ///
     /// The directory and its two subdirectories are created by
     /// [`run`](Self::run); an existing directory is written into rather than
-    /// emptied. See the crate documentation for what a capture holds.
+    /// emptied. See the crate documentation for what a capture holds, and
+    /// [`capture_frames`](Self::capture_frames) for which frames it holds.
     #[must_use]
     pub fn capture(mut self, directory: impl Into<PathBuf>) -> Self {
         self.capture = Some(directory.into());
+        self
+    }
+
+    /// Which displayed frames a [`capture`](Self::capture) writes down.
+    ///
+    /// [`Frames::Every`] unless this says otherwise, and ignored by a run with
+    /// no capture. A test that looks only at the picture a run ends on says
+    /// [`Frames::Last`]: every other frame is still drawn, and none of them is
+    /// read back, encoded or written.
+    #[must_use]
+    pub fn capture_frames(mut self, frames: Frames) -> Self {
+        self.frames = frames;
         self
     }
 

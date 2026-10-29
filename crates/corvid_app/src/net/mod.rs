@@ -18,6 +18,8 @@ use corvid_replay::Session;
 use corvid_time::Tick;
 
 mod agree;
+mod join;
+mod keep;
 mod play;
 mod rescue;
 mod tell;
@@ -45,6 +47,9 @@ pub(crate) struct Link<S: State> {
     /// A field rather than a local so that the allocation is made once for the
     /// run rather than once per tick.
     inbox: Vec<Vec<u8>>,
+    /// What arrived for the lobby while this link had the socket: its frames,
+    /// and `None` for a peer lost. The runtime hands them on.
+    lobby: Vec<(PeerId, Option<Vec<u8>>)>,
     /// The last datagram this peer built, encoded. Also once per run.
     outbound: Vec<u8>,
     /// What the last tick did.
@@ -83,9 +88,44 @@ pub(crate) struct Link<S: State> {
     /// I decline" reached any threshold in microseconds of ordinary play and
     /// asked for a state transfer in the middle of a healthy session.
     heard_head: Tick,
+    /// Which machine plays which seat, as a lobby arranged it; [`None`] for
+    /// a link two command lines set up, where [`seat_of`] is the arithmetic.
+    seats: Option<BTreeMap<PeerId, PlayerId>>,
+    /// The seats this machine plays besides its own, with the game's bot.
+    bots: Vec<PlayerId>,
+    /// Seats this machine played and has handed to a machine that joined,
+    /// with the tick the joiner speaks from; kept until every seat is past
+    /// it, because until then somebody may still need the rows before it.
+    handing: BTreeMap<PlayerId, Tick>,
+    /// On a machine joining a session in progress, before its state
+    /// arrives: how many ticks it has waited.
+    waiting: Option<u32>,
+    /// On a machine that joined: the tick its seat is its own from.
+    starts: Option<Tick>,
+    /// Whether a machine that goes leaves its seat to this link's bot
+    /// rather than to nobody: a lobby's host's link (`keep.rs`).
+    keeps: bool,
+    /// The saves final ticks asked for, each with the tick that asked, for
+    /// the runtime to write (`keep.rs`).
+    saving: Vec<(Tick, corvid_behavior::SaveSlot)>,
 }
 
 impl<S: State> Link<S> {
+    /// The same link, with the seating a lobby arranged.
+    pub(crate) fn seated(mut self, seats: BTreeMap<PeerId, PlayerId>) -> Self {
+        self.seats = Some(seats);
+        self
+    }
+
+    /// The seat a peer plays: the lobby's seating if there was a lobby, else
+    /// [`seat_of`].
+    pub(crate) fn seat_of(&self, peer: PeerId) -> PlayerId {
+        self.seats
+            .as_ref()
+            .and_then(|seats| seats.get(&peer).copied())
+            .unwrap_or_else(|| seat_of(peer))
+    }
+
     /// A link over `transport`, playing `seat` of `session`.
     pub(crate) fn new(
         session: Session<S>,
@@ -98,13 +138,26 @@ impl<S: State> Link<S> {
             peer: Peer::new(session, seat, budget),
             transport,
             inbox: Vec::new(),
+            lobby: Vec::new(),
             outbound: Vec::new(),
             traffic: TickTraffic::default(),
             totals: Traffic::default(),
             departures: Departures::new(seats),
             mine: BTreeMap::new(),
             heard_head: Tick::ZERO,
+            seats: None,
+            bots: Vec::new(),
+            handing: BTreeMap::new(),
+            waiting: None,
+            starts: None,
+            keeps: false,
+            saving: Vec::new(),
         }
+    }
+
+    /// What arrived for the lobby since this was last asked.
+    pub(crate) fn lobby_frames(&mut self) -> Vec<(PeerId, Option<Vec<u8>>)> {
+        std::mem::take(&mut self.lobby)
     }
 
     /// The session being played, which the peer owns.
@@ -152,7 +205,10 @@ impl<S: State> Link<S> {
     /// [`Error::Halted`](crate::Error::Halted) for a tick outside the session
     /// the peer is holding.
     pub(crate) fn adopt(&mut self, at: Tick, state: S) -> Result<(), crate::Error> {
-        self.peer.adopt(at, state).map_err(halted)
+        // The session's own changes so far: a save resumed here was stepped
+        // to `at` on this machine, so its timeline is already this session's.
+        let changes = self.peer.session.levels.changes().clone();
+        self.peer.adopt(at, state, &changes).map_err(halted)
     }
 }
 
@@ -244,13 +300,20 @@ pub(crate) fn udp(
     let Some(other) = 1_u16.checked_sub(seat.0) else {
         return Err(crate::Error::Argument(crate::Argument::Pairing { seat }));
     };
-    let here = ("0.0.0.0", port);
-    let socket =
-        corvid_net_udp::UdpNet::bind(here, peer_of(seat)).map_err(|why| crate::Error::Socket {
+    // On the loopback address when the other machine is this one: two runs
+    // paired on one machine touch no network.
+    let ip = crate::lobby::here_for(peer).map_err(|why| crate::Error::Socket {
+        what: "reach",
+        address: peer.to_owned(),
+        why,
+    })?;
+    let socket = corvid_net_udp::UdpNet::bind((ip, port), peer_of(seat)).map_err(|why| {
+        crate::Error::Socket {
             what: "bind",
-            address: format!("0.0.0.0:{port}"),
+            address: format!("{ip}:{port}"),
             why,
-        })?;
+        }
+    })?;
     socket
         .connect(peer_of(PlayerId(other)), peer)
         .map_err(|why| crate::Error::Socket {

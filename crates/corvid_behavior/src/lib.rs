@@ -25,4 +25,4 @@ pub use extract::{Extract, Extracting};
 pub use level::Level;
 pub use loading::Loading;
 pub use player::{PlayerId, PlayerState, Presence, ProfileId};
-pub use state::{Data, State};
+pub use state::{Data, LevelEdit, State};

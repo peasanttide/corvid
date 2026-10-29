@@ -18,7 +18,10 @@ use crate::{
 mod advance;
 mod display;
 mod drive;
+mod net;
 mod plan;
+#[cfg(feature = "net")]
+mod relink;
 mod saves;
 
 pub(crate) use plan::Plan;
@@ -112,6 +115,13 @@ pub(crate) struct Runtime<G: Game, B> {
     progress: Option<Emitter<Progress>>,
     /// How far back the session is kept.
     horizon: Horizon<G::State>,
+    /// How far a linked session may run ahead, kept for a session a lobby
+    /// starts in the middle of the run.
+    #[cfg(feature = "net")]
+    budget: corvid_lockstep::Budget,
+    /// Where this machine stands on the network, and what its controller
+    /// asked of it.
+    net: net::Net<G::State>,
     /// What the player has set, as it stands. Compared against what the
     /// controller answers after every displayed frame, and written down when
     /// the two differ.
@@ -181,6 +191,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         settings: Settings<G>,
     ) -> Result<Self, Error> {
         let resumed = plan.resumed.take();
+        let plan_saves_dir = plan.saves.dir().display().to_string();
         let (at, state) = resumed
             .clone()
             .unwrap_or_else(|| (plan.session.first(), plan.session.opening.origin()));
@@ -248,6 +259,13 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             deadline: plan.deadline,
             progress: plan.progress,
             horizon,
+            #[cfg(feature = "net")]
+            budget: plan.budget,
+            net: {
+                let mut net = net::Net::new();
+                net.view.saves = Some(plan_saves_dir);
+                net
+            },
             settings,
         })
     }

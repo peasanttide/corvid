@@ -29,7 +29,7 @@ const ROOMY: usize = 1 << 24;
 
 #[test]
 fn seek_reaches_the_same_state_as_running_forward() {
-    let session = play(500);
+    let mut session = play(500);
     let (states, _) = forward(&session);
     let mut snapshots = Snapshots::new(ROOMY);
 
@@ -52,7 +52,7 @@ fn seek_reaches_the_same_state_as_running_forward() {
 
 #[test]
 fn seek_is_independent_of_the_snapshot_budget() {
-    let session = play(500);
+    let mut session = play(500);
     let (states, _) = forward(&session);
 
     // Room for exactly one snapshot, and room for a hundred. The two rings
@@ -94,7 +94,7 @@ fn a_seek_backwards_lands_on_a_snapshot_rather_than_the_opening() {
     // The reason the ring is worth having at all, stated as the thing a seek
     // does rather than as the shape of the ring -- `tests/snapshots.rs` reads
     // the shape.
-    let session = play(500);
+    let mut session = play(500);
     let mut snapshots = Snapshots::new(TIGHT);
     let mut state = session.opening.origin();
 

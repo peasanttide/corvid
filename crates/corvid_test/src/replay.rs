@@ -86,6 +86,10 @@ pub fn replays_to_itself<G: Game>(outcome: &Outcome<G>) -> Result<(), Failed> {
     let idle = <<G::State as State>::Action>::default();
     let mut roster: Vec<PlayerState<<G::State as State>::Action>> = Vec::new();
     let mut at = first;
+    // The level each tick is played on, and whether the tick before changed
+    // it: what the mark of the tick after covers.
+    let mut level = std::sync::Arc::clone(&opening.content);
+    let mut changed = false;
 
     loop {
         // The opening mark is not a state's digest -- it covers the level as
@@ -97,7 +101,7 @@ pub fn replays_to_itself<G: Game>(outcome: &Outcome<G>) -> Result<(), Failed> {
         let computed = if at == first {
             opening.mark()
         } else {
-            digest(&state)
+            corvid_replay::mark(&state, changed.then_some(&*level))
         };
         if live.marks.get(at) != Some(computed) {
             return Err(Diverged::walked(
@@ -117,13 +121,18 @@ pub fn replays_to_itself<G: Game>(outcome: &Outcome<G>) -> Result<(), Failed> {
         seat(opening, &session.log, at, &idle, &mut roster);
         // A `Discard`: this walk is re-simulating ticks that already ran, and
         // a request re-issued by a replay would save a file for a second time.
-        let next = <G::State>::clone(&state).tick(
-            &opening.content,
+        let stepped = corvid_replay::step(
+            <G::State>::clone(&state),
+            &level,
             &roster,
             &opening.rules,
             &mut Discard::new(),
         );
-        state = next;
+        changed = stepped.changed.is_some();
+        if let Some((next, _)) = stepped.changed {
+            level = next;
+        }
+        state = stepped.state;
         at = at.next();
     }
 
@@ -226,6 +235,7 @@ mod tests {
 
     impl corvid_behavior::Level for Nowhere {
         type Error = Infallible;
+        type Edit = ();
         fn load(_name: &str) -> Result<Self, Infallible> {
             Ok(Self)
         }

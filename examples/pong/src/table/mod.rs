@@ -213,6 +213,7 @@ pub enum Move {
 /// this game has.
 impl corvid::Level for Court {
     type Error = NoSuchLevel;
+    type Edit = ();
 
     fn load(name: &str) -> Result<Self, NoSuchLevel> {
         if name == COURT {

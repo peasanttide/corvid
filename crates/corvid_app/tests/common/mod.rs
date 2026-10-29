@@ -127,6 +127,10 @@ pub(crate) const HUM: SoundId = SoundId(1);
 /// What a bump rings.
 pub(crate) const CHIME: SoundId = SoundId(2);
 
+/// What the ear adds when it is told somebody is listening, so a capture can
+/// show which runs told it so.
+pub(crate) const LISTENED: SoundId = SoundId(3);
+
 /// Authored, immutable within a session.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(crate) struct Level {
@@ -299,6 +303,7 @@ fn requests(rules: &Rules, now: Tick, command: &mut impl Command) {
 /// without the fixture needing a file.
 impl corvid_behavior::Level for Level {
     type Error = Unreadable;
+    type Edit = ();
 
     fn load(name: &str) -> Result<Self, Unreadable> {
         if name == ELSEWHERE {

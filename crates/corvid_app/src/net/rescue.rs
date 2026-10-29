@@ -9,7 +9,7 @@ use corvid_behavior::{PlayerId, State};
 use corvid_net::{Channel, PeerId};
 use corvid_time::Tick;
 
-use crate::net::{Link, TickTraffic, Transfer, halted, seat_of};
+use crate::net::{Link, TickTraffic, Transfer, halted};
 
 impl<S: State> Link<S> {
     /// Answers a peer that says it cannot catch up, with a state.
@@ -48,6 +48,13 @@ impl<S: State> Link<S> {
             );
             return Ok(());
         }
+        // A machine joining a seat this one's bot plays: the seat changes
+        // hands at the first tick the bot has not spoken for, and this
+        // machine is waiting for nobody, so it does not reopen.
+        let handover = self.hand_over(seat);
+        if handover.is_some() {
+            self.admit(to, seat);
+        }
         let transfer = Transfer::<S> {
             at: self.peer.tick(),
             state: S::clone(self.peer.state()),
@@ -56,6 +63,8 @@ impl<S: State> Link<S> {
                 .all()
                 .map(|(seat, at)| (seat.0, at))
                 .collect(),
+            changes: self.peer.session.levels.changes().clone(),
+            handover,
         };
         let Ok(bytes) = corvid_wire::encode(&transfer) else {
             tracing::error!(
@@ -81,11 +90,16 @@ impl<S: State> Link<S> {
             return Ok(());
         }
 
+        if handover.is_some() {
+            return Ok(());
+        }
         // And this machine restarts there too, so that it stops waiting for the
         // rows the peer it just rescued is never going to send.
         let at = transfer.at;
         let state = S::clone(self.peer.state());
-        self.peer.resync(at, state).map_err(halted)?;
+        self.peer
+            .resync(at, state, &transfer.changes)
+            .map_err(halted)?;
         Ok(())
     }
 
@@ -117,7 +131,7 @@ impl<S: State> Link<S> {
         transferred
             .into_iter()
             .filter(|(from, _)| {
-                if seat_of(*from) == authority {
+                if self.seat_of(*from) == authority {
                     return true;
                 }
                 tracing::warn!(
@@ -162,6 +176,16 @@ impl<S: State> Link<S> {
         transfer: Transfer<S>,
         traffic: &mut TickTraffic,
     ) -> Result<(), crate::Error> {
+        // An answer to joining is for a machine still waiting to join; a
+        // second one, to a question asked twice, is a state this machine has
+        // already moved on from.
+        if transfer.handover.is_some() {
+            if !self.is_waiting() {
+                return Ok(());
+            }
+            self.waiting = None;
+            self.starts = transfer.handover;
+        }
         // The roster first. A machine that adopted the state and went on
         // simulating a seat everybody else had agreed was gone would diverge on
         // its very first tick -- so the departures are applied before the state
@@ -179,7 +203,7 @@ impl<S: State> Link<S> {
         }
 
         self.peer
-            .resync(transfer.at, transfer.state)
+            .resync(transfer.at, transfer.state, &transfer.changes)
             .map_err(halted)?;
         traffic.rescued = true;
         tracing::info!(

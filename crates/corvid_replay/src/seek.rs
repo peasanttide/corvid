@@ -1,8 +1,8 @@
 //! The one function save, load, replay, rollback and time-walk are all made of.
 
-use alloc::{sync::Arc, vec::Vec};
+use alloc::sync::Arc;
 
-use corvid_behavior::{Discard, PlayerId, PlayerState, State};
+use corvid_behavior::{Discard, State};
 use corvid_time::Tick;
 
 use crate::{Session, Snapshots};
@@ -108,7 +108,7 @@ impl<S: State> Session<S> {
     ///
     /// # What this does not reproduce
     ///
-    /// **Nothing about the inputs, which is why [`PlayerState`] has three fields.**
+    /// **Nothing about the inputs, which is why [`PlayerState`](corvid_behavior::PlayerState) has three fields.**
     /// Every one of them comes from the session: the seat is the roster's order,
     /// the [`Presence`](corvid_behavior::Presence) is
     /// [`Profile::presence_at`](crate::Profile::presence_at) of the roster's
@@ -116,7 +116,7 @@ impl<S: State> Session<S> {
     /// rules a head-and-hands pose out of that struct: the log records actions
     /// and not poses, so there would be nothing here to rebuild one from and
     /// every player would be handed the identity, which makes a game that read
-    /// it replay to a different state than it ran. [`PlayerState`] says so at
+    /// it replay to a different state than it ran. [`PlayerState`](corvid_behavior::PlayerState) says so at
     /// length.
     ///
     /// **A session whose parts were put out of step by hand.** The roster
@@ -135,7 +135,7 @@ impl<S: State> Session<S> {
     /// [`Unreachable::Before`] for a tick before the opening, and
     /// [`Unreachable::After`] for one the log has no rows to reach.
     pub fn seek(
-        &self,
+        &mut self,
         snapshots: &mut Snapshots<S>,
         to: Tick,
     ) -> Result<(Arc<S>, u64), Unreachable> {
@@ -154,53 +154,29 @@ impl<S: State> Session<S> {
             |(tick, state)| (tick, Arc::new(state.clone())),
         );
 
-        // The action a seat with no column gets, and the one every seat gets on
-        // a tick the log does not cover. It is a binding rather than a
-        // temporary because the roster below borrows it.
-        let idle = S::Action::default();
-        let mut roster: Vec<PlayerState<S::Action>> = Vec::new();
-
         while at < to {
-            roster.clear();
-            for (seat, profile) in self.opening.roster.iter().enumerate() {
-                // A roster longer than a `PlayerId` can address is refused by
-                // both `new` and `check`, so this stops rather than folding the
-                // seats past the end onto the last addressable one: a session
-                // that dodged both checks is missing those seats, and a second
-                // copy of seat 65 535's action would be a session that never
-                // happened rather than one that is short a player.
-                let Ok(seat) = u16::try_from(seat) else {
-                    break;
-                };
-                let id = PlayerId(seat);
-                let Some(presence) = profile.presence_at(at) else {
-                    continue;
-                };
-                roster.push(PlayerState {
-                    id,
-                    presence,
-                    action: self
-                        .log
-                        .get(at, id)
-                        .cloned()
-                        .unwrap_or_else(|| idle.clone()),
-                });
-            }
-
+            let players =
+                crate::step::players(&self.opening, at, |seat| self.log.get(at, seat).cloned());
+            let level = Arc::clone(self.levels.at(at));
             // Requests these ticks made are dropped: they were made when the
             // ticks first ran, and a replay that re-issued them would save a
-            // file, take a screenshot or quit for a second time.
-            let next = S::clone(&state).tick(
-                &self.opening.content,
-                &roster,
+            // file, take a screenshot or quit for a second time. What they did
+            // to the level is kept, in the timeline, as it was the first time.
+            let stepped = crate::step::step(
+                S::clone(&state),
+                &level,
+                &players,
                 &self.opening.rules,
                 &mut Discard::new(),
             );
+            if let Some((changed, changes)) = stepped.changed {
+                self.levels.push(at.next(), changed, changes);
+            }
             // The handle this replaces is the state one tick back. Nothing here
             // is the last holder of it as a rule -- the ring, a frame, or a
             // caller's rollback buffer may be holding the same value -- so the
             // assignment is a decrement and only sometimes a free.
-            state = Arc::new(next);
+            state = Arc::new(stepped.state);
             at = at.next();
             resimulated += 1;
         }

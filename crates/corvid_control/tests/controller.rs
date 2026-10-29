@@ -7,6 +7,7 @@
 //! The split between the one method that writes and the three that read.
 
 use core::{convert::Infallible, time::Duration};
+use std::sync::Arc;
 
 use corvid_behavior::{Level, PlayerId, State};
 use corvid_camera::Camera;
@@ -24,6 +25,7 @@ struct Field;
 
 impl Level for Field {
     type Error = Infallible;
+    type Edit = ();
     fn load(_: &str) -> Result<Self, Infallible> {
         Ok(Self)
     }
@@ -96,12 +98,14 @@ impl Controller<Walk> for Hands {
 fn frame(hands: &mut Hands, millis: u64) {
     hands.update(Updating {
         state: &Walk,
-        level: &Field,
+        level: &Arc::new(Field),
         input: &Input::new(&[]),
         loading: None,
         time: Time::default(),
         dt: Duration::from_millis(millis),
         seat: PlayerId(0),
+        net: &corvid_control::NetView::default(),
+        requests: &mut Vec::new(),
     });
 }
 
@@ -183,12 +187,14 @@ fn the_unit_controller_is_not_real_and_answers_the_idle_action() {
         &mut nobody,
         Updating {
             state: &Walk,
-            level: &Field,
+            level: &Arc::new(Field),
             input: &Input::new(&[]),
             loading: None,
             time: Time::default(),
             dt: Duration::from_millis(16),
             seat: PlayerId(0),
+            net: &corvid_control::NetView::default(),
+            requests: &mut Vec::new(),
         },
     );
 }

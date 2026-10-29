@@ -191,6 +191,14 @@ name = "departures"
 required-features = ["net"]
 
 [[test]]
+name = "lobby"
+required-features = ["net"]
+
+[[test]]
+name = "builds"
+required-features = ["net"]
+
+[[test]]
 name = "applied"
 required-features = ["render"]
 
@@ -232,6 +240,10 @@ required-features = ["render"]
 
 [[test]]
 name = "windowless"
+required-features = ["render"]
+
+[[test]]
+name = "selected"
 required-features = ["render"]
 
 [lints]

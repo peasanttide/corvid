@@ -146,7 +146,7 @@ fn adopting_a_transferred_state_resumes_the_session() {
     // `here` throws its own state away and takes the one that arrived over a
     // reliable channel.
     let (_, transferred) = there.restore(at).unwrap();
-    here.adopt(at, transferred.clone()).unwrap();
+    here.adopt(at, transferred.clone(), &Vec::new()).unwrap();
 
     assert_eq!(here.tick(), at);
     assert_eq!(digest(here.state()), digest(&transferred));

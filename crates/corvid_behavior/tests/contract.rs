@@ -36,6 +36,7 @@ enum NoField {
 /// A field is named by its width, so reading one is parsing its name.
 impl Level for Field {
     type Error = NoField;
+    type Edit = ();
 
     fn load(name: &str) -> Result<Self, NoField> {
         let Some(width) = name.strip_prefix("field-") else {
@@ -99,7 +100,7 @@ struct Recorder {
     loads: Vec<String>,
 }
 
-impl Command for Recorder {
+impl<E> Command<E> for Recorder {
     fn quit(&mut self, code: ExitCode) {
         self.quits.push(code);
     }
@@ -165,7 +166,7 @@ fn a_tick_advances_and_commands_through_the_sink() {
 fn a_sink_that_implements_nothing_compiles_and_drops_everything() {
     #[derive(Debug)]
     struct Deaf;
-    impl Command for Deaf {}
+    impl<E> Command<E> for Deaf {}
 
     let level = Field { width: 1 };
     let step = Step(true);
@@ -215,6 +216,7 @@ fn a_game_that_does_nothing_needs_no_function_at_all() {
 
     impl Level for Still {
         type Error = core::convert::Infallible;
+        type Edit = ();
         fn load(_: &str) -> Result<Self, Self::Error> {
             Ok(Self)
         }

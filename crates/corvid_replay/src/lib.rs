@@ -15,6 +15,8 @@ mod schema;
 mod seek;
 mod session;
 mod snapshots;
+mod step;
+mod timeline;
 mod trace;
 
 pub use log::{ActionLog, Refused};
@@ -25,4 +27,6 @@ pub use schema::Schema;
 pub use seek::Unreachable;
 pub use session::Session;
 pub use snapshots::Snapshots;
+pub use step::{Changed, Stepped, mark, players, step};
+pub use timeline::{Change, Changes, Timeline};
 pub use trace::HashTrace;

@@ -8,7 +8,7 @@ use corvid_behavior::{PlayerId, State};
 use corvid_net::PeerId;
 use corvid_time::Tick;
 
-use crate::net::{Control, Link, TickTraffic, halted, seat_of};
+use crate::net::{Control, Link, TickTraffic, halted};
 
 impl<S: State> Link<S> {
     /// Says what this machine thinks about who has left, folds in what everyone
@@ -37,7 +37,12 @@ impl<S: State> Link<S> {
         // beyond what every seat has spoken for -- so an agreement reached on it
         // costs no rollback.
         for peer in gone {
-            let seat = seat_of(*peer);
+            let seat = self.seat_of(*peer);
+            // A host keeps the seat for its bot, so it is not leaving.
+            if self.keeps() {
+                self.keep(seat);
+                continue;
+            }
             let at = self.peer.tick().saturating_add(lead);
             let mine = *self.mine.entry(seat).or_insert(at);
             self.say_all(Control::Departed {
@@ -59,6 +64,11 @@ impl<S: State> Link<S> {
                 }
             };
             let seat = PlayerId(seat);
+            // A seat this machine keeps for its bot has not gone, whatever
+            // another machine noticed.
+            if self.keeps() && self.bots.contains(&seat) {
+                continue;
+            }
             // Somebody else thinks a seat has gone and this machine has not
             // noticed yet. It says what it thinks as well, because a set stays
             // incomplete until it does -- and it is never earlier than what it

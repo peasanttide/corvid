@@ -17,6 +17,7 @@ use corvid_render::{Drawing, Opened, Render};
 # struct Field;
 # impl Level for Field {
 #     type Error = Infallible;
+#     type Edit = ();
 #     fn load(_: &str) -> Result<Self, Infallible> { Ok(Self) }
 # }
 # #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

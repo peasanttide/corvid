@@ -26,7 +26,8 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// elapsed time into a whole number of owed ticks, each of those runs, and
     /// then exactly one frame is displayed -- including on the iteration the run
     /// stops on, so the last tick a capture holds a state for is also the last
-    /// tick it holds a frame for.
+    /// tick it holds a frame for. That frame is the one flagged last, since the
+    /// ticks that said stop have run before it is displayed.
     pub(crate) fn drive(
         mut self,
         mut clock: Box<dyn Elapsed>,
@@ -62,6 +63,10 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         // rectangle a pointer was reported against is.
         self.read_devices();
 
+        // What the controller asked of the network last frame, and what the
+        // network said: a lobby that started is played linked from here on.
+        self.network()?;
+
         // The one place a pause happens, and it happens by not advancing the
         // step rather than by throwing the owed ticks away. `elapsed` is the
         // interval since the last reading and the accumulator never sees it, so
@@ -96,7 +101,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             self.spend();
         }
 
-        self.display(alpha, elapsed)?;
+        self.display(alpha, elapsed, stopped.is_some())?;
         Ok(stopped)
     }
 

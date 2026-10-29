@@ -61,7 +61,14 @@ impl<S: State> Link<S> {
     /// to both is the same one it has for a lost packet: predict, and correct
     /// when something arrives.
     pub(super) fn broadcast(&mut self, traffic: &mut TickTraffic) {
-        let datagram = self.peer.outgoing();
+        for seat in self.speaking() {
+            self.broadcast_for(seat, traffic);
+        }
+    }
+
+    /// One seat's datagram, to everyone.
+    fn broadcast_for(&mut self, seat: PlayerId, traffic: &mut TickTraffic) {
+        let datagram = self.peer.outgoing_for(seat);
         self.outbound.clear();
         match corvid_wire::encode(&datagram) {
             Ok(bytes) => self.outbound = bytes,

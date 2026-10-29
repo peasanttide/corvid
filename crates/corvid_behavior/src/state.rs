@@ -6,6 +6,10 @@ use core::hash::Hash;
 
 use crate::{Command, Level, PlayerState};
 
+/// The edit a state's level takes: what its ticks hand
+/// [`Command::edit`](crate::Command::edit).
+pub type LevelEdit<S> = <<S as State>::Level as Level>::Edit;
+
 /// What a value has to be to cross a wire, a disk or a digest.
 ///
 /// The blanket implementation means a type never names this trait. It is a
@@ -204,7 +208,7 @@ pub trait State: Default + Data {
         _level: &Self::Level,
         _players: &[PlayerState<Self::Action>],
         _rules: &Self::Rules,
-        _command: &mut impl Command,
+        _command: &mut impl Command<LevelEdit<Self>>,
     ) -> Self {
         self
     }

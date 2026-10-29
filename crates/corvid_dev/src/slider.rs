@@ -52,7 +52,7 @@ impl Slider {
     ///
     /// [`Unreachable`], for a tick the session's log does not cover.
     pub fn seek<S: State>(
-        session: &Session<S>,
+        session: &mut Session<S>,
         snapshots: &mut Snapshots<S>,
         to: Tick,
     ) -> Result<(Arc<S>, u64), Unreachable> {

@@ -11,7 +11,7 @@ use corvid_time::{Duration, Tick};
 use corvid_vector::FinePoint;
 use serde::{Deserialize, Serialize};
 
-use super::{Action, CHIME, HUM, Tally, VOICE, action};
+use super::{Action, CHIME, HUM, LISTENED, Tally, VOICE, action};
 
 /// The player: what a tick's action is, and the client-local pause.
 ///
@@ -163,6 +163,12 @@ impl Auralizer<Tally> for Ears {
         if self.count != self.was {
             let id = out.next_id(self.at);
             out.cue(Cue::new(id, CHIME).at(FinePoint::ZERO));
+        }
+
+        // What an ear playing a soundtrack of its own would start: only for
+        // a person, so never in a run a test makes.
+        if hearing.audible {
+            out.source(Source::new(SourceId(0), LISTENED));
         }
     }
 }

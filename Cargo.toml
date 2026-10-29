@@ -39,6 +39,10 @@ corvid_hash = { workspace = true, features = ["std"] }
 corvid_input = { workspace = true, features = ["platform"] }
 corvid_mesh = { workspace = true }
 corvid_mesh_render = { workspace = true, optional = true }
+# The soundtrack. Optional and off by default, for its weight -- the embedded
+# bank is most of it -- and for its licence, which `corvid_music`'s manifest
+# explains.
+corvid_music = { workspace = true, optional = true, features = ["unison"] }
 corvid_render = { workspace = true }
 corvid_replay = { workspace = true, features = ["std"] }
 corvid_rotation = { workspace = true, features = ["std"] }
@@ -81,7 +85,17 @@ render = ["corvid_app/render", "dep:corvid_mesh_render", "dep:corvid_ui_render"]
 # true of a run with a player in front of it. One name rather than four,
 # because the four describe the same machine. It implies `render`, because a
 # window is a surface and a surface is a device.
-window = ["render", "corvid_app/window", "dep:corvid_window"]
+window = [
+    "render",
+    "corvid_app/window",
+    "dep:corvid_window",
+    # The soundtrack's sound card, when a game asked for a soundtrack at all.
+    "corvid_music?/device",
+]
+# A soundtrack: MIDI files played through a SoundFont. Its own name rather than
+# a part of `window`, because it changes the licence a binary is distributed
+# under (`corvid_music`'s manifest says why) and costs megabytes of samples.
+music = ["dep:corvid_music"]
 
 # As every crate in `crates/*` carries.
 [package.metadata.docs.rs]
@@ -135,6 +149,7 @@ corvid_lockstep = { version = "0.1.2", path = "crates/corvid_lockstep" }
 corvid_macros = { version = "0.1.2", path = "crates/corvid_macros" }
 corvid_mesh = { version = "0.1.2", path = "crates/corvid_mesh" }
 corvid_mesh_render = { version = "0.1.2", path = "crates/corvid_mesh_render" }
+corvid_music = { version = "0.1.2", path = "crates/corvid_music" }
 corvid_name = { version = "0.1.2", path = "crates/corvid_name" }
 corvid_net = { version = "0.1.2", path = "crates/corvid_net" }
 corvid_net_mock = { version = "0.1.2", path = "crates/corvid_net_mock" }
@@ -155,6 +170,11 @@ corvid_color = { version = "0.1.2", path = "crates/corvid_color" }
 corvid_window = { version = "0.1.2", path = "crates/corvid_window" }
 corvid_wire = { version = "0.1.2", path = "crates/corvid_wire" }
 corvid_xr = { version = "0.1.2", path = "crates/corvid_xr" }
+
+# The sound card. Two members open one -- `corvid_audio` for the cues and
+# `corvid_music` for the soundtrack -- and both must agree on the version, or a
+# game with both links two platform audio stacks to talk to one device.
+cpal = "0.18"
 
 # `default-features = false` for the reason `serde` below has it: a crate here
 # starts `#![no_std]`, and the default feature is what pulls in the `std`

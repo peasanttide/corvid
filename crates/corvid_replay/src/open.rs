@@ -33,6 +33,7 @@ use crate::Opening;
 /// # struct Only;
 /// # impl Level for Only {
 /// #     type Error = core::convert::Infallible;
+/// #     type Edit = ();
 /// #     fn load(_: &str) -> Result<Self, Self::Error> { Ok(Self) }
 /// # }
 /// #

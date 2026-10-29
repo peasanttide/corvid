@@ -5,8 +5,10 @@
 // here is `corvid_input`'s `platform` feature, which reads a keyboard.
 
 mod controller;
+pub mod net;
 
 pub use controller::{Acting, Controller, Updating};
+pub use net::{NetRequest, NetView};
 
 // `update`'s last argument, and the only wall-clock quantity in the whole
 // contract. Named through `core` rather than `std` because they are the same

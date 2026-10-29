@@ -144,7 +144,7 @@ fn a_forgotten_session_saves_and_loads() {
         .expect("tick 25 is inside a session that reaches tick 60");
 
     let bytes = session.save().expect("every part of this session encodes");
-    let loaded = Session::<Counter>::load(&bytes, schema())
+    let mut loaded = Session::<Counter>::load(&bytes, schema())
         .expect("a session that forgot a prefix is one this build can replay");
     assert_eq!(loaded, session);
 

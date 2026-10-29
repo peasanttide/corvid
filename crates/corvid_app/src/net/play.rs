@@ -54,10 +54,11 @@ impl<S: State> Link<S> {
     /// rather than stalling it.
     ///
     /// The sink is the caller's, for the reason it is everywhere
-    /// else in this workspace -- a rollback simulates with it, so it cannot be
-    /// borrowed from the loop for the length of the call -- and the commands
-    /// come back because [`Peer::take_commands`](corvid_lockstep::Peer::take_commands)
-    /// holds what the ticks simulated for the first time asked for.
+    /// else in this workspace, and it hears what each tick asked for once the
+    /// tick is final, from its last simulation
+    /// ([`Peer::advance`](corvid_lockstep::Peer::advance)): a `lobby` another
+    /// machine asked for on a tick this one had predicted still brings this
+    /// one back to the lobby with it.
     ///
     /// # Errors
     ///
@@ -68,19 +69,39 @@ impl<S: State> Link<S> {
     /// it is counted and dropped, because a socket carries whatever is sent to
     /// it and a run that stopped on the first stray byte would be a run
     /// anybody could stop.
+    ///
+    /// `bots` are the game's bot's actions for the seats this machine plays
+    /// besides its own ([`bots`](Self::bots)); a machine that joined plays
+    /// nothing until its state arrives, and its own seat from the tick it was
+    /// handed.
     pub(crate) fn play(
         &mut self,
         action: Option<S::Action>,
-        command: &mut impl corvid_behavior::Command,
+        bots: Vec<(corvid_behavior::PlayerId, S::Action)>,
+        command: &mut impl corvid_behavior::Command<corvid_behavior::LevelEdit<S>>,
     ) -> Result<(), crate::Error> {
         let mut traffic = TickTraffic::default();
 
         // This machine's own intent, for `now + Budget::delay`. It goes in
         // before the sending below, so the datagram this tick puts on the wire
         // already carries it.
-        if let Some(action) = action {
+        if self.is_waiting() {
+            self.ask_to_join();
+            self.collect(&mut traffic)?;
+            self.traffic = traffic;
+            self.totals.fold(traffic);
+            return Ok(());
+        }
+        let at = self
+            .peer
+            .tick()
+            .saturating_add(u64::from(self.peer.budget.delay));
+        if let Some(action) = action
+            && self.speaks_at(at)
+        {
             self.peer.submit(action).map_err(refused)?;
         }
+        self.submit_bots(bots)?;
 
         self.collect(&mut traffic)?;
 
@@ -92,6 +113,7 @@ impl<S: State> Link<S> {
         self.broadcast(&mut traffic);
 
         traffic.advanced = self.peer.advance(command).map_err(halted)?;
+        self.note_saves();
 
         // Stalling is ordinary: a peer declines to simulate whenever it is
         // ahead of what every seat has confirmed, and the next datagram ends
@@ -127,6 +149,7 @@ impl<S: State> Link<S> {
         // than inside each other.
         self.inbox.clear();
         let inbox = &mut self.inbox;
+        let lobby = &mut self.lobby;
         // What this poll turned up that is not a datagram, acted on after the
         // borrow ends: the sink borrows the transport, and everything below
         // borrows the peer or sends something.
@@ -162,10 +185,13 @@ impl<S: State> Link<S> {
                     "a state transfer this session could not read; dropped",
                 ),
             },
-            // The other reliable channels carry an opening and a state
-            // transfer, and this runtime transfers no state -- so a frame on one
-            // is somebody else's traffic and saying so is all that can honestly
-            // be done with it.
+            // The lobby's talk goes on while its session is played: a guest
+            // leaving, a machine asking to join in progress.
+            Delivery::Stream {
+                channel: Channel::Opening,
+                bytes,
+            } => lobby.push((from, Some(bytes.to_vec()))),
+            // Nothing else rides a reliable channel this runtime reads.
             Delivery::Stream { channel, bytes } => tracing::debug!(
                 name: "corvid_app.unread_stream",
                 peer = %from,
@@ -181,6 +207,7 @@ impl<S: State> Link<S> {
             }
             Delivery::Lost { because } => {
                 gone.push(from);
+                lobby.push((from, None));
                 tracing::warn!(
                     name: "corvid_app.peer_lost",
                     peer = %from,
@@ -217,12 +244,21 @@ impl<S: State> Link<S> {
         if let Some(transfer) = self.solicited(transferred) {
             self.rescue(transfer, traffic)?;
         }
+        self.fold(traffic)
+    }
 
+    /// Folds in every datagram [`collect`](Self::collect) copied out.
+    fn fold(&mut self, traffic: &mut TickTraffic) -> Result<(), crate::Error> {
         // Out of `self` for the loop, and back at the end: folding a datagram
         // in takes `&mut self.peer`, and the buffer it is being read out of is
         // a field of the same struct. What the round trip preserves is the
         // outer allocation, which is the one made once per run.
         let mut inbox = std::mem::take(&mut self.inbox);
+        // A machine waiting to join holds the opening, and a window of rows
+        // from the middle of the session says nothing it could use.
+        if self.is_waiting() {
+            inbox.clear();
+        }
         for bytes in &inbox {
             let datagram: Datagram<S::Action> = match corvid_wire::decode(bytes) {
                 Ok(datagram) => datagram,
@@ -240,6 +276,11 @@ impl<S: State> Link<S> {
                     continue;
                 }
             };
+            // Rows for a seat this machine speaks for -- a kept seat whose
+            // machine had some in flight as it went -- are not news.
+            if !self.hears_for(datagram.seat) {
+                continue;
+            }
             let rolled = self.peer.receive(&datagram).map_err(halted)?;
             traffic.heard = traffic.heard.saturating_add(1);
             let newest = datagram.head();

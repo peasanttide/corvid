@@ -1,5 +1,7 @@
 //! State into whatever a device wants.
 
+use alloc::sync::Arc;
+
 use corvid_time::Time;
 
 use crate::{PlayerId, State};
@@ -19,8 +21,20 @@ use crate::{PlayerId, State};
 pub struct Extracting<'a, S: State> {
     /// The state to read.
     pub state: &'a S,
-    /// The level it is being played on.
-    pub level: &'a S::Level,
+    /// The level it is being played on, by the handle the session holds it
+    /// by.
+    ///
+    /// The handle rather than the level, because a device builds from the
+    /// level -- meshes, an icon atlas -- and has to know when to build again,
+    /// which is every frame's question. The session makes a new handle only
+    /// when a tick changed the level, so a device that keeps the one it built
+    /// from answers with [`Arc::ptr_eq`]: exact while it holds it, since an
+    /// address held cannot be handed out again, and free where hashing the
+    /// level to ask cost more than the frame. A rollback that plays an edit
+    /// again makes an equal level under a new handle, which builds once more
+    /// than it needed to. Nothing a tick reads is a handle (see
+    /// [`State::tick`](crate::State::tick)); a device is not a tick.
+    pub level: &'a Arc<S::Level>,
     /// Where the session is.
     pub time: Time,
     /// Which seat this machine is drawing and sounding for.
@@ -52,9 +66,11 @@ impl<S: State> Copy for Extracting<'_, S> {}
 ///
 /// At most once per **displayed frame**, for the settled newest state.
 ///
-/// - A frame that saw no tick extracts nothing. A fifteen-hertz simulation on a
-///   hundred-and-forty-four-hertz display leaves nine frames in ten with no new
-///   state to take anything out of.
+/// - A frame that saw no tick extracts the same state again. A fifteen-hertz
+///   simulation on a hundred-and-forty-four-hertz display leaves nine frames in
+///   ten with no new state to take anything out of, so what an extractor does
+///   every call has to be cheap, and what it does per new state or per new
+///   level it does when the tick or the level's handle moved.
 /// - A frame that saw eight -- a rollback re-simulating, or a catch-up after a
 ///   load stalled -- extracts **once**, for the newest state once the replaying
 ///   has finished. Replayed ticks are never extracted individually.

@@ -68,6 +68,8 @@ pub(crate) struct Screen<G> {
     game: core::marker::PhantomData<fn() -> G>,
     /// Where to write, if anywhere.
     capture: Option<Capture>,
+    /// Whether a person sits at it: a window, not an offscreen target.
+    watched: bool,
     /// How many frames have arrived.
     frames: u64,
     /// The sound card, if there is somebody in front of the run to hear it and
@@ -151,6 +153,7 @@ impl<G> Screen<G> {
             renderer,
             game: core::marker::PhantomData,
             capture,
+            watched: heard,
             frames: 0,
             audio: heard.then(open_audio).flatten(),
         }
@@ -169,6 +172,10 @@ impl<G> Screen<G> {
 }
 
 impl<G: Game> Backend<G> for Screen<G> {
+    fn watched(&self) -> bool {
+        self.watched
+    }
+
     /// The renderer's target, which a windowed run's
     /// [`resize`](Self::resize) keeps in step with the window and an offscreen
     /// run fixed when it opened.
@@ -190,6 +197,7 @@ impl<G: Game> Backend<G> for Screen<G> {
             time,
             alpha,
             audio,
+            last,
         } = frame;
         // Heard before it is drawn, because the mixer runs on a thread the
         // operating system owns and the sooner a note is queued the sooner it
@@ -243,6 +251,13 @@ impl<G: Game> Backend<G> for Screen<G> {
         let Some(capture) = self.capture.as_ref() else {
             return Ok(());
         };
+        // Asked before the read-back rather than before the write: the
+        // read-back waits on the device and the encode after it is the cost a
+        // frame the capture does not keep is spared. The frame above was still
+        // drawn and submitted, so what the device did is the same either way.
+        if !capture.wants(at, last) {
+            return Ok(());
+        }
         // `read_back` answers `NotOffscreen` on a windowed run, which is not a
         // failure: a presented frame belongs to the compositor, and the rest of
         // the capture is still written.

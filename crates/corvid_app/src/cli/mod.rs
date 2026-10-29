@@ -19,5 +19,5 @@ mod watch;
 
 pub use argument::Argument;
 pub use arguments::{Arguments, Load};
-pub use entry::main;
+pub use entry::{main, main_with};
 pub use watch::watch;

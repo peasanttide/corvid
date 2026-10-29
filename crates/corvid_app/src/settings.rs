@@ -137,6 +137,14 @@ impl<G: Game> Settings<G> {
     /// whose value is the wrong shape. The type's own documentation argues the
     /// split.
     ///
+    /// The **controller's section** is the one exception to that refusal: it
+    /// is the game's own type, and the one a game changes as it grows, so a
+    /// file written by another build of the game -- an older one, or a newer
+    /// one the player went back from -- can hold a `controls` this build cannot
+    /// read. That section is then taken at its default, with a warning, and
+    /// the rest of the file as written: a run that refused to start over a
+    /// mute switch would be worse than one that forgot it.
+    ///
     /// # Errors
     ///
     /// [`Error::Read`](crate::Error::Read) if the file is there and could not be read, and
@@ -156,7 +164,31 @@ impl<G: Game> Settings<G> {
             }
             Err(why) => return Err(Error::Read { path, why }),
         };
-        serde_json::from_str(&text).map_err(|why| Error::Setting { path, why })
+        let mut document: serde_json::Value =
+            serde_json::from_str(&text).map_err(|why| Error::Setting {
+                path: path.clone(),
+                why,
+            })?;
+        let controls = document
+            .as_object_mut()
+            .and_then(|object| object.remove("controls"));
+        let mut settings: Self =
+            serde_json::from_value(document).map_err(|why| Error::Setting {
+                path: path.clone(),
+                why,
+            })?;
+        if let Some(controls) = controls {
+            match serde_json::from_value(controls) {
+                Ok(controls) => settings.controls = controls,
+                Err(why) => tracing::warn!(
+                    name: "corvid_app.controls_reset",
+                    %why,
+                    path = %path.display(),
+                    "the controller's settings could not be read; it starts from its defaults",
+                ),
+            }
+        }
+        Ok(settings)
     }
 
     /// Writes the file, creating the directory above it.

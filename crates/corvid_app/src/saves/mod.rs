@@ -163,6 +163,11 @@ impl Saves {
         }
     }
 
+    /// The directory the slot files sit in, `<slot>.corvid` each.
+    pub(crate) fn dir(&self) -> &Path {
+        &self.root
+    }
+
     /// Where slot `slot` is written.
     fn path(&self, slot: SaveSlot) -> PathBuf {
         self.root.join(format!("{}.{EXTENSION}", slot.0))
@@ -311,7 +316,7 @@ struct Written {
 /// divergence noticed by a peer an hour later.
 fn open<S: State>(bytes: &[u8], schema: Digest) -> Result<Resumed<S>, NotASave> {
     let written: Written = corvid_wire::decode(bytes).map_err(NotASave::Bytes)?;
-    let session = Session::<S>::load(&written.session, schema).map_err(NotASave::Session)?;
+    let mut session = Session::<S>::load(&written.session, schema).map_err(NotASave::Session)?;
     let recorded: S = corvid_wire::decode(&written.state).map_err(NotASave::Bytes)?;
 
     // A budget of zero, because this ring is thrown away on the next line: the
@@ -349,7 +354,7 @@ pub(crate) fn recorded<S: State>(path: &Path, schema: Digest) -> Result<Resumed<
         why,
     })?;
     let read = || {
-        let session = Session::<S>::load(&bytes, schema).map_err(NotASave::Session)?;
+        let mut session = Session::<S>::load(&bytes, schema).map_err(NotASave::Session)?;
         let mut snapshots = Snapshots::<S>::new(0);
         let (state, _scratch) = session
             .seek(&mut snapshots, session.last())

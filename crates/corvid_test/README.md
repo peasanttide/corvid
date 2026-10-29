@@ -24,6 +24,7 @@ is four calls, and `examples/headless` makes all four.
 # struct Cliff;
 # impl Level for Cliff {
 #     type Error = Infallible;
+#     type Edit = ();
 #     fn load(_: &str) -> Result<Self, Infallible> { Ok(Self) }
 # }
 #

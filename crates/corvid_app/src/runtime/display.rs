@@ -27,7 +27,14 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
     /// `dt` is the same interval the [`Step`] was advanced by, which is the
     /// only wall-clock quantity either half of a game ever sees and is the one
     /// [`look`](corvid_control::Controller::look) is specified to take.
-    pub(super) fn display(&mut self, alpha: Factor16, dt: Duration) -> Result<(), Error> {
+    /// `last` is whether the run stops after this frame, which a capture keeping
+    /// only the frame a run ends on is told through the [`Frame`].
+    pub(super) fn display(
+        &mut self,
+        alpha: Factor16,
+        dt: Duration,
+        last: bool,
+    ) -> Result<(), Error> {
         // Three views of one instant, so one frame is built and cloned twice
         // rather than three being built from the same fields. A clone is four
         // atomic increments and no copy of a state, which is what a `Frame` of
@@ -37,7 +44,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         // call and the three calls below are free to take `&mut self` in
         // whatever order they like.
         let time = self.now();
-        let level = Arc::clone(&self.play.session().opening.content);
+        let level = Arc::clone(self.play.session().levels.at(self.at));
         self.controller.update(Updating {
             state: &self.current,
             level: &level,
@@ -46,6 +53,8 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
             time,
             dt,
             seat: self.seating.watched(),
+            net: &self.net.view,
+            requests: &mut self.net.requests,
         });
         self.persist_settings();
         let camera = self.controller.look();
@@ -54,10 +63,10 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         // never once per replayed tick. The renderer holds the pair and the
         // shader lerps between them with `alpha`.
         let state = Arc::clone(&self.current);
-        let level = Arc::clone(&self.play.session().opening.content);
+        let level = Arc::clone(self.play.session().levels.at(self.at));
         let extracting = Extracting {
             state: &*state,
-            level: &*level,
+            level: &level,
             time,
             player: Some(self.seating.watched()),
         };
@@ -67,7 +76,11 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
         self.ear.extract(extracting);
 
         self.audio.clear();
-        self.ear.hear(&mut self.audio, Hearing::new(camera, time));
+        // A window is the one run with somebody to hear it; an ear that plays
+        // a soundtrack of its own reads this rather than waking a device in a
+        // test.
+        let hearing = Hearing::new(camera, time).audible(self.backend.watched());
+        self.ear.hear(&mut self.audio, hearing);
         // Nothing about the two states crosses this seam. The renderer already
         // holds whatever `extract` put in it; what goes over is the weight
         // between them.
@@ -79,6 +92,7 @@ impl<G: Game, B: Backend<G>> Runtime<G, B> {
                 time,
                 alpha,
                 audio: &self.audio,
+                last,
             },
             self.graphics.as_mut(),
             self.controller.view(),

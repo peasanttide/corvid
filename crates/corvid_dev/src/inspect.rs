@@ -17,6 +17,7 @@ use core::fmt;
 ///
 /// impl corvid_behavior::Level for Nowhere {
 ///     type Error = core::convert::Infallible;
+///     type Edit = ();
 ///     fn load(_: &str) -> Result<Self, Self::Error> { Ok(Self) }
 /// }
 ///

@@ -267,7 +267,7 @@ fn the_recorded_rows_still_read_back_as_a_playable_session() {
     // still seeks. `check` compares the value; this compares what the value
     // does.
     let bytes = corvid_wire::golden::unhex(GOLDEN_SESSION[0].1).unwrap();
-    let session: Session<Counter> = corvid_wire::decode(&bytes).unwrap();
+    let mut session: Session<Counter> = corvid_wire::decode(&bytes).unwrap();
     assert_eq!(session.first(), Tick(4));
     assert_eq!(session.last(), Tick(6));
 

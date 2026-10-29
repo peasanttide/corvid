@@ -274,8 +274,10 @@ pub(crate) fn golden_opening() -> Opening<Counter> {
 
 /// The whole session the two golden tables are recorded over.
 pub(crate) fn golden_session() -> Session<Counter> {
+    let opening = golden_opening();
     Session {
-        opening: golden_opening(),
+        levels: corvid_replay::Timeline::new(std::sync::Arc::clone(&opening.content)),
+        opening,
         log: small_log(),
         marks: golden_trace(),
     }

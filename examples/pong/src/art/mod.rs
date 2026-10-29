@@ -197,7 +197,7 @@ impl Extract<Table> for Graphics {
         if extracting.state.now != self.current.now {
             self.previous = core::mem::replace(&mut self.current, extracting.state.clone());
         }
-        self.court = extracting.level.clone();
+        self.court = Court::clone(extracting.level);
 
         let dt = extracting.time.elapsed.saturating_sub(self.seen);
         self.seen = extracting.time.elapsed;
